@@ -7,6 +7,7 @@
 #include "display_driver.h"
 #include "fallback_icons.h"
 #include "vellum_logo.h"
+#include "qrcodegen.h"
 
 #include <string.h>
 #include "esp_log.h"
@@ -46,11 +47,73 @@ void display_draw_qr_code(const char *data)
 {
     if (!s_drv) return;
     ESP_LOGI(TAG, "QR code: %s", data);
-    /* TODO: Generate QR code bitmap with qrcodegen library */
-    /* For now, show small Vellum logo in bottom-left */
-    int ox = 8;
-    int oy = s_drv->height - LOGO_SMALL_HEIGHT - 8;
-    s_drv->draw_bitmap(logo_small, LOGO_SMALL_WIDTH, LOGO_SMALL_HEIGHT, ox, oy);
+
+    /* Generate QR code */
+    uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(10)];
+    uint8_t tmp[qrcodegen_BUFFER_LEN_FOR_VERSION(10)];
+    bool ok = qrcodegen_encodeText(data, tmp, qr,
+        qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN, 10,
+        qrcodegen_Mask_AUTO, true);
+
+    if (!ok) {
+        ESP_LOGW(TAG, "QR generation failed");
+        display_draw_fallback_icon(ICON_ERROR);
+        return;
+    }
+
+    int qr_size = qrcodegen_getSize(qr);
+    /* Scale QR to fit display height with margin */
+    int margin = 40;
+    int max_dim = s_drv->height - margin * 2;
+    int scale = max_dim / qr_size;
+    if (scale < 1) scale = 1;
+    int qr_px = qr_size * scale;
+
+    /* Allocate framebuffer — palette index per pixel */
+    size_t fb_len = (size_t)s_drv->width * s_drv->height;
+    uint8_t *fb = malloc(fb_len);
+    if (!fb) return;
+    memset(fb, 1, fb_len); /* White background */
+
+    /* Center QR code */
+    int qr_ox = (s_drv->width - qr_px) / 2;
+    int qr_oy = (s_drv->height - qr_px) / 2;
+
+    for (int y = 0; y < qr_size; y++) {
+        for (int x = 0; x < qr_size; x++) {
+            if (qrcodegen_getModule(qr, x, y)) {
+                for (int sy = 0; sy < scale; sy++) {
+                    for (int sx = 0; sx < scale; sx++) {
+                        int px = qr_ox + x * scale + sx;
+                        int py = qr_oy + y * scale + sy;
+                        if (px >= 0 && px < s_drv->width && py >= 0 && py < s_drv->height) {
+                            fb[py * s_drv->width + px] = 0; /* Black */
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /* Draw small Vellum logo in bottom-left corner */
+    int logo_ox = 8;
+    int logo_oy = s_drv->height - LOGO_SMALL_HEIGHT - 8;
+    for (int y = 0; y < LOGO_SMALL_HEIGHT; y++) {
+        for (int x = 0; x < LOGO_SMALL_WIDTH; x++) {
+            int src_byte = y * (LOGO_SMALL_WIDTH / 8) + (x / 8);
+            int src_bit = 7 - (x % 8);
+            if (logo_small[src_byte] & (1 << src_bit)) {
+                int dx = logo_ox + x;
+                int dy = logo_oy + y;
+                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height) {
+                    fb[dy * s_drv->width + dx] = 0;
+                }
+            }
+        }
+    }
+
+    s_drv->draw(fb, fb_len);
+    free(fb);
 }
 
 void display_show_loading(void)

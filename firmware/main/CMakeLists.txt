@@ -10,4 +10,6 @@ idf_component_register(
         sleep_manager
         cJSON
         mbedtls
+        esp_https_ota
+        esp_adc
 )

@@ -36,6 +36,8 @@
 #include "vellum_display.h"
 #include "buttons.h"
 #include "sleep_manager.h"
+#include "esp_ota_ops.h"
+#include "esp_https_ota.h"
 
 static const char *TAG = "vellum_main";
 
@@ -443,6 +445,52 @@ static bool handle_button_action(button_action_t action)
  * app_main — ESP-IDF entry point
  * ----------------------------------------------------------------------- */
 
+/* -----------------------------------------------------------------------
+ * OTA firmware update
+ * ----------------------------------------------------------------------- */
+
+static void check_ota_update(void)
+{
+    ESP_LOGI(TAG, "Checking for OTA update via /config");
+    vellum_http_response_t resp = {0};
+    esp_err_t err = http_client_config(&resp);
+
+    if (err != ESP_OK || resp.status_code != 200 || !resp.body) {
+        http_client_free_response(&resp);
+        return;
+    }
+
+    /* Parse config response for otaUrl */
+    cJSON *root = cJSON_ParseWithLength(resp.body, resp.body_len);
+    if (!root) { http_client_free_response(&resp); return; }
+
+    cJSON *data = cJSON_GetObjectItemCaseSensitive(root, "data");
+    cJSON *ota_url = data ? cJSON_GetObjectItemCaseSensitive(data, "otaUrl") : NULL;
+
+    if (cJSON_IsString(ota_url) && ota_url->valuestring && strlen(ota_url->valuestring) > 0) {
+        ESP_LOGI(TAG, "OTA update available: %s", ota_url->valuestring);
+        display_draw_fallback_icon(ICON_CLOUD_DISCONNECT); /* Show update icon */
+
+        esp_http_client_config_t ota_config = {
+            .url = ota_url->valuestring,
+            .timeout_ms = 60000,
+            .crt_bundle_attach = esp_crt_bundle_attach,
+        };
+        esp_err_t ota_err = esp_https_ota(&ota_config);
+        if (ota_err == ESP_OK) {
+            ESP_LOGI(TAG, "OTA success — restarting");
+            cJSON_Delete(root);
+            http_client_free_response(&resp);
+            esp_restart();
+        } else {
+            ESP_LOGW(TAG, "OTA failed: %s", esp_err_to_name(ota_err));
+        }
+    }
+
+    cJSON_Delete(root);
+    http_client_free_response(&resp);
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "===== Vellum Firmware v%s =====", CONFIG_VELLUM_FIRMWARE_VERSION);
@@ -543,7 +591,11 @@ void app_main(void)
     /* 7. Request render and draw to display */
     uint32_t sleep_duration = perform_render();
 
-    /* 8. Enter deep sleep */
+    /* 8. Check for OTA update */
+    check_ota_update();
+    led_off();
+
+    /* 9. Enter deep sleep */
     ESP_LOGI(TAG, "Sleeping for %lu seconds", (unsigned long)sleep_duration);
     display_sleep();
     sleep_manager_enter(sleep_duration, buttons_get_wake_mask());
