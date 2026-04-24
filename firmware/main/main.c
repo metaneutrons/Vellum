@@ -36,6 +36,7 @@
 #include "vellum_display.h"
 #include "buttons.h"
 #include "sleep_manager.h"
+#include "mdns.h"
 #include "esp_ota_ops.h"
 #include "esp_https_ota.h"
 
@@ -551,9 +552,27 @@ void app_main(void)
 
     char server_url[NVS_MAX_URL_LEN];
     if (nvs_manager_get_server_url(server_url, sizeof(server_url)) != ESP_OK) {
-        ESP_LOGW(TAG, "No server URL in NVS, using default");
-        strncpy(server_url, CONFIG_VELLUM_DEFAULT_SERVER_URL, sizeof(server_url) - 1);
-        server_url[sizeof(server_url) - 1] = '\0';
+        /* Try mDNS auto-discovery */
+        ESP_LOGI(TAG, "No server URL — trying mDNS discovery...");
+        mdns_init();
+        mdns_result_t *results = NULL;
+        esp_err_t mdns_err = mdns_query_ptr("_vellum", "_tcp", 5000, 1, &results);
+        if (mdns_err == ESP_OK && results) {
+            /* Resolve the first result */
+            mdns_result_t *r = results;
+            if (r->addr && r->port > 0) {
+                snprintf(server_url, sizeof(server_url), "http://" IPSTR ":%d",
+                         IP2STR(&r->addr->addr.u_addr.ip4), r->port);
+                ESP_LOGI(TAG, "mDNS found server: %s", server_url);
+                nvs_manager_store_server_url(server_url);
+            }
+            mdns_query_results_free(results);
+        } else {
+            ESP_LOGW(TAG, "mDNS discovery failed, using default");
+            strncpy(server_url, CONFIG_VELLUM_DEFAULT_SERVER_URL, sizeof(server_url) - 1);
+            server_url[sizeof(server_url) - 1] = '\0';
+        }
+        mdns_free();
     }
 
     http_client_init(server_url, mac);

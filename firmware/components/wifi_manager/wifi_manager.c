@@ -35,33 +35,65 @@ static const char PORTAL_HTML[] =
     "<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
     "<title>Vellum Setup</title>"
     "<style>"
-    "body{font-family:-apple-system,sans-serif;max-width:400px;margin:40px auto;padding:0 20px;background:#f5f5f5}"
-    "h1{font-size:1.4em;color:#333}"
-    "form{background:#fff;padding:24px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)}"
-    "label{display:block;margin-top:16px;font-size:.9em;color:#555}"
-    "input{width:100%;padding:10px;margin-top:4px;border:1px solid #ddd;border-radius:4px;box-sizing:border-box;font-size:1em}"
-    "button{width:100%;margin-top:20px;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:4px;font-size:1em;cursor:pointer}"
+    "*{margin:0;padding:0;box-sizing:border-box}"
+    "body{font-family:-apple-system,system-ui,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center}"
+    ".card{width:100%;max-width:380px;padding:32px}"
+    ".logo{text-align:center;margin-bottom:24px;font-size:28px;font-weight:700;letter-spacing:-0.5px}"
+    ".logo span{color:#3b82f6}"
+    "h2{font-size:16px;color:#94a3b8;font-weight:400;text-align:center;margin-bottom:24px}"
+    ".form-card{background:#1c1f2e;border:1px solid #2a2d3e;border-radius:12px;overflow:hidden}"
+    ".field{padding:14px 18px;border-bottom:1px solid #2a2d3e}"
+    ".field:last-child{border-bottom:none}"
+    ".field label{display:block;font-size:11px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}"
+    ".field input{width:100%;background:transparent;border:none;color:#e2e8f0;font-size:15px;outline:none}"
+    ".field input::placeholder{color:#374151}"
+    ".hint{font-size:10px;color:#475569;margin-top:4px}"
+    "button{width:100%;margin-top:16px;padding:12px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:500;cursor:pointer}"
+    "button:hover{background:#2563eb}"
+    ".footer{text-align:center;margin-top:20px;font-size:11px;color:#1e293b}"
     "</style></head><body>"
-    "<h1>Vellum Wi-Fi Setup</h1>"
+    "<div class=\"card\">"
+    "<div class=\"logo\">V<span>ellum</span></div>"
+    "<h2>Connect your display to WiFi</h2>"
     "<form method=\"POST\" action=\"/save\">"
-    "<label for=\"ssid\">Network Name (SSID)</label>"
-    "<input type=\"text\" id=\"ssid\" name=\"ssid\" maxlength=\"32\" required autofocus>"
-    "<label for=\"pass\">Password</label>"
-    "<input type=\"password\" id=\"pass\" name=\"pass\" maxlength=\"64\">"
+    "<div class=\"form-card\">"
+    "<div class=\"field\"><label>WiFi Network</label>"
+    "<input type=\"text\" name=\"ssid\" maxlength=\"32\" required autofocus placeholder=\"Network name\"></div>"
+    "<div class=\"field\"><label>Password</label>"
+    "<input type=\"password\" name=\"pass\" maxlength=\"64\" placeholder=\"WiFi password\"></div>"
+    "<div class=\"field\"><label>Server URL</label>"
+    "<input type=\"text\" name=\"server\" maxlength=\"200\" placeholder=\"Leave empty for auto-discovery\">"
+    "<div class=\"hint\">Optional. The display will find the server automatically via mDNS.</div></div>"
+    "</div>"
     "<button type=\"submit\">Connect</button>"
-    "</form></body></html>";
+    "</form>"
+    "<div class=\"footer\">E-Ink Display Management</div>"
+    "</div></body></html>";
 
 static const char PORTAL_SUCCESS_HTML[] =
     "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-    "<title>Vellum</title><style>body{font-family:-apple-system,sans-serif;max-width:400px;margin:40px auto;padding:0 20px;text-align:center}"
-    "h1{color:#16a34a}</style></head><body>"
-    "<h1>Credentials Saved</h1><p>The device will now restart and connect to your network.</p></body></html>";
+    "<title>Vellum</title><style>"
+    "body{font-family:-apple-system,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}"
+    ".ok{font-size:48px;margin-bottom:16px}"
+    "h1{color:#22c55e;font-size:20px;margin-bottom:8px}"
+    "p{color:#94a3b8;font-size:14px}"
+    "</style></head><body><div>"
+    "<div class=\"ok\">\xe2\x9c\x93</div>"
+    "<h1>Connected</h1>"
+    "<p>The display will restart and connect to your network.</p>"
+    "</div></body></html>";
 
 static const char PORTAL_ERROR_HTML[] =
     "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-    "<title>Vellum</title><style>body{font-family:-apple-system,sans-serif;max-width:400px;margin:40px auto;padding:0 20px}"
-    ".error{color:#dc2626}</style></head><body>"
-    "<h1 class=\"error\">Invalid Input</h1><p>SSID is required. <a href=\"/\">Try again</a>.</p></body></html>";
+    "<title>Vellum</title><style>"
+    "body{font-family:-apple-system,sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}"
+    "h1{color:#ef4444;font-size:20px;margin-bottom:8px}"
+    "p{color:#94a3b8;font-size:14px}"
+    "a{color:#3b82f6}"
+    "</style></head><body><div>"
+    "<h1>Invalid Input</h1>"
+    "<p>Network name is required. <a href=\"/\">Try again</a>.</p>"
+    "</div></body></html>";
 
 /* ---- Wi-Fi event handler ----------------------------------------------- */
 
@@ -145,9 +177,11 @@ static esp_err_t portal_save_handler(httpd_req_t *req)
 
     char ssid[NVS_MAX_SSID_LEN] = {0};
     char pass[NVS_MAX_PASS_LEN] = {0};
+    char server[NVS_MAX_URL_LEN] = {0};
 
     parse_form_field(buf, "ssid", ssid, sizeof(ssid));
     parse_form_field(buf, "pass", pass, sizeof(pass));
+    parse_form_field(buf, "server", server, sizeof(server));
 
     if (strlen(ssid) == 0) {
         httpd_resp_set_status(req, "400 Bad Request");
@@ -159,6 +193,12 @@ static esp_err_t portal_save_handler(httpd_req_t *req)
     if (err != ESP_OK) {
         httpd_resp_set_status(req, "500 Internal Server Error");
         return httpd_resp_send(req, "<h1>Storage error</h1>", HTTPD_RESP_USE_STRLEN);
+    }
+
+    /* Store server URL if provided */
+    if (strlen(server) > 0) {
+        nvs_manager_store_server_url(server);
+        ESP_LOGI(TAG, "Server URL stored: %s", server);
     }
 
     httpd_resp_set_type(req, "text/html");

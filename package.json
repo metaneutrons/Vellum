@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "dev:mdns": "node scripts/mdns-announce.mjs & next dev",
+    "mdns": "node scripts/mdns-announce.mjs"
   },
   "dependencies": {
     "@azure/identity": "4.13.1",
@@ -19,6 +21,7 @@
     "@tailwindcss/postcss": "4.2.4",
     "date-fns": "4.1.0",
     "drizzle-orm": "0.45.2",
+    "multicast-dns": "^7.2.5",
     "next": "16.2.4",
     "pg": "8.20.0",
     "postcss": "8.5.10",
