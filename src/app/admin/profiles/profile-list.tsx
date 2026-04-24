@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
+import { ScheduleTimeline } from "@/components/schedule-timeline";
 
 interface Profile { id: string; name: string; config: unknown; }
 interface ScheduleRule { name: string; days: number[]; startHour: number; endHour: number; intervalS: number; }
@@ -254,7 +255,10 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                   className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-30 hover:bg-gray-100">↑</button>
                 <button type="button" onClick={() => moveRule(i, 1)} disabled={i === schedule.length - 1}
                   className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-30 hover:bg-gray-100">↓</button>
-                <span className="text-xs text-gray-400 ml-1">#{i + 1}</span>
+                <span className="text-xs text-gray-400 ml-1">
+                  #{i + 1}
+                  {rule.startHour > rule.endHour && <span className="ml-1" title="Overnight rule (wraps past midnight)">🌙</span>}
+                </span>
               </div>
               <button type="button" onClick={() => removeRule(i)} className="text-xs text-red-500 hover:underline">Remove</button>
             </div>
@@ -292,6 +296,8 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
             No schedule rules. Add a template above or the default intervals will be used 24/7.
           </div>
         )}
+
+        <ScheduleTimeline rules={schedule} defaultIntervalS={(config.batteryIntervalS as number) ?? 900} />
       </Modal>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
