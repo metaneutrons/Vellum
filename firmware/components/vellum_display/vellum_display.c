@@ -1,299 +1,78 @@
 /**
  * @file vellum_display.c
- * @brief E-Ink display driver implementation (ESP-IDF SPI).
- *
- * When CONFIG_VELLUM_HAS_DISPLAY is enabled, this drives the actual
- * 800x480 E-Ink panel via SPI. Otherwise, all operations are logged
- * but no hardware is touched — useful for host-side testing.
+ * @brief Display abstraction layer — delegates to the active driver.
  */
 
 #include "vellum_display.h"
+#include "display_driver.h"
 #include "fallback_icons.h"
-#include "vellum_logo.h"
 #include "vellum_logo.h"
 
 #include <string.h>
 #include "esp_log.h"
 
-#if CONFIG_VELLUM_HAS_DISPLAY
-#include "driver/spi_master.h"
-#include "driver/gpio.h"
-
-/* SPI pin assignments — adjust for your board */
-#define EINK_SPI_HOST   SPI2_HOST
-#define EINK_PIN_MOSI   GPIO_NUM_11
-#define EINK_PIN_CLK    GPIO_NUM_12
-#define EINK_PIN_CS     GPIO_NUM_5
-#define EINK_PIN_DC     GPIO_NUM_17
-#define EINK_PIN_RST    GPIO_NUM_16
-#define EINK_PIN_BUSY   GPIO_NUM_4
-
-static spi_device_handle_t s_spi_dev;
-#endif /* CONFIG_VELLUM_HAS_DISPLAY */
-
 static const char *TAG = "display";
-
-/* ---- SPI helpers (only compiled with display hardware) ----------------- */
-
-#if CONFIG_VELLUM_HAS_DISPLAY
-static void eink_send_cmd(uint8_t cmd)
-{
-    gpio_set_level(EINK_PIN_DC, 0);
-    spi_transaction_t t = { .length = 8, .tx_buffer = &cmd };
-    spi_device_transmit(s_spi_dev, &t);
-}
-
-static void eink_send_data(const uint8_t *data, size_t len)
-{
-    gpio_set_level(EINK_PIN_DC, 1);
-    spi_transaction_t t = { .length = len * 8, .tx_buffer = data };
-    spi_device_transmit(s_spi_dev, &t);
-}
-
-static void eink_wait_busy(void)
-{
-    while (gpio_get_level(EINK_PIN_BUSY) == 1) {
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
-
-static void eink_reset(void)
-{
-    gpio_set_level(EINK_PIN_RST, 0);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    gpio_set_level(EINK_PIN_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    eink_wait_busy();
-}
-#endif /* CONFIG_VELLUM_HAS_DISPLAY */
-
-/* ---- Public API -------------------------------------------------------- */
+static const display_driver_t *s_drv = NULL;
 
 void display_init(void)
 {
-    ESP_LOGI(TAG, "Initializing display (%dx%d)", DISPLAY_WIDTH, DISPLAY_HEIGHT);
-
-#if CONFIG_VELLUM_HAS_DISPLAY
-    /* Configure control GPIOs */
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << EINK_PIN_DC) | (1ULL << EINK_PIN_RST),
-        .mode = GPIO_MODE_OUTPUT,
-    };
-    gpio_config(&io_conf);
-
-    gpio_config_t busy_conf = {
-        .pin_bit_mask = (1ULL << EINK_PIN_BUSY),
-        .mode = GPIO_MODE_INPUT,
-    };
-    gpio_config(&busy_conf);
-
-    /* Initialize SPI bus */
-    spi_bus_config_t bus_cfg = {
-        .mosi_io_num = EINK_PIN_MOSI,
-        .sclk_io_num = EINK_PIN_CLK,
-        .miso_io_num = -1,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT / 8 + 64,
-    };
-    ESP_ERROR_CHECK(spi_bus_initialize(EINK_SPI_HOST, &bus_cfg, SPI_DMA_CH_AUTO));
-
-    spi_device_interface_config_t dev_cfg = {
-        .clock_speed_hz = 10 * 1000 * 1000, /* 10 MHz */
-        .mode = 0,
-        .spics_io_num = EINK_PIN_CS,
-        .queue_size = 1,
-    };
-    ESP_ERROR_CHECK(spi_bus_add_device(EINK_SPI_HOST, &dev_cfg, &s_spi_dev));
-
-    eink_reset();
-    /* Panel-specific init sequence would go here */
-#endif
+    s_drv = display_get_driver();
+    ESP_LOGI(TAG, "Driver: %s (%dx%d, %d colors, %s)",
+             s_drv->model, s_drv->width, s_drv->height,
+             s_drv->palette_size, s_drv->quantize);
+    s_drv->init();
 }
 
 bool display_draw_pixel_buffer(const uint8_t *buffer, size_t length)
 {
-    if (!buffer) {
-        ESP_LOGW(TAG, "draw_pixel_buffer: null buffer");
-        return false;
-    }
-
-    size_t expected = (size_t)DISPLAY_WIDTH * DISPLAY_HEIGHT;
+    if (!buffer || !s_drv) return false;
+    size_t expected = (size_t)s_drv->width * s_drv->height;
     if (length != expected) {
-        ESP_LOGW(TAG, "draw_pixel_buffer: unexpected length %zu (expected %zu)", length, expected);
+        ESP_LOGW(TAG, "Buffer size mismatch: %zu (expected %zu)", length, expected);
         return false;
     }
-
-#if CONFIG_VELLUM_HAS_DISPLAY
-    /*
-     * Pack palette indices into 1bpp for BW panel.
-     * Index 0 = white, index 1 = black.
-     */
-    size_t packed_len = expected / 8;
-    uint8_t *packed = malloc(packed_len);
-    if (!packed) {
-        ESP_LOGE(TAG, "OOM allocating packed buffer");
-        return false;
-    }
-
-    for (size_t i = 0; i < packed_len; i++) {
-        uint8_t byte = 0;
-        for (int bit = 7; bit >= 0; bit--) {
-            size_t px = i * 8 + (7 - bit);
-            if (buffer[px] != 0) {
-                byte |= (1 << bit);
-            }
-        }
-        packed[i] = byte;
-    }
-
-    /* Send to display */
-    eink_send_cmd(0x24); /* Write RAM (BW) — panel-specific */
-    eink_send_data(packed, packed_len);
-    eink_send_cmd(0x20); /* Display Update */
-    eink_wait_busy();
-
-    free(packed);
-#else
-    ESP_LOGI(TAG, "draw_pixel_buffer: %zu bytes (no display hardware)", length);
-#endif
-
-    return true;
+    return s_drv->draw(buffer, length) == ESP_OK;
 }
 
 void display_draw_fallback_icon(uint8_t icon_id)
 {
-    if (icon_id >= FALLBACK_ICON_COUNT) {
-        ESP_LOGW(TAG, "draw_fallback_icon: invalid id %d", icon_id);
-        return;
-    }
-
-    ESP_LOGI(TAG, "Drawing fallback icon %d", icon_id);
-
-#if CONFIG_VELLUM_HAS_DISPLAY
-    const uint8_t *bitmap = fallback_icons[icon_id];
-
-    /* Clear display and draw 64x64 icon centered */
-    size_t fb_len = (size_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8;
-    uint8_t *fb = calloc(1, fb_len); /* all white */
-    if (!fb) return;
-
-    int ox = (DISPLAY_WIDTH - ICON_BITMAP_WIDTH) / 2;
-    int oy = (DISPLAY_HEIGHT - ICON_BITMAP_HEIGHT) / 2;
-
-    for (int y = 0; y < ICON_BITMAP_HEIGHT; y++) {
-        for (int x = 0; x < ICON_BITMAP_WIDTH; x++) {
-            int src_byte = y * (ICON_BITMAP_WIDTH / 8) + (x / 8);
-            int src_bit = 7 - (x % 8);
-            if (bitmap[src_byte] & (1 << src_bit)) {
-                int dx = ox + x;
-                int dy = oy + y;
-                int dst_byte = (dy * DISPLAY_WIDTH + dx) / 8;
-                int dst_bit = 7 - ((dy * DISPLAY_WIDTH + dx) % 8);
-                fb[dst_byte] |= (1 << dst_bit);
-            }
-        }
-    }
-
-    eink_send_cmd(0x24);
-    eink_send_data(fb, fb_len);
-    eink_send_cmd(0x20);
-    eink_wait_busy();
-    free(fb);
-#endif
+    if (!s_drv || icon_id >= FALLBACK_ICON_COUNT) return;
+    int ox = (s_drv->width - ICON_BITMAP_WIDTH) / 2;
+    int oy = (s_drv->height - ICON_BITMAP_HEIGHT) / 2;
+    s_drv->draw_bitmap(fallback_icons[icon_id], ICON_BITMAP_WIDTH, ICON_BITMAP_HEIGHT, ox, oy);
 }
 
 void display_draw_qr_code(const char *data)
 {
-    ESP_LOGI(TAG, "Drawing QR code: %s", data);
-    /* TODO: Integrate a QR code library (e.g. qrcodegen) */
-#if CONFIG_VELLUM_HAS_DISPLAY
-    /* Placeholder: would render QR code bitmap here */
-    /* Small Vellum logo in bottom-left corner */
-    size_t fb_len = (size_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8;
-    uint8_t *fb = calloc(1, fb_len);
-    if (!fb) return;
-
+    if (!s_drv) return;
+    ESP_LOGI(TAG, "QR code: %s", data);
+    /* TODO: Generate QR code bitmap with qrcodegen library */
+    /* For now, show small Vellum logo in bottom-left */
     int ox = 8;
-    int oy = DISPLAY_HEIGHT - LOGO_SMALL_HEIGHT - 8;
-    for (int y = 0; y < LOGO_SMALL_HEIGHT; y++) {
-        for (int x = 0; x < LOGO_SMALL_WIDTH; x++) {
-            int src_byte = y * (LOGO_SMALL_WIDTH / 8) + (x / 8);
-            int src_bit = 7 - (x % 8);
-            if (logo_small[src_byte] & (1 << src_bit)) {
-                int dx = ox + x;
-                int dy = oy + y;
-                int dst_byte = (dy * DISPLAY_WIDTH + dx) / 8;
-                int dst_bit = 7 - ((dy * DISPLAY_WIDTH + dx) % 8);
-                fb[dst_byte] |= (1 << dst_bit);
-            }
-        }
-    }
-
-    eink_send_cmd(0x24);
-    eink_send_data(fb, fb_len);
-    eink_send_cmd(0x20);
-    eink_wait_busy();
-    free(fb);
-#endif
-}
-
-void display_show_boot_logo(void)
-{
-    ESP_LOGI(TAG, "Showing boot logo (256x256)");
-
-#if CONFIG_VELLUM_HAS_DISPLAY
-    size_t fb_len = (size_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8;
-    uint8_t *fb = calloc(1, fb_len);
-    if (!fb) return;
-
-    /* Center the 256x256 logo on the display */
-    int ox = (DISPLAY_WIDTH - LOGO_BOOT_WIDTH) / 2;
-    int oy = (DISPLAY_HEIGHT - LOGO_BOOT_HEIGHT) / 2;
-
-    for (int y = 0; y < LOGO_BOOT_HEIGHT; y++) {
-        for (int x = 0; x < LOGO_BOOT_WIDTH; x++) {
-            int src_byte = y * (LOGO_BOOT_WIDTH / 8) + (x / 8);
-            int src_bit = 7 - (x % 8);
-            if (logo_boot[src_byte] & (1 << src_bit)) {
-                int dx = ox + x;
-                int dy = oy + y;
-                int dst_byte = (dy * DISPLAY_WIDTH + dx) / 8;
-                int dst_bit = 7 - ((dy * DISPLAY_WIDTH + dx) % 8);
-                fb[dst_byte] |= (1 << dst_bit);
-            }
-        }
-    }
-
-    eink_send_cmd(0x24);
-    eink_send_data(fb, fb_len);
-    eink_send_cmd(0x20);
-    eink_wait_busy();
-    free(fb);
-#endif
+    int oy = s_drv->height - LOGO_SMALL_HEIGHT - 8;
+    s_drv->draw_bitmap(logo_small, LOGO_SMALL_WIDTH, LOGO_SMALL_HEIGHT, ox, oy);
 }
 
 void display_show_loading(void)
 {
-    ESP_LOGI(TAG, "Showing loading indicator");
-    /* TODO: Partial update with "Loading..." text */
+    ESP_LOGI(TAG, "Loading...");
+    /* TODO: Partial update with loading indicator */
+}
+
+void display_show_boot_logo(void)
+{
+    if (!s_drv) return;
+    int ox = (s_drv->width - LOGO_BOOT_WIDTH) / 2;
+    int oy = (s_drv->height - LOGO_BOOT_HEIGHT) / 2;
+    s_drv->draw_bitmap(logo_boot, LOGO_BOOT_WIDTH, LOGO_BOOT_HEIGHT, ox, oy);
 }
 
 void display_refresh(void)
 {
-#if CONFIG_VELLUM_HAS_DISPLAY
-    eink_send_cmd(0x20);
-    eink_wait_busy();
-#endif
-    ESP_LOGI(TAG, "Display refreshed");
+    if (s_drv) s_drv->refresh();
 }
 
 void display_sleep(void)
 {
-#if CONFIG_VELLUM_HAS_DISPLAY
-    eink_send_cmd(0x10); /* Enter deep sleep */
-    uint8_t param = 0x01;
-    eink_send_data(&param, 1);
-#endif
-    ESP_LOGI(TAG, "Display entering sleep");
+    if (s_drv) s_drv->sleep();
 }

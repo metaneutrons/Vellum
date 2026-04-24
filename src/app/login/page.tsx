@@ -10,7 +10,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#0f1117" }}>
       <form action={formAction} className="w-full max-w-sm" style={{ padding: 32 }}>
         <div className="flex justify-center mb-8">
-          <img src="/vellum-logo.svg" alt="Vellum" width={140} height={140} style={{ filter: "brightness(0) invert(1)" }} />
+          <img src="/vellum-logo.svg" alt="Vellum" width={200} height={200} style={{ filter: "brightness(0) invert(1)" }} />
         </div>
 
         {state?.error && (

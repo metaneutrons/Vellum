@@ -40,13 +40,31 @@
 static const char *TAG = "vellum_main";
 
 /* -----------------------------------------------------------------------
- * Hardware telemetry helpers (platform-specific stubs)
+ * Hardware — Battery, LED, Buzzer (reTerminal E Series)
  * ----------------------------------------------------------------------- */
+
+#include "esp_adc/adc_oneshot.h"
+#include "driver/ledc.h"
+
+static adc_oneshot_unit_handle_t s_adc_handle = NULL;
+
+static void init_battery_adc(void)
+{
+    adc_oneshot_unit_init_cfg_t cfg = { .unit_id = ADC_UNIT_1 };
+    adc_oneshot_new_unit(&cfg, &s_adc_handle);
+    adc_oneshot_chan_cfg_t chan = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
+    adc_oneshot_config_channel(s_adc_handle, ADC_CHANNEL_0, &chan);
+}
 
 static float read_battery_voltage(void)
 {
-    /* TODO: Replace with actual ADC read for the reTerminal E10xx */
-    return 3.70f;
+    gpio_set_direction(CONFIG_VELLUM_BATTERY_EN_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    int raw = 0;
+    if (s_adc_handle) adc_oneshot_read(s_adc_handle, ADC_CHANNEL_0, &raw);
+    gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 0);
+    return (raw / 4095.0f) * 3.3f * 2.0f;
 }
 
 static int read_battery_level(void)
@@ -60,8 +78,33 @@ static int read_battery_level(void)
 
 static bool is_usb_powered(void)
 {
-    /* TODO: Replace with actual VBUS detection GPIO */
-    return false;
+    return read_battery_voltage() > 4.5f;
+}
+
+static void led_init(void)
+{
+    gpio_set_direction(CONFIG_VELLUM_LED_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(CONFIG_VELLUM_LED_GPIO, 1);
+}
+static void led_on(void)  { gpio_set_level(CONFIG_VELLUM_LED_GPIO, 0); }
+static void led_off(void) { gpio_set_level(CONFIG_VELLUM_LED_GPIO, 1); }
+
+static void buzzer_init(void)
+{
+    ledc_timer_config_t timer = { .speed_mode=LEDC_LOW_SPEED_MODE, .duty_resolution=LEDC_TIMER_8_BIT, .timer_num=LEDC_TIMER_0, .freq_hz=1000, .clk_cfg=LEDC_AUTO_CLK };
+    ledc_timer_config(&timer);
+    ledc_channel_config_t ch = { .gpio_num=CONFIG_VELLUM_BUZZER_GPIO, .speed_mode=LEDC_LOW_SPEED_MODE, .channel=LEDC_CHANNEL_0, .timer_sel=LEDC_TIMER_0, .duty=0 };
+    ledc_channel_config(&ch);
+}
+
+static void buzzer_beep(uint32_t freq, uint32_t ms)
+{
+    ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0, freq);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 128);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    vTaskDelay(pdMS_TO_TICKS(ms));
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
 
 static vellum_telemetry_t gather_telemetry(void)
@@ -406,8 +449,13 @@ void app_main(void)
 
     /* 1. Initialize core subsystems */
     ESP_ERROR_CHECK(nvs_manager_init());
+    init_battery_adc();
+    led_init();
+    buzzer_init();
     display_init();
     display_show_boot_logo();
+    buzzer_beep(1000, 100); /* Boot beep */
+    led_on();
     buttons_init();
     sleep_manager_init();
 

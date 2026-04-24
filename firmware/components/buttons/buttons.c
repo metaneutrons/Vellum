@@ -17,9 +17,9 @@ static const char *TAG = "buttons";
 #define DEBOUNCE_US     (50 * 1000)   /* 50 ms in microseconds */
 #define HOLD_MS         5000          /* 5 seconds for SoftAP entry */
 
-#define BTN1_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON1_GPIO)
-#define BTN2_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON2_GPIO)
-#define BTN3_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON3_GPIO)
+#define BTN1_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON_KEY0_GPIO)
+#define BTN2_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON_KEY1_GPIO)
+#define BTN3_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON_KEY2_GPIO)
 
 /* ISR state — volatile for interrupt safety */
 static volatile int64_t s_last_isr1 = 0;

@@ -42,7 +42,7 @@ export function AdminNav() {
         className={`sidebar ${open ? "sidebar-open" : ""}`}
       >
         <div style={{ padding: 16, fontSize: 18, fontWeight: 700, color: "#fff", borderBottom: "1px solid #374151", display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/vellum-icon.svg" alt="" width={24} height={24} style={{ filter: "brightness(0) invert(1)" }} />
+          <img src="/vellum-icon.svg" alt="" width={48} height={48} style={{ filter: "brightness(0) invert(1)" }} />
           Vellum Admin
         </div>
         <div style={{ flex: 1, paddingTop: 8 }}>
