@@ -1,0 +1,77 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Dummy env vars for build/test (env.ts validates at runtime)
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+  AZURE_TENANT_ID: ci-tenant-id
+  AZURE_CLIENT_ID: ci-client-id
+  AZURE_CLIENT_SECRET: ci-client-secret
+  ADMIN_API_KEY: ci-admin-api-key-that-is-at-least-32-chars-long
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  firmware:
+    name: Firmware Build
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.3
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v6
+      - run: idf.py set-target esp32s3
+      - run: idf.py build
