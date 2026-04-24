@@ -101,11 +101,11 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
   );
 }
 
-const BASE_FIELDS: { key: string; label: string; type: "interval" | "number"; unit?: string; min?: number; max?: number }[] = [
+const BASE_FIELDS: { key: string; label: string; type: "interval" | "number" | "slider"; unit?: string; min?: number; max?: number }[] = [
   { key: "usbIntervalS", label: "USB Refresh Interval", type: "interval" },
   { key: "batteryIntervalS", label: "Battery Refresh Interval", type: "interval" },
   { key: "lowBatteryIntervalS", label: "Low Battery Interval", type: "interval" },
-  { key: "lowBatteryThresholdPct", label: "Low Battery Threshold", type: "number", unit: "%", min: 5, max: 50 },
+  { key: "lowBatteryThresholdPct", label: "Low Battery Threshold", type: "slider", unit: "%", min: 5, max: 50 },
   { key: "imminentEventWindowS", label: "Imminent Event Window", type: "interval" },
   { key: "wakeBeforeEventS", label: "Wake Before Event", type: "interval" },
 ];
@@ -217,6 +217,14 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
               {f.type === "interval" ? (
                 <IntervalPicker value={(config[f.key] as number) ?? 900}
                   onChange={v => setConfig(c => ({ ...c, [f.key]: v }))} />
+              ) : f.type === "slider" ? (
+                <div className="flex items-center gap-3">
+                  <input type="range" min={f.min} max={f.max}
+                    className="flex-1"
+                    value={(config[f.key] as number) ?? f.min}
+                    onChange={e => setConfig(c => ({ ...c, [f.key]: parseInt(e.target.value) }))} />
+                  <span className="text-sm font-medium w-12 text-right">{(config[f.key] as number) ?? f.min}{f.unit}</span>
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <input type="number" min={f.min} max={f.max}
