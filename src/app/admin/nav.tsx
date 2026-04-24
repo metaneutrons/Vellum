@@ -10,6 +10,7 @@ const links = [
   { href: "/admin/providers", label: "Data Providers", icon: "🔌" },
   { href: "/admin/themes", label: "Themes", icon: "🎨" },
   { href: "/admin/profiles", label: "Refresh Profiles", icon: "⏱" },
+  { href: "/admin/firmware", label: "Firmware", icon: "⬆️" },
   { href: "/admin/telemetry", label: "Telemetry", icon: "📊" },
 ];
 

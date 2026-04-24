@@ -1,0 +1,127 @@
+name: Firmware Build
+on:
+  push:
+    branches: [main]
+    paths: ['firmware/**']
+  release:
+    types: [published]
+
+env:
+  IDF_VERSION: v5.3
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.3
+    strategy:
+      matrix:
+        model: [e1001, e1002]
+        include:
+          - model: e1001
+            kconfig: CONFIG_VELLUM_DRIVER_E1001=y
+          - model: e1002
+            kconfig: CONFIG_VELLUM_DRIVER_E1002=y
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure for ${{ matrix.model }}
+        run: |
+          idf.py set-target esp32s3
+          echo "${{ matrix.kconfig }}" >> sdkconfig.defaults
+
+      - name: Build
+        run: idf.py build
+
+      - name: Extract binary
+        run: |
+          VERSION=$(grep 'CONFIG_VELLUM_FIRMWARE_VERSION' sdkconfig | cut -d'"' -f2)
+          cp build/vellum-firmware.bin ../vellum-${{ matrix.model }}-v${VERSION}.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.model }}
+          path: vellum-${{ matrix.model }}-*.bin
+
+  sign-and-release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'push' && !contains(github.event.head_commit.message, 'chore(main): release'))
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          merge-multiple: true
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            echo "channel=stable" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            SHA=$(echo ${{ github.sha }} | cut -c1-7)
+            echo "version=beta-${SHA}" >> $GITHUB_OUTPUT
+            echo "channel=beta" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd binaries
+          for f in *.bin; do
+            sha256sum "$f" | awk '{print $1}' > "${f}.sha256"
+          done
+
+      - name: Sign binaries (Ed25519)
+        if: env.FIRMWARE_SIGNING_KEY != ''
+        env:
+          FIRMWARE_SIGNING_KEY: ${{ secrets.FIRMWARE_SIGNING_KEY }}
+        run: |
+          echo "$FIRMWARE_SIGNING_KEY" | base64 -d > signing.key
+          cd binaries
+          for f in *.bin; do
+            openssl pkeyutl -sign -inkey ../signing.key -rawin -in <(sha256sum "$f" | awk '{print $1}' | xxd -r -p) -out "${f}.sig"
+            base64 "${f}.sig" > "${f}.sig.b64"
+          done
+          rm -f ../signing.key
+
+      - name: Generate manifest
+        run: |
+          cd binaries
+          node -e "
+          const fs = require('fs');
+          const manifest = {
+            version: '${{ steps.version.outputs.version }}'.replace(/^v/, ''),
+            channel: '${{ steps.version.outputs.channel }}',
+            date: new Date().toISOString(),
+            binaries: {}
+          };
+          for (const f of fs.readdirSync('.').filter(f => f.endsWith('.bin'))) {
+            const model = f.match(/vellum-(\w+)-/)?.[1];
+            if (!model) continue;
+            manifest.binaries[model] = {
+              url: 'https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/' + f,
+              sha256: fs.readFileSync(f + '.sha256', 'utf8').trim(),
+              signature: fs.existsSync(f + '.sig.b64') ? fs.readFileSync(f + '.sig.b64', 'utf8').trim() : '',
+              size: fs.statSync(f).size,
+            };
+          }
+          fs.writeFileSync('firmware-manifest.json', JSON.stringify(manifest, null, 2));
+          console.log(JSON.stringify(manifest, null, 2));
+          "
+
+      - name: Create/Update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Firmware ${{ steps.version.outputs.version }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          files: |
+            binaries/*.bin
+            binaries/*.sha256
+            binaries/firmware-manifest.json

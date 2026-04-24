@@ -468,23 +468,60 @@ static void check_ota_update(void)
     cJSON *data = cJSON_GetObjectItemCaseSensitive(root, "data");
     cJSON *ota_url = data ? cJSON_GetObjectItemCaseSensitive(data, "otaUrl") : NULL;
 
+    cJSON *ota_ver = data ? cJSON_GetObjectItemCaseSensitive(data, "otaVersion") : NULL;
+    cJSON *ota_sha = data ? cJSON_GetObjectItemCaseSensitive(data, "otaSha256") : NULL;
+
     if (cJSON_IsString(ota_url) && ota_url->valuestring && strlen(ota_url->valuestring) > 0) {
-        ESP_LOGI(TAG, "OTA update available: %s", ota_url->valuestring);
-        display_draw_fallback_icon(ICON_CLOUD_DISCONNECT); /* Show update icon */
+        ESP_LOGI(TAG, "OTA update: %s → %s",
+                 cJSON_IsString(ota_ver) ? ota_ver->valuestring : "?",
+                 ota_url->valuestring);
+        display_draw_fallback_icon(ICON_CLOUD_DISCONNECT);
+        buzzer_beep(800, 200);
 
         esp_http_client_config_t ota_config = {
             .url = ota_url->valuestring,
-            .timeout_ms = 60000,
+            .timeout_ms = 120000,
             .crt_bundle_attach = esp_crt_bundle_attach,
         };
-        esp_err_t ota_err = esp_https_ota(&ota_config);
+
+        esp_https_ota_config_t ota_params = {
+            .http_config = &ota_config,
+        };
+
+        esp_err_t ota_err = esp_https_ota(&ota_params);
         if (ota_err == ESP_OK) {
+            /* Verify SHA256 if provided */
+            if (cJSON_IsString(ota_sha) && ota_sha->valuestring) {
+                const esp_partition_t *running = esp_ota_get_running_partition();
+                const esp_partition_t *update = esp_ota_get_next_update_partition(running);
+                if (update) {
+                    uint8_t sha[32];
+                    esp_partition_get_sha256(update, sha);
+                    char sha_hex[65];
+                    for (int i = 0; i < 32; i++) sprintf(sha_hex + i*2, "%02x", sha[i]);
+                    sha_hex[64] = 0;
+
+                    if (strcmp(sha_hex, ota_sha->valuestring) != 0) {
+                        ESP_LOGE(TAG, "SHA256 mismatch! Expected: %s Got: %s",
+                                 ota_sha->valuestring, sha_hex);
+                        buzzer_beep(300, 500);
+                        /* Rollback: don't set boot partition */
+                        cJSON_Delete(root);
+                        http_client_free_response(&resp);
+                        return;
+                    }
+                    ESP_LOGI(TAG, "SHA256 verified ✓");
+                }
+            }
+
             ESP_LOGI(TAG, "OTA success — restarting");
+            buzzer_beep(2000, 100); vTaskDelay(pdMS_TO_TICKS(100)); buzzer_beep(2000, 100);
             cJSON_Delete(root);
             http_client_free_response(&resp);
             esp_restart();
         } else {
             ESP_LOGW(TAG, "OTA failed: %s", esp_err_to_name(ota_err));
+            buzzer_beep(300, 500);
         }
     }
 
