@@ -373,7 +373,7 @@ static uint32_t perform_render(void)
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Render request failed: %s", esp_err_to_name(err));
-        display_draw_fallback_icon(ICON_CLOUD_DISCONNECT);
+        display_show_ota_screen();
         http_client_free_response(&resp);
         return sleep_sec;
     }
@@ -396,7 +396,7 @@ static uint32_t perform_render(void)
         perform_hello();
     } else if (resp.status_code >= 500 || resp.status_code == -1) {
         ESP_LOGW(TAG, "Server error (%d)", resp.status_code);
-        display_draw_fallback_icon(ICON_CLOUD_DISCONNECT);
+        display_show_ota_screen();
     } else {
         ESP_LOGW(TAG, "Unexpected status %d", resp.status_code);
         display_draw_fallback_icon(ICON_ERROR);
@@ -475,7 +475,7 @@ static void check_ota_update(void)
         ESP_LOGI(TAG, "OTA update: %s → %s",
                  cJSON_IsString(ota_ver) ? ota_ver->valuestring : "?",
                  ota_url->valuestring);
-        display_draw_fallback_icon(ICON_CLOUD_DISCONNECT);
+        display_show_ota_screen();
         buzzer_beep(800, 200);
 
         esp_http_client_config_t ota_config = {

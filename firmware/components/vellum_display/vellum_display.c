@@ -130,6 +130,73 @@ void display_show_boot_logo(void)
     s_drv->draw_bitmap(logo_boot, LOGO_BOOT_WIDTH, LOGO_BOOT_HEIGHT, ox, oy);
 }
 
+
+void display_show_ota_screen(void)
+{
+    if (!s_drv) return;
+    ESP_LOGI(TAG, "Showing OTA update screen");
+
+    /* Compose: logo centered upper third, text centered below */
+    int logo_x = (s_drv->width - LOGO_BOOT_WIDTH) / 2;
+    int logo_y = (s_drv->height / 2) - LOGO_BOOT_HEIGHT - 20;
+
+    int line1_x = (s_drv->width - OTA_LINE1_WIDTH) / 2;
+    int line1_y = (s_drv->height / 2) + 10;
+
+    int line2_x = (s_drv->width - OTA_LINE2_WIDTH) / 2;
+    int line2_y = line1_y + OTA_LINE1_HEIGHT + 8;
+
+    /* Draw logo */
+    s_drv->draw_bitmap(logo_boot, LOGO_BOOT_WIDTH, LOGO_BOOT_HEIGHT, logo_x, logo_y);
+
+    /* For text, we need to composite onto the existing framebuffer.
+     * Since draw_bitmap clears the screen, we draw all three in one pass
+     * using a full framebuffer. */
+    size_t fb_len = (size_t)s_drv->width * s_drv->height;
+    uint8_t *fb = malloc(fb_len);
+    if (!fb) return;
+    memset(fb, 1, fb_len); /* White */
+
+    /* Blit logo */
+    for (int y = 0; y < LOGO_BOOT_HEIGHT; y++) {
+        for (int x = 0; x < LOGO_BOOT_WIDTH; x++) {
+            int sb = y * (LOGO_BOOT_WIDTH / 8) + (x / 8);
+            if (logo_boot[sb] & (1 << (7 - (x % 8)))) {
+                int dx = logo_x + x, dy = logo_y + y;
+                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height)
+                    fb[dy * s_drv->width + dx] = 0;
+            }
+        }
+    }
+
+    /* Blit "Updating firmware..." */
+    for (int y = 0; y < OTA_LINE1_HEIGHT; y++) {
+        for (int x = 0; x < OTA_LINE1_WIDTH; x++) {
+            int sb = y * ((OTA_LINE1_WIDTH + 7) / 8) + (x / 8);
+            if (ota_line1[sb] & (1 << (7 - (x % 8)))) {
+                int dx = line1_x + x, dy = line1_y + y;
+                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height)
+                    fb[dy * s_drv->width + dx] = 0;
+            }
+        }
+    }
+
+    /* Blit "Do not power off." */
+    for (int y = 0; y < OTA_LINE2_HEIGHT; y++) {
+        for (int x = 0; x < OTA_LINE2_WIDTH; x++) {
+            int sb = y * ((OTA_LINE2_WIDTH + 7) / 8) + (x / 8);
+            if (ota_line2[sb] & (1 << (7 - (x % 8)))) {
+                int dx = line2_x + x, dy = line2_y + y;
+                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height)
+                    fb[dy * s_drv->width + dx] = 0;
+            }
+        }
+    }
+
+    s_drv->draw(fb, fb_len);
+    free(fb);
+}
+
 void display_refresh(void)
 {
     if (s_drv) s_drv->refresh();

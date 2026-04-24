@@ -31,6 +31,7 @@ void display_draw_fallback_icon(uint8_t icon_id);
 void display_draw_qr_code(const char *data);
 void display_show_loading(void);
 void display_show_boot_logo(void);
+void display_show_ota_screen(void);
 void display_refresh(void);
 void display_sleep(void);
 
