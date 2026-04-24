@@ -45,6 +45,9 @@ void display_draw_qr_code(const char *data);
 /** Show a brief loading indicator. */
 void display_show_loading(void);
 
+/** Show the Vellum boot logo centered on the display. */
+void display_show_boot_logo(void);
+
 /** Perform a full display refresh. */
 void display_refresh(void);
 

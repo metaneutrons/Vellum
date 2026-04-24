@@ -9,6 +9,8 @@
 
 #include "vellum_display.h"
 #include "fallback_icons.h"
+#include "vellum_logo.h"
+#include "vellum_logo.h"
 
 #include <string.h>
 #include "esp_log.h"
@@ -207,6 +209,67 @@ void display_draw_qr_code(const char *data)
     /* TODO: Integrate a QR code library (e.g. qrcodegen) */
 #if CONFIG_VELLUM_HAS_DISPLAY
     /* Placeholder: would render QR code bitmap here */
+    /* Small Vellum logo in bottom-left corner */
+    size_t fb_len = (size_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8;
+    uint8_t *fb = calloc(1, fb_len);
+    if (!fb) return;
+
+    int ox = 8;
+    int oy = DISPLAY_HEIGHT - LOGO_SMALL_HEIGHT - 8;
+    for (int y = 0; y < LOGO_SMALL_HEIGHT; y++) {
+        for (int x = 0; x < LOGO_SMALL_WIDTH; x++) {
+            int src_byte = y * (LOGO_SMALL_WIDTH / 8) + (x / 8);
+            int src_bit = 7 - (x % 8);
+            if (logo_small[src_byte] & (1 << src_bit)) {
+                int dx = ox + x;
+                int dy = oy + y;
+                int dst_byte = (dy * DISPLAY_WIDTH + dx) / 8;
+                int dst_bit = 7 - ((dy * DISPLAY_WIDTH + dx) % 8);
+                fb[dst_byte] |= (1 << dst_bit);
+            }
+        }
+    }
+
+    eink_send_cmd(0x24);
+    eink_send_data(fb, fb_len);
+    eink_send_cmd(0x20);
+    eink_wait_busy();
+    free(fb);
+#endif
+}
+
+void display_show_boot_logo(void)
+{
+    ESP_LOGI(TAG, "Showing boot logo (256x256)");
+
+#if CONFIG_VELLUM_HAS_DISPLAY
+    size_t fb_len = (size_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8;
+    uint8_t *fb = calloc(1, fb_len);
+    if (!fb) return;
+
+    /* Center the 256x256 logo on the display */
+    int ox = (DISPLAY_WIDTH - LOGO_BOOT_WIDTH) / 2;
+    int oy = (DISPLAY_HEIGHT - LOGO_BOOT_HEIGHT) / 2;
+
+    for (int y = 0; y < LOGO_BOOT_HEIGHT; y++) {
+        for (int x = 0; x < LOGO_BOOT_WIDTH; x++) {
+            int src_byte = y * (LOGO_BOOT_WIDTH / 8) + (x / 8);
+            int src_bit = 7 - (x % 8);
+            if (logo_boot[src_byte] & (1 << src_bit)) {
+                int dx = ox + x;
+                int dy = oy + y;
+                int dst_byte = (dy * DISPLAY_WIDTH + dx) / 8;
+                int dst_bit = 7 - ((dy * DISPLAY_WIDTH + dx) % 8);
+                fb[dst_byte] |= (1 << dst_bit);
+            }
+        }
+    }
+
+    eink_send_cmd(0x24);
+    eink_send_data(fb, fb_len);
+    eink_send_cmd(0x20);
+    eink_wait_busy();
+    free(fb);
 #endif
 }
 

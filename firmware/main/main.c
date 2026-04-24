@@ -407,6 +407,7 @@ void app_main(void)
     /* 1. Initialize core subsystems */
     ESP_ERROR_CHECK(nvs_manager_init());
     display_init();
+    display_show_boot_logo();
     buttons_init();
     sleep_manager_init();
 
