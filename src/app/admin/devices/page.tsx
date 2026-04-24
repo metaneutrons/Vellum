@@ -1,21 +1,20 @@
-import { getAllDevices, getAllThemes, getAllContentInstances } from "../actions";
+import { getAllDevices, getAllThemes, getAllContentInstances, getAllRefreshProfiles } from "../actions";
 import { DeviceTable } from "./device-table";
 
 export default async function DevicesPage() {
-  const [deviceList, themeList, contentList] = await Promise.all([
+  const [deviceList, themeList, contentList, profileList] = await Promise.all([
     getAllDevices(),
     getAllThemes(),
     getAllContentInstances(),
+    getAllRefreshProfiles(),
   ]);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Devices</h1>
-      <DeviceTable
-        devices={deviceList}
-        themes={themeList}
-        contentInstances={contentList}
-      />
-    </div>
+    <DeviceTable
+      devices={deviceList}
+      themes={themeList}
+      contentInstances={contentList}
+      refreshProfiles={profileList}
+    />
   );
 }

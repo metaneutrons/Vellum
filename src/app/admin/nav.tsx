@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const links = [
-  { href: "/admin/devices", label: "Devices" },
-  { href: "/admin/content", label: "Content" },
-  { href: "/admin/providers", label: "Data Providers" },
-  { href: "/admin/themes", label: "Themes" },
-  { href: "/admin/profiles", label: "Refresh Profiles" },
-  { href: "/admin/telemetry", label: "Telemetry" },
+  { href: "/admin/devices", label: "Devices", icon: "📡" },
+  { href: "/admin/content", label: "Content", icon: "📋" },
+  { href: "/admin/providers", label: "Data Providers", icon: "🔌" },
+  { href: "/admin/themes", label: "Themes", icon: "🎨" },
+  { href: "/admin/profiles", label: "Refresh Profiles", icon: "⏱" },
+  { href: "/admin/telemetry", label: "Telemetry", icon: "📊" },
 ];
 
 function logout() {
@@ -52,7 +52,9 @@ export function AdminNav() {
               href={l.href}
               onClick={() => setOpen(false)}
               style={{
-                display: "block",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
                 padding: "12px 16px",
                 fontSize: 14,
                 color: pathname.startsWith(l.href) ? "#fff" : "#9ca3af",
@@ -60,6 +62,7 @@ export function AdminNav() {
                 textDecoration: "none",
               }}
             >
+              <span style={{ fontSize: 16 }}>{l.icon}</span>
               {l.label}
             </Link>
           ))}

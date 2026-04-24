@@ -8,6 +8,7 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
+import { PageHeader } from "@/components/page-header";
 import type { Theme } from "@/lib/theme";
 
 const THEME_FIELDS: { key: keyof Theme; label: string }[] = [
@@ -67,7 +68,7 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Themes</h1>
+        <PageHeader title="Themes" description="Customize display appearance" />
         <div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search themes..." /><Button onClick={startNew}>New Theme</Button></div>
       </div>
 

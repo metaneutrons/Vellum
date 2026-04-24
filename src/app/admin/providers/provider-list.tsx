@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
+import { PageHeader } from "@/components/page-header";
 
 const PROVIDER_TYPES = {
   microsoft365: {
@@ -79,7 +80,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Data Providers</h1>
+        <PageHeader title="Data Providers" description="Connect calendar and data sources" />
         <div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search providers..." /><Button onClick={startNew}>Add Provider</Button></div>
       </div>
 

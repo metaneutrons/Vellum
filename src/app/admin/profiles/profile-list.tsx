@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
+import { PageHeader } from "@/components/page-header";
 import { ScheduleTimeline } from "@/components/schedule-timeline";
 
 interface Profile { id: string; name: string; config: unknown; }
@@ -167,7 +168,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Refresh Profiles</h1>
+        <PageHeader title="Refresh Profiles" description="Control how often devices refresh their display" />
         <div className="flex gap-3">
           <SearchInput value={search} onChange={setSearch} placeholder="Search..." />
           <Button onClick={startNew}>New Profile</Button>

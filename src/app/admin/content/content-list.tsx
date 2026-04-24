@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
+import { PageHeader } from "@/components/page-header";
 
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
 interface ContentType { slug: string; name: string; description: string | null; }
@@ -108,7 +109,7 @@ export function ContentList({ instances, types, providers }: Props) {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Content Instances</h1>
+        <PageHeader title="Content Instances" description="Configure what each display shows" />
         <div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search content..." /><Button onClick={startNew}>New Content</Button></div>
       </div>
 
