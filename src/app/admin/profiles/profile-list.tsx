@@ -40,6 +40,7 @@ const RULE_TEMPLATES: { label: string; rule: ScheduleRule }[] = [
   { label: "🏖 Weekend", rule: { name: "Weekend", days: WEEKEND, startHour: 0, endHour: 23, intervalS: 3600 } },
   { label: "🍽 Lunch (12–13)", rule: { name: "Lunch Break", days: WEEKDAYS, startHour: 12, endHour: 13, intervalS: 1800 } },
   { label: "🏢 Office (8–18)", rule: { name: "Office Hours", days: WEEKDAYS, startHour: 8, endHour: 18, intervalS: 300 } },
+  { label: "✏️ Custom", rule: { name: "", days: [], startHour: 0, endHour: 23, intervalS: 900 } },
 ];
 
 function IntervalPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
