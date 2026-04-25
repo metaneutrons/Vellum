@@ -10,6 +10,9 @@ on:
 env:
   IDF_VERSION: v6.0
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
