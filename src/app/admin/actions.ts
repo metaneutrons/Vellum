@@ -183,6 +183,35 @@ export async function getAllContentTypes() {
   return getAllContentRenderers().map((r) => ({ slug: r.slug, name: r.name }));
 }
 
+
+export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string; eventCount?: number }> {
+  const [provider] = await db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1);
+  if (!provider) return { ok: false, message: "Provider not found" };
+
+  try {
+    const { getCalendarProvider } = await import("@/lib/calendar/registry");
+    const impl = getCalendarProvider(provider.type);
+    if (!impl) return { ok: false, message: `Unknown provider type: ${provider.type}` };
+
+    const { decryptCredentials: decrypt } = await import("@/lib/encryption");
+    const credentials = decrypt(provider.encryptedCredentials);
+
+    const now = new Date();
+    const windowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const windowEnd = new Date(windowStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const events = await impl.fetchEvents({
+      credentials,
+      roomConfig: {},
+      windowStart,
+      windowEnd,
+    });
+
+    return { ok: true, message: `Connected — ${events.length} events today`, eventCount: events.length };
+  } catch (err) {
+    return { ok: false, message: String(err instanceof Error ? err.message : err) };
+  }
+}
 /* ── Refresh Profiles ─────────────────────────────────────────── */
 
 export async function getAllRefreshProfiles() {

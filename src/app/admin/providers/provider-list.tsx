@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createProvider, updateProvider, deleteProvider, getProviderCredentials } from "../actions";
+import { createProvider, updateProvider, deleteProvider, getProviderCredentials, testDataProvider } from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
@@ -46,6 +46,16 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string } | "loading">>({});
+
+  function testProvider(id: string) {
+    setTestResults((r) => ({ ...r, [id]: "loading" }));
+    startTransition(async () => {
+      const result = await testDataProvider(id);
+      setTestResults((r) => ({ ...r, [id]: result }));
+    });
+  }
+
   const filteredProviders = providers.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.type.includes(search.toLowerCase()));
 
   function startNew() {
@@ -93,7 +103,15 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
               </span>
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{p.type}</span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              {(() => {
+                const r = testResults[p.id];
+                if (r === "loading") return <span className="text-xs text-gray-400 animate-pulse">Testing…</span>;
+                if (r && r.ok) return <span className="text-xs text-green-600">✓ {r.message}</span>;
+                if (r && !r.ok) return <span className="text-xs text-red-600 max-w-48 truncate" title={r.message}>✗ {r.message}</span>;
+                return null;
+              })()}
+              <Button size="sm" variant="ghost" onClick={() => testProvider(p.id)}>Test</Button>
               <Button size="sm" variant="ghost" onClick={() => startEdit(p)}>Edit</Button>
               <Button size="sm" variant="danger" onClick={() => setDeleting(p.id)}>Delete</Button>
             </div>
