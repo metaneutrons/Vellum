@@ -5,13 +5,16 @@
  * - stable = non-prerelease releases with firmware-manifest.json
  * - beta = prerelease releases with firmware-manifest.json
  *
- * Manifests are cached in memory with TTL.
+ * Caching strategy:
+ * - Individual manifests are cached permanently (releases are immutable)
+ * - Release list uses ETag conditional requests (no rate limit cost)
+ * - Only new releases trigger manifest downloads
  */
 
 import { log } from "./logger";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
-const CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+const POLL_INTERVAL_MS = 60_000; // check for new releases every 60s
 
 export type FirmwareChannel = "stable" | "beta";
 
@@ -37,42 +40,70 @@ interface GitHubRelease {
   assets: { name: string; browser_download_url: string }[];
 }
 
-/* ── In-memory cache ──────────────────────────────────────────── */
+/* ── Cache ────────────────────────────────────────────────────── */
 
-let cachedManifests: FirmwareManifest[] = [];
-let cachedAt = 0;
+/** Permanent cache: tag → manifest (immutable, never expires) */
+const manifestCache = new Map<string, FirmwareManifest>();
+
+/** ETag from last releases list fetch */
+let releasesEtag = "";
+
+/** Last time we polled the releases list */
+let lastPollAt = 0;
+
+/** Sorted result cache (rebuilt when new releases are found) */
+let sortedManifests: FirmwareManifest[] = [];
+
+function githubHeaders(): Record<string, string> {
+  const h: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "Vellum-Server",
+  };
+  if (process.env.GITHUB_TOKEN) {
+    h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+  return h;
+}
 
 /**
  * Fetch all firmware manifests from GitHub Releases.
- * Returns cached result if fresh.
+ * Uses ETag conditional requests — 304 Not Modified costs no rate limit.
+ * Individual manifests are cached permanently (immutable).
  */
 export async function getAllManifests(): Promise<FirmwareManifest[]> {
-  if (Date.now() - cachedAt < CACHE_TTL_MS && cachedManifests.length > 0) {
-    return cachedManifests;
+  if (Date.now() - lastPollAt < POLL_INTERVAL_MS && sortedManifests.length > 0) {
+    return sortedManifests;
   }
 
   try {
+    const headers = githubHeaders();
+    if (releasesEtag) {
+      headers["If-None-Match"] = releasesEtag;
+    }
+
     const res = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=50`,
-      {
-        headers: {
-          Accept: "application/vnd.github+json",
-          "User-Agent": "Vellum-Server",
-          ...(process.env.GITHUB_TOKEN
-            ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
-            : {}),
-        },
-        signal: AbortSignal.timeout(15_000),
-      }
+      { headers, signal: AbortSignal.timeout(15_000) }
     );
+
+    lastPollAt = Date.now();
+
+    // 304 Not Modified — no new releases, return cached
+    if (res.status === 304) {
+      return sortedManifests;
+    }
 
     if (!res.ok) {
       log.warn("GitHub Releases API failed", { status: res.status });
-      return cachedManifests;
+      return sortedManifests;
     }
 
+    // Store ETag for next conditional request
+    const etag = res.headers.get("etag");
+    if (etag) releasesEtag = etag;
+
     const releases = (await res.json()) as GitHubRelease[];
-    const manifests: FirmwareManifest[] = [];
+    let newCount = 0;
 
     for (const release of releases) {
       const manifestAsset = release.assets.find(
@@ -80,14 +111,10 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
       );
       if (!manifestAsset) continue;
 
-      // Check if we already have this manifest cached (by tag)
-      const existing = cachedManifests.find((m) => m.tag === release.tag_name);
-      if (existing) {
-        manifests.push(existing);
-        continue;
-      }
+      // Already cached permanently — skip
+      if (manifestCache.has(release.tag_name)) continue;
 
-      // Fetch the manifest
+      // Fetch and cache the manifest (will never change)
       try {
         const mRes = await fetch(manifestAsset.browser_download_url, {
           headers: { "User-Agent": "Vellum-Server" },
@@ -98,23 +125,26 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
         const manifest = (await mRes.json()) as FirmwareManifest;
         manifest.tag = release.tag_name;
         manifest.channel = release.prerelease ? "beta" : "stable";
-        manifests.push(manifest);
+        manifestCache.set(release.tag_name, manifest);
+        newCount++;
       } catch {
         log.warn("Failed to fetch manifest", { tag: release.tag_name });
       }
     }
 
-    // Sort newest first
-    manifests.sort((a, b) => compareSemver(b.version, a.version));
+    // Rebuild sorted list
+    sortedManifests = [...manifestCache.values()].sort(
+      (a, b) => compareSemver(b.version, a.version)
+    );
 
-    cachedManifests = manifests;
-    cachedAt = Date.now();
-    log.info("Firmware manifests refreshed", { count: manifests.length });
+    if (newCount > 0) {
+      log.info("Firmware manifests updated", { new: newCount, total: sortedManifests.length });
+    }
 
-    return manifests;
+    return sortedManifests;
   } catch (err) {
     log.warn("GitHub Releases fetch error", { error: String(err) });
-    return cachedManifests;
+    return sortedManifests;
   }
 }
 
@@ -160,11 +190,6 @@ const NO_UPDATE: OtaInfo = {
 
 /**
  * Resolve OTA update for a device.
- *
- * @param currentVersion - Firmware version currently on device
- * @param displayModel - Device model (e.g. "e1001")
- * @param channel - "stable" or "beta"
- * @param pinVersion - Exact version to target (allows downgrade), or null for latest
  */
 export async function resolveOta(
   currentVersion: string,
@@ -178,12 +203,10 @@ export async function resolveOta(
   let target: FirmwareManifest | undefined;
 
   if (pinVersion) {
-    // Pinned: find exact version (allows downgrade)
     target = manifests.find((m) => m.version === pinVersion);
     if (!target || pinVersion === currentVersion) return NO_UPDATE;
   } else {
-    // Latest in channel
-    target = manifests[0]; // already sorted newest first
+    target = manifests[0];
     if (!target || compareSemver(target.version, currentVersion) <= 0) {
       return NO_UPDATE;
     }
@@ -205,9 +228,6 @@ export async function resolveOta(
 
 /* ── Semver comparison ────────────────────────────────────────── */
 
-/**
- * Compare semver strings. Returns >0 if a > b, <0 if a < b, 0 if equal.
- */
 function compareSemver(a: string, b: string): number {
   const pa = a.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
   const pb = b.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
