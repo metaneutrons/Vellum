@@ -116,6 +116,18 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     char pass[65] = {0};
     if (pass_len > 0) memcpy(pass, &data[2 + ssid_len], pass_len > 64 ? 64 : pass_len);
 
+    /* Optional third string: server URL */
+    int pos = 2 + ssid_len + pass_len;
+    if (pos < len) {
+        uint8_t url_len = data[pos];
+        if (url_len > 0 && pos + 1 + url_len <= len) {
+            char url[128] = {0};
+            memcpy(url, &data[pos + 1], url_len > 127 ? 127 : url_len);
+            nvs_manager_store_server_url(url);
+            ESP_LOGI(TAG, "Improv: Server URL: %s", url);
+        }
+    }
+
     ESP_LOGI(TAG, "Improv: WiFi credentials received — SSID: %s", ssid);
 
     s_improv_state = IMPROV_STATE_PROVISIONING;
@@ -200,11 +212,16 @@ static bool improv_try_parse(const uint8_t *buf, int len)
 static int cmd_wifi(int argc, char **argv)
 {
     if (argc < 3) {
-        printf("Usage: wifi <ssid> <password>\n");
+        printf("Usage: wifi <ssid> <password> [server-url]\n");
         return 1;
     }
     nvs_manager_store_wifi(argv[1], argv[2]);
-    printf("WiFi credentials stored. Reboot to connect.\n");
+    printf("WiFi credentials stored.\n");
+    if (argc >= 4) {
+        nvs_manager_store_server_url(argv[3]);
+        printf("Server URL stored: %s\n", argv[3]);
+    }
+    printf("Reboot to connect.\n");
     return 0;
 }
 
@@ -259,7 +276,7 @@ static int cmd_reboot(int argc, char **argv)
 static void register_console_commands(void)
 {
     esp_console_cmd_t cmds[] = {
-        { .command = "wifi",      .help = "Set WiFi: wifi <ssid> <password>", .func = &cmd_wifi },
+        { .command = "wifi",      .help = "Set WiFi: wifi <ssid> <password> [server-url]", .func = &cmd_wifi },
         { .command = "server",    .help = "Get/set server URL: server [url]", .func = &cmd_server },
         { .command = "info",      .help = "Show device info",                 .func = &cmd_info },
         { .command = "nvs-erase", .help = "Factory reset (erase NVS)",        .func = &cmd_nvs_erase },
