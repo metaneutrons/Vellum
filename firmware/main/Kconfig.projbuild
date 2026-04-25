@@ -79,7 +79,7 @@ endmenu
 
     config VELLUM_OTA_SIGNING_PUBKEY
         string "Ed25519 OTA signing public key (PEM, base64)"
-        default ""
+        default "MCowBQYDK2VwAyEAeaYOs7D5gLyttPIEJa+1MOyf/5spnrmVMNdcpsfmpNo="
         help
             Base64-encoded Ed25519 public key for verifying firmware signatures.
             Generate with: openssl pkey -in key.pem -pubout | base64 -w0
