@@ -201,7 +201,7 @@ static void ensure_keypair(void)
     }
 
     psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
-    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DERIVE);
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_EXPORT);
     psa_set_key_algorithm(&attr, PSA_ALG_ECDH);
     psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
     psa_set_key_bits(&attr, 255);
