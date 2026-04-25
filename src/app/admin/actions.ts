@@ -184,30 +184,47 @@ export async function getAllContentTypes() {
 }
 
 
-export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string; eventCount?: number }> {
+export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string }> {
   const [provider] = await db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1);
   if (!provider) return { ok: false, message: "Provider not found" };
 
   try {
-    const { getCalendarProvider } = await import("@/lib/calendar/registry");
-    const impl = getCalendarProvider(provider.type);
-    if (!impl) return { ok: false, message: `Unknown provider type: ${provider.type}` };
-
     const { decryptCredentials: decrypt } = await import("@/lib/encryption");
-    const credentials = decrypt(provider.encryptedCredentials);
+    const credentials = decrypt(provider.encryptedCredentials) as Record<string, string>;
 
-    const now = new Date();
-    const windowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const windowEnd = new Date(windowStart.getTime() + 24 * 60 * 60 * 1000);
+    if (provider.type === "microsoft365") {
+      // Test: get OAuth token from Microsoft Graph
+      const { ConfidentialClientApplication } = await import("@azure/msal-node");
+      const cca = new ConfidentialClientApplication({
+        auth: { clientId: credentials.clientId, clientSecret: credentials.clientSecret, authority: `https://login.microsoftonline.com/${credentials.tenantId}` },
+      });
+      const token = await cca.acquireTokenByClientCredential({ scopes: ["https://graph.microsoft.com/.default"] });
+      return { ok: !!token?.accessToken, message: token?.accessToken ? "Connected — token acquired" : "No token returned" };
+    }
 
-    const events = await impl.fetchEvents({
-      credentials,
-      roomConfig: {},
-      windowStart,
-      windowEnd,
-    });
+    if (provider.type === "google") {
+      // Test: exchange JWT for access token (same as provider does)
+      const { createJwt } = await import("@/lib/calendar/providers/google");
+      const jwt = createJwt(credentials.clientEmail, credentials.privateKey);
+      const res = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) { const t = await res.text(); return { ok: false, message: `Google auth failed: ${t.slice(0, 100)}` }; }
+      return { ok: true, message: "Connected — token acquired" };
+    }
 
-    return { ok: true, message: `Connected — ${events.length} events today`, eventCount: events.length };
+    if (provider.type === "ical") {
+      // Test: fetch the iCal URL
+      const res = await fetch(credentials.url, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) return { ok: false, message: `HTTP ${res.status} from iCal URL` };
+      const text = await res.text();
+      return { ok: text.includes("VCALENDAR"), message: text.includes("VCALENDAR") ? "Connected — valid iCal feed" : "Response is not a valid iCal feed" };
+    }
+
+    return { ok: false, message: `Unknown provider type: ${provider.type}` };
   } catch (err) {
     return { ok: false, message: String(err instanceof Error ? err.message : err) };
   }

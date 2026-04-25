@@ -19,7 +19,7 @@ export const googleRoomConfigSchema = z.object({
 });
 
 /** Create a signed JWT for Google API access */
-function createJwt(email: string, privateKey: string): string {
+export function createJwt(email: string, privateKey: string): string {
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({
