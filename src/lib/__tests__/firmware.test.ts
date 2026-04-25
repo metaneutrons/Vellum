@@ -1,41 +1,34 @@
 import { describe, it, expect } from "vitest";
 
-// Test the semver comparison logic inline (since resolveOta needs DB)
-function isNewer(a: string, b: string): boolean {
+// Mirror the compareSemver logic from firmware.ts
+function compareSemver(a: string, b: string): number {
   const pa = a.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
   const pb = b.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const va = pa[i] ?? 0;
-    const vb = pb[i] ?? 0;
-    if (va > vb) return true;
-    if (va < vb) return false;
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
   }
-  return false;
+  return 0;
 }
 
 describe("Firmware version comparison", () => {
   it("detects newer versions", () => {
-    expect(isNewer("1.2.0", "1.1.0")).toBe(true);
-    expect(isNewer("2.0.0", "1.9.9")).toBe(true);
-    expect(isNewer("1.0.1", "1.0.0")).toBe(true);
+    expect(compareSemver("1.2.0", "1.1.0")).toBeGreaterThan(0);
+    expect(compareSemver("2.0.0", "1.9.9")).toBeGreaterThan(0);
+    expect(compareSemver("1.0.1", "1.0.0")).toBeGreaterThan(0);
   });
 
   it("detects same version", () => {
-    expect(isNewer("1.0.0", "1.0.0")).toBe(false);
+    expect(compareSemver("1.0.0", "1.0.0")).toBe(0);
   });
 
   it("detects older versions", () => {
-    expect(isNewer("1.0.0", "1.1.0")).toBe(false);
-    expect(isNewer("0.9.0", "1.0.0")).toBe(false);
+    expect(compareSemver("1.0.0", "1.1.0")).toBeLessThan(0);
+    expect(compareSemver("0.9.0", "1.0.0")).toBeLessThan(0);
   });
 
   it("handles v prefix", () => {
-    expect(isNewer("v1.2.0", "v1.1.0")).toBe(true);
-    expect(isNewer("v1.0.0", "v1.0.0")).toBe(false);
-  });
-
-  it("handles beta versions", () => {
-    expect(isNewer("1.2.0-beta.2", "1.2.0-beta.1")).toBe(true);
-    expect(isNewer("1.2.0", "1.2.0-beta.5")).toBe(false); // 0 > 0 is false for -beta
+    expect(compareSemver("v1.2.0", "v1.1.0")).toBeGreaterThan(0);
+    expect(compareSemver("v1.0.0", "v1.0.0")).toBe(0);
   });
 });

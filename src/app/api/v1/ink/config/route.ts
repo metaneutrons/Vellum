@@ -6,7 +6,7 @@ import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
-import { resolveOta } from "@/lib/firmware";
+import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   const ota = await resolveOta(
     firmwareVer,
     displayModel,
-    device?.firmwareChannelId ?? null,
+    (device?.firmwareChannel as FirmwareChannel) ?? "stable",
     device?.firmwarePinVersion ?? null
   );
 

@@ -12,7 +12,6 @@ import {
   telemetry,
   reports,
   refreshProfiles,
-  firmwareChannels,
 } from "@/db/schema";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { approveDevice as approveDeviceAuth } from "@/lib/auth";
@@ -32,7 +31,7 @@ export async function approveDevice(mac: string) {
 
 export async function updateDevice(
   mac: string,
-  data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null; firmwareChannelId?: string | null; firmwarePinVersion?: string | null }
+  data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null; firmwareChannel?: string | null; firmwarePinVersion?: string | null }
 ) {
   try {
     await db.update(devices).set(data).where(eq(devices.mac, mac));
@@ -220,29 +219,6 @@ export async function deleteRefreshProfile(id: string) {
   }
 }
 
-/* ── Firmware Channels ────────────────────────────────────────── */
+/* ── Firmware ──────────────────────────────────────────────────── */
 
-export async function getAllFirmwareChannels() {
-  return db.select().from(firmwareChannels).orderBy(firmwareChannels.name);
-}
-
-export async function updateFirmwareChannel(id: string, manifestUrl: string) {
-  try {
-    await db.update(firmwareChannels).set({ manifestUrl, updatedAt: new Date() }).where(eq(firmwareChannels.id, id));
-    revalidatePath("/admin/firmware");
-  } catch (err) {
-    log.error("Failed to update firmware channel", { id, error: String(err) });
-    throw err;
-  }
-}
-
-export async function refreshFirmwareManifest(id: string) {
-  try {
-    // Clear cache to force re-fetch
-    await db.update(firmwareChannels).set({ cachedAt: null }).where(eq(firmwareChannels.id, id));
-    revalidatePath("/admin/firmware");
-  } catch (err) {
-    log.error("Failed to refresh manifest", { id, error: String(err) });
-    throw err;
-  }
-}
+export { getAvailableVersions } from "@/lib/firmware";

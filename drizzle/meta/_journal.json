@@ -8,6 +8,13 @@
       "when": 1740000000000,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1745600000000,
+      "tag": "0008_firmware_github_releases",
+      "breakpoints": true
     }
   ]
 }

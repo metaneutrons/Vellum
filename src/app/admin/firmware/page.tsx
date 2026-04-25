@@ -1,10 +1,10 @@
-import { getAllFirmwareChannels, getAllDevices } from "../actions";
+import { getAllDevices, getAvailableVersions } from "../actions";
 import { FirmwarePage } from "./firmware-page";
 
 export default async function Page() {
-  const [channels, deviceList] = await Promise.all([
-    getAllFirmwareChannels(),
+  const [deviceList, versions] = await Promise.all([
     getAllDevices(),
+    getAvailableVersions(),
   ]);
-  return <FirmwarePage channels={channels} devices={deviceList} />;
+  return <FirmwarePage devices={deviceList} versions={versions} />;
 }

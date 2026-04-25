@@ -88,18 +88,6 @@ export const refreshProfiles = pgTable("refresh_profiles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-/* ── Firmware Channels ─────────────────────────────────────────── */
-
-export const firmwareChannels = pgTable("firmware_channels", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull().unique(),
-  manifestUrl: text("manifest_url").notNull(),
-  manifestCache: jsonb("manifest_cache"),
-  cachedAt: timestamp("cached_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 /* ── Devices ──────────────────────────────────────────────────── */
 
 export const devices = pgTable("devices", {
@@ -111,7 +99,7 @@ export const devices = pgTable("devices", {
   contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id),
   themeId: uuid("theme_id").references(() => themes.id),
   refreshProfileId: uuid("refresh_profile_id").references(() => refreshProfiles.id),
-  firmwareChannelId: uuid("firmware_channel_id").references(() => firmwareChannels.id),
+  firmwareChannel: text("firmware_channel").default("stable"),
   firmwarePinVersion: text("firmware_pin_version"),
   approvedAt: timestamp("approved_at"),
   lastSeen: timestamp("last_seen"),

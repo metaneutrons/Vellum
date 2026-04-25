@@ -1,17 +1,19 @@
 /**
- * Firmware manifest fetcher and OTA version resolver.
+ * Firmware distribution via GitHub Releases API.
  *
- * Fetches firmware-manifest.json from GitHub Releases,
- * caches in DB, and resolves the correct binary URL
- * for a device based on its channel, model, and version.
+ * SSOT: GitHub Releases. No manual channel URLs needed.
+ * - stable = non-prerelease releases with firmware-manifest.json
+ * - beta = prerelease releases with firmware-manifest.json
+ *
+ * Manifests are cached in memory with TTL.
  */
 
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { firmwareChannels } from "@/db/schema";
 import { log } from "./logger";
 
+const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
 const CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+
+export type FirmwareChannel = "stable" | "beta";
 
 export interface FirmwareBinary {
   url: string;
@@ -24,69 +26,123 @@ export interface FirmwareManifest {
   version: string;
   channel: string;
   date: string;
+  tag: string;
   binaries: Record<string, FirmwareBinary>;
 }
 
+interface GitHubRelease {
+  tag_name: string;
+  prerelease: boolean;
+  published_at: string;
+  assets: { name: string; browser_download_url: string }[];
+}
+
+/* ── In-memory cache ──────────────────────────────────────────── */
+
+let cachedManifests: FirmwareManifest[] = [];
+let cachedAt = 0;
+
 /**
- * Fetch and cache the manifest for a firmware channel.
+ * Fetch all firmware manifests from GitHub Releases.
+ * Returns cached result if fresh.
  */
-async function fetchManifest(channelId: string): Promise<FirmwareManifest | null> {
-  const [channel] = await db
-    .select()
-    .from(firmwareChannels)
-    .where(eq(firmwareChannels.id, channelId))
-    .limit(1);
-
-  if (!channel) return null;
-
-  // Return cache if fresh
-  if (channel.manifestCache && channel.cachedAt) {
-    const age = Date.now() - new Date(channel.cachedAt).getTime();
-    if (age < CACHE_TTL_MS) {
-      return channel.manifestCache as FirmwareManifest;
-    }
+export async function getAllManifests(): Promise<FirmwareManifest[]> {
+  if (Date.now() - cachedAt < CACHE_TTL_MS && cachedManifests.length > 0) {
+    return cachedManifests;
   }
 
-  // Fetch from GitHub
   try {
-    const res = await fetch(channel.manifestUrl, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=50`,
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "Vellum-Server",
+          ...(process.env.GITHUB_TOKEN
+            ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+            : {}),
+        },
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+
     if (!res.ok) {
-      log.warn("Manifest fetch failed", { channel: channel.name, status: res.status });
-      return channel.manifestCache as FirmwareManifest | null;
+      log.warn("GitHub Releases API failed", { status: res.status });
+      return cachedManifests;
     }
 
-    const manifest = (await res.json()) as FirmwareManifest;
+    const releases = (await res.json()) as GitHubRelease[];
+    const manifests: FirmwareManifest[] = [];
 
-    // Cache in DB
-    await db
-      .update(firmwareChannels)
-      .set({ manifestCache: manifest, cachedAt: new Date() })
-      .where(eq(firmwareChannels.id, channelId));
+    for (const release of releases) {
+      const manifestAsset = release.assets.find(
+        (a) => a.name === "firmware-manifest.json"
+      );
+      if (!manifestAsset) continue;
 
-    return manifest;
+      // Check if we already have this manifest cached (by tag)
+      const existing = cachedManifests.find((m) => m.tag === release.tag_name);
+      if (existing) {
+        manifests.push(existing);
+        continue;
+      }
+
+      // Fetch the manifest
+      try {
+        const mRes = await fetch(manifestAsset.browser_download_url, {
+          headers: { "User-Agent": "Vellum-Server" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!mRes.ok) continue;
+
+        const manifest = (await mRes.json()) as FirmwareManifest;
+        manifest.tag = release.tag_name;
+        manifest.channel = release.prerelease ? "beta" : "stable";
+        manifests.push(manifest);
+      } catch {
+        log.warn("Failed to fetch manifest", { tag: release.tag_name });
+      }
+    }
+
+    // Sort newest first
+    manifests.sort((a, b) => compareSemver(b.version, a.version));
+
+    cachedManifests = manifests;
+    cachedAt = Date.now();
+    log.info("Firmware manifests refreshed", { count: manifests.length });
+
+    return manifests;
   } catch (err) {
-    log.warn("Manifest fetch error", { channel: channel.name, error: String(err) });
-    return channel.manifestCache as FirmwareManifest | null;
+    log.warn("GitHub Releases fetch error", { error: String(err) });
+    return cachedManifests;
   }
 }
 
 /**
- * Compare semver strings. Returns true if a > b.
+ * Get manifests filtered by channel.
  */
-function isNewer(a: string, b: string): boolean {
-  const pa = a.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
-  const pb = b.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const va = pa[i] ?? 0;
-    const vb = pb[i] ?? 0;
-    if (va > vb) return true;
-    if (va < vb) return false;
-  }
-  return false;
+export async function getManifestsByChannel(
+  channel: FirmwareChannel
+): Promise<FirmwareManifest[]> {
+  const all = await getAllManifests();
+  return all.filter((m) => m.channel === channel);
 }
+
+/**
+ * Get all available versions (for admin dropdown).
+ */
+export async function getAvailableVersions(): Promise<
+  { version: string; channel: FirmwareChannel; date: string }[]
+> {
+  const all = await getAllManifests();
+  return all.map((m) => ({
+    version: m.version,
+    channel: m.channel as FirmwareChannel,
+    date: m.date,
+  }));
+}
+
+/* ── OTA Resolver ─────────────────────────────────────────────── */
 
 export interface OtaInfo {
   otaUrl: string | null;
@@ -95,60 +151,69 @@ export interface OtaInfo {
   otaSignature: string | null;
 }
 
+const NO_UPDATE: OtaInfo = {
+  otaUrl: null,
+  otaVersion: null,
+  otaSha256: null,
+  otaSignature: null,
+};
+
 /**
- * Resolve OTA update info for a device.
+ * Resolve OTA update for a device.
  *
- * @param deviceFirmwareVer - Current firmware version on device
- * @param displayModel - Device display model (e.g. "e1002")
- * @param channelId - Firmware channel ID (nullable → default stable)
- * @param pinVersion - Pinned version (nullable → use channel latest)
+ * @param currentVersion - Firmware version currently on device
+ * @param displayModel - Device model (e.g. "e1001")
+ * @param channel - "stable" or "beta"
+ * @param pinVersion - Exact version to target (allows downgrade), or null for latest
  */
 export async function resolveOta(
-  deviceFirmwareVer: string,
+  currentVersion: string,
   displayModel: string,
-  channelId: string | null,
+  channel: FirmwareChannel,
   pinVersion: string | null
 ): Promise<OtaInfo> {
-  const none: OtaInfo = { otaUrl: null, otaVersion: null, otaSha256: null, otaSignature: null };
+  const manifests = await getManifestsByChannel(channel);
+  if (manifests.length === 0) return NO_UPDATE;
 
-  // Get the default stable channel if none assigned
-  if (!channelId) {
-    const [stable] = await db
-      .select()
-      .from(firmwareChannels)
-      .where(eq(firmwareChannels.name, "stable"))
-      .limit(1);
-    if (!stable) return none;
-    channelId = stable.id;
-  }
+  let target: FirmwareManifest | undefined;
 
-  const manifest = await fetchManifest(channelId);
-  if (!manifest) return none;
-
-  // If pinned, check if pin version differs from current
-  const targetVersion = pinVersion ?? manifest.version;
-  if (!targetVersion) return none;
-
-  // Check if update needed
   if (pinVersion) {
-    // Pinned: update if versions differ (allows downgrade)
-    if (pinVersion === deviceFirmwareVer) return none;
+    // Pinned: find exact version (allows downgrade)
+    target = manifests.find((m) => m.version === pinVersion);
+    if (!target || pinVersion === currentVersion) return NO_UPDATE;
   } else {
-    // Channel: update only if manifest is newer
-    if (!isNewer(targetVersion, deviceFirmwareVer)) return none;
+    // Latest in channel
+    target = manifests[0]; // already sorted newest first
+    if (!target || compareSemver(target.version, currentVersion) <= 0) {
+      return NO_UPDATE;
+    }
   }
 
-  // Find binary for this display model
-  const binary = manifest.binaries[displayModel];
+  const binary = target.binaries[displayModel];
   if (!binary) {
-    log.warn("No binary for model in manifest", { model: displayModel, version: targetVersion });
-    return none;
+    log.warn("No binary for model", { model: displayModel, version: target.version });
+    return NO_UPDATE;
   }
 
   return {
     otaUrl: binary.url,
-    otaVersion: targetVersion,
+    otaVersion: target.version,
     otaSha256: binary.sha256,
     otaSignature: binary.signature,
   };
+}
+
+/* ── Semver comparison ────────────────────────────────────────── */
+
+/**
+ * Compare semver strings. Returns >0 if a > b, <0 if a < b, 0 if equal.
+ */
+function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
+  const pb = b.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
