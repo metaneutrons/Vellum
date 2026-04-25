@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>E-Ink Display Management Platform</strong><br>
-  Centrally manage, brand, and deploy content to E-Paper displays.
+  <strong>(E-Ink) Display Management Platform</strong><br>
+  Centrally manage, brand, and deploy content to (E-Paper) displays.
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 ## What is Vellum?
 
-Vellum is an open-source platform for managing E-Ink/E-Paper displays in offices, coworking spaces, and conference rooms. A central server renders content (meeting room schedules, dashboards, signage) and delivers pixel-perfect images to battery-powered ESP32-S3 displays that can run for months on a single charge.
+Vellum is an open-source platform for managing (not only) E-Ink/E-Paper displays in offices, coworking spaces, and conference rooms. A central server renders content (meeting room schedules, dashboards, signage) and delivers pixel-perfect images to battery-powered ESP32-S3 displays that can run for months on a single charge.
 
 ## Features
 
@@ -50,18 +50,18 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 
 ## Architecture
 
-```
-┌──────────────────┐       HTTPS        ┌──────────────────┐       APIs        ┌─────────────┐
-│  ESP32-S3        │ ──────────────────▶│  Vellum Server    │ ────────────────▶│  Microsoft  │
-│  E-Ink Display   │ ◀──────────────────│  (Next.js)        │ ◀────────────────│  365        │
-│                  │   pixel buffer     │                    │                  │  Google     │
+```plain
+┌──────────────────┐       HTTPS        ┌────────────────────┐       APIs       ┌─────────────┐
+│  ESP32-S3        │ ──────────────────▶│  Vellum Server     │ ────────────────▶│  Microsoft  │
+│  E-Ink Display   │ ◀──────────────────│  (Next.js)         │ ◀────────────────│  365        │
+│                  │    pixel buffer    │                    │                  │  Google     │
 │  Sleeps 99%      │                    │  Admin Dashboard   │                  │  iCal       │
 │  of the time     │                    │  Device Simulator  │                  └─────────────┘
-└──────────────────┘                    └────────┬───────────┘
-                                                 │
-                                          ┌──────┴──────┐
+└──────────────────┘                    └─────────┬──────────┘
+                                                  │
+                                          ┌───────┴──────┐
                                           │  PostgreSQL  │
-                                          └─────────────┘
+                                          └──────────────┘
 ```
 
 ## Quick Start
@@ -91,7 +91,7 @@ for f in drizzle/*.sql; do psql -d vellum -f "$f"; done
 npm run dev:mdns
 ```
 
-Open **http://localhost:3000/admin** and log in.
+Open **<http://localhost:3000/admin>** and log in.
 
 ### Docker
 
@@ -110,8 +110,6 @@ docker run -d \
 ```
 
 Multi-arch image available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
-
-
 
 ### First-Time Setup (Admin Dashboard)
 
@@ -177,11 +175,11 @@ npx tsc --noEmit     # Type check
 
 ### Device Simulator
 
-Open **http://localhost:3000/simulator** (dev mode only). Simulates the full firmware cycle: boot → WiFi → ECDH hello → render → sleep. Supports all three display models.
+Open **<http://localhost:3000/simulator>** (dev mode only). Simulates the full firmware cycle: boot → WiFi → ECDH hello → render → sleep. Supports all three display models.
 
 ## Project Structure
 
-```
+```plain
 src/
 ├── app/
 │   ├── admin/            # Dashboard (8 pages: devices, content, providers,
@@ -252,8 +250,3 @@ Contributions are welcome! Please open an issue first to discuss what you'd like
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-</p>
