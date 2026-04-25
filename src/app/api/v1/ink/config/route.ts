@@ -7,6 +7,7 @@ import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
+import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -39,6 +40,9 @@ export async function GET(request: NextRequest) {
     (device?.firmwareChannel as FirmwareChannel) ?? "stable",
     device?.firmwarePinVersion ?? null
   );
+
+  const t = extractTelemetry(request.headers);
+  if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch(() => {});
 
   return Response.json(
     okResponse({

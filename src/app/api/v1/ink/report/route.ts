@@ -5,6 +5,7 @@ import { reportRequestSchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
+import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { log } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
@@ -35,6 +36,10 @@ export async function POST(request: NextRequest) {
       issue: validation.data.issue,
       timestamp: new Date(),
     });
+
+    const t = extractTelemetry(request.headers);
+    if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch(() => {});
+
     return Response.json(okResponse({}));
   } catch (err) {
     log.error("report insert failed", { mac: validation.data.mac, error: String(err) });
