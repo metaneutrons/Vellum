@@ -14,7 +14,7 @@
 import { log } from "./logger";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
-const POLL_INTERVAL_MS = 60_000; // check for new releases every 60s
+const POLL_INTERVAL_MS = 15 * 60_000; // check for new releases every 15 min
 
 export type FirmwareChannel = "stable" | "beta";
 
