@@ -1,0 +1,47 @@
+{
+  "name": "vellum",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "db:migrate": "drizzle-kit migrate",
+    "dev:mdns": "node scripts/mdns-announce.mjs & next dev",
+    "mdns": "node scripts/mdns-announce.mjs"
+  },
+  "dependencies": {
+    "@azure/identity": "4.13.1",
+    "@date-fns/tz": "1.4.1",
+    "@microsoft/microsoft-graph-client": "3.0.7",
+    "@napi-rs/canvas": "0.1.99",
+    "@tailwindcss/postcss": "4.2.4",
+    "date-fns": "4.1.0",
+    "drizzle-orm": "0.45.2",
+    "esp-web-tools": "^10.2.1",
+    "multicast-dns": "^7.2.5",
+    "next": "16.2.4",
+    "pg": "8.20.0",
+    "postcss": "8.5.10",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "tailwindcss": "4.2.4",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.0",
+    "@types/pg": "8.20.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "drizzle-kit": "0.31.10",
+    "eslint": "10.2.1",
+    "eslint-config-next": "16.2.4",
+    "fast-check": "4.7.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.59.0",
+    "vitest": "4.1.5"
+  }
+}
