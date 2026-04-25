@@ -133,11 +133,25 @@ export async function GET(request: NextRequest) {
     rendererOverrideS: renderResult.sleepOverrideS ?? null,
   });
 
+  // Compute content hash for client-side caching (skip refresh if unchanged)
+  const { createHash } = await import("crypto");
+  const contentHash = createHash("sha256").update(new Uint8Array(pixelBuffer)).digest("hex").slice(0, 16);
+
+  // Check If-None-Match — device sends last hash, skip render if unchanged
+  const ifNoneMatch = request.headers.get("if-none-match");
+  if (ifNoneMatch === contentHash) {
+    return new Response(null, {
+      status: 304,
+      headers: { "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))) },
+    });
+  }
+
   return new Response(new Uint8Array(pixelBuffer), {
     status: 200,
     headers: {
       "Content-Type": display.quantize === "none" ? "image/png" : "application/octet-stream",
       "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
+      "ETag": contentHash,
     },
   });
 }

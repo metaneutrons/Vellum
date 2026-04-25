@@ -487,6 +487,8 @@ static uint32_t perform_render(void)
             ESP_LOGW(TAG, "Empty render response body");
             display_show_error("Error");
         }
+    } else if (resp.status_code == 304) {
+        ESP_LOGI(TAG, "Content unchanged — skipping display refresh");
     } else if (resp.status_code == 401) {
         ESP_LOGW(TAG, "401 Unauthorized");
         display_show_error("Unauthorized");
@@ -711,13 +713,18 @@ void app_main(void)
     buzzer_init();
     sht4x_init();
     display_init();
-    display_show_boot(CONFIG_VELLUM_FIRMWARE_VERSION);
+
+    wake_reason_t wake = sleep_manager_get_wake_reason();
+
+    /* Only show boot screen on power-on or button wake, not timer wake */
+    if (wake != WAKE_REASON_TIMER) {
+        display_show_boot(CONFIG_VELLUM_FIRMWARE_VERSION);
+    }
     buzzer_beep(1000, 100); /* Boot beep */
     led_on();
     buttons_init();
     sleep_manager_init();
 
-    wake_reason_t wake = sleep_manager_get_wake_reason();
     ESP_LOGI(TAG, "Wake reason: %s",
              wake == WAKE_REASON_TIMER  ? "TIMER" :
              wake == WAKE_REASON_BUTTON ? "BUTTON" : "POWER_ON");

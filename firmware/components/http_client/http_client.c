@@ -198,6 +198,8 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     return err;
 }
 
+static char s_last_etag[32] = {0};
+
 esp_err_t http_client_render(vellum_http_response_t *resp)
 {
     memset(resp, 0, sizeof(*resp));
@@ -224,6 +226,11 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
     set_telemetry_headers(client);
     set_auth_header(client);
 
+    /* Send last content hash — server returns 304 if unchanged */
+    if (s_last_etag[0]) {
+        esp_http_client_set_header(client, "If-None-Match", s_last_etag);
+    }
+
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK) {
         resp->status_code = esp_http_client_get_status_code(client);
@@ -235,16 +242,23 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
             int parsed = atoi(sleep_hdr_val);
             if (parsed > 0) {
                 resp->sleep_duration = parsed;
-                ESP_LOGI(TAG, "X-Sleep-Duration: %d", parsed);
             }
         }
 
+        /* Store ETag for next request */
+        char *etag_val = NULL;
+        esp_http_client_get_header(client, "ETag", &etag_val);
+        if (etag_val) {
+            strncpy(s_last_etag, etag_val, sizeof(s_last_etag) - 1);
+        }
+
         if (resp->status_code == 200) {
-            /* Binary response — transfer ownership of buffer */
             resp->binary_body = (uint8_t *)rb.buf;
             resp->binary_len = rb.len;
-            rb.buf = NULL; /* prevent free below */
+            rb.buf = NULL;
             ESP_LOGI(TAG, "GET /render → 200, %zu bytes", resp->binary_len);
+        } else if (resp->status_code == 304) {
+            ESP_LOGI(TAG, "GET /render → 304 (unchanged)");
         } else {
             resp->body = rb.buf;
             resp->body_len = rb.len;
