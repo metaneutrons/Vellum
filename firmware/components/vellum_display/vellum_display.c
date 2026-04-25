@@ -140,24 +140,8 @@ static void lvgl_refresh(void)
 
 void display_show_boot(const char *version)
 {
-    if (!s_lvgl_disp) return;
-    lv_obj_t *scr = lv_screen_active();
-    lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
-
-    lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Vellum");
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_48, 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -40);
-
-    lv_obj_t *ver = lv_label_create(scr);
-    lv_label_set_text_fmt(ver, "v%s • %s", version, PANEL_MODEL);
-    lv_obj_set_style_text_font(ver, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(ver, lv_color_hex(0x888888), 0);
-    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 20);
-
-    lvgl_refresh();
-    ESP_LOGI(TAG, "Boot screen shown");
+    /* No separate boot screen — wifi_setup screen includes branding */
+    (void)version;
 }
 
 static void qr_display_cb(esp_qrcode_handle_t qrcode, void *user_data)
@@ -190,11 +174,17 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
 
-    /* QR code canvas */
+    /* Left side: Vellum logo text */
+    lv_obj_t *logo = lv_label_create(scr);
+    lv_label_set_text(logo, "Vellum");
+    lv_obj_set_style_text_font(logo, &lv_font_montserrat_48, 0);
+    lv_obj_set_pos(logo, 60, 160);
+
+    /* Right side: QR code */
     static lv_color_t qr_buf[200 * 200];
     lv_obj_t *canvas = lv_canvas_create(scr);
     lv_canvas_set_buffer(canvas, qr_buf, 200, 200, LV_COLOR_FORMAT_NATIVE);
-    lv_obj_align(canvas, LV_ALIGN_CENTER, 0, -60);
+    lv_obj_set_pos(canvas, 480, 80);
 
     esp_qrcode_config_t qr_cfg = {
         .display_func_with_cb = qr_display_cb,
@@ -204,17 +194,28 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     };
     esp_qrcode_generate(&qr_cfg, url);
 
-    /* Instructions */
+    /* WiFi name centered below QR */
     lv_obj_t *lbl_ssid = lv_label_create(scr);
     lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
-    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
-    lv_obj_align(lbl_ssid, LV_ALIGN_CENTER, 0, 80);
+    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_18, 0);
+    lv_obj_set_pos(lbl_ssid, 480, 290);
 
+    /* Bottom: instructions */
     lv_obj_t *lbl_hint = lv_label_create(scr);
-    lv_label_set_text(lbl_hint, "Scan QR code to configure WiFi");
-    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_18, 0);
+    lv_label_set_text(lbl_hint,
+        "Scan QR code, connect to WiFi manually\n"
+        "or use Vellum Console to configure this device.");
+    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lbl_hint, lv_color_hex(0x666666), 0);
-    lv_obj_align(lbl_hint, LV_ALIGN_CENTER, 0, 115);
+    lv_obj_set_width(lbl_hint, 700);
+    lv_obj_set_pos(lbl_hint, 40, 420);
+
+    /* Bottom-right: firmware version */
+    lv_obj_t *lbl_ver = lv_label_create(scr);
+    lv_label_set_text(lbl_ver, CONFIG_VELLUM_FIRMWARE_VERSION " • " PANEL_MODEL);
+    lv_obj_set_style_text_font(lbl_ver, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_ver, lv_color_hex(0xAAAAAA), 0);
+    lv_obj_align(lbl_ver, LV_ALIGN_BOTTOM_RIGHT, -20, -15);
 
     lvgl_refresh();
     ESP_LOGI(TAG, "WiFi setup screen shown");
