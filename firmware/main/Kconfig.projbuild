@@ -1,0 +1,86 @@
+menu "Vellum Configuration"
+
+    config VELLUM_FIRMWARE_VERSION
+        string "Firmware version"
+        default "1.0.0"
+
+    config VELLUM_DEFAULT_SERVER_URL
+        string "Default server URL"
+        default "https://vellum.local"
+
+    choice VELLUM_DISPLAY_DRIVER
+        prompt "Display driver"
+        default VELLUM_DRIVER_E1002
+        config VELLUM_DRIVER_E1001
+            bool "reTerminal E1001 (7.5\" B&W/4-Gray)"
+        config VELLUM_DRIVER_E1002
+            bool "reTerminal E1002 (7.3\" Spectra 6 Color)"
+        config VELLUM_DRIVER_E1003
+            bool "reTerminal E1003 (10.3\" 16-Gray)"
+        config VELLUM_DRIVER_STUB
+            bool "No display (stub for testing)"
+    endchoice
+
+    config VELLUM_DISPLAY_MODEL
+        string
+        default "e1001" if VELLUM_DRIVER_E1001
+        default "e1002" if VELLUM_DRIVER_E1002
+        default "e1003" if VELLUM_DRIVER_E1003
+        default "stub"  if VELLUM_DRIVER_STUB
+
+    menu "Hardware Pins (reTerminal E Series)"
+        config VELLUM_BUTTON_KEY0_GPIO
+            int "KEY0 GPIO (Right/Green — refresh)"
+            default 3
+        config VELLUM_BUTTON_KEY1_GPIO
+            int "KEY1 GPIO (Middle — report)"
+            default 4
+        config VELLUM_BUTTON_KEY2_GPIO
+            int "KEY2 GPIO (Left — SoftAP hold)"
+            default 5
+        config VELLUM_LED_GPIO
+            int "Status LED GPIO (inverted)"
+            default 6
+        config VELLUM_BUZZER_GPIO
+            int "Buzzer GPIO"
+            default 45
+        config VELLUM_BATTERY_ADC_GPIO
+            int "Battery ADC GPIO"
+            default 1
+        config VELLUM_BATTERY_EN_GPIO
+            int "Battery monitoring enable GPIO"
+            default 21
+    endmenu
+
+    menu "Timing"
+        config VELLUM_BATTERY_CRITICAL_PERCENT
+            int "Critical battery shutdown threshold (%)"
+            default 5
+            range 1 20
+        config VELLUM_FALLBACK_SLEEP_SEC
+            int "Fallback sleep duration (seconds)"
+            default 900
+            range 60 7200
+        config VELLUM_WIFI_CONNECT_TIMEOUT_MS
+            int "Wi-Fi connection timeout (ms)"
+            default 30000
+            range 5000 60000
+        config VELLUM_WIFI_MAX_RETRIES
+            int "Wi-Fi connection max retries"
+            default 3
+            range 1 10
+        config VELLUM_HTTP_TIMEOUT_MS
+            int "HTTP request timeout (ms)"
+            default 30000
+            range 5000 60000
+    endmenu
+
+endmenu
+
+    config VELLUM_OTA_SIGNING_PUBKEY
+        string "Ed25519 OTA signing public key (PEM, base64)"
+        default "MCowBQYDK2VwAyEAeaYOs7D5gLyttPIEJa+1MOyf/5spnrmVMNdcpsfmpNo="
+        help
+            Base64-encoded Ed25519 public key for verifying firmware signatures.
+            Generate with: openssl pkey -in key.pem -pubout | base64 -w0
+            Leave empty to skip signature verification (development only).
