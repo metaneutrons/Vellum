@@ -217,7 +217,6 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
     }
 
     if (provider.type === "ical") {
-      // Test: fetch the iCal URL
       const res = await fetch(credentials.url, { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) return { ok: false, message: `HTTP ${res.status} from iCal URL` };
       const text = await res.text();
@@ -225,6 +224,30 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
     }
 
     return { ok: false, message: `Unknown provider type: ${provider.type}` };
+  } catch (err) {
+    return { ok: false, message: String(err instanceof Error ? err.message : err) };
+  }
+}
+
+export async function testContentInstance(id: string): Promise<{ ok: boolean; message: string }> {
+  const [instance] = await db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1);
+  if (!instance) return { ok: false, message: "Content instance not found" };
+
+  try {
+    const { getContentRenderer } = await import("@/lib/content/registry");
+    const renderer = getContentRenderer(instance.typeSlug);
+    if (!renderer) return { ok: false, message: `Unknown renderer: ${instance.typeSlug}` };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const config = renderer.configSchema.parse(instance.config) as any;
+
+    if (instance.typeSlug === "room-booking") {
+      const { fetchEvents } = await import("@/lib/content/renderers/room-booking");
+      const events = await fetchEvents(config);
+      return { ok: true, message: `OK — ${events.length} events today` };
+    }
+
+    return { ok: true, message: "Config valid" };
   } catch (err) {
     return { ok: false, message: String(err instanceof Error ? err.message : err) };
   }

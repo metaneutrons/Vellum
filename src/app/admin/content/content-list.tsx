@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createContentInstance, updateContentInstance, deleteContentInstance } from "../actions";
+import { createContentInstance, updateContentInstance, deleteContentInstance, testContentInstance } from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
@@ -73,6 +73,7 @@ export function ContentList({ instances, types, providers }: Props) {
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [typeSlug, setTypeSlug] = useState("room-booking");
   const [search, setSearch] = useState("");
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string } | "loading">>({});
   const filteredInstances = instances.filter((inst) => !search || inst.name.toLowerCase().includes(search.toLowerCase()) || inst.typeSlug.includes(search.toLowerCase()));
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Record<string, unknown>>({});
@@ -122,6 +123,14 @@ export function ContentList({ instances, types, providers }: Props) {
               </span>
             </div>
             <div className="flex gap-2">
+              {(() => {
+                const r = testResults[inst.id];
+                if (r === "loading") return <span className="text-xs text-gray-400 animate-pulse">Testing…</span>;
+                if (r && r.ok) return <span className="text-xs text-green-600">✓ {r.message}</span>;
+                if (r && !r.ok) return <span className="text-xs text-red-600 max-w-48 truncate" title={r.message}>✗ {r.message}</span>;
+                return null;
+              })()}
+              <Button size="sm" variant="ghost" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</Button>
               <Button size="sm" variant="ghost" onClick={() => setPreviewing(inst.id)}>Preview</Button>
               <Button size="sm" variant="ghost" onClick={() => startEdit(inst)}>Edit</Button>
               <Button size="sm" variant="danger" onClick={() => setDeleting(inst.id)}>Delete</Button>

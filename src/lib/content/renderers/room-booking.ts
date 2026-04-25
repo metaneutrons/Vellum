@@ -105,7 +105,7 @@ export const roomBookingConfigSchema = z.object({
 
 const eventsCache = new TtlCache<CalendarEvent[]>(Infinity); // TTL managed per-entry
 
-async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema>): Promise<CalendarEvent[]> {
+export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema>): Promise<CalendarEvent[]> {
   const cacheKey = `${config.providerId}:${JSON.stringify(config.roomConfig)}`;
 
   // Skip cache in development for instant feedback
