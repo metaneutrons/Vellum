@@ -13,7 +13,8 @@
   <img src="https://img.shields.io/badge/TypeScript-6.0-blue" alt="TypeScript">
   <img src="https://img.shields.io/badge/Next.js-16.2-black" alt="Next.js">
   <img src="https://img.shields.io/badge/ESP--IDF-5.3-red" alt="ESP-IDF">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-green.svg" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/Docker-ghcr.io-blue" alt="Docker"></a>
 </p>
 
 ---
@@ -91,6 +92,26 @@ npm run dev:mdns
 ```
 
 Open **http://localhost:3000/admin** and log in.
+
+### Docker
+
+```bash
+docker pull ghcr.io/metaneutrons/vellum:latest
+
+docker run -d \
+  --name vellum \
+  -p 3000:3000 \
+  -e DATABASE_URL=postgresql://user:pass@host:5432/vellum \
+  -e ENCRYPTION_KEY=your-encryption-key \
+  -e ADMIN_API_KEY=your-admin-api-key \
+  -e ADMIN_USER=admin \
+  -e ADMIN_PASS=your-password \
+  ghcr.io/metaneutrons/vellum:latest
+```
+
+Multi-arch image available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
+
+
 
 ### First-Time Setup (Admin Dashboard)
 
