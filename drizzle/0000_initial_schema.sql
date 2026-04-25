@@ -1,12 +1,9 @@
 -- Vellum initial schema
-
-CREATE TYPE "device_status" AS ENUM ('pending', 'approved', 'rejected');
-CREATE TYPE "room_policy" AS ENUM ('Show All', 'Hide Subject', 'Hide All');
-CREATE TYPE "data_provider_type" AS ENUM ('microsoft365', 'google', 'ical');
+-- No DB enums — all types validated in application code (SSOT)
 
 CREATE TABLE "data_providers" (
   "id" uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  "type" "data_provider_type" NOT NULL,
+  "type" text NOT NULL,
   "category" text NOT NULL DEFAULT 'calendar',
   "name" text NOT NULL,
   "encrypted_credentials" text NOT NULL,
@@ -48,7 +45,7 @@ CREATE TABLE "settings" (
 
 CREATE TABLE "devices" (
   "mac" text PRIMARY KEY,
-  "status" "device_status" NOT NULL DEFAULT 'pending',
+  "status" text NOT NULL DEFAULT 'pending',
   "token" text,
   "public_key" text,
   "display_caps" jsonb,

@@ -5,40 +5,27 @@ import {
   real,
   timestamp,
   serial,
-  pgEnum,
   jsonb,
   uuid,
   boolean,
 } from "drizzle-orm/pg-core";
 
-/* ── Enums ────────────────────────────────────────────────────── */
-
-export const deviceStatusEnum = pgEnum("device_status", [
-  "pending",
-  "approved",
-  "rejected",
-]);
-
-export const roomPolicyEnum = pgEnum("room_policy", [
-  "Show All",
-  "Hide Subject",
-  "Hide All",
-]);
-
-export const dataProviderTypeEnum = pgEnum("data_provider_type", [
-  "microsoft365",
-  "google",
-  "ical",
-]);
+/**
+ * Vellum Database Schema
+ *
+ * Design principles:
+ * - SSOT: types/enums defined in code, not DB. DB stores plain text.
+ * - No DB enums: adding a new provider type or status requires no migration.
+ * - Config as JSONB: renderer/profile/theme config is opaque to the DB.
+ */
 
 /* ── Data Providers ───────────────────────────────────────────── */
 
 export const dataProviders = pgTable("data_providers", {
   id: uuid("id").defaultRandom().primaryKey(),
-  type: dataProviderTypeEnum("type").notNull(),
+  type: text("type").notNull(),           /* "microsoft365" | "google" | "ical" — validated in code */
   category: text("category").notNull().default("calendar"),
   name: text("name").notNull(),
-  /** AES-256-GCM encrypted JSONB — never exposed in API responses */
   encryptedCredentials: text("encrypted_credentials").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -49,7 +36,6 @@ export const dataProviders = pgTable("data_providers", {
 export const themes = pgTable("themes", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
-  /** Theme color config — matches Theme interface in theme.ts */
   config: jsonb("config").notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -60,15 +46,14 @@ export const themes = pgTable("themes", {
 
 export const contentInstances = pgTable("content_instances", {
   id: uuid("id").defaultRandom().primaryKey(),
-  typeSlug: text("type_slug").notNull(),
+  typeSlug: text("type_slug").notNull(),  /* renderer slug — validated against registry in code */
   name: text("name").notNull(),
-  /** Renderer-specific config (provider ref, room email, etc.) */
   config: jsonb("config").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-/* ── Refresh Profiles ──────────────────────────────────────────── */
+/* ── Refresh Profiles ─────────────────────────────────────────── */
 
 export const refreshProfiles = pgTable("refresh_profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -78,7 +63,7 @@ export const refreshProfiles = pgTable("refresh_profiles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-/* ── Settings (KV store) ───────────────────────────────────────── */
+/* ── Settings (KV store) ──────────────────────────────────────── */
 
 export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
@@ -90,7 +75,7 @@ export const settings = pgTable("settings", {
 
 export const devices = pgTable("devices", {
   mac: text("mac").primaryKey(),
-  status: deviceStatusEnum("status").notNull().default("pending"),
+  status: text("status").notNull().default("pending"),  /* "pending" | "approved" | "rejected" */
   token: text("token"),
   publicKey: text("public_key"),
   displayCaps: jsonb("display_caps"),
@@ -108,9 +93,7 @@ export const devices = pgTable("devices", {
 
 export const telemetry = pgTable("telemetry", {
   id: serial("id").primaryKey(),
-  mac: text("mac")
-    .notNull()
-    .references(() => devices.mac),
+  mac: text("mac").notNull().references(() => devices.mac),
   batteryVoltage: real("battery_voltage"),
   batteryLevel: integer("battery_level"),
   wifiRssi: integer("wifi_rssi"),
@@ -122,9 +105,7 @@ export const telemetry = pgTable("telemetry", {
 
 export const reports = pgTable("reports", {
   id: serial("id").primaryKey(),
-  mac: text("mac")
-    .notNull()
-    .references(() => devices.mac),
+  mac: text("mac").notNull().references(() => devices.mac),
   issue: text("issue"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });

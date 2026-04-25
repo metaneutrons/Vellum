@@ -7,7 +7,7 @@ import { constantTimeEqual } from "@/lib/constant-time";
 import type { DisplayCaps } from "@/lib/display";
 
 export interface HelloResponse {
-  status: "pending" | "approved" | "rejected";
+  status: string;
   token?: string;
   encryptedToken?: {
     ciphertext: string;
@@ -18,7 +18,7 @@ export interface HelloResponse {
 
 export interface DeviceRecord {
   mac: string;
-  status: "pending" | "approved" | "rejected";
+  status: string;
   token: string | null;
   publicKey: string | null;
 }

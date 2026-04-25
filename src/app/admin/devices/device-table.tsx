@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/empty-state";
 
 interface Device {
   mac: string;
-  status: "pending" | "approved" | "rejected";
+  status: string;
   contentInstanceId: string | null;
   themeId: string | null;
   refreshProfileId: string | null;
