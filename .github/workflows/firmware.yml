@@ -30,11 +30,14 @@ jobs:
 
       - name: Configure for ${{ matrix.model }}
         run: |
+          . $IDF_PATH/export.sh
           idf.py set-target esp32s3
           echo "${{ matrix.kconfig }}" >> sdkconfig.defaults
 
       - name: Build
-        run: idf.py build
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py build
 
       - name: Extract binary
         run: |
