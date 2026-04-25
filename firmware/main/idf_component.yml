@@ -1,0 +1,5 @@
+dependencies:
+  espressif/cjson:
+    version: ">=1.7.15"
+  espressif/mdns:
+    version: ">=1.0.0"

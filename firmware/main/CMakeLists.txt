@@ -8,7 +8,7 @@ idf_component_register(
         vellum_display
         buttons
         sleep_manager
-        cJSON
+        cjson
         mbedtls
         esp_https_ota
         esp_adc

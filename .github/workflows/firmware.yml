@@ -5,6 +5,7 @@ on:
     paths: ['firmware/**']
   release:
     types: [published]
+  workflow_dispatch:
 
 env:
   IDF_VERSION: v5.3
