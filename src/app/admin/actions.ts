@@ -221,7 +221,10 @@ export async function deleteRefreshProfile(id: string) {
 
 /* ── Firmware ──────────────────────────────────────────────────── */
 
-export { getAvailableVersions } from "@/lib/firmware";
+export async function getAvailableVersions() {
+  const { getAvailableVersions: fn } = await import("@/lib/firmware");
+  return fn();
+}
 
 /* ── Settings ─────────────────────────────────────────────────── */
 
