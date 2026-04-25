@@ -15,6 +15,7 @@ SHELL := /bin/bash
 
 # Auto-detect serial port
 PORT ?= $(shell ls /dev/cu.usbserial-* 2>/dev/null | head -1)
+BAUD ?= 921600
 MODEL ?= e1002
 
 # Map model to Kconfig
@@ -41,7 +42,7 @@ build:
 
 flash: check-port
 	@echo "Flashing to $(PORT)..."
-	@$(IDF_EXPORT) && idf.py -p $(PORT) flash
+	@$(IDF_EXPORT) && idf.py -p $(PORT) -b $(BAUD) flash
 
 monitor: check-port
 	@$(IDF_EXPORT) && idf.py -p $(PORT) monitor
@@ -49,7 +50,7 @@ monitor: check-port
 # Flash + Monitor (most common dev workflow)
 fm: check-port
 	@echo "Flashing to $(PORT)..."
-	@$(IDF_EXPORT) && idf.py -p $(PORT) flash monitor
+	@$(IDF_EXPORT) && idf.py -p $(PORT) -b $(BAUD) flash monitor
 
 erase-nvs: check-port
 	@echo "Erasing NVS on $(PORT)..."
@@ -58,7 +59,7 @@ erase-nvs: check-port
 
 erase-all: check-port
 	@echo "Full erase + flash on $(PORT)..."
-	@$(IDF_EXPORT) && esptool.py --port $(PORT) erase_flash && idf.py -p $(PORT) flash
+	@$(IDF_EXPORT) && esptool.py --port $(PORT) -b $(BAUD) erase_flash && idf.py -p $(PORT) -b $(BAUD) flash
 
 # Create merged binary for web flash (single file, offset 0x0)
 merged-bin: build
