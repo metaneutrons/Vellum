@@ -12,12 +12,9 @@
  */
 
 import { log } from "./logger";
+import { getSetting } from "./settings";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
-const POLL_INTERVAL_MS = Math.max(
-  60_000,
-  (parseInt(process.env.FIRMWARE_POLL_INTERVAL_S ?? "900", 10) || 900) * 1000
-); // default 15min, min 1min
 
 export type FirmwareChannel = "stable" | "beta";
 
@@ -54,6 +51,11 @@ let releasesEtag = "";
 /** Last time we polled the releases list */
 let lastPollAt = 0;
 
+async function getPollIntervalMs(): Promise<number> {
+  const s = await getSetting("firmware.pollIntervalS");
+  return Math.max(60_000, s * 1000);
+}
+
 /** Sorted result cache (rebuilt when new releases are found) */
 let sortedManifests: FirmwareManifest[] = [];
 
@@ -74,7 +76,8 @@ function githubHeaders(): Record<string, string> {
  * Individual manifests are cached permanently (immutable).
  */
 export async function getAllManifests(): Promise<FirmwareManifest[]> {
-  if (Date.now() - lastPollAt < POLL_INTERVAL_MS && sortedManifests.length > 0) {
+  const pollInterval = await getPollIntervalMs();
+  if (Date.now() - lastPollAt < pollInterval && sortedManifests.length > 0) {
     return sortedManifests;
   }
 
@@ -243,14 +246,25 @@ function compareSemver(a: string, b: string): number {
 
 /* ── Optional background polling ──────────────────────────────── */
 
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
 /**
- * Set FIRMWARE_AUTO_POLL=true to enable background polling.
- * Combined with FIRMWARE_POLL_INTERVAL_S this enables auto-update:
- * devices will pick up new firmware without admin interaction.
+ * Start or stop background polling based on DB settings.
+ * Called from server startup or when settings change.
  */
-if (process.env.FIRMWARE_AUTO_POLL === "true") {
-  setInterval(() => {
-    getAllManifests().catch(() => {});
-  }, POLL_INTERVAL_MS);
-  log.info("Firmware auto-poll enabled", { intervalS: POLL_INTERVAL_MS / 1000 });
+export async function syncAutoPoll(): Promise<void> {
+  const enabled = await getSetting("firmware.autoPoll");
+  const intervalMs = await getPollIntervalMs();
+
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  if (enabled) {
+    pollTimer = setInterval(() => {
+      getAllManifests().catch(() => {});
+    }, intervalMs);
+    log.info("Firmware auto-poll enabled", { intervalS: intervalMs / 1000 });
+  }
 }

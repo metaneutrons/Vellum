@@ -88,6 +88,14 @@ export const refreshProfiles = pgTable("refresh_profiles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/* ── Settings (KV store) ───────────────────────────────────────── */
+
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 /* ── Devices ──────────────────────────────────────────────────── */
 
 export const devices = pgTable("devices", {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { updateDevice } from "../actions";
+import { updateDevice, updateSetting } from "../actions";
 import { useToast } from "@/components/toast";
 import { PageHeader } from "@/components/page-header";
 
@@ -21,11 +21,29 @@ interface Device {
 interface Props {
   devices: Device[];
   versions: FirmwareVersion[];
+  settings: Record<string, unknown>;
 }
 
-export function FirmwarePage({ devices, versions }: Props) {
+export function FirmwarePage({ devices, versions, settings }: Props) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
+
+  const autoPoll = settings["firmware.autoPoll"] as boolean ?? false;
+  const pollIntervalS = settings["firmware.pollIntervalS"] as number ?? 900;
+
+  function toggleAutoPoll() {
+    startTransition(async () => {
+      try { await updateSetting("firmware.autoPoll", !autoPoll); toast("success", "Updated"); }
+      catch { toast("error", "Failed to update"); }
+    });
+  }
+
+  function setPollInterval(s: number) {
+    startTransition(async () => {
+      try { await updateSetting("firmware.pollIntervalS", s); toast("success", "Updated"); }
+      catch { toast("error", "Failed to update"); }
+    });
+  }
 
   function setChannel(mac: string, channel: string) {
     startTransition(async () => {
@@ -47,6 +65,32 @@ export function FirmwarePage({ devices, versions }: Props) {
   return (
     <div className={pending ? "opacity-60 pointer-events-none" : ""}>
       <PageHeader title="Firmware" description="OTA firmware updates via GitHub Releases" actions={<a href="/admin/firmware/flash" className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Flash Device</a>} />
+
+      {/* Auto-poll settings */}
+      <h2 className="text-lg font-semibold mb-3">Auto-Update</h2>
+      <div className="bg-white rounded-lg shadow px-4 py-4 mb-8 flex items-center gap-6">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={autoPoll} onChange={toggleAutoPoll}
+            className="w-4 h-4 rounded" aria-label="Enable auto-poll" />
+          <span className="text-sm">Background polling</span>
+        </label>
+        {autoPoll && (
+          <label className="flex items-center gap-2 text-sm">
+            Interval:
+            <select className="border rounded px-2 py-1 text-xs" value={pollIntervalS}
+              aria-label="Poll interval"
+              onChange={(e) => setPollInterval(Number(e.target.value))}>
+              <option value={300}>5 min</option>
+              <option value={900}>15 min</option>
+              <option value={1800}>30 min</option>
+              <option value={3600}>1 hour</option>
+            </select>
+          </label>
+        )}
+        <span className="text-xs text-gray-500">
+          {autoPoll ? "Server checks GitHub for new releases automatically" : "Only checks when admin page is opened or device requests /config"}
+        </span>
+      </div>
 
       {/* Available versions */}
       <h2 className="text-lg font-semibold mb-3">Available Versions</h2>

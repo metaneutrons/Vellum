@@ -222,3 +222,14 @@ export async function deleteRefreshProfile(id: string) {
 /* ── Firmware ──────────────────────────────────────────────────── */
 
 export { getAvailableVersions } from "@/lib/firmware";
+
+/* ── Settings ─────────────────────────────────────────────────── */
+
+export async function updateSetting(key: string, value: unknown) {
+  const { setSetting } = await import("@/lib/settings");
+  const { syncAutoPoll } = await import("@/lib/firmware");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await setSetting(key as any, value as any);
+  if (key.startsWith("firmware.")) await syncAutoPoll();
+  revalidatePath("/admin/firmware");
+}
