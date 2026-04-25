@@ -20,7 +20,7 @@ export function TelemetryView({ rows: rawRows }: { rows: Record<string, unknown>
   const warnings = rows.filter((d) =>
     (d.battery_level !== null && d.battery_level < 20) ||
     (d.wifi_rssi !== null && d.wifi_rssi < -70) ||
-    (d.last_seen && Date.now() - new Date(d.last_seen).getTime() > 3600_000)
+    (d.last_seen && Date.now() - new Date(d.last_seen + "Z").getTime() > 3600_000)
   );
 
   const filtered = useMemo(() => {
@@ -42,7 +42,7 @@ export function TelemetryView({ rows: rawRows }: { rows: Record<string, unknown>
                 <Link href={`/admin/devices/${d.mac}`} className="font-mono text-xs hover:underline">{d.mac}</Link>
                 {d.battery_level !== null && d.battery_level < 20 && <span>🔋 {d.battery_level}%</span>}
                 {d.wifi_rssi !== null && d.wifi_rssi < -70 && <span>📶 {d.wifi_rssi} dBm</span>}
-                {d.last_seen && Date.now() - new Date(d.last_seen).getTime() > 3600_000 && <span>⏱ Offline &gt;1h</span>}
+                {d.last_seen && Date.now() - new Date(d.last_seen + "Z").getTime() > 3600_000 && <span>⏱ Offline &gt;1h</span>}
               </div>
             ))}
           </div>
@@ -67,7 +67,7 @@ export function TelemetryView({ rows: rawRows }: { rows: Record<string, unknown>
             {filtered.map((d) => {
               const bWarn = d.battery_level !== null && d.battery_level < 20;
               const rWarn = d.wifi_rssi !== null && d.wifi_rssi < -70;
-              const oWarn = d.last_seen && Date.now() - new Date(d.last_seen).getTime() > 3600_000;
+              const oWarn = d.last_seen && Date.now() - new Date(d.last_seen + "Z").getTime() > 3600_000;
               return (
                 <tr key={d.mac} className={`hover:bg-gray-50 ${bWarn || rWarn || oWarn ? "bg-red-50/50" : ""}`}>
                   <td className="px-4 py-3 font-mono text-xs"><Link href={`/admin/devices/${d.mac}`} className="text-blue-600 hover:underline">{d.mac}</Link></td>
@@ -77,7 +77,7 @@ export function TelemetryView({ rows: rawRows }: { rows: Record<string, unknown>
                   <td className="px-4 py-3">{d.battery_voltage !== null ? `${Number(d.battery_voltage).toFixed(2)}V` : "—"}</td>
                   <td className={`px-4 py-3 ${rWarn ? "text-red-600 font-semibold" : ""}`}>{d.wifi_rssi !== null ? `${d.wifi_rssi} dBm` : "—"}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{d.firmware_version ?? "—"}</td>
-                  <td className={`px-4 py-3 text-xs ${oWarn ? "text-red-600 font-semibold" : "text-gray-500"}`}>{d.last_seen ? new Date(d.last_seen).toLocaleString("de-DE") : "—"}</td>
+                  <td className={`px-4 py-3 text-xs ${oWarn ? "text-red-600 font-semibold" : "text-gray-500"}`}>{d.last_seen ? new Date(d.last_seen + "Z").toLocaleString("de-DE") : "—"}</td>
                 </tr>
               );
             })}
