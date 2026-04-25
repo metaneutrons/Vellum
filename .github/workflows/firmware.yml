@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
 
 env:
-  IDF_VERSION: v5.3
+  IDF_VERSION: v6.0
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v5.3
+      image: espressif/idf:v6.0
     strategy:
       matrix:
         model: [e1001, e1002]

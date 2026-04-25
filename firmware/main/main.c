@@ -22,12 +22,8 @@
 #include "freertos/task.h"
 #include "cJSON.h"
 
-#include "mbedtls/ecdh.h"
-#include "mbedtls/hkdf.h"
-#include "mbedtls/gcm.h"
-#include "mbedtls/md.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
+/* X25519 ECDH + AES-256-GCM via PSA Crypto API */
+#include "psa/crypto.h"
 #include "mbedtls/base64.h"
 
 #include "nvs_manager.h"
@@ -48,6 +44,8 @@ static const char *TAG = "vellum_main";
 
 #include "esp_adc/adc_oneshot.h"
 #include "driver/ledc.h"
+#include "driver/gpio.h"
+#include "esp_crt_bundle.h"
 
 static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 
@@ -112,30 +110,36 @@ static void buzzer_beep(uint32_t freq, uint32_t ms)
 
 /* ── SHT4x Temperature/Humidity Sensor (I2C) ──────────────────── */
 
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 
 #define SHT4X_ADDR       0x44
 #define SHT4X_CMD_MEASURE 0xFD
 #define I2C_SDA_PIN       19
 #define I2C_SCL_PIN       20
-#define I2C_PORT          I2C_NUM_0
 
+static i2c_master_dev_handle_t s_sht4x_dev = NULL;
 static bool s_sht4x_available = false;
 static float s_temperature = 0;
 static float s_humidity = 0;
 
 static void sht4x_init(void)
 {
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
+    i2c_master_bus_config_t bus_cfg = {
+        .i2c_port = -1,
         .sda_io_num = I2C_SDA_PIN,
         .scl_io_num = I2C_SCL_PIN,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .flags.enable_internal_pullup = true,
     };
-    if (i2c_param_config(I2C_PORT, &conf) == ESP_OK &&
-        i2c_driver_install(I2C_PORT, I2C_MODE_MASTER, 0, 0, 0) == ESP_OK) {
+    i2c_master_bus_handle_t bus = NULL;
+    if (i2c_new_master_bus(&bus_cfg, &bus) != ESP_OK) return;
+
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = SHT4X_ADDR,
+        .scl_speed_hz = 100000,
+    };
+    if (i2c_master_bus_add_device(bus, &dev_cfg, &s_sht4x_dev) == ESP_OK) {
         s_sht4x_available = true;
         ESP_LOGI(TAG, "SHT4x initialized on I2C");
     }
@@ -145,10 +149,10 @@ static void sht4x_read(void)
 {
     if (!s_sht4x_available) return;
     uint8_t cmd = SHT4X_CMD_MEASURE;
-    i2c_master_write_to_device(I2C_PORT, SHT4X_ADDR, &cmd, 1, pdMS_TO_TICKS(100));
+    i2c_master_transmit(s_sht4x_dev, &cmd, 1, pdMS_TO_TICKS(100));
     vTaskDelay(pdMS_TO_TICKS(10));
     uint8_t data[6];
-    if (i2c_master_read_from_device(I2C_PORT, SHT4X_ADDR, data, 6, pdMS_TO_TICKS(100)) == ESP_OK) {
+    if (i2c_master_receive(s_sht4x_dev, data, 6, pdMS_TO_TICKS(100)) == ESP_OK) {
         uint16_t t_raw = (data[0] << 8) | data[1];
         uint16_t h_raw = (data[3] << 8) | data[4];
         s_temperature = -45.0f + 175.0f * (t_raw / 65535.0f);
@@ -190,44 +194,47 @@ static void ensure_keypair(void)
 
     ESP_LOGI(TAG, "Generating X25519 keypair...");
 
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_ecdh_context ecdh;
+    psa_status_t status = psa_crypto_init();
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "PSA crypto init failed: %d", (int)status);
+        return;
+    }
 
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_ecdh_init(&ecdh);
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DERIVE);
+    psa_set_key_algorithm(&attr, PSA_ALG_ECDH);
+    psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
+    psa_set_key_bits(&attr, 255);
 
-    mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                          (const unsigned char *)"vellum", 6);
-    mbedtls_ecdh_setup(&ecdh, MBEDTLS_ECP_DP_CURVE25519);
-    mbedtls_ecdh_gen_public(&ecdh.MBEDTLS_PRIVATE(grp),
-                            &ecdh.MBEDTLS_PRIVATE(d),
-                            &ecdh.MBEDTLS_PRIVATE(Q),
-                            mbedtls_ctr_drbg_random, &ctr_drbg);
+    psa_key_id_t key_id;
+    status = psa_generate_key(&attr, &key_id);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Key generation failed: %d", (int)status);
+        return;
+    }
 
-    /* Export raw 32-byte keys */
-    uint8_t priv_raw[32], pub_raw[32];
-    size_t olen;
-    mbedtls_mpi_write_binary(&ecdh.MBEDTLS_PRIVATE(d), priv_raw, 32);
-    mbedtls_ecp_point_write_binary(&ecdh.MBEDTLS_PRIVATE(grp),
-                                   &ecdh.MBEDTLS_PRIVATE(Q),
-                                   MBEDTLS_ECP_PF_COMPRESSED, &olen, pub_raw, 32);
+    /* Export private key (raw 32 bytes) */
+    uint8_t priv_raw[32];
+    size_t priv_len;
+    psa_export_key(key_id, priv_raw, sizeof(priv_raw), &priv_len);
+
+    /* Export public key (raw 32 bytes) */
+    uint8_t pub_raw[32];
+    size_t pub_len;
+    psa_export_public_key(key_id, pub_raw, sizeof(pub_raw), &pub_len);
+
+    psa_destroy_key(key_id);
 
     /* Base64 encode */
     char priv_b64[NVS_MAX_KEY_LEN], pub_b64_out[NVS_MAX_KEY_LEN];
-    size_t priv_len, pub_len;
-    mbedtls_base64_encode((unsigned char *)priv_b64, sizeof(priv_b64), &priv_len, priv_raw, 32);
-    mbedtls_base64_encode((unsigned char *)pub_b64_out, sizeof(pub_b64_out), &pub_len, pub_raw, 32);
-    priv_b64[priv_len] = '\0';
-    pub_b64_out[pub_len] = '\0';
+    size_t priv_b64_len, pub_b64_len;
+    mbedtls_base64_encode((unsigned char *)priv_b64, sizeof(priv_b64), &priv_b64_len, priv_raw, priv_len);
+    mbedtls_base64_encode((unsigned char *)pub_b64_out, sizeof(pub_b64_out), &pub_b64_len, pub_raw, pub_len);
+    priv_b64[priv_b64_len] = '\0';
+    pub_b64_out[pub_b64_len] = '\0';
 
     nvs_manager_store_keypair(priv_b64, pub_b64_out);
     http_client_set_public_key(pub_b64_out);
-
-    mbedtls_ecdh_free(&ecdh);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
 
     ESP_LOGI(TAG, "X25519 keypair generated and stored");
 }
@@ -264,51 +271,94 @@ static char *decrypt_token(const char *ciphertext_b64, const char *nonce_b64,
 
     if (ct_len < 16) { ESP_LOGE(TAG, "Ciphertext too short"); return NULL; }
 
-    /* ECDH: compute shared secret */
-    mbedtls_ecdh_context ecdh;
-    mbedtls_ecdh_init(&ecdh);
-    mbedtls_ecdh_setup(&ecdh, MBEDTLS_ECP_DP_CURVE25519);
-    mbedtls_mpi_read_binary(&ecdh.MBEDTLS_PRIVATE(d), priv_raw, 32);
-    mbedtls_ecp_point_read_binary(&ecdh.MBEDTLS_PRIVATE(grp),
-                                  &ecdh.MBEDTLS_PRIVATE(Qp), server_pub, 32);
+    /* ECDH via PSA: import our private key, compute shared secret */
+    psa_crypto_init();
 
-    mbedtls_mpi shared;
-    mbedtls_mpi_init(&shared);
-    mbedtls_ecdh_compute_shared(&ecdh.MBEDTLS_PRIVATE(grp), &shared,
-                                &ecdh.MBEDTLS_PRIVATE(Qp),
-                                &ecdh.MBEDTLS_PRIVATE(d), NULL, NULL);
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DERIVE);
+    psa_set_key_algorithm(&attr, PSA_ALG_ECDH);
+    psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
+    psa_set_key_bits(&attr, 255);
+
+    psa_key_id_t key_id;
+    if (psa_import_key(&attr, priv_raw, priv_len, &key_id) != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to import private key");
+        return NULL;
+    }
 
     uint8_t shared_raw[32];
-    mbedtls_mpi_write_binary(&shared, shared_raw, 32);
-    mbedtls_mpi_free(&shared);
-    mbedtls_ecdh_free(&ecdh);
+    size_t shared_len;
+    psa_status_t status = psa_raw_key_agreement(PSA_ALG_ECDH, key_id,
+                                                 server_pub, spub_len,
+                                                 shared_raw, sizeof(shared_raw), &shared_len);
+    psa_destroy_key(key_id);
 
-    /* HKDF-SHA256: derive AES key */
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "ECDH failed: %d", (int)status);
+        return NULL;
+    }
+
+    /* HKDF-SHA256 via PSA: derive AES key from shared secret */
     uint8_t aes_key[32];
-    const mbedtls_md_info_t *md = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    mbedtls_hkdf(md, NULL, 0, shared_raw, 32,
-                 (const unsigned char *)"vellum-token-v1", 15, aes_key, 32);
+    {
+        psa_key_attributes_t ikm_attr = PSA_KEY_ATTRIBUTES_INIT;
+        psa_set_key_usage_flags(&ikm_attr, PSA_KEY_USAGE_DERIVE);
+        psa_set_key_algorithm(&ikm_attr, PSA_ALG_HKDF(PSA_ALG_SHA_256));
+        psa_set_key_type(&ikm_attr, PSA_KEY_TYPE_DERIVE);
 
-    /* AES-256-GCM decrypt */
+        psa_key_id_t ikm_key;
+        psa_import_key(&ikm_attr, shared_raw, shared_len, &ikm_key);
+
+        psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
+        psa_key_derivation_setup(&op, PSA_ALG_HKDF(PSA_ALG_SHA_256));
+        psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_SALT, NULL, 0);
+        psa_key_derivation_input_key(&op, PSA_KEY_DERIVATION_INPUT_SECRET, ikm_key);
+        psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_INFO,
+                                       (const uint8_t *)"vellum-token-v1", 15);
+        psa_key_derivation_output_bytes(&op, aes_key, 32);
+        psa_key_derivation_abort(&op);
+        psa_destroy_key(ikm_key);
+    }
+
+    /* AES-256-GCM decrypt via PSA */
     size_t plaintext_len = ct_len - 16; /* last 16 bytes = auth tag */
     uint8_t *plaintext = malloc(plaintext_len + 1);
     if (!plaintext) return NULL;
 
-    mbedtls_gcm_context gcm;
-    mbedtls_gcm_init(&gcm);
-    mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, aes_key, 256);
+    {
+        psa_key_attributes_t aes_attr = PSA_KEY_ATTRIBUTES_INIT;
+        psa_set_key_usage_flags(&aes_attr, PSA_KEY_USAGE_DECRYPT);
+        psa_set_key_algorithm(&aes_attr, PSA_ALG_GCM);
+        psa_set_key_type(&aes_attr, PSA_KEY_TYPE_AES);
+        psa_set_key_bits(&aes_attr, 256);
 
-    int ret = mbedtls_gcm_auth_decrypt(&gcm, plaintext_len,
-                                       nonce, nonce_len,
-                                       NULL, 0,
-                                       ct_buf + plaintext_len, 16, /* tag */
-                                       ct_buf, plaintext);
-    mbedtls_gcm_free(&gcm);
+        psa_key_id_t aes_key_id;
+        psa_import_key(&aes_attr, aes_key, 32, &aes_key_id);
 
-    if (ret != 0) {
-        ESP_LOGE(TAG, "AES-GCM decrypt failed: %d", ret);
-        free(plaintext);
-        return NULL;
+        size_t out_len;
+        /* GCM ciphertext format: ciphertext || tag (16 bytes) */
+        /* PSA expects: nonce || ciphertext || tag as input to aead_decrypt */
+        /* Build nonce-prefixed buffer for PSA */
+        size_t aead_input_len = nonce_len + ct_len;
+        uint8_t *aead_input = malloc(aead_input_len);
+        if (!aead_input) { free(plaintext); psa_destroy_key(aes_key_id); return NULL; }
+        memcpy(aead_input, nonce, nonce_len);
+        memcpy(aead_input + nonce_len, ct_buf, ct_len);
+
+        psa_status_t dec_status = psa_aead_decrypt(aes_key_id, PSA_ALG_GCM,
+                                                    aead_input, nonce_len,  /* nonce */
+                                                    NULL, 0,                /* aad */
+                                                    ct_buf, ct_len,         /* ciphertext + tag */
+                                                    plaintext, plaintext_len, &out_len);
+        free(aead_input);
+        psa_destroy_key(aes_key_id);
+
+        if (dec_status != PSA_SUCCESS) {
+            ESP_LOGE(TAG, "AES-GCM decrypt failed: %d", (int)dec_status);
+            free(plaintext);
+            return NULL;
+        }
+        plaintext_len = out_len;
     }
 
     plaintext[plaintext_len] = '\0';

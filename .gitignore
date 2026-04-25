@@ -43,3 +43,6 @@ firmware-signing.key
 .kiro/
 .vscode/
 src/app/page.module.css
+firmware/dependencies.lock
+firmware/managed_components/
+firmware/build/

@@ -15,7 +15,7 @@ static wake_reason_t s_wake_reason = WAKE_REASON_POWER_ON;
 
 void sleep_manager_init(void)
 {
-    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_causes();
 
     switch (cause) {
     case ESP_SLEEP_WAKEUP_TIMER:

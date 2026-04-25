@@ -8,8 +8,8 @@ CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
-# NVS encryption
-CONFIG_NVS_ENCRYPTION=y
+# NVS (no encryption — requires eFuse key provisioning on real hardware)
+CONFIG_NVS_ENCRYPTION=n
 
 # Wi-Fi
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y

@@ -7,9 +7,10 @@
 #include "display_driver.h"
 #include "fallback_icons.h"
 #include "vellum_logo.h"
-#include "qrcodegen.h"
+#include "qrcode.h"
 
 #include <string.h>
+#include <stdlib.h>
 #include "esp_log.h"
 
 static const char *TAG = "display";
@@ -43,25 +44,11 @@ void display_draw_fallback_icon(uint8_t icon_id)
     s_drv->draw_bitmap(fallback_icons[icon_id], ICON_BITMAP_WIDTH, ICON_BITMAP_HEIGHT, ox, oy);
 }
 
-void display_draw_qr_code(const char *data)
+static void display_qr_callback(esp_qrcode_handle_t qrcode, void *user_data)
 {
-    if (!s_drv) return;
-    ESP_LOGI(TAG, "QR code: %s", data);
+    (void)user_data;
+    int qr_size = esp_qrcode_get_size(qrcode);
 
-    /* Generate QR code */
-    uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(10)];
-    uint8_t tmp[qrcodegen_BUFFER_LEN_FOR_VERSION(10)];
-    bool ok = qrcodegen_encodeText(data, tmp, qr,
-        qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN, 10,
-        qrcodegen_Mask_AUTO, true);
-
-    if (!ok) {
-        ESP_LOGW(TAG, "QR generation failed");
-        display_draw_fallback_icon(ICON_ERROR);
-        return;
-    }
-
-    int qr_size = qrcodegen_getSize(qr);
     /* Scale QR to fit display height with margin */
     int margin = 40;
     int max_dim = s_drv->height - margin * 2;
@@ -81,7 +68,7 @@ void display_draw_qr_code(const char *data)
 
     for (int y = 0; y < qr_size; y++) {
         for (int x = 0; x < qr_size; x++) {
-            if (qrcodegen_getModule(qr, x, y)) {
+            if (esp_qrcode_get_module(qrcode, x, y)) {
                 for (int sy = 0; sy < scale; sy++) {
                     for (int sx = 0; sx < scale; sx++) {
                         int px = qr_ox + x * scale + sx;
@@ -114,6 +101,23 @@ void display_draw_qr_code(const char *data)
 
     s_drv->draw(fb, fb_len);
     free(fb);
+}
+
+void display_draw_qr_code(const char *data)
+{
+    if (!s_drv) return;
+    ESP_LOGI(TAG, "QR code: %s", data);
+
+    esp_qrcode_config_t cfg = {
+        .display_func_with_cb = display_qr_callback,
+        .max_qrcode_version = 10,
+        .qrcode_ecc_level = ESP_QRCODE_ECC_MED,
+        .user_data = NULL,
+    };
+    if (esp_qrcode_generate(&cfg, data) != ESP_OK) {
+        ESP_LOGW(TAG, "QR generation failed");
+        display_draw_fallback_icon(ICON_ERROR);
+    }
 }
 
 void display_show_loading(void)

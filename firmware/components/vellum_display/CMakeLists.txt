@@ -13,5 +13,5 @@ endif()
 idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "include"
-    REQUIRES driver
+    REQUIRES esp_driver_spi esp_driver_gpio espressif__qrcode
 )

@@ -168,6 +168,7 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     set_telemetry_headers(client);
 
     char body[256];
+    (void)body; /* reserved for future use */
     cJSON *json = cJSON_CreateObject();
     cJSON_AddStringToObject(json, "mac", s_mac);
     if (strlen(s_public_key) > 0) {
