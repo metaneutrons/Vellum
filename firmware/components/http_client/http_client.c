@@ -17,7 +17,7 @@
 static const char *TAG = "http_cli";
 
 /** Maximum response body size (256 KB) to prevent OOM on malicious responses */
-#define MAX_RESPONSE_SIZE (256 * 1024)
+#define MAX_RESPONSE_SIZE (512 * 1024)
 
 static char s_base_url[NVS_MAX_URL_LEN];
 static char s_mac[13];
