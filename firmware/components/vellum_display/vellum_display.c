@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 
@@ -35,6 +36,8 @@ static const char *TAG = "display";
 
 static epd_handle_t s_epd = NULL;
 static lv_display_t *s_lvgl_disp = NULL;
+
+static void lvgl_tick_cb(void *arg) { (void)arg; lv_tick_inc(5); }
 
 /* ── Panel config from Kconfig ────────────────────────────────── */
 
@@ -102,6 +105,15 @@ esp_err_t display_init(void)
 
     if (!s_lvgl_disp) {
         ESP_LOGW(TAG, "LVGL display init failed — local screens unavailable");
+    } else {
+        /* LVGL needs a tick source — use esp_timer (ISR-safe, no PM conflict) */
+        const esp_timer_create_args_t tick_args = {
+            .callback = lvgl_tick_cb,
+            .name = "lvgl_tick",
+        };
+        esp_timer_handle_t tick_timer;
+        esp_timer_create(&tick_args, &tick_timer);
+        esp_timer_start_periodic(tick_timer, 5000); /* 5 ms */
     }
 
     return ESP_OK;
@@ -123,7 +135,6 @@ esp_err_t display_get_info(display_info_t *info)
 static void lvgl_refresh(void)
 {
     if (!s_lvgl_disp) return;
-    lv_timer_handler();
     epd_lvgl_refresh(s_lvgl_disp);
 }
 

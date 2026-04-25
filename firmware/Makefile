@@ -15,7 +15,7 @@ SHELL := /bin/bash
 
 # Auto-detect serial port
 PORT ?= $(shell ls /dev/cu.usbserial-* 2>/dev/null | head -1)
-BAUD ?= 921600
+BAUD ?= 460800
 MODEL ?= e1002
 
 # Map model to Kconfig
