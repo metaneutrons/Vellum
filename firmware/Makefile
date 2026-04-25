@@ -1,105 +1,82 @@
-# Vellum Firmware — Build System
-# Wraps idf.py for convenience. Requires ESP-IDF v5.3+ in PATH.
+# Vellum Firmware — Build & Flash
 #
 # Usage:
-#   make setup       — install ESP-IDF and set target
-#   make build       — compile firmware
-#   make flash       — flash to connected device
-#   make monitor     — open serial monitor
-#   make fm          — flash + monitor (most common during dev)
-#   make clean       — remove build artifacts
-#   make menuconfig  — open Kconfig GUI
-#   make erase       — erase entire flash (factory reset)
-#   make size        — show binary size breakdown
+#   make build                    # Build for default model (E1002)
+#   make build MODEL=e1001        # Build for E1001
+#   make flash                    # Flash via USB
+#   make monitor                  # Serial monitor
+#   make fm                       # Flash + monitor
+#   make erase-nvs                # Erase NVS only (keeps firmware)
+#   make erase-all                # Full erase + flash
+#   make merged-bin               # Create single binary for web flash
+#   make clean                    # Clean build
 
-SHELL      := /bin/zsh
-IDF_PY     := idf.py
-TARGET     := esp32s3
-PORT       ?= /dev/cu.usbmodem*
-BAUD       ?= 460800
-IDF_PATH   ?= $(HOME)/esp/esp-idf
-IDF_TOOLS  := $(HOME)/.espressif
+SHELL := /bin/bash
 
-.PHONY: all setup check-idf build flash monitor fm clean fullclean \
-        menuconfig erase size ota help
+# Auto-detect serial port
+PORT ?= $(shell ls /dev/cu.usbserial-* 2>/dev/null | head -1)
+MODEL ?= e1002
 
-all: build
+# Map model to Kconfig
+ifeq ($(MODEL),e1001)
+  PANEL_CONFIG = CONFIG_VELLUM_PANEL_GDEY075T7=y
+else ifeq ($(MODEL),e1002)
+  PANEL_CONFIG = CONFIG_VELLUM_PANEL_GDEP073E01=y
+else
+  $(error Unknown MODEL=$(MODEL). Use e1001 or e1002)
+endif
 
-# ── Environment ──────────────────────────────────────────────────────────
+# ESP-IDF environment
+IDF_EXPORT := source $${HOME}/.espressif/v6.0/esp-idf/export.sh > /dev/null 2>&1
 
-check-idf:
-	@if ! command -v $(IDF_PY) &>/dev/null; then \
-		echo "❌  idf.py not found. Run 'make setup' first or source ESP-IDF export.sh"; \
+.PHONY: build flash monitor fm erase-nvs erase-all merged-bin clean check-port
+
+build:
+	@echo "Building for $(MODEL)..."
+	@$(IDF_EXPORT) && \
+		grep -q "$(PANEL_CONFIG)" sdkconfig.defaults 2>/dev/null || \
+		(sed -i '' '/CONFIG_VELLUM_PANEL_/d' sdkconfig.defaults && echo "$(PANEL_CONFIG)" >> sdkconfig.defaults) && \
+		idf.py set-target esp32s3 && \
+		idf.py build
+
+flash: check-port
+	@echo "Flashing to $(PORT)..."
+	@$(IDF_EXPORT) && idf.py -p $(PORT) flash
+
+monitor: check-port
+	@$(IDF_EXPORT) && idf.py -p $(PORT) monitor
+
+# Flash + Monitor (most common dev workflow)
+fm: check-port
+	@echo "Flashing to $(PORT)..."
+	@$(IDF_EXPORT) && idf.py -p $(PORT) flash monitor
+
+erase-nvs: check-port
+	@echo "Erasing NVS on $(PORT)..."
+	@$(IDF_EXPORT) && parttool.py --port $(PORT) erase_partition --partition-name nvs
+	@echo "NVS erased. Reset the device."
+
+erase-all: check-port
+	@echo "Full erase + flash on $(PORT)..."
+	@$(IDF_EXPORT) && esptool.py --port $(PORT) erase_flash && idf.py -p $(PORT) flash
+
+# Create merged binary for web flash (single file, offset 0x0)
+merged-bin: build
+	@echo "Creating merged binary..."
+	@$(IDF_EXPORT) && cd build && \
+		esptool --chip esp32s3 merge-bin \
+			--output vellum-$(MODEL)-merged.bin \
+			@flash_args
+	@echo "Created: build/vellum-$(MODEL)-merged.bin"
+	@ls -lh build/vellum-$(MODEL)-merged.bin
+
+clean:
+	@rm -rf build managed_components
+	@echo "Clean."
+
+check-port:
+	@if [ -z "$(PORT)" ]; then \
+		echo "Error: No serial port found. Connect device via USB or set PORT="; \
 		exit 1; \
 	fi
-
-setup:
-	@echo "── Installing ESP-IDF v5.3 ──"
-	@if [ ! -d "$(IDF_PATH)" ]; then \
-		mkdir -p $(dir $(IDF_PATH)); \
-		git clone --branch v5.3 --depth 1 --recursive \
-			https://github.com/espressif/esp-idf.git $(IDF_PATH); \
-	else \
-		echo "ESP-IDF already present at $(IDF_PATH)"; \
-	fi
-	@echo "── Installing toolchain ──"
-	$(IDF_PATH)/install.sh $(TARGET)
-	@echo "── Setting target ──"
-	@. $(IDF_PATH)/export.sh && $(IDF_PY) set-target $(TARGET)
-	@echo ""
-	@echo "✅  Setup complete. Add this to your shell profile:"
-	@echo "    source $(IDF_PATH)/export.sh"
-
-# ── Build ────────────────────────────────────────────────────────────────
-
-build: check-idf
-	$(IDF_PY) build
-
-menuconfig: check-idf
-	$(IDF_PY) menuconfig
-
-size: check-idf
-	$(IDF_PY) size-components
-
-# ── Flash & Monitor ─────────────────────────────────────────────────────
-
-flash: check-idf
-	$(IDF_PY) -p $(PORT) -b $(BAUD) flash
-
-monitor: check-idf
-	$(IDF_PY) -p $(PORT) -b 115200 monitor
-
-fm: check-idf
-	$(IDF_PY) -p $(PORT) -b $(BAUD) flash monitor
-
-erase: check-idf
-	$(IDF_PY) -p $(PORT) erase-flash
-
-# ── Clean ────────────────────────────────────────────────────────────────
-
-clean: check-idf
-	$(IDF_PY) fullclean
-
-fullclean:
-	rm -rf build sdkconfig
-
-# ── Help ─────────────────────────────────────────────────────────────────
-
-help:
-	@echo "Vellum Firmware Build Targets"
-	@echo ""
-	@echo "  setup       Install ESP-IDF v5.3 + toolchain, set target to $(TARGET)"
-	@echo "  build       Compile firmware"
-	@echo "  flash       Flash to device on $(PORT)"
-	@echo "  monitor     Open serial monitor"
-	@echo "  fm          Flash + monitor (dev workflow)"
-	@echo "  menuconfig  Open Kconfig configuration GUI"
-	@echo "  size        Show binary size breakdown by component"
-	@echo "  erase       Erase entire flash (factory reset)"
-	@echo "  clean       Remove build directory"
-	@echo "  fullclean   Remove build + sdkconfig"
-	@echo ""
-	@echo "Variables:"
-	@echo "  PORT=$(PORT)    Serial port (override: make flash PORT=/dev/cu.usbserial-XXX)"
-	@echo "  BAUD=$(BAUD)          Flash baud rate"
-	@echo "  IDF_PATH=$(IDF_PATH)"
+	@echo "Using port: $(PORT)"

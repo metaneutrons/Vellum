@@ -46,14 +46,16 @@ jobs:
       - name: Extract binary
         id: extract
         run: |
+          . $IDF_PATH/export.sh
           VERSION=$(grep 'CONFIG_VELLUM_FIRMWARE_VERSION' sdkconfig | cut -d'"' -f2)
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          cp build/vellum-firmware.bin ../vellum-${{ matrix.model }}-v${VERSION}.bin
+          cd build && esptool --chip esp32s3 merge-bin --output ../vellum-${{ matrix.model }}-v${VERSION}.bin @flash_args
+          cd .. && ls -lh vellum-${{ matrix.model }}-v${VERSION}.bin
 
       - uses: actions/upload-artifact@v7
         with:
           name: firmware-${{ matrix.model }}
-          path: vellum-${{ matrix.model }}-*.bin
+          path: firmware/vellum-${{ matrix.model }}-*.bin
 
   sign-and-release:
     needs: build
