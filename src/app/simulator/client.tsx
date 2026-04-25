@@ -268,7 +268,7 @@ export function SimulatorClient() {
       drawPixelBuffer(buf);
     } else if (res.status === 204) {
       appendLog("  → 204 No Content — device not configured");
-      drawText("Not Configured", "Assign content in the admin dashboard");
+      drawText("Not Configured", "Assign content in the Vellum Console");
     } else if (res.status === 401) {
       appendLog("  → 401 Unauthorized — clearing token");
       drawText("Unauthorized", "Token expired — re-authenticating...");
@@ -276,7 +276,7 @@ export function SimulatorClient() {
       return 30;
     } else if (res.status === 404) {
       appendLog("  → 404 Not Found");
-      drawText("Device Not Found", "Register this device in the admin dashboard");
+      drawText("Device Not Found", "Register this device in the Vellum Console");
     } else {
       const body = await res.json().catch(() => null);
       const msg = body?.error ?? `HTTP ${res.status}`;

@@ -44,7 +44,7 @@ export function AdminNav() {
       >
         <div style={{ padding: 16, fontSize: 18, fontWeight: 700, color: "#fff", borderBottom: "1px solid #374151", display: "flex", alignItems: "center", gap: 10 }}>
           <img src="/vellum-icon.svg" alt="" width={48} height={48} style={{ filter: "brightness(0) invert(1)" }} />
-          Vellum Admin
+          Vellum Console
         </div>
         <div style={{ flex: 1, paddingTop: 8 }}>
           {links.map((l) => (
