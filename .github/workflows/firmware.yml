@@ -44,7 +44,7 @@ jobs:
           VERSION=$(grep 'CONFIG_VELLUM_FIRMWARE_VERSION' sdkconfig | cut -d'"' -f2)
           cp build/vellum-firmware.bin ../vellum-${{ matrix.model }}-v${VERSION}.bin
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: firmware-${{ matrix.model }}
           path: vellum-${{ matrix.model }}-*.bin
@@ -56,7 +56,7 @@ jobs:
       github.event_name == 'release' ||
       (github.event_name == 'push' && !contains(github.event.head_commit.message, 'chore(main): release'))
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: binaries
           merge-multiple: true
@@ -121,7 +121,7 @@ jobs:
           "
 
       - name: Create/Update release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Firmware ${{ steps.version.outputs.version }}
