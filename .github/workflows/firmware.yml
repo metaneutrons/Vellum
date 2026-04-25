@@ -41,8 +41,10 @@ jobs:
           idf.py build
 
       - name: Extract binary
+        id: extract
         run: |
           VERSION=$(grep 'CONFIG_VELLUM_FIRMWARE_VERSION' sdkconfig | cut -d'"' -f2)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
           cp build/vellum-firmware.bin ../vellum-${{ matrix.model }}-v${VERSION}.bin
 
       - uses: actions/upload-artifact@v7
@@ -53,9 +55,6 @@ jobs:
   sign-and-release:
     needs: build
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'release' ||
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, 'chore(main): release'))
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -65,15 +64,18 @@ jobs:
       - name: Determine version
         id: version
         run: |
+          # Extract version from binary filename
+          BIN=$(ls binaries/*.bin | head -1)
+          VERSION=$(echo "$BIN" | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
           if [ "${{ github.event_name }}" = "release" ]; then
-            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
             echo "channel=stable" >> $GITHUB_OUTPUT
-            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
           else
             SHA=$(echo ${{ github.sha }} | cut -c1-7)
-            echo "version=beta-${SHA}" >> $GITHUB_OUTPUT
             echo "channel=beta" >> $GITHUB_OUTPUT
-            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag=firmware-beta-${SHA}" >> $GITHUB_OUTPUT
           fi
 
       - name: Generate SHA256 checksums
@@ -101,11 +103,14 @@ jobs:
       - name: Generate manifest
         run: |
           cd binaries
+          VERSION="${{ steps.version.outputs.version }}"
+          CHANNEL="${{ steps.version.outputs.channel }}"
+          TAG="${{ steps.version.outputs.tag }}"
           node -e "
           const fs = require('fs');
           const manifest = {
-            version: '${{ steps.version.outputs.version }}'.replace(/^v/, ''),
-            channel: '${{ steps.version.outputs.channel }}',
+            version: '${VERSION}',
+            channel: '${CHANNEL}',
             date: new Date().toISOString(),
             binaries: {}
           };
@@ -113,7 +118,7 @@ jobs:
             const model = f.match(/vellum-(\w+)-/)?.[1];
             if (!model) continue;
             manifest.binaries[model] = {
-              url: 'https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/' + f,
+              url: 'https://github.com/${{ github.repository }}/releases/download/${TAG}/' + f,
               sha256: fs.readFileSync(f + '.sha256', 'utf8').trim(),
               signature: fs.existsSync(f + '.sig.b64') ? fs.readFileSync(f + '.sig.b64', 'utf8').trim() : '',
               size: fs.statSync(f).size,
@@ -123,12 +128,23 @@ jobs:
           console.log(JSON.stringify(manifest, null, 2));
           "
 
-      - name: Create/Update release
+      - name: Upload to existing release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd binaries
+          gh release upload "${{ github.event.release.tag_name }}" \
+            *.bin *.sha256 firmware-manifest.json \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Create beta release
+        if: github.event_name != 'release'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Firmware ${{ steps.version.outputs.version }}
-          prerelease: ${{ steps.version.outputs.prerelease }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Firmware ${{ steps.version.outputs.tag }}
+          prerelease: true
           files: |
             binaries/*.bin
             binaries/*.sha256
