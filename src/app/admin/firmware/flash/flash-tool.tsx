@@ -14,7 +14,7 @@ export function FlashTool() {
   useEffect(() => {
     if (loaded) return;
     const script = document.createElement("script");
-    script.src = "/esp-web-tools.js";
+    script.src = "/install-button.js";
     script.type = "module";
     script.onload = () => setLoaded(true);
     document.head.appendChild(script);
