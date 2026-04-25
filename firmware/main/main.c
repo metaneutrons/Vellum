@@ -110,6 +110,55 @@ static void buzzer_beep(uint32_t freq, uint32_t ms)
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
 
+/* ── SHT4x Temperature/Humidity Sensor (I2C) ──────────────────── */
+
+#include "driver/i2c.h"
+
+#define SHT4X_ADDR       0x44
+#define SHT4X_CMD_MEASURE 0xFD
+#define I2C_SDA_PIN       19
+#define I2C_SCL_PIN       20
+#define I2C_PORT          I2C_NUM_0
+
+static bool s_sht4x_available = false;
+static float s_temperature = 0;
+static float s_humidity = 0;
+
+static void sht4x_init(void)
+{
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_SDA_PIN,
+        .scl_io_num = I2C_SCL_PIN,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 100000,
+    };
+    if (i2c_param_config(I2C_PORT, &conf) == ESP_OK &&
+        i2c_driver_install(I2C_PORT, I2C_MODE_MASTER, 0, 0, 0) == ESP_OK) {
+        s_sht4x_available = true;
+        ESP_LOGI(TAG, "SHT4x initialized on I2C");
+    }
+}
+
+static void sht4x_read(void)
+{
+    if (!s_sht4x_available) return;
+    uint8_t cmd = SHT4X_CMD_MEASURE;
+    i2c_master_write_to_device(I2C_PORT, SHT4X_ADDR, &cmd, 1, pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(10));
+    uint8_t data[6];
+    if (i2c_master_read_from_device(I2C_PORT, SHT4X_ADDR, data, 6, pdMS_TO_TICKS(100)) == ESP_OK) {
+        uint16_t t_raw = (data[0] << 8) | data[1];
+        uint16_t h_raw = (data[3] << 8) | data[4];
+        s_temperature = -45.0f + 175.0f * (t_raw / 65535.0f);
+        s_humidity = -6.0f + 125.0f * (h_raw / 65535.0f);
+        if (s_humidity < 0) s_humidity = 0;
+        if (s_humidity > 100) s_humidity = 100;
+        ESP_LOGI(TAG, "SHT4x: %.1f°C, %.1f%%", s_temperature, s_humidity);
+    }
+}
+
 static vellum_telemetry_t gather_telemetry(void)
 {
     vellum_telemetry_t t = {
@@ -447,6 +496,66 @@ static bool handle_button_action(button_action_t action)
  * ----------------------------------------------------------------------- */
 
 /* -----------------------------------------------------------------------
+ * Ed25519 OTA signature verification
+ * ----------------------------------------------------------------------- */
+
+#include "mbedtls/pk.h"
+#include "mbedtls/md.h"
+
+/**
+ * Verify an Ed25519 signature over a SHA256 hash.
+ * Returns true if valid, false otherwise.
+ */
+static bool verify_ota_signature(const char *sha256_hex, const char *signature_b64)
+{
+    const char *pubkey_b64 = CONFIG_VELLUM_OTA_SIGNING_PUBKEY;
+    if (!pubkey_b64 || strlen(pubkey_b64) == 0) {
+        ESP_LOGW(TAG, "No OTA signing key configured — skipping signature check");
+        return true; /* Allow unsigned in development */
+    }
+
+    /* Decode public key from base64 PEM */
+    uint8_t pubkey_der[128];
+    size_t pubkey_len = 0;
+    mbedtls_base64_decode(pubkey_der, sizeof(pubkey_der), &pubkey_len,
+                          (const unsigned char *)pubkey_b64, strlen(pubkey_b64));
+
+    /* Decode signature from base64 */
+    uint8_t sig[128];
+    size_t sig_len = 0;
+    mbedtls_base64_decode(sig, sizeof(sig), &sig_len,
+                          (const unsigned char *)signature_b64, strlen(signature_b64));
+
+    /* Parse SHA256 hex to bytes */
+    uint8_t hash[32];
+    for (int i = 0; i < 32; i++) {
+        char hex[3] = { sha256_hex[i*2], sha256_hex[i*2+1], 0 };
+        hash[i] = (uint8_t)strtol(hex, NULL, 16);
+    }
+
+    /* Verify with mbedtls */
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    int ret = mbedtls_pk_parse_public_key(&pk, pubkey_der, pubkey_len);
+    if (ret != 0) {
+        ESP_LOGE(TAG, "Failed to parse OTA public key: %d", ret);
+        mbedtls_pk_free(&pk);
+        return false;
+    }
+
+    ret = mbedtls_pk_verify(&pk, MBEDTLS_MD_SHA256, hash, 32, sig, sig_len);
+    mbedtls_pk_free(&pk);
+
+    if (ret != 0) {
+        ESP_LOGE(TAG, "OTA signature verification FAILED: %d", ret);
+        return false;
+    }
+
+    ESP_LOGI(TAG, "OTA signature verified ✓");
+    return true;
+}
+
+/* -----------------------------------------------------------------------
  * OTA firmware update
  * ----------------------------------------------------------------------- */
 
@@ -511,6 +620,18 @@ static void check_ota_update(void)
                         return;
                     }
                     ESP_LOGI(TAG, "SHA256 verified ✓");
+
+                    /* Verify Ed25519 signature */
+                    cJSON *ota_sig = data ? cJSON_GetObjectItemCaseSensitive(data, "otaSignature") : NULL;
+                    if (cJSON_IsString(ota_sig) && ota_sig->valuestring && strlen(ota_sig->valuestring) > 0) {
+                        if (!verify_ota_signature(sha_hex, ota_sig->valuestring)) {
+                            ESP_LOGE(TAG, "Signature verification FAILED — aborting OTA");
+                            buzzer_beep(300, 500);
+                            cJSON_Delete(root);
+                            http_client_free_response(&resp);
+                            return;
+                        }
+                    }
                 }
             }
 
@@ -538,6 +659,7 @@ void app_main(void)
     init_battery_adc();
     led_init();
     buzzer_init();
+    sht4x_init();
     display_init();
     display_show_boot_logo();
     buzzer_beep(1000, 100); /* Boot beep */
@@ -616,6 +738,7 @@ void app_main(void)
 
     ensure_keypair();
 
+    sht4x_read();
     vellum_telemetry_t telemetry = gather_telemetry();
     http_client_set_telemetry(&telemetry);
 

@@ -4,108 +4,93 @@
 
 # Vellum
 
-[![CI](https://github.com/YOUR_ORG/vellum/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/vellum/actions/workflows/ci.yml)
+[![CI](https://github.com/lexict/vellum/actions/workflows/ci.yml/badge.svg)](https://github.com/lexict/vellum/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-E-Ink meeting room display system. A Next.js backend renders calendar data from Microsoft Graph into dithered pixel buffers for ESP32-S3 powered E-Ink panels.
+E-Ink display management platform. Centrally manage, brand, and deploy content to E-Paper displays powered by ESP32-S3.
+
+## Features
+
+- **Plugin Content System** — Room booking (Outlook day view), extensible for weather, dashboards, photos
+- **Calendar Providers** — Microsoft 365, Google Calendar, iCal URL
+- **Display Agnostic** — Supports mono, grayscale, and 7-color Spectra 6 displays
+- **Pixel-Perfect Rendering** — Bitmap font atlas for color e-paper, anti-aliased for grayscale
+- **Theme System** — DB-backed, per-device branding with live preview
+- **Refresh Profiles** — Schedule rules by weekday/time (night mode, weekends, office hours)
+- **OTA Updates** — Signed firmware distribution via GitHub Releases (Ed25519 + SHA256)
+- **Zero-Config Setup** — mDNS auto-discovery, captive portal with Vellum branding
+- **Encrypted Security** — X25519 ECDH token delivery, AES-256-GCM credentials at rest
+- **Admin Dashboard** — Dark theme, responsive, toast notifications, search/filter/sort
+- **Device Simulator** — Web-based E-Paper simulator for development
+- **Web Flasher** — Flash firmware via USB from the browser
 
 ## Architecture
 
 ```
-┌──────────────┐     HTTPS      ┌──────────────┐     Graph API    ┌─────────────┐
-│  ESP32-S3    │ ──────────────▶│  Next.js API  │ ──────────────▶ │  Microsoft  │
-│  E-Ink Panel │ ◀──────────────│  (Vercel/VPS) │ ◀────────────── │  365        │
-└──────────────┘  pixel buffer  └──────┬───────┘                  └─────────────┘
-                                       │
+┌──────────────┐     HTTPS      ┌──────────────┐     APIs         ┌─────────────┐
+│  ESP32-S3    │ ──────────────▶│  Next.js API  │ ──────────────▶ │  M365       │
+│  E-Ink Panel │ ◀──────────────│  + Admin UI   │ ◀────────────── │  Google     │
+└──────────────┘  pixel buffer  └──────┬───────┘                  │  iCal       │
+                                       │                          └─────────────┘
                                        ▼
                                 ┌──────────────┐
                                 │  PostgreSQL   │
                                 └──────────────┘
 ```
 
-## Prerequisites
+## Supported Hardware
 
-- Node.js 20+
-- PostgreSQL 15+
-- Azure AD app registration with `Calendars.Read` application permission
-- ESP-IDF v5.3+ (firmware only)
+| Model | Display | Resolution | Colors |
+|-------|---------|-----------|--------|
+| reTerminal E1001 | 7.5" | 800×480 | 4-level grayscale |
+| reTerminal E1002 | 7.3" Spectra 6 | 800×480 | 7 colors |
+| reTerminal E1003 | 10.3" | 1404×1872 | 16-level grayscale |
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+cp .env.example .env    # Configure credentials
 npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run database migrations
-psql $DATABASE_URL < drizzle/0000_initial_schema.sql
-
-# Start development server
-npm run dev
-
-# Run tests
-npm test
-
-# Lint
-npm run lint
+psql $DATABASE_URL < drizzle/0000_initial_schema.sql  # Run all migrations
+npm run dev:mdns        # Start with mDNS discovery
 ```
 
-## API Endpoints
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/v1/ink/hello` | None | Device registration (TOFU) |
-| `GET` | `/api/v1/ink/render?mac=XX:XX:XX:XX:XX:XX` | Token | Render pixel buffer |
-| `GET` | `/api/v1/ink/config?mac=XX:XX:XX:XX:XX:XX` | Token | Device configuration |
-| `POST` | `/api/v1/ink/report` | Token | Submit issue report |
-| `POST` | `/api/v1/admin/devices/approve` | API Key | Approve pending device |
-| `GET` | `/api/v1/health` | None | Health check |
-
-## Firmware
-
-```bash
-cd firmware
-make setup    # Install ESP-IDF + toolchain
-make build    # Compile
-make fm       # Flash + monitor
-```
-
-See `firmware/main/Kconfig.projbuild` for all configurable options.
+Open http://localhost:3000/admin (default: admin / change-me)
 
 ## Project Structure
 
 ```
 src/
-├── app/api/v1/       # Next.js API routes
-│   ├── health/       # Health check
-│   ├── ink/          # Device API
-│   └── admin/        # Admin API
-├── db/               # Drizzle schema + pool
+├── app/
+│   ├── admin/          # Dashboard (devices, content, providers, themes, profiles, firmware, telemetry)
+│   ├── api/v1/         # Device API (hello, render, config, report, health)
+│   ├── login/          # Admin authentication
+│   └── simulator/      # Device simulator (dev only)
+├── components/         # Shared UI (toast, modal, confirm, button, search, page-header)
+├── db/                 # Drizzle schema + pool
 └── lib/
-    ├── auth/         # TOFU device authentication
-    ├── calendar/     # Microsoft Graph integration
-    ├── render/       # Canvas → dithered pixel buffer
-    ├── sleep/        # Sleep duration computation
-    ├── telemetry/    # Device telemetry ingestion
-    ├── env.ts        # Environment validation (SSOT)
-    ├── logger.ts     # Structured JSON logging
-    ├── rate-limit.ts # In-memory rate limiter
-    ├── cache.ts      # TTL cache for Graph API
-    ├── types.ts      # Shared type definitions
-    └── validation.ts # Zod request schemas
+    ├── auth/           # TOFU + X25519 ECDH
+    ├── calendar/       # Provider registry (M365, Google, iCal)
+    ├── content/        # Renderer registry (room-booking)
+    ├── render/         # Canvas → pixel buffer (bitmap font, dithering, quantization)
+    ├── sleep/          # Refresh profiles + schedule rules
+    ├── firmware.ts     # OTA manifest fetcher + version resolver
+    ├── display.ts      # Display capability negotiation
+    ├── theme.ts        # Theme system (Zod-validated)
+    ├── encryption.ts   # AES-256-GCM for credentials
+    ├── crypto.ts       # X25519 ECDH for token delivery
+    └── ...
 
 firmware/
-├── main/             # ESP-IDF entry point
-└── components/       # Modular ESP-IDF components
-    ├── buttons/      # GPIO interrupt handler
-    ├── http_client/  # Backend communication
-    ├── nvs_manager/  # Encrypted NVS storage
-    ├── sleep_manager/# Deep sleep management
-    ├── vellum_display/# E-Ink SPI driver
-    └── wifi_manager/ # Station + SoftAP provisioning
+├── main/               # ESP-IDF entry point + OTA + ECDH
+└── components/
+    ├── vellum_display/  # Driver abstraction + E1001/E1002/E1003 drivers
+    ├── http_client/     # Server communication
+    ├── wifi_manager/    # Station + SoftAP captive portal
+    ├── nvs_manager/     # Encrypted NVS storage
+    ├── buttons/         # GPIO interrupt handler
+    ├── sleep_manager/   # Deep sleep management
+    └── qrcodegen/       # QR code generation (ESP Component Registry)
 ```
 
 ## License

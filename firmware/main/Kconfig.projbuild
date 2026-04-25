@@ -15,6 +15,8 @@ menu "Vellum Configuration"
             bool "reTerminal E1001 (7.5\" B&W/4-Gray)"
         config VELLUM_DRIVER_E1002
             bool "reTerminal E1002 (7.3\" Spectra 6 Color)"
+        config VELLUM_DRIVER_E1003
+            bool "reTerminal E1003 (10.3\" 16-Gray)"
         config VELLUM_DRIVER_STUB
             bool "No display (stub for testing)"
     endchoice
@@ -23,6 +25,7 @@ menu "Vellum Configuration"
         string
         default "e1001" if VELLUM_DRIVER_E1001
         default "e1002" if VELLUM_DRIVER_E1002
+        default "e1003" if VELLUM_DRIVER_E1003
         default "stub"  if VELLUM_DRIVER_STUB
 
     menu "Hardware Pins (reTerminal E Series)"
@@ -73,3 +76,11 @@ menu "Vellum Configuration"
     endmenu
 
 endmenu
+
+    config VELLUM_OTA_SIGNING_PUBKEY
+        string "Ed25519 OTA signing public key (PEM, base64)"
+        default ""
+        help
+            Base64-encoded Ed25519 public key for verifying firmware signatures.
+            Generate with: openssl pkey -in key.pem -pubout | base64 -w0
+            Leave empty to skip signature verification (development only).
