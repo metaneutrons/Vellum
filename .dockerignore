@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+firmware
+*.md
+LICENSE
+.env
+.env.*
+firmware-signing.key
