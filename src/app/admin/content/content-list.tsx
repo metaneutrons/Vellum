@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
-interface ContentType { slug: string; name: string; description: string | null; }
+interface ContentType { slug: string; name: string; description?: string | null; }
 interface Provider { id: string; type: string; name: string; }
 interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; }
 

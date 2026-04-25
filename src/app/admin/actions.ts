@@ -8,7 +8,6 @@ import {
   themes,
   dataProviders,
   contentInstances,
-  contentTypes,
   telemetry,
   reports,
   refreshProfiles,
@@ -180,7 +179,8 @@ export async function getAllContentInstances() {
 }
 
 export async function getAllContentTypes() {
-  return db.select().from(contentTypes);
+  const { getAllContentRenderers } = await import("@/lib/content/registry");
+  return getAllContentRenderers().map((r) => ({ slug: r.slug, name: r.name }));
 }
 
 /* ── Refresh Profiles ─────────────────────────────────────────── */

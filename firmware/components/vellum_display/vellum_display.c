@@ -1,212 +1,313 @@
 /**
  * @file vellum_display.c
- * @brief Display abstraction layer — delegates to the active driver.
+ * @brief Display abstraction using esp_epaper + LVGL 9.
+ *
+ * Two modes:
+ * - Local (LVGL): boot, WiFi setup, OTA, errors
+ * - Server (raw buffer): pre-rendered content written directly
  */
 
 #include "vellum_display.h"
-#include "display_driver.h"
-#include "fallback_icons.h"
-#include "vellum_logo.h"
+#include "epaper.h"
+#include "epaper_lvgl.h"
+#include "lvgl.h"
 #include "qrcode.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include "esp_log.h"
+#include "driver/gpio.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "display";
-static const display_driver_t *s_drv = NULL;
 
-void display_init(void)
-{
-    s_drv = display_get_driver();
-    ESP_LOGI(TAG, "Driver: %s (%dx%d, %d colors, %s)",
-             s_drv->model, s_drv->width, s_drv->height,
-             s_drv->palette_size, s_drv->quantize);
-    s_drv->init();
-}
+/* SD card pins — must be deselected to avoid SPI bus conflict */
+#define SD_PIN_CS   GPIO_NUM_14
+#define SD_PIN_EN   GPIO_NUM_16
 
-bool display_draw_pixel_buffer(const uint8_t *buffer, size_t length)
+/* SPI pins shared by all reTerminal E models */
+#define EPD_PIN_SCK   GPIO_NUM_7
+#define EPD_PIN_MOSI  GPIO_NUM_9
+#define EPD_PIN_CS    GPIO_NUM_10
+#define EPD_PIN_DC    GPIO_NUM_11
+#define EPD_PIN_RST   GPIO_NUM_12
+#define EPD_PIN_BUSY  GPIO_NUM_13
+
+static epd_handle_t s_epd = NULL;
+static lv_display_t *s_lvgl_disp = NULL;
+
+/* ── Panel config from Kconfig ────────────────────────────────── */
+
+#if defined(CONFIG_VELLUM_PANEL_GDEP073E01)
+  #define PANEL_TYPE   EPD_PANEL_GDEP073E01
+  #define PANEL_MODEL  "e1002"
+  #define PANEL_WIDTH  800
+  #define PANEL_HEIGHT 480
+  #define PANEL_BPP    4
+  #define PANEL_COLORS "color"
+#elif defined(CONFIG_VELLUM_PANEL_GDEY075T7)
+  #define PANEL_TYPE   EPD_PANEL_GDEY075T7
+  #define PANEL_MODEL  "e1001"
+  #define PANEL_WIDTH  800
+  #define PANEL_HEIGHT 480
+  #define PANEL_BPP    1
+  #define PANEL_COLORS "bw"
+#else
+  #error "No display panel selected in Kconfig"
+#endif
+
+/* ── Init ─────────────────────────────────────────────────────── */
+
+esp_err_t display_init(void)
 {
-    if (!buffer || !s_drv) return false;
-    size_t expected = (size_t)s_drv->width * s_drv->height;
-    if (length != expected) {
-        ESP_LOGW(TAG, "Buffer size mismatch: %zu (expected %zu)", length, expected);
-        return false;
+    /* Deselect SD card to avoid SPI bus conflict */
+    gpio_set_direction(SD_PIN_CS, GPIO_MODE_OUTPUT);
+    gpio_set_level(SD_PIN_CS, 1);
+    gpio_set_direction(SD_PIN_EN, GPIO_MODE_OUTPUT);
+    gpio_set_level(SD_PIN_EN, 0);
+
+    epd_config_t cfg = {
+        .pins = {
+            .busy = EPD_PIN_BUSY,
+            .rst  = EPD_PIN_RST,
+            .dc   = EPD_PIN_DC,
+            .cs   = EPD_PIN_CS,
+            .sck  = EPD_PIN_SCK,
+            .mosi = EPD_PIN_MOSI,
+        },
+        .spi = {
+            .host = SPI2_HOST,
+            .speed_hz = 2000000,
+        },
+        .panel = {
+            .type = PANEL_TYPE,
+        },
+    };
+
+    esp_err_t ret = epd_init(&cfg, &s_epd);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "epd_init failed: %s", esp_err_to_name(ret));
+        return ret;
     }
-    return s_drv->draw(buffer, length) == ESP_OK;
+
+    ESP_LOGI(TAG, "Panel: %s (%dx%d, %d bpp, %s)", PANEL_MODEL,
+             PANEL_WIDTH, PANEL_HEIGHT, PANEL_BPP, PANEL_COLORS);
+
+    /* Initialize LVGL for local screens */
+    lv_init();
+    epd_lvgl_config_t lvgl_cfg = EPD_LVGL_CONFIG_DEFAULT();
+    lvgl_cfg.epd = s_epd;
+    lvgl_cfg.update_mode = EPD_UPDATE_FULL;
+    s_lvgl_disp = epd_lvgl_init(&lvgl_cfg);
+
+    if (!s_lvgl_disp) {
+        ESP_LOGW(TAG, "LVGL display init failed — local screens unavailable");
+    }
+
+    return ESP_OK;
 }
 
-void display_draw_fallback_icon(uint8_t icon_id)
+esp_err_t display_get_info(display_info_t *info)
 {
-    if (!s_drv || icon_id >= FALLBACK_ICON_COUNT) return;
-    int ox = (s_drv->width - ICON_BITMAP_WIDTH) / 2;
-    int oy = (s_drv->height - ICON_BITMAP_HEIGHT) / 2;
-    s_drv->draw_bitmap(fallback_icons[icon_id], ICON_BITMAP_WIDTH, ICON_BITMAP_HEIGHT, ox, oy);
+    if (!info) return ESP_ERR_INVALID_ARG;
+    info->model = PANEL_MODEL;
+    info->width = PANEL_WIDTH;
+    info->height = PANEL_HEIGHT;
+    info->bpp = PANEL_BPP;
+    info->color_mode = PANEL_COLORS;
+    return ESP_OK;
 }
 
-static void display_qr_callback(esp_qrcode_handle_t qrcode, void *user_data)
+/* ── Local mode: LVGL screens ─────────────────────────────────── */
+
+static void lvgl_refresh(void)
 {
-    (void)user_data;
+    if (!s_lvgl_disp) return;
+    lv_timer_handler();
+    epd_lvgl_refresh(s_lvgl_disp);
+}
+
+void display_show_boot(const char *version)
+{
+    if (!s_lvgl_disp) return;
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+
+    lv_obj_t *title = lv_label_create(scr);
+    lv_label_set_text(title, "Vellum");
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_48, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -40);
+
+    lv_obj_t *ver = lv_label_create(scr);
+    lv_label_set_text_fmt(ver, "v%s • %s", version, PANEL_MODEL);
+    lv_obj_set_style_text_font(ver, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(ver, lv_color_hex(0x888888), 0);
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 20);
+
+    lvgl_refresh();
+    ESP_LOGI(TAG, "Boot screen shown");
+}
+
+static void qr_display_cb(esp_qrcode_handle_t qrcode, void *user_data)
+{
+    lv_obj_t *canvas = (lv_obj_t *)user_data;
     int qr_size = esp_qrcode_get_size(qrcode);
-
-    /* Scale QR to fit display height with margin */
-    int margin = 40;
-    int max_dim = s_drv->height - margin * 2;
-    int scale = max_dim / qr_size;
+    int scale = 200 / qr_size;
     if (scale < 1) scale = 1;
-    int qr_px = qr_size * scale;
 
-    /* Allocate framebuffer — palette index per pixel */
-    size_t fb_len = (size_t)s_drv->width * s_drv->height;
-    uint8_t *fb = malloc(fb_len);
-    if (!fb) return;
-    memset(fb, 1, fb_len); /* White background */
-
-    /* Center QR code */
-    int qr_ox = (s_drv->width - qr_px) / 2;
-    int qr_oy = (s_drv->height - qr_px) / 2;
+    lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
 
     for (int y = 0; y < qr_size; y++) {
         for (int x = 0; x < qr_size; x++) {
             if (esp_qrcode_get_module(qrcode, x, y)) {
                 for (int sy = 0; sy < scale; sy++) {
                     for (int sx = 0; sx < scale; sx++) {
-                        int px = qr_ox + x * scale + sx;
-                        int py = qr_oy + y * scale + sy;
-                        if (px >= 0 && px < s_drv->width && py >= 0 && py < s_drv->height) {
-                            fb[py * s_drv->width + px] = 0; /* Black */
-                        }
+                        lv_canvas_set_px(canvas, x * scale + sx, y * scale + sy,
+                                         lv_color_black(), LV_OPA_COVER);
                     }
                 }
             }
         }
     }
-
-    /* Draw small Vellum logo in bottom-left corner */
-    int logo_ox = 8;
-    int logo_oy = s_drv->height - LOGO_SMALL_HEIGHT - 8;
-    for (int y = 0; y < LOGO_SMALL_HEIGHT; y++) {
-        for (int x = 0; x < LOGO_SMALL_WIDTH; x++) {
-            int src_byte = y * (LOGO_SMALL_WIDTH / 8) + (x / 8);
-            int src_bit = 7 - (x % 8);
-            if (logo_small[src_byte] & (1 << src_bit)) {
-                int dx = logo_ox + x;
-                int dy = logo_oy + y;
-                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height) {
-                    fb[dy * s_drv->width + dx] = 0;
-                }
-            }
-        }
-    }
-
-    s_drv->draw(fb, fb_len);
-    free(fb);
 }
 
-void display_draw_qr_code(const char *data)
+void display_show_wifi_setup(const char *ssid, const char *url)
 {
-    if (!s_drv) return;
-    ESP_LOGI(TAG, "QR code: %s", data);
+    if (!s_lvgl_disp) return;
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
 
-    esp_qrcode_config_t cfg = {
-        .display_func_with_cb = display_qr_callback,
+    /* QR code canvas */
+    static lv_color_t qr_buf[200 * 200];
+    lv_obj_t *canvas = lv_canvas_create(scr);
+    lv_canvas_set_buffer(canvas, qr_buf, 200, 200, LV_COLOR_FORMAT_NATIVE);
+    lv_obj_align(canvas, LV_ALIGN_CENTER, 0, -60);
+
+    esp_qrcode_config_t qr_cfg = {
+        .display_func_with_cb = qr_display_cb,
         .max_qrcode_version = 10,
         .qrcode_ecc_level = ESP_QRCODE_ECC_MED,
-        .user_data = NULL,
+        .user_data = canvas,
     };
-    if (esp_qrcode_generate(&cfg, data) != ESP_OK) {
-        ESP_LOGW(TAG, "QR generation failed");
-        display_draw_fallback_icon(ICON_ERROR);
+    esp_qrcode_generate(&qr_cfg, url);
+
+    /* Instructions */
+    lv_obj_t *lbl_ssid = lv_label_create(scr);
+    lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
+    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
+    lv_obj_align(lbl_ssid, LV_ALIGN_CENTER, 0, 80);
+
+    lv_obj_t *lbl_hint = lv_label_create(scr);
+    lv_label_set_text(lbl_hint, "Scan QR code to configure WiFi");
+    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(lbl_hint, lv_color_hex(0x666666), 0);
+    lv_obj_align(lbl_hint, LV_ALIGN_CENTER, 0, 115);
+
+    lvgl_refresh();
+    ESP_LOGI(TAG, "WiFi setup screen shown");
+}
+
+void display_show_connecting(const char *ssid)
+{
+    if (!s_lvgl_disp) return;
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+
+    lv_obj_t *lbl = lv_label_create(scr);
+    lv_label_set_text_fmt(lbl, "Connecting to\n%s...", ssid);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+
+    lvgl_refresh();
+}
+
+void display_show_ota_progress(uint8_t percent)
+{
+    if (!s_lvgl_disp) return;
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+
+    lv_obj_t *title = lv_label_create(scr);
+    lv_label_set_text(title, "Updating firmware...");
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -50);
+
+    lv_obj_t *bar = lv_bar_create(scr);
+    lv_obj_set_size(bar, 400, 30);
+    lv_bar_set_value(bar, percent, LV_ANIM_OFF);
+    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 0);
+
+    lv_obj_t *pct = lv_label_create(scr);
+    lv_label_set_text_fmt(pct, "%d%%", percent);
+    lv_obj_set_style_text_font(pct, &lv_font_montserrat_18, 0);
+    lv_obj_align(pct, LV_ALIGN_CENTER, 0, 35);
+
+    lv_obj_t *warn = lv_label_create(scr);
+    lv_label_set_text(warn, "Do not power off");
+    lv_obj_set_style_text_color(warn, lv_color_hex(0xCC0000), 0);
+    lv_obj_align(warn, LV_ALIGN_CENTER, 0, 70);
+
+    lvgl_refresh();
+}
+
+void display_show_error(const char *message)
+{
+    if (!s_lvgl_disp) return;
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+
+    lv_obj_t *icon = lv_label_create(scr);
+    lv_label_set_text(icon, LV_SYMBOL_WARNING);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
+    lv_obj_align(icon, LV_ALIGN_CENTER, 0, -40);
+
+    lv_obj_t *lbl = lv_label_create(scr);
+    lv_label_set_text(lbl, message);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(lbl, 600);
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 20);
+
+    lvgl_refresh();
+}
+
+void display_show_low_battery(void)
+{
+    display_show_error("Low Battery\nPlease charge");
+}
+
+/* ── Server mode: raw pixel buffer ────────────────────────────── */
+
+esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
+{
+    if (!s_epd || !buffer) return ESP_ERR_INVALID_ARG;
+
+    size_t expected = (size_t)PANEL_WIDTH * PANEL_HEIGHT * PANEL_BPP / 8;
+    if (len != expected) {
+        ESP_LOGW(TAG, "Buffer size mismatch: %zu (expected %zu)", len, expected);
+        return ESP_ERR_INVALID_SIZE;
     }
+
+    return epd_update(s_epd, buffer, EPD_UPDATE_FULL);
 }
 
-void display_show_loading(void)
+/* ── Power management ─────────────────────────────────────────── */
+
+esp_err_t display_sleep(void)
 {
-    ESP_LOGI(TAG, "Loading...");
-    /* TODO: Partial update with loading indicator */
+    if (!s_epd) return ESP_ERR_INVALID_STATE;
+    return epd_sleep(s_epd);
 }
 
-void display_show_boot_logo(void)
+esp_err_t display_wake(void)
 {
-    if (!s_drv) return;
-    int ox = (s_drv->width - LOGO_BOOT_WIDTH) / 2;
-    int oy = (s_drv->height - LOGO_BOOT_HEIGHT) / 2;
-    s_drv->draw_bitmap(logo_boot, LOGO_BOOT_WIDTH, LOGO_BOOT_HEIGHT, ox, oy);
-}
-
-
-void display_show_ota_screen(void)
-{
-    if (!s_drv) return;
-    ESP_LOGI(TAG, "Showing OTA update screen");
-
-    /* Compose: logo centered upper third, text centered below */
-    int logo_x = (s_drv->width - LOGO_BOOT_WIDTH) / 2;
-    int logo_y = (s_drv->height / 2) - LOGO_BOOT_HEIGHT - 20;
-
-    int line1_x = (s_drv->width - OTA_LINE1_WIDTH) / 2;
-    int line1_y = (s_drv->height / 2) + 10;
-
-    int line2_x = (s_drv->width - OTA_LINE2_WIDTH) / 2;
-    int line2_y = line1_y + OTA_LINE1_HEIGHT + 8;
-
-    /* Draw logo */
-    s_drv->draw_bitmap(logo_boot, LOGO_BOOT_WIDTH, LOGO_BOOT_HEIGHT, logo_x, logo_y);
-
-    /* For text, we need to composite onto the existing framebuffer.
-     * Since draw_bitmap clears the screen, we draw all three in one pass
-     * using a full framebuffer. */
-    size_t fb_len = (size_t)s_drv->width * s_drv->height;
-    uint8_t *fb = malloc(fb_len);
-    if (!fb) return;
-    memset(fb, 1, fb_len); /* White */
-
-    /* Blit logo */
-    for (int y = 0; y < LOGO_BOOT_HEIGHT; y++) {
-        for (int x = 0; x < LOGO_BOOT_WIDTH; x++) {
-            int sb = y * (LOGO_BOOT_WIDTH / 8) + (x / 8);
-            if (logo_boot[sb] & (1 << (7 - (x % 8)))) {
-                int dx = logo_x + x, dy = logo_y + y;
-                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height)
-                    fb[dy * s_drv->width + dx] = 0;
-            }
-        }
-    }
-
-    /* Blit "Updating firmware..." */
-    for (int y = 0; y < OTA_LINE1_HEIGHT; y++) {
-        for (int x = 0; x < OTA_LINE1_WIDTH; x++) {
-            int sb = y * ((OTA_LINE1_WIDTH + 7) / 8) + (x / 8);
-            if (ota_line1[sb] & (1 << (7 - (x % 8)))) {
-                int dx = line1_x + x, dy = line1_y + y;
-                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height)
-                    fb[dy * s_drv->width + dx] = 0;
-            }
-        }
-    }
-
-    /* Blit "Do not power off." */
-    for (int y = 0; y < OTA_LINE2_HEIGHT; y++) {
-        for (int x = 0; x < OTA_LINE2_WIDTH; x++) {
-            int sb = y * ((OTA_LINE2_WIDTH + 7) / 8) + (x / 8);
-            if (ota_line2[sb] & (1 << (7 - (x % 8)))) {
-                int dx = line2_x + x, dy = line2_y + y;
-                if (dx >= 0 && dx < s_drv->width && dy >= 0 && dy < s_drv->height)
-                    fb[dy * s_drv->width + dx] = 0;
-            }
-        }
-    }
-
-    s_drv->draw(fb, fb_len);
-    free(fb);
-}
-
-void display_refresh(void)
-{
-    if (s_drv) s_drv->refresh();
-}
-
-void display_sleep(void)
-{
-    if (s_drv) s_drv->sleep();
+    if (!s_epd) return ESP_ERR_INVALID_STATE;
+    return epd_wake(s_epd);
 }

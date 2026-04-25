@@ -56,21 +56,11 @@ export const themes = pgTable("themes", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-/* ── Content Types (renderer registry in DB) ──────────────────── */
-
-export const contentTypes = pgTable("content_types", {
-  slug: text("slug").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-});
-
 /* ── Content Instances ────────────────────────────────────────── */
 
 export const contentInstances = pgTable("content_instances", {
   id: uuid("id").defaultRandom().primaryKey(),
-  typeSlug: text("type_slug")
-    .notNull()
-    .references(() => contentTypes.slug),
+  typeSlug: text("type_slug").notNull(),
   name: text("name").notNull(),
   /** Renderer-specific config (provider ref, room email, etc.) */
   config: jsonb("config").notNull(),

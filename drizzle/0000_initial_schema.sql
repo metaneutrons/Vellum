@@ -23,15 +23,9 @@ CREATE TABLE "themes" (
   "updated_at" timestamp DEFAULT now() NOT NULL
 );
 
-CREATE TABLE "content_types" (
-  "slug" text PRIMARY KEY,
-  "name" text NOT NULL,
-  "description" text
-);
-
 CREATE TABLE "content_instances" (
   "id" uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  "type_slug" text NOT NULL REFERENCES "content_types"("slug"),
+  "type_slug" text NOT NULL,
   "name" text NOT NULL,
   "config" jsonb NOT NULL,
   "created_at" timestamp DEFAULT now() NOT NULL,

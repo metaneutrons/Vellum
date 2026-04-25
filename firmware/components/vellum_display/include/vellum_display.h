@@ -1,40 +1,38 @@
 /**
  * @file vellum_display.h
- * @brief Display abstraction layer for Vellum.
- *
- * All operations delegate to the active display driver
- * selected via Kconfig (VELLUM_DRIVER_*).
+ * @brief Display abstraction — two modes: local (LVGL) and server (raw buffer).
  */
-
 #pragma once
 
 #include "esp_err.h"
-#include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
+#include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct {
+    const char *model;      /* "e1001" or "e1002" */
+    uint16_t width;
+    uint16_t height;
+    uint8_t bpp;            /* 1 (BW) or 4 (6-color) */
+    const char *color_mode; /* "bw" or "color" */
+} display_info_t;
 
-/* Fallback icon IDs */
-#define ICON_NO_SIGNAL        0
-#define ICON_CLOUD_DISCONNECT 1
-#define ICON_UNAUTHORIZED     2
-#define ICON_CONNECT_POWER    3
-#define ICON_ERROR            4
-#define FALLBACK_ICON_COUNT   5
+/* Initialize display hardware + LVGL */
+esp_err_t display_init(void);
 
-void display_init(void);
-bool display_draw_pixel_buffer(const uint8_t *buffer, size_t length);
-void display_draw_fallback_icon(uint8_t icon_id);
-void display_draw_qr_code(const char *data);
-void display_show_loading(void);
-void display_show_boot_logo(void);
-void display_show_ota_screen(void);
-void display_refresh(void);
-void display_sleep(void);
+/* Get display info (for /hello capability report) */
+esp_err_t display_get_info(display_info_t *info);
 
-#ifdef __cplusplus
-}
-#endif
+/* --- Local mode (LVGL screens) --- */
+void display_show_boot(const char *version);
+void display_show_wifi_setup(const char *ssid, const char *url);
+void display_show_connecting(const char *ssid);
+void display_show_ota_progress(uint8_t percent);
+void display_show_error(const char *message);
+void display_show_low_battery(void);
+
+/* --- Server mode (raw pixel buffer) --- */
+esp_err_t display_update_raw(const uint8_t *buffer, size_t len);
+
+/* --- Power management --- */
+esp_err_t display_sleep(void);
+esp_err_t display_wake(void);

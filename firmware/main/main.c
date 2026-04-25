@@ -372,7 +372,7 @@ static char *decrypt_token(const char *ciphertext_b64, const char *nonce_b64,
 static bool perform_hello(void)
 {
     ESP_LOGI(TAG, "Performing hello handshake");
-    display_show_loading();
+    display_show_connecting("...");
 
     vellum_http_response_t resp = {0};
     esp_err_t err = http_client_hello(&resp);
@@ -460,7 +460,7 @@ static bool perform_hello(void)
 static uint32_t perform_render(void)
 {
     ESP_LOGI(TAG, "Requesting render");
-    display_show_loading();
+    display_show_connecting("...");
 
     vellum_http_response_t resp = {0};
     esp_err_t err = http_client_render(&resp);
@@ -472,33 +472,33 @@ static uint32_t perform_render(void)
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Render request failed: %s", esp_err_to_name(err));
-        display_show_ota_screen();
+        display_show_ota_progress(0);
         http_client_free_response(&resp);
         return sleep_sec;
     }
 
     if (resp.status_code == 200) {
         if (resp.binary_body && resp.binary_len > 0) {
-            if (!display_draw_pixel_buffer(resp.binary_body, resp.binary_len)) {
+            if (display_update_raw(resp.binary_body, resp.binary_len) != ESP_OK) {
                 ESP_LOGW(TAG, "Malformed pixel buffer (%zu bytes)", resp.binary_len);
-                display_draw_fallback_icon(ICON_ERROR);
+                display_show_error("Error");
             }
         } else {
             ESP_LOGW(TAG, "Empty render response body");
-            display_draw_fallback_icon(ICON_ERROR);
+            display_show_error("Error");
         }
     } else if (resp.status_code == 401) {
         ESP_LOGW(TAG, "401 Unauthorized");
-        display_draw_fallback_icon(ICON_UNAUTHORIZED);
+        display_show_error("Unauthorized");
         nvs_manager_store_token("");
         http_client_set_token(NULL);
         perform_hello();
     } else if (resp.status_code >= 500 || resp.status_code == -1) {
         ESP_LOGW(TAG, "Server error (%d)", resp.status_code);
-        display_show_ota_screen();
+        display_show_ota_progress(0);
     } else {
         ESP_LOGW(TAG, "Unexpected status %d", resp.status_code);
-        display_draw_fallback_icon(ICON_ERROR);
+        display_show_error("Error");
     }
 
     http_client_free_response(&resp);
@@ -518,7 +518,7 @@ static bool handle_button_action(button_action_t action)
 
     case BUTTON_ACTION_SEND_REPORT: {
         ESP_LOGI(TAG, "Button 2 → sending report");
-        display_show_loading();
+        display_show_connecting("...");
         vellum_http_response_t resp = {0};
         http_client_report("Room issue reported via button", &resp);
         ESP_LOGI(TAG, "Report response: %d", resp.status_code);
@@ -530,7 +530,7 @@ static bool handle_button_action(button_action_t action)
         ESP_LOGI(TAG, "Button 3 held → entering SoftAP");
         char ssid[32];
         wifi_manager_get_softap_ssid(ssid, sizeof(ssid));
-        display_draw_qr_code(ssid);
+        display_show_wifi_setup(ssid, "http://192.168.4.1");
         wifi_manager_start_softap(); /* blocks, then restarts */
         return true;
     }
@@ -634,7 +634,7 @@ static void check_ota_update(void)
         ESP_LOGI(TAG, "OTA update: %s → %s",
                  cJSON_IsString(ota_ver) ? ota_ver->valuestring : "?",
                  ota_url->valuestring);
-        display_show_ota_screen();
+        display_show_ota_progress(0);
         buzzer_beep(800, 200);
 
         esp_http_client_config_t ota_config = {
@@ -711,7 +711,7 @@ void app_main(void)
     buzzer_init();
     sht4x_init();
     display_init();
-    display_show_boot_logo();
+    display_show_boot(CONFIG_VELLUM_FIRMWARE_VERSION);
     buzzer_beep(1000, 100); /* Boot beep */
     led_on();
     buttons_init();
@@ -729,7 +729,7 @@ void app_main(void)
     if (battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !is_usb_powered()) {
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
-        display_draw_fallback_icon(ICON_CONNECT_POWER);
+        display_show_error("Low Battery");
         display_sleep();
         sleep_manager_enter_permanent(buttons_get_wake_mask());
         /* does not return */
@@ -742,14 +742,14 @@ void app_main(void)
         ESP_LOGI(TAG, "No Wi-Fi credentials — entering SoftAP");
         char ssid[32];
         wifi_manager_get_softap_ssid(ssid, sizeof(ssid));
-        display_draw_qr_code(ssid);
+        display_show_wifi_setup(ssid, "http://192.168.4.1");
         wifi_manager_start_softap();
         /* does not return — restarts after provisioning */
     }
 
     if (wifi_result == WIFI_RESULT_FAILED) {
         ESP_LOGW(TAG, "Wi-Fi connection failed — showing No Signal icon");
-        display_draw_fallback_icon(ICON_NO_SIGNAL);
+        display_show_error("No WiFi Signal");
         display_sleep();
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
         /* does not return */
@@ -767,14 +767,20 @@ void app_main(void)
         mdns_result_t *results = NULL;
         esp_err_t mdns_err = mdns_query_ptr("_vellum", "_tcp", 5000, 1, &results);
         if (mdns_err == ESP_OK && results) {
-            /* Resolve the first result */
             mdns_result_t *r = results;
-            if (r->addr && r->port > 0) {
+            if (r->addr && r->addr->addr.type == ESP_IPADDR_TYPE_V4 && r->port > 0) {
                 snprintf(server_url, sizeof(server_url), "http://" IPSTR ":%d",
                          IP2STR(&r->addr->addr.u_addr.ip4), r->port);
-                ESP_LOGI(TAG, "mDNS found server: %s", server_url);
-                nvs_manager_store_server_url(server_url);
+            } else if (r->hostname && r->port > 0) {
+                snprintf(server_url, sizeof(server_url), "http://%s.local:%d",
+                         r->hostname, r->port);
+            } else {
+                ESP_LOGW(TAG, "mDNS result has no usable address");
+                strncpy(server_url, CONFIG_VELLUM_DEFAULT_SERVER_URL, sizeof(server_url) - 1);
+                server_url[sizeof(server_url) - 1] = '\0';
             }
+            ESP_LOGI(TAG, "mDNS found server: %s", server_url);
+            nvs_manager_store_server_url(server_url);
             mdns_query_results_free(results);
         } else {
             ESP_LOGW(TAG, "mDNS discovery failed, using default");
@@ -810,7 +816,7 @@ void app_main(void)
     } else {
         if (!perform_hello()) {
             ESP_LOGW(TAG, "No token after hello — device may be pending");
-            display_draw_fallback_icon(ICON_UNAUTHORIZED);
+            display_show_error("Unauthorized");
             display_sleep();
             sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
             /* does not return */
