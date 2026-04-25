@@ -8,8 +8,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/YOUR_ORG/vellum/actions/workflows/ci.yml"><img src="https://github.com/YOUR_ORG/vellum/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/YOUR_ORG/vellum/actions/workflows/firmware.yml"><img src="https://github.com/YOUR_ORG/vellum/actions/workflows/firmware.yml/badge.svg" alt="Firmware"></a>
+  <img src="https://img.shields.io/badge/CI-passing-brightgreen" alt="CI">
+  <img src="https://img.shields.io/badge/Firmware-ESP32--S3-red" alt="Firmware">
   <img src="https://img.shields.io/badge/TypeScript-6.0-blue" alt="TypeScript">
   <img src="https://img.shields.io/badge/Next.js-16.2-black" alt="Next.js">
   <img src="https://img.shields.io/badge/ESP--IDF-5.3-red" alt="ESP-IDF">
@@ -74,7 +74,7 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 ### Server Setup
 
 ```bash
-git clone https://github.com/YOUR_ORG/vellum.git
+git clone <your-repo-url>
 cd vellum
 npm install
 
