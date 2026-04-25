@@ -194,23 +194,24 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     };
     esp_qrcode_generate(&qr_cfg, url);
 
-    /* WiFi name centered below QR */
+    /* WiFi name single line, centered below QR */
     lv_obj_t *lbl_ssid = lv_label_create(scr);
     lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
     lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
-    lv_obj_set_width(lbl_ssid, 200);
     lv_obj_set_style_text_align(lbl_ssid, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_ssid, 480, 255);
+    lv_obj_set_width(lbl_ssid, 240);
+    lv_obj_align_to(lbl_ssid, canvas, LV_ALIGN_OUT_BOTTOM_MID, 0, 15);
 
-    /* Bottom: instructions */
+    /* Bottom: instructions — centered, large */
     lv_obj_t *lbl_hint = lv_label_create(scr);
     lv_label_set_text(lbl_hint,
         "Scan QR code, connect to WiFi manually\n"
         "or use Vellum Console to configure this device.");
     lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(lbl_hint, lv_color_hex(0x666666), 0);
-    lv_obj_set_width(lbl_hint, 720);
-    lv_obj_set_pos(lbl_hint, 40, 400);
+    lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(lbl_hint, 760);
+    lv_obj_align(lbl_hint, LV_ALIGN_BOTTOM_MID, 0, -50);
 
     /* Bottom-right: firmware version */
     lv_obj_t *lbl_ver = lv_label_create(scr);
