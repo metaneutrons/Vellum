@@ -191,7 +191,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
                 }
             }
         }
-        lv_obj_set_pos(logo_canvas, 40, 80);
+        lv_obj_set_pos(logo_canvas, 40, 40);
     }
 
     /* Right side: QR code */
@@ -225,7 +225,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_set_style_text_color(lbl_hint, lv_color_hex(0x666666), 0);
     lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_hint, 760);
-    lv_obj_align(lbl_hint, LV_ALIGN_BOTTOM_MID, 0, -50);
+    lv_obj_align(lbl_hint, LV_ALIGN_BOTTOM_MID, 0, -20);
 
     /* Bottom-right: firmware version */
     lv_obj_t *lbl_ver = lv_label_create(scr);
