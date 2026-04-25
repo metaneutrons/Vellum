@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 
@@ -175,16 +176,29 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
 
-    /* Left side: Vellum logo */
-    lv_obj_t *logo = lv_image_create(scr);
-    lv_image_set_src(logo, &vellum_logo_img);
-    lv_obj_set_pos(logo, 40, 80);
+    /* Left side: Vellum logo — draw 1-bit bitmap on canvas */
+    lv_color_t *logo_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    if (logo_buf) {
+        lv_obj_t *logo_canvas = lv_canvas_create(scr);
+        lv_canvas_set_buffer(logo_canvas, logo_buf, VELLUM_LOGO_W, VELLUM_LOGO_H, LV_COLOR_FORMAT_NATIVE);
+        lv_canvas_fill_bg(logo_canvas, lv_color_white(), LV_OPA_COVER);
+        for (int y = 0; y < VELLUM_LOGO_H; y++) {
+            for (int x = 0; x < VELLUM_LOGO_W; x++) {
+                int byte_idx = y * VELLUM_LOGO_STRIDE + x / 8;
+                int bit_idx = 7 - (x % 8);
+                if (vellum_logo_bits[byte_idx] & (1 << bit_idx)) {
+                    lv_canvas_set_px(logo_canvas, x, y, lv_color_black(), LV_OPA_COVER);
+                }
+            }
+        }
+        lv_obj_set_pos(logo_canvas, 40, 80);
+    }
 
     /* Right side: QR code */
     static lv_color_t qr_buf[200 * 200];
     lv_obj_t *canvas = lv_canvas_create(scr);
     lv_canvas_set_buffer(canvas, qr_buf, 200, 200, LV_COLOR_FORMAT_NATIVE);
-    lv_obj_set_pos(canvas, 480, 40);
+    lv_obj_set_pos(canvas, 480, 100);
 
     esp_qrcode_config_t qr_cfg = {
         .display_func_with_cb = qr_display_cb,
