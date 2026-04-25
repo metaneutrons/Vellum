@@ -56,6 +56,9 @@ export function FlashTool({ channels }: { channels: Channel[] }) {
           </div>
         )}
 
+        {!manifest && (
+          <div className="text-sm text-gray-500 mb-4">No manifest cached yet. Go to Firmware page and click Refresh on a channel first.</div>
+        )}
         {!binary && manifest && (
           <div className="text-sm text-yellow-500 mb-4">No binary for {model} in this channel.</div>
         )}

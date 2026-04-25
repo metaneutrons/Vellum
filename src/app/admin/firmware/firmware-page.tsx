@@ -63,7 +63,7 @@ export function FirmwarePage({ channels, devices }: Props) {
 
   return (
     <div className={pending ? "opacity-60 pointer-events-none" : ""}>
-      <PageHeader title="Firmware" description="Manage OTA firmware updates and channels" />
+      <PageHeader title="Firmware" description="Manage OTA firmware updates and channels" actions={<a href="/admin/firmware/flash" className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Flash Device</a>} />
 
       {/* Channels */}
       <h2 className="text-lg font-semibold mb-3">Channels</h2>
