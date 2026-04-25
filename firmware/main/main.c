@@ -32,6 +32,7 @@
 #include "vellum_display.h"
 #include "buttons.h"
 #include "sleep_manager.h"
+#include "vellum_serial.h"
 #include "mdns.h"
 #include "esp_ota_ops.h"
 #include "esp_https_ota.h"
@@ -713,6 +714,7 @@ void app_main(void)
     buzzer_init();
     sht4x_init();
     display_init();
+    vellum_serial_init();
 
     wake_reason_t wake = sleep_manager_get_wake_reason();
 
