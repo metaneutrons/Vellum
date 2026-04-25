@@ -1,5 +1,6 @@
 import { db } from "@/db";
-import { telemetry } from "@/db/schema";
+import { telemetry, devices } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import type { TelemetryEntry } from "@/lib/types";
 
 /**
@@ -30,12 +31,15 @@ export function extractTelemetry(
  * Log a telemetry entry to the database, associated with the given device MAC.
  */
 export async function logTelemetry(entry: TelemetryEntry): Promise<void> {
-  await db.insert(telemetry).values({
-    mac: entry.mac,
-    batteryVoltage: entry.batteryVoltage,
-    batteryLevel: entry.batteryLevel,
-    wifiRssi: entry.wifiRssi,
-    firmwareVersion: entry.firmwareVersion,
-    timestamp: entry.timestamp,
-  });
+  await Promise.all([
+    db.insert(telemetry).values({
+      mac: entry.mac,
+      batteryVoltage: entry.batteryVoltage,
+      batteryLevel: entry.batteryLevel,
+      wifiRssi: entry.wifiRssi,
+      firmwareVersion: entry.firmwareVersion,
+      timestamp: entry.timestamp,
+    }),
+    db.update(devices).set({ lastSeen: entry.timestamp }).where(eq(devices.mac, entry.mac)),
+  ]);
 }
