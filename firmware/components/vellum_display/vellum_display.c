@@ -12,6 +12,7 @@
 #include "epaper_lvgl.h"
 #include "lvgl.h"
 #include "qrcode.h"
+#include "vellum_logo_img.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -174,11 +175,10 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
 
-    /* Left side: Vellum logo text */
-    lv_obj_t *logo = lv_label_create(scr);
-    lv_label_set_text(logo, "Vellum");
-    lv_obj_set_style_text_font(logo, &lv_font_montserrat_48, 0);
-    lv_obj_set_pos(logo, 60, 160);
+    /* Left side: Vellum logo */
+    lv_obj_t *logo = lv_image_create(scr);
+    lv_image_set_src(logo, &vellum_logo_img);
+    lv_obj_set_pos(logo, 40, 90);
 
     /* Right side: QR code */
     static lv_color_t qr_buf[200 * 200];
