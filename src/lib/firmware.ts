@@ -14,7 +14,10 @@
 import { log } from "./logger";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
-const POLL_INTERVAL_MS = 15 * 60_000; // check for new releases every 15 min
+const POLL_INTERVAL_MS = Math.max(
+  60_000,
+  (parseInt(process.env.FIRMWARE_POLL_INTERVAL_S ?? "900", 10) || 900) * 1000
+); // default 15min, min 1min
 
 export type FirmwareChannel = "stable" | "beta";
 
@@ -236,4 +239,18 @@ function compareSemver(a: string, b: string): number {
     if (diff !== 0) return diff;
   }
   return 0;
+}
+
+/* ── Optional background polling ──────────────────────────────── */
+
+/**
+ * Set FIRMWARE_AUTO_POLL=true to enable background polling.
+ * Combined with FIRMWARE_POLL_INTERVAL_S this enables auto-update:
+ * devices will pick up new firmware without admin interaction.
+ */
+if (process.env.FIRMWARE_AUTO_POLL === "true") {
+  setInterval(() => {
+    getAllManifests().catch(() => {});
+  }, POLL_INTERVAL_MS);
+  log.info("Firmware auto-poll enabled", { intervalS: POLL_INTERVAL_MS / 1000 });
 }
