@@ -16,6 +16,6 @@ ALTER TABLE "devices" ADD COLUMN IF NOT EXISTS "firmware_pin_version" text;
 
 -- Seed default channels
 INSERT INTO "firmware_channels" ("name", "manifest_url") VALUES
-  ('stable', 'https://github.com/lexict/vellum/releases/latest/download/firmware-manifest.json'),
-  ('beta', 'https://github.com/lexict/vellum/releases/download/beta/firmware-manifest.json')
+  ('stable', 'https://github.com/example/vellum/releases/latest/download/firmware-manifest.json'),
+  ('beta', 'https://github.com/example/vellum/releases/download/beta/firmware-manifest.json')
 ON CONFLICT ("name") DO NOTHING;

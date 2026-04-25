@@ -8,12 +8,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lexict/vellum/actions/workflows/ci.yml"><img src="https://github.com/lexict/vellum/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/lexict/vellum/actions/workflows/firmware.yml"><img src="https://github.com/lexict/vellum/actions/workflows/firmware.yml/badge.svg" alt="Firmware"></a>
+  <a href="https://github.com/YOUR_ORG/vellum/actions/workflows/ci.yml"><img src="https://github.com/YOUR_ORG/vellum/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/YOUR_ORG/vellum/actions/workflows/firmware.yml"><img src="https://github.com/YOUR_ORG/vellum/actions/workflows/firmware.yml/badge.svg" alt="Firmware"></a>
   <img src="https://img.shields.io/badge/TypeScript-6.0-blue" alt="TypeScript">
   <img src="https://img.shields.io/badge/Next.js-16.2-black" alt="Next.js">
   <img src="https://img.shields.io/badge/ESP--IDF-5.3-red" alt="ESP-IDF">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-green.svg" alt="License"></a>
 </p>
 
 ---
@@ -74,7 +74,7 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 ### Server Setup
 
 ```bash
-git clone https://github.com/lexict/vellum.git
+git clone https://github.com/YOUR_ORG/vellum.git
 cd vellum
 npm install
 
@@ -230,10 +230,9 @@ Contributions are welcome! Please open an issue first to discuss what you'd like
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+AGPL-3.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://lexict.de">lexICT</a></sub>
 </p>

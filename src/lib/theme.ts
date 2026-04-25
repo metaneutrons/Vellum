@@ -28,8 +28,8 @@ export function parseTheme(raw: unknown): Theme | null {
   return result.success ? result.data : null;
 }
 
-export const THEME_LEXICT: Theme = {
-  name: "lexICT",
+export const THEME_DEFAULT: Theme = {
+  name: "Default",
   headerBg: "#000000",
   headerText: "#FFFFFF",
   freeBadge: "#008000",
@@ -57,5 +57,5 @@ export const THEME_MONO: Theme = {
 };
 
 export function resolveTheme(colorCount: number): Theme {
-  return colorCount > 2 ? THEME_LEXICT : THEME_MONO;
+  return colorCount > 2 ? THEME_DEFAULT : THEME_MONO;
 }

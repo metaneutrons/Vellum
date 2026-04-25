@@ -128,7 +128,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
         )}
 
         <label className="block text-sm font-medium mb-1">Name</label>
-        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. lexICT M365"
+        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. My M365 Provider"
           value={name} onChange={(e) => setName(e.target.value)} />
 
         {PROVIDER_TYPES[type].fields.map((f) => (
