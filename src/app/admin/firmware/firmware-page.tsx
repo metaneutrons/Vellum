@@ -30,13 +30,14 @@ export function FirmwarePage({ channels, devices }: Props) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editingUrl, setEditingUrl] = useState<Record<string, string>>({});
+  const [editingPin, setEditingPin] = useState<Record<string, string>>({});
 
   function saveUrl(id: string) {
     const url = editingUrl[id];
     if (!url) return;
     startTransition(async () => {
       try { await updateFirmwareChannel(id, url); toast("success", "Channel updated"); }
-      catch { toast("error", "Failed to update"); }
+      catch { toast("error", "Failed to assign channel"); }
     });
   }
 
@@ -50,14 +51,14 @@ export function FirmwarePage({ channels, devices }: Props) {
   function assignChannel(mac: string, channelId: string | null) {
     startTransition(async () => {
       try { await updateDevice(mac, { firmwareChannelId: channelId }); toast("success", "Updated"); }
-      catch { toast("error", "Failed"); }
+      catch { toast("error", "Failed to update firmware settings"); }
     });
   }
 
   function pinVersion(mac: string, version: string | null) {
     startTransition(async () => {
       try { await updateDevice(mac, { firmwarePinVersion: version }); toast("success", "Updated"); }
-      catch { toast("error", "Failed"); }
+      catch { toast("error", "Failed to update firmware settings"); }
     });
   }
 
@@ -91,7 +92,7 @@ export function FirmwarePage({ channels, devices }: Props) {
               <div className="flex gap-2">
                 <input
                   className="flex-1 text-xs border rounded px-2 py-1.5 font-mono"
-                  value={editingUrl[ch.id] ?? ch.manifestUrl}
+                  aria-label="Manifest URL" value={editingUrl[ch.id] ?? ch.manifestUrl}
                   onChange={(e) => setEditingUrl((u) => ({ ...u, [ch.id]: e.target.value }))}
                 />
                 {editingUrl[ch.id] && editingUrl[ch.id] !== ch.manifestUrl && (
@@ -126,16 +127,22 @@ export function FirmwarePage({ channels, devices }: Props) {
                   <td className="px-4 py-3 font-mono text-xs"><a href={`/admin/devices/${d.mac}`} className="text-blue-600 hover:underline">{d.mac}</a></td>
                   <td className="px-4 py-3 text-xs text-gray-500">{caps?.model ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <select className="text-xs border rounded px-2 py-1" value={d.firmwareChannelId ?? ""}
+                    <select className="text-xs border rounded px-2 py-1" aria-label="Firmware channel" value={d.firmwareChannelId ?? ""}
                       onChange={(e) => assignChannel(d.mac, e.target.value || null)}>
                       <option value="">stable (default)</option>
                       {channels.map((ch) => <option key={ch.id} value={ch.id}>{ch.name}</option>)}
                     </select>
                   </td>
                   <td className="px-4 py-3">
-                    <input className="text-xs border rounded px-2 py-1 w-28" placeholder="e.g. 1.2.0"
-                      value={d.firmwarePinVersion ?? ""}
-                      onChange={(e) => pinVersion(d.mac, e.target.value || null)} />
+                    <div className="flex gap-1">
+                    <input className="text-xs border rounded px-2 py-1 w-24" placeholder="e.g. 1.2.0"
+                      aria-label="Pin version"
+                      value={editingPin[d.mac] ?? d.firmwarePinVersion ?? ""}
+                      onChange={(e) => setEditingPin(p => ({ ...p, [d.mac]: e.target.value }))} />
+                    {(editingPin[d.mac] !== undefined && editingPin[d.mac] !== (d.firmwarePinVersion ?? "")) && (
+                      <button className="text-xs bg-blue-600 text-white px-2 rounded" onClick={() => { pinVersion(d.mac, editingPin[d.mac] || null); setEditingPin(p => { const { [d.mac]: _unused, ...rest } = p; void _unused; return rest; }); }}>Set</button>
+                    )}
+                  </div>
                   </td>
                 </tr>
               );

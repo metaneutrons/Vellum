@@ -5,6 +5,7 @@ import { type ButtonHTMLAttributes } from "react";
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "danger" | "ghost";
   pending?: boolean;
+  pendingText?: string;
   size?: "sm" | "md";
 }
 
@@ -15,7 +16,7 @@ const styles = {
 };
 
 export function Button({
-  variant = "primary", pending, size = "md", children, disabled, className = "", ...props
+  variant = "primary", pending, pendingText, size = "md", children, disabled, className = "", ...props
 }: ButtonProps) {
   const sizeClass = size === "sm" ? "px-3 py-1 text-xs" : "px-4 py-2 text-sm";
   return (
@@ -24,7 +25,7 @@ export function Button({
       className={`${sizeClass} rounded disabled:opacity-50 ${styles[variant]} ${className}`}
       {...props}
     >
-      {pending ? "Saving..." : children}
+      {pending ? (pendingText ?? "Saving...") : children}
     </button>
   );
 }

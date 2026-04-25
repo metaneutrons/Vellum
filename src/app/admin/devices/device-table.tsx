@@ -113,21 +113,21 @@ export function DeviceTable({ devices, themes, contentInstances, refreshProfiles
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{caps?.model ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <select className="text-xs border rounded px-2 py-1" value={d.contentInstanceId ?? ""}
+                    <select className="text-xs border rounded px-2 py-1" aria-label="Content" value={d.contentInstanceId ?? ""}
                       onChange={e => act(() => updateDevice(d.mac, { contentInstanceId: e.target.value || null }), "Updated", "Failed")}>
                       <option value="">—</option>
                       {contentInstances.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </td>
                   <td className="px-4 py-3">
-                    <select className="text-xs border rounded px-2 py-1" value={d.themeId ?? ""}
+                    <select className="text-xs border rounded px-2 py-1" aria-label="Theme" value={d.themeId ?? ""}
                       onChange={e => act(() => updateDevice(d.mac, { themeId: e.target.value || null }), "Updated", "Failed")}>
                       <option value="">default</option>
                       {themes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </td>
                   <td className="px-4 py-3">
-                    <select className="text-xs border rounded px-2 py-1" value={d.refreshProfileId ?? ""}
+                    <select className="text-xs border rounded px-2 py-1" aria-label="Profile" value={d.refreshProfileId ?? ""}
                       onChange={e => act(() => updateDevice(d.mac, { refreshProfileId: e.target.value || null }), "Updated", "Failed")}>
                       <option value="">default</option>
                       {refreshProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

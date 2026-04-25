@@ -30,7 +30,7 @@ export function AdminNav() {
         onClick={() => setOpen(!open)}
         style={{ display: "none" }}
         className="mobile-hamburger"
-        id="hamburger"
+        id="hamburger" aria-label="Toggle menu"
       >
         {open ? "✕" : "☰"}
       </button>

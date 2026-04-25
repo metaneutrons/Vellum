@@ -112,9 +112,9 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
         {/* Timestamps */}
         <Card title="Timeline">
           <div className="space-y-2 text-sm">
-            <div><span className="text-gray-500">Registered:</span> {device.createdAt.toLocaleString("de-DE")}</div>
-            {device.approvedAt && <div><span className="text-gray-500">Approved:</span> {device.approvedAt.toLocaleString("de-DE")}</div>}
-            <div><span className="text-gray-500">Last Seen:</span> {device.lastSeen ? device.lastSeen.toLocaleString("de-DE") : "—"}</div>
+            <div><span className="text-gray-500">Registered:</span> {new Date(device.createdAt).toLocaleString("de-DE")}</div>
+            {device.approvedAt && <div><span className="text-gray-500">Approved:</span> {new Date(device.approvedAt).toLocaleString("de-DE")}</div>}
+            <div><span className="text-gray-500">Last Seen:</span> {device.lastSeen ? new Date(device.lastSeen).toLocaleString("de-DE") : "—"}</div>
           </div>
         </Card>
       </div>
@@ -122,21 +122,21 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
       {/* Assignments */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <Card title="Content Assignment">
-          <select className="w-full border rounded px-3 py-2 text-sm" value={device.contentInstanceId ?? ""}
+          <select className="w-full border rounded px-3 py-2 text-sm" aria-label="Content assignment" value={device.contentInstanceId ?? ""}
             onChange={(e) => handleUpdate({ contentInstanceId: e.target.value || null })}>
             <option value="">— none —</option>
             {contentInstances.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Card>
         <Card title="Theme Assignment">
-          <select className="w-full border rounded px-3 py-2 text-sm" value={device.themeId ?? ""}
+          <select className="w-full border rounded px-3 py-2 text-sm" aria-label="Theme assignment" value={device.themeId ?? ""}
             onChange={(e) => handleUpdate({ themeId: e.target.value || null })}>
             <option value="">— default —</option>
             {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </Card>
         <Card title="Refresh Profile">
-          <select className="w-full border rounded px-3 py-2 text-sm" value={device.refreshProfileId ?? ""}
+          <select className="w-full border rounded px-3 py-2 text-sm" aria-label="Refresh profile" value={device.refreshProfileId ?? ""}
             onChange={(e) => handleUpdate({ refreshProfileId: e.target.value || null })}>
             <option value="">— default —</option>
             {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -161,7 +161,7 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
               <tbody className="divide-y">
                 {telemetryHistory.map((t) => (
                   <tr key={t.id}>
-                    <td className="pr-4 py-1 text-gray-500">{t.timestamp.toLocaleString("de-DE")}</td>
+                    <td className="pr-4 py-1 text-gray-500">{new Date(t.timestamp).toLocaleString("de-DE")}</td>
                     <td className={`pr-4 py-1 ${(t.batteryLevel ?? 100) < 20 ? "text-red-600 font-medium" : ""}`}>{t.batteryLevel ?? "—"}%</td>
                     <td className="pr-4 py-1">{t.batteryVoltage?.toFixed(2) ?? "—"}V</td>
                     <td className={`pr-4 py-1 ${(t.wifiRssi ?? 0) < -70 ? "text-red-600 font-medium" : ""}`}>{t.wifiRssi ?? "—"} dBm</td>
@@ -182,7 +182,7 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
               {recentReports.map((r) => (
                 <div key={r.id} className="flex justify-between text-sm border-b pb-2">
                   <span>{r.issue ?? "—"}</span>
-                  <span className="text-xs text-gray-400">{r.timestamp.toLocaleString("de-DE")}</span>
+                  <span className="text-xs text-gray-400">{new Date(r.timestamp).toLocaleString("de-DE")}</span>
                 </div>
               ))}
             </div>

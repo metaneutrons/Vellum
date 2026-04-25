@@ -34,7 +34,7 @@ export function ConfirmDialog({
               destructive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            {pending ? "..." : confirmLabel}
+            {pending ? (confirmLabel + "...") : confirmLabel}
           </button>
         </>
       }
