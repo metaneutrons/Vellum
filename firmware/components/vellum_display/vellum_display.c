@@ -191,14 +191,14 @@ void display_show_wifi_setup(const char *ssid, const char *url)
                 }
             }
         }
-        lv_obj_set_pos(logo_canvas, 40, 40);
+        lv_obj_set_pos(logo_canvas, 50, 40);
     }
 
     /* Right side: QR code */
     static lv_color_t qr_buf[200 * 200];
     lv_obj_t *canvas = lv_canvas_create(scr);
     lv_canvas_set_buffer(canvas, qr_buf, 200, 200, LV_COLOR_FORMAT_NATIVE);
-    lv_obj_set_pos(canvas, 480, 100);
+    lv_obj_set_pos(canvas, 500, 60);
 
     esp_qrcode_config_t qr_cfg = {
         .display_func_with_cb = qr_display_cb,
@@ -213,7 +213,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
     lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_align(lbl_ssid, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_ssid, 240);
+    lv_obj_set_width(lbl_ssid, 300);
     lv_obj_align_to(lbl_ssid, canvas, LV_ALIGN_OUT_BOTTOM_MID, 0, 15);
 
     /* Bottom: instructions — centered, large */
@@ -225,7 +225,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_set_style_text_color(lbl_hint, lv_color_hex(0x666666), 0);
     lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_hint, 760);
-    lv_obj_align(lbl_hint, LV_ALIGN_BOTTOM_MID, 0, -20);
+    lv_obj_align(lbl_hint, LV_ALIGN_BOTTOM_MID, 0, -30);
 
     /* Bottom-right: firmware version */
     lv_obj_t *lbl_ver = lv_label_create(scr);
