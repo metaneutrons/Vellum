@@ -373,7 +373,6 @@ static char *decrypt_token(const char *ciphertext_b64, const char *nonce_b64,
 static bool perform_hello(void)
 {
     ESP_LOGI(TAG, "Performing hello handshake");
-    display_show_connecting("...");
 
     vellum_http_response_t resp = {0};
     esp_err_t err = http_client_hello(&resp);
@@ -531,7 +530,6 @@ static bool handle_button_action(button_action_t action)
 
     case BUTTON_ACTION_SEND_REPORT: {
         ESP_LOGI(TAG, "Button 2 → sending report");
-        display_show_connecting("...");
         vellum_http_response_t resp = {0};
         http_client_report("Room issue reported via button", &resp);
         ESP_LOGI(TAG, "Report response: %d", resp.status_code);

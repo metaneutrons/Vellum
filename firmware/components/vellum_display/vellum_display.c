@@ -240,18 +240,8 @@ void display_show_wifi_setup(const char *ssid, const char *url)
 
 void display_show_connecting(const char *ssid)
 {
-    if (!s_lvgl_disp) return;
-    lv_obj_t *scr = lv_screen_active();
-    lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
-
-    lv_obj_t *lbl = lv_label_create(scr);
-    lv_label_set_text_fmt(lbl, "Connecting to\n%s...", ssid);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
-
-    lvgl_refresh();
+    /* No-op — avoid unnecessary display refresh for transient states */
+    (void)ssid;
 }
 
 void display_show_ota_progress(uint8_t percent)
@@ -295,14 +285,14 @@ void display_show_error(const char *message)
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
     lv_obj_set_style_text_font(icon, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
-    lv_obj_align(icon, LV_ALIGN_CENTER, 0, -40);
+    lv_obj_align(icon, LV_ALIGN_CENTER, 0, -60);
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text(lbl, message);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl, 600);
-    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 20);
+    lv_obj_set_width(lbl, 700);
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 40);
 
     lvgl_refresh();
 }
