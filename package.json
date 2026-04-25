@@ -21,6 +21,7 @@
     "@tailwindcss/postcss": "4.2.4",
     "date-fns": "4.1.0",
     "drizzle-orm": "0.45.2",
+    "esp-web-tools": "^10.2.1",
     "multicast-dns": "^7.2.5",
     "next": "16.2.4",
     "pg": "8.20.0",
