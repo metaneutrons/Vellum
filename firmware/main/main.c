@@ -461,10 +461,20 @@ static bool perform_hello(void)
 static uint32_t perform_render(void)
 {
     ESP_LOGI(TAG, "Requesting render");
-    display_show_connecting("...");
 
     vellum_http_response_t resp = {0};
-    esp_err_t err = http_client_render(&resp);
+    esp_err_t err = ESP_FAIL;
+
+    for (int attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+            ESP_LOGI(TAG, "Render retry %d/3...", attempt + 1);
+            vTaskDelay(pdMS_TO_TICKS(2000 * (1 << attempt)));
+        }
+        memset(&resp, 0, sizeof(resp));
+        err = http_client_render(&resp);
+        if (err == ESP_OK && resp.status_code > 0) break;
+        http_client_free_response(&resp);
+    }
     uint32_t sleep_sec = CONFIG_VELLUM_FALLBACK_SLEEP_SEC;
 
     if (resp.sleep_duration > 0) {
@@ -529,14 +539,12 @@ static bool handle_button_action(button_action_t action)
         return true;
     }
 
-    case BUTTON_ACTION_ENTER_SOFTAP: {
-        ESP_LOGI(TAG, "Button 3 held → entering SoftAP");
-        char ssid[32];
-        wifi_manager_get_softap_ssid(ssid, sizeof(ssid));
-        display_show_wifi_setup(ssid, "http://192.168.4.1");
-        wifi_manager_start_softap(); /* blocks, then restarts */
+    case BUTTON_ACTION_FACTORY_RESET:
+        ESP_LOGW(TAG, "Factory reset — erasing NVS");
+        buzzer_beep(500, 500);
+        nvs_manager_clear_all();
+        esp_restart();
         return true;
-    }
 
     case BUTTON_ACTION_NONE:
     default:
