@@ -178,13 +178,13 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     /* Left side: Vellum logo */
     lv_obj_t *logo = lv_image_create(scr);
     lv_image_set_src(logo, &vellum_logo_img);
-    lv_obj_set_pos(logo, 40, 90);
+    lv_obj_set_pos(logo, 40, 80);
 
     /* Right side: QR code */
     static lv_color_t qr_buf[200 * 200];
     lv_obj_t *canvas = lv_canvas_create(scr);
     lv_canvas_set_buffer(canvas, qr_buf, 200, 200, LV_COLOR_FORMAT_NATIVE);
-    lv_obj_set_pos(canvas, 480, 80);
+    lv_obj_set_pos(canvas, 480, 40);
 
     esp_qrcode_config_t qr_cfg = {
         .display_func_with_cb = qr_display_cb,
@@ -197,22 +197,24 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     /* WiFi name centered below QR */
     lv_obj_t *lbl_ssid = lv_label_create(scr);
     lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
-    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_18, 0);
-    lv_obj_set_pos(lbl_ssid, 480, 290);
+    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
+    lv_obj_set_width(lbl_ssid, 200);
+    lv_obj_set_style_text_align(lbl_ssid, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_ssid, 480, 255);
 
     /* Bottom: instructions */
     lv_obj_t *lbl_hint = lv_label_create(scr);
     lv_label_set_text(lbl_hint,
         "Scan QR code, connect to WiFi manually\n"
         "or use Vellum Console to configure this device.");
-    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(lbl_hint, lv_color_hex(0x666666), 0);
-    lv_obj_set_width(lbl_hint, 700);
-    lv_obj_set_pos(lbl_hint, 40, 420);
+    lv_obj_set_width(lbl_hint, 720);
+    lv_obj_set_pos(lbl_hint, 40, 400);
 
     /* Bottom-right: firmware version */
     lv_obj_t *lbl_ver = lv_label_create(scr);
-    lv_label_set_text(lbl_ver, CONFIG_VELLUM_FIRMWARE_VERSION " • " PANEL_MODEL);
+    lv_label_set_text(lbl_ver, "v" CONFIG_VELLUM_FIRMWARE_VERSION " • " PANEL_MODEL);
     lv_obj_set_style_text_font(lbl_ver, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lbl_ver, lv_color_hex(0xAAAAAA), 0);
     lv_obj_align(lbl_ver, LV_ALIGN_BOTTOM_RIGHT, -20, -15);
