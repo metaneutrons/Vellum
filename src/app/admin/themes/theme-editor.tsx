@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import type { Theme } from "@/lib/theme";
 
 const THEME_FIELDS: { key: keyof Theme; label: string }[] = [
@@ -91,10 +92,7 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
           </div>
         ))}
         {themes.length === 0 && (
-          <div className="px-4 py-12 text-center text-gray-400">
-            <p className="mb-1">No themes yet.</p>
-            <p className="text-xs">Create a theme to customize the display appearance.</p>
-          </div>
+          <EmptyState icon="◑" title="No themes yet" description="Create a theme to customize the display appearance." />
         )}
       </div>
 

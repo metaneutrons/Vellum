@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
 interface ContentType { slug: string; name: string; description: string | null; }
@@ -130,10 +131,7 @@ export function ContentList({ instances, types, providers }: Props) {
           </div>
         ))}
         {instances.length === 0 && (
-          <div className="px-4 py-12 text-center text-gray-400">
-            <p className="mb-1">No content instances.</p>
-            <p className="text-xs">Create one and assign it to a device to display content.</p>
-          </div>
+          <EmptyState icon="▤" title="No content instances" description="Create one and assign it to a device to display content." />
         )}
       </div>
 

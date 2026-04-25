@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 
 const PROVIDER_TYPES = {
   microsoft365: {
@@ -101,10 +102,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
           </div>
         ))}
         {providers.length === 0 && (
-          <div className="px-4 py-12 text-center text-gray-400">
-            <p className="mb-1">No data providers configured.</p>
-            <p className="text-xs">Add a provider to connect calendar or other data sources.</p>
-          </div>
+          <EmptyState icon="⚡" title="No data providers" description="Add a provider to connect calendar or other data sources." />
         )}
       </div>
 

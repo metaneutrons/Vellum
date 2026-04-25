@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const links = [
-  { href: "/admin/devices", label: "Devices", icon: "📡" },
-  { href: "/admin/content", label: "Content", icon: "📋" },
-  { href: "/admin/providers", label: "Data Providers", icon: "🔌" },
-  { href: "/admin/themes", label: "Themes", icon: "🎨" },
-  { href: "/admin/profiles", label: "Refresh Profiles", icon: "⏱" },
-  { href: "/admin/firmware", label: "Firmware", icon: "⬆️" },
-  { href: "/admin/telemetry", label: "Telemetry", icon: "📊" },
+  { href: "/admin/devices", label: "Devices", icon: "◻" },
+  { href: "/admin/content", label: "Content", icon: "▤" },
+  { href: "/admin/providers", label: "Data Providers", icon: "⚡" },
+  { href: "/admin/themes", label: "Themes", icon: "◑" },
+  { href: "/admin/profiles", label: "Refresh Profiles", icon: "↻" },
+  { href: "/admin/firmware", label: "Firmware", icon: "↑" },
+  { href: "/admin/telemetry", label: "Telemetry", icon: "▥" },
 ];
 
 function logout() {

@@ -123,7 +123,7 @@ export function FirmwarePage({ channels, devices }: Props) {
               const caps = d.displayCaps as { model?: string } | null;
               return (
                 <tr key={d.mac} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs">{d.mac}</td>
+                  <td className="px-4 py-3 font-mono text-xs"><a href={`/admin/devices/${d.mac}`} className="text-blue-600 hover:underline">{d.mac}</a></td>
                   <td className="px-4 py-3 text-xs text-gray-500">{caps?.model ?? "—"}</td>
                   <td className="px-4 py-3">
                     <select className="text-xs border rounded px-2 py-1" value={d.firmwareChannelId ?? ""}
