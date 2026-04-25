@@ -46,6 +46,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const filteredProviders = providers.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.type.includes(search.toLowerCase()));
 
   function startNew() {
     setEditing("new"); setType("microsoft365"); setName(""); setCreds({}); setVisible({});
@@ -80,13 +81,10 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <PageHeader title="Data Providers" description="Connect calendar and data sources" />
-        <div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search providers..." /><Button onClick={startNew}>Add Provider</Button></div>
-      </div>
+      <PageHeader title="Data Providers" description="Connect calendar and data sources" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search providers..." /><Button onClick={startNew}>Add Provider</Button></div>} />
 
       <div className="bg-white rounded-lg shadow divide-y">
-        {providers.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.type.includes(search.toLowerCase())).map((p) => (
+        {filteredProviders.map((p) => (
           <div key={p.id} className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="font-medium">{p.name}</span>
@@ -101,8 +99,8 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
             </div>
           </div>
         ))}
-        {providers.length === 0 && (
-          <EmptyState icon="⚡" title="No data providers" description="Add a provider to connect calendar or other data sources." />
+        {filteredProviders.length === 0 && (
+          <EmptyState icon={providers.length === 0 ? "⚡" : "🔍"} title={providers.length === 0 ? "No data providers" : "No providers match your search"} description={providers.length === 0 ? "Add a provider to connect calendar or other data sources." : undefined} />
         )}
       </div>
 

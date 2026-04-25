@@ -167,13 +167,8 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <PageHeader title="Refresh Profiles" description="Control how often devices refresh their display" />
-        <div className="flex gap-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search..." />
-          <Button onClick={startNew}>New Profile</Button>
-        </div>
-      </div>
+      <PageHeader title="Refresh Profiles" description="Control how often devices refresh their display" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search..." />
+          <Button onClick={startNew}>New Profile</Button></div>} />
 
       <div className="bg-white rounded-lg shadow divide-y">
         {filtered.map((p) => {

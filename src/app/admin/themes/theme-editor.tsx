@@ -38,6 +38,7 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const filteredThemes = themes.filter((t) => !search || t.name.toLowerCase().includes(search.toLowerCase()));
   const [deleting, setDeleting] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Theme>(DEFAULT_CONFIG);
@@ -68,13 +69,10 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <PageHeader title="Themes" description="Customize display appearance" />
-        <div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search themes..." /><Button onClick={startNew}>New Theme</Button></div>
-      </div>
+      <PageHeader title="Themes" description="Customize display appearance" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search themes..." /><Button onClick={startNew}>New Theme</Button></div>} />
 
       <div className="bg-white rounded-lg shadow divide-y">
-        {themes.filter((t) => !search || t.name.toLowerCase().includes(search.toLowerCase())).map((t) => (
+        {filteredThemes.map((t) => (
           <div key={t.id} className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
               <span className="font-medium">{t.name}</span>
@@ -91,8 +89,8 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
             </div>
           </div>
         ))}
-        {themes.length === 0 && (
-          <EmptyState icon="◑" title="No themes yet" description="Create a theme to customize the display appearance." />
+        {filteredThemes.length === 0 && (
+          <EmptyState icon={themes.length === 0 ? "◑" : "🔍"} title={themes.length === 0 ? "No themes yet" : "No themes match your search"} description={themes.length === 0 ? "Create a theme to customize the display appearance." : undefined} />
         )}
       </div>
 

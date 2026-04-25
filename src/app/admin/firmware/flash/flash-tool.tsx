@@ -23,7 +23,7 @@ export function FlashTool({ channels }: { channels: Channel[] }) {
   useEffect(() => {
     if (loaded) return;
     const script = document.createElement("script");
-    script.src = "https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module";
+    script.src = "/esp-web-tools.js";
     script.type = "module";
     script.onload = () => setLoaded(true);
     document.head.appendChild(script);

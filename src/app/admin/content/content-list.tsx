@@ -73,6 +73,7 @@ export function ContentList({ instances, types, providers }: Props) {
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [typeSlug, setTypeSlug] = useState("room-booking");
   const [search, setSearch] = useState("");
+  const filteredInstances = instances.filter((inst) => !search || inst.name.toLowerCase().includes(search.toLowerCase()) || inst.typeSlug.includes(search.toLowerCase()));
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Record<string, unknown>>({});
 
@@ -109,13 +110,10 @@ export function ContentList({ instances, types, providers }: Props) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <PageHeader title="Content Instances" description="Configure what each display shows" />
-        <div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search content..." /><Button onClick={startNew}>New Content</Button></div>
-      </div>
+      <PageHeader title="Content Instances" description="Configure what each display shows" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search content..." /><Button onClick={startNew}>New Content</Button></div>} />
 
       <div className="bg-white rounded-lg shadow divide-y">
-        {instances.filter((inst) => !search || inst.name.toLowerCase().includes(search.toLowerCase()) || inst.typeSlug.includes(search.toLowerCase())).map((inst) => (
+        {filteredInstances.map((inst) => (
           <div key={inst.id} className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="font-medium">{inst.name}</span>
@@ -130,8 +128,8 @@ export function ContentList({ instances, types, providers }: Props) {
             </div>
           </div>
         ))}
-        {instances.length === 0 && (
-          <EmptyState icon="▤" title="No content instances" description="Create one and assign it to a device to display content." />
+        {filteredInstances.length === 0 && (
+          <EmptyState icon={instances.length === 0 ? "▤" : "🔍"} title={instances.length === 0 ? "No content instances" : "No content matches your search"} description={instances.length === 0 ? "Create one and assign it to a device to display content." : undefined} />
         )}
       </div>
 
