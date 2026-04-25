@@ -91,8 +91,10 @@ jobs:
           echo "$FIRMWARE_SIGNING_KEY" | base64 -d > signing.key
           cd binaries
           for f in *.bin; do
-            openssl pkeyutl -sign -inkey ../signing.key -rawin -in <(sha256sum "$f" | awk '{print $1}' | xxd -r -p) -out "${f}.sig"
+            sha256sum "$f" | awk '{print $1}' | xxd -r -p > "${f}.hash"
+            openssl pkeyutl -sign -inkey ../signing.key -rawin -in "${f}.hash" -out "${f}.sig"
             base64 "${f}.sig" > "${f}.sig.b64"
+            rm -f "${f}.hash"
           done
           rm -f ../signing.key
 
