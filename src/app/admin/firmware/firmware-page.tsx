@@ -30,7 +30,13 @@ export function FirmwarePage({ channels, devices }: Props) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editingUrl, setEditingUrl] = useState<Record<string, string>>({});
-  const [editingPin, setEditingPin] = useState<Record<string, string>>({});
+
+  // Collect all available versions from channel manifests
+  const availableVersions = [...new Set(
+    channels
+      .map((ch) => (ch.manifestCache as { version?: string } | null)?.version)
+      .filter(Boolean) as string[]
+  )].sort().reverse();
 
   function saveUrl(id: string) {
     const url = editingUrl[id];
@@ -134,15 +140,12 @@ export function FirmwarePage({ channels, devices }: Props) {
                     </select>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                    <input className="text-xs border rounded px-2 py-1 w-24" placeholder="e.g. 1.2.0"
-                      aria-label="Pin version"
-                      value={editingPin[d.mac] ?? d.firmwarePinVersion ?? ""}
-                      onChange={(e) => setEditingPin(p => ({ ...p, [d.mac]: e.target.value }))} />
-                    {(editingPin[d.mac] !== undefined && editingPin[d.mac] !== (d.firmwarePinVersion ?? "")) && (
-                      <button className="text-xs bg-blue-600 text-white px-2 rounded" onClick={() => { pinVersion(d.mac, editingPin[d.mac] || null); setEditingPin(p => { const { [d.mac]: _unused, ...rest } = p; void _unused; return rest; }); }}>Set</button>
-                    )}
-                  </div>
+                    <select className="text-xs border rounded px-2 py-1" aria-label="Pin version"
+                      value={d.firmwarePinVersion ?? ""}
+                      onChange={(e) => pinVersion(d.mac, e.target.value || null)}>
+                      <option value="">— latest —</option>
+                      {availableVersions.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
                   </td>
                 </tr>
               );
