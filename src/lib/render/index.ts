@@ -79,7 +79,7 @@ export function canvasToPixelBuffer(
         data[i * 4] = v; data[i * 4 + 1] = v; data[i * 4 + 2] = v;
       }
     }
-    return nearestColorQuantize(data, width, height, palette);
+    return packTo4bit(nearestColorQuantize(data, width, height, palette), width, height);
   }
 
   if (quantize === "grayscale") {
@@ -87,4 +87,17 @@ export function canvasToPixelBuffer(
   }
 
   return floydSteinbergDither(data, width, height, palette);
+}
+
+/**
+ * Pack 1-byte-per-pixel palette indices into 4-bit packed format.
+ * Two pixels per byte: high nibble = first pixel, low nibble = second pixel.
+ * This is the native format for 6-color (Spectra 6) e-paper displays.
+ */
+function packTo4bit(input: Buffer, width: number, height: number): Buffer {
+  const output = Buffer.alloc((width * height) / 2);
+  for (let i = 0; i < width * height; i += 2) {
+    output[i / 2] = ((input[i] & 0x0F) << 4) | (input[i + 1] & 0x0F);
+  }
+  return output;
 }
