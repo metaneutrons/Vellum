@@ -45,7 +45,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
   const [pending, startTransition] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [previewMac, setPreviewMac] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   function act(fn: () => Promise<unknown>, ok: string, fail: string) {
     startTransition(async () => {
@@ -73,10 +73,10 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
       <PageHeader title="Devices" description="Manage displays, content, and firmware"
         actions={<SearchInput value={search} onChange={setSearch} placeholder="Search MAC, model, firmware..." />} />
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {filtered.map((d) => {
           const caps = d.display_caps as { model?: string; width?: number; height?: number } | null;
-          const model = caps?.model ?? "—";
+          const model = caps?.model?.toUpperCase() ?? "—";
           const bWarn = d.battery_level !== null && d.battery_level < 20;
           const rWarn = d.wifi_rssi !== null && d.wifi_rssi < -70;
           const lastSeen = d.last_seen ? new Date(d.last_seen + "Z") : null;
@@ -84,82 +84,108 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
           const hasWarning = bWarn || rWarn || oWarn;
           const channel = d.firmware_channel ?? "stable";
           const channelVersions = channel === "beta" ? [...stableVersions, ...betaVersions] : stableVersions;
+          const hasContent = d.content_instance_id && d.status === "approved";
+          const contentName = contentInstances.find((c) => c.id === d.content_instance_id)?.name;
 
           return (
-            <div key={d.mac} className="bg-white rounded-lg shadow overflow-hidden">
-              {/* Row 1: MAC, status, model, telemetry */}
-              <div className="flex items-center gap-4 px-4 py-3 border-b">
+            <div key={d.mac} className="bg-white rounded-lg shadow">
+              <div className="flex gap-4 p-4">
                 {/* Preview thumbnail */}
-                <button onClick={() => setPreviewMac(d.mac)} className="shrink-0 w-16 h-10 bg-gray-100 rounded border hover:border-blue-400 overflow-hidden cursor-pointer" title="Click to preview">
-                  {d.content_instance_id && d.status === "approved" ? (
-                    <img src={`/api/v1/admin/preview?mac=${d.mac}&w=160&h=100`} alt="preview" className="w-full h-full object-cover" loading="lazy" />
+                <div className="shrink-0">
+                  {hasContent ? (
+                    <button onClick={() => setPreviewId(d.content_instance_id)}
+                      className="block w-20 h-12 rounded border border-gray-200 hover:border-blue-400 overflow-hidden cursor-pointer transition-colors"
+                      title="Click to preview">
+                      <img src={`/api/v1/admin/preview?instanceId=${d.content_instance_id}&w=160&h=96`}
+                        alt="" className="w-full h-full object-cover" loading="lazy" />
+                    </button>
                   ) : (
-                    <span className="flex items-center justify-center h-full text-gray-400 text-xs">—</span>
+                    <div className="w-20 h-12 rounded border border-dashed border-gray-300 flex items-center justify-center text-gray-300 text-xs">
+                      No content
+                    </div>
                   )}
-                </button>
+                </div>
 
+                {/* Device info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {hasWarning && <span title={[bWarn && "Low battery", rWarn && "Weak signal", oWarn && "Offline >1h"].filter(Boolean).join(", ")}>⚠️</span>}
-                    <span className="font-mono text-sm font-semibold">{d.mac}</span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${d.status === "approved" ? "bg-green-100 text-green-800" : d.status === "pending" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}`}>{d.status}</span>
-                    <span className="text-xs text-gray-500">{model}</span>
-                    {caps?.width && <span className="text-xs text-gray-400">{caps.width}×{caps.height}</span>}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {hasWarning && <span className="text-sm" title={[bWarn && "Low battery", rWarn && "Weak signal", oWarn && "Offline >1h"].filter(Boolean).join(", ")}>⚠️</span>}
+                    <span className="font-mono text-sm font-semibold tracking-tight">{d.mac}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${d.status === "approved" ? "bg-green-100 text-green-700" : d.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{d.status}</span>
+                    <span className="text-xs text-gray-400">{model}</span>
+                    {caps?.width && <span className="text-[11px] text-gray-300">{caps.width}×{caps.height}</span>}
+                    {contentName && <span className="text-xs text-blue-600">→ {contentName}</span>}
                   </div>
-                  <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
-                    {d.battery_level !== null && <span className={bWarn ? "text-amber-600 font-semibold" : ""}>🔋 {d.battery_level}% ({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>}
-                    {d.wifi_rssi !== null && <span className={rWarn ? "text-amber-600 font-semibold" : ""}>📶 {d.wifi_rssi} dBm</span>}
-                    {d.firmware_version && <span>FW {d.firmware_version}</span>}
-                    {lastSeen && <span className={oWarn ? "text-amber-600" : ""}>Seen: {lastSeen.toLocaleString("de-DE")}</span>}
+
+                  {/* Telemetry row */}
+                  <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-400">
+                    {d.battery_level !== null && (
+                      <span className={bWarn ? "text-amber-600 font-medium" : ""}>
+                        🔋 {d.battery_level}%
+                        <span className="text-gray-300 ml-0.5">({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>
+                      </span>
+                    )}
+                    {d.wifi_rssi !== null && (
+                      <span className={rWarn ? "text-amber-600 font-medium" : ""}>📶 {d.wifi_rssi}dBm</span>
+                    )}
+                    {d.firmware_version && <span>v{d.firmware_version}</span>}
+                    {lastSeen && (
+                      <span className={oWarn ? "text-amber-600" : ""}>
+                        {lastSeen.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex gap-1 shrink-0">
+                {/* Actions */}
+                <div className="flex items-start gap-1 shrink-0">
                   {d.status === "pending" && <Button size="sm" onClick={() => act(() => approveDevice(d.mac), "Approved", "Failed")}>Approve</Button>}
+                  <Button size="sm" variant="danger" onClick={() => setDeleting(d.mac)}>×</Button>
                 </div>
               </div>
 
-              {/* Row 2: Assignments */}
+              {/* Assignments row — only for approved devices */}
               {d.status === "approved" && (
-                <div className="flex items-center gap-4 px-4 py-2 text-xs bg-gray-50">
-                  <label className="flex items-center gap-1">
-                    Content:
-                    <select className="border rounded px-1 py-0.5" value={d.content_instance_id ?? ""}
+                <div className="flex items-center gap-3 px-4 py-2 border-t border-gray-100 bg-gray-50/50 text-[11px] flex-wrap">
+                  <label className="flex items-center gap-1 text-gray-500">
+                    Content
+                    <select className="border rounded px-1 py-0.5 text-[11px]" value={d.content_instance_id ?? ""}
                       aria-label="Content" onChange={(e) => update(d.mac, { contentInstanceId: e.target.value || null })}>
-                      <option value="">— none —</option>
+                      <option value="">—</option>
                       {contentInstances.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1">
-                    Theme:
-                    <select className="border rounded px-1 py-0.5" value={d.theme_id ?? ""}
+                  <label className="flex items-center gap-1 text-gray-500">
+                    Theme
+                    <select className="border rounded px-1 py-0.5 text-[11px]" value={d.theme_id ?? ""}
                       aria-label="Theme" onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
-                      <option value="">— default —</option>
+                      <option value="">default</option>
                       {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1">
-                    Profile:
-                    <select className="border rounded px-1 py-0.5" value={d.refresh_profile_id ?? ""}
+                  <label className="flex items-center gap-1 text-gray-500">
+                    Profile
+                    <select className="border rounded px-1 py-0.5 text-[11px]" value={d.refresh_profile_id ?? ""}
                       aria-label="Refresh profile" onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
-                      <option value="">— default —</option>
+                      <option value="">default</option>
                       {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1">
-                    FW:
-                    <select className="border rounded px-1 py-0.5" value={channel}
+                  <span className="text-gray-300">|</span>
+                  <label className="flex items-center gap-1 text-gray-500">
+                    FW
+                    <select className="border rounded px-1 py-0.5 text-[11px]" value={channel}
                       aria-label="Firmware channel" onChange={(e) => update(d.mac, { firmwareChannel: e.target.value })}>
                       <option value="stable">stable</option>
                       <option value="beta">beta</option>
                     </select>
                   </label>
-                  <label className="flex items-center gap-1">
-                    Pin:
-                    <select className="border rounded px-1 py-0.5" value={d.firmware_pin_version ?? ""}
+                  <label className="flex items-center gap-1 text-gray-500">
+                    Pin
+                    <select className="border rounded px-1 py-0.5 text-[11px]" value={d.firmware_pin_version ?? ""}
                       aria-label="Pin version" onChange={(e) => update(d.mac, { firmwarePinVersion: e.target.value || null })}>
-                      <option value="">— latest —</option>
-                      {channelVersions.map((v) => <option key={v.tag} value={v.version}>v{v.version} ({v.channel})</option>)}
+                      <option value="">latest</option>
+                      {channelVersions.map((v) => <option key={v.tag} value={v.version}>v{v.version}</option>)}
                     </select>
                   </label>
                 </div>
@@ -169,17 +195,15 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
         })}
 
         {filtered.length === 0 && (
-          <EmptyState icon="◻" title={devices.length === 0 ? "No devices" : "No devices match"} description="Devices appear when they connect and perform the hello handshake." />
+          <EmptyState icon="◻" title={devices.length === 0 ? "No devices" : "No match"} description="Devices appear when they connect." />
         )}
       </div>
 
-      {/* Preview modal */}
-      {previewMac && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setPreviewMac(null)}>
-          <div className="bg-white rounded-lg p-2 max-w-4xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-            <img src={`/api/v1/admin/preview?mac=${previewMac}`} alt="Display preview" className="max-w-full max-h-[85vh] object-contain" />
-            <div className="text-center mt-2 text-xs text-gray-500">{previewMac}</div>
-          </div>
+      {/* Full-size preview modal */}
+      {previewId && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-8" onClick={() => setPreviewId(null)}>
+          <img src={`/api/v1/admin/preview?instanceId=${previewId}`} alt="Preview"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
 
@@ -187,7 +211,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
         <ConfirmDialog
           open={!!deleting}
           title="Delete device?"
-          message={`Remove ${deleting} and all its telemetry data?`}
+          message={`Remove ${deleting} and all telemetry?`}
           confirmLabel="Delete"
           destructive
           onConfirm={() => { act(() => deleteDevice(deleting!), "Deleted", "Failed"); setDeleting(null); }}
