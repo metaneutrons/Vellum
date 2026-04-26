@@ -23,6 +23,9 @@ static char s_base_url[NVS_MAX_URL_LEN];
 static char s_mac[13];
 static char s_token[NVS_MAX_TOKEN_LEN];
 static char s_public_key[64]; /* base64-encoded X25519 public key (44 chars + null) */
+static char s_last_etag[32] = {0};
+static void load_etag(void);
+static void save_etag(const char *etag);
 static vellum_telemetry_t s_telemetry = {0};
 
 /* ---- internal helpers -------------------------------------------------- */
@@ -111,6 +114,7 @@ void http_client_init(const char *server_base_url, const char *mac)
     strncpy(s_mac, mac, sizeof(s_mac) - 1);
     s_token[0] = '\0';
     s_public_key[0] = '\0';
+    load_etag();
     ESP_LOGI(TAG, "Initialized — server: %s, mac: %s", s_base_url, s_mac);
 }
 
@@ -198,7 +202,16 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     return err;
 }
 
-static char s_last_etag[32] = {0};
+
+
+static void load_etag(void) {
+    nvs_manager_get_str("etag", s_last_etag, sizeof(s_last_etag));
+}
+
+static void save_etag(const char *etag) {
+    strncpy(s_last_etag, etag, sizeof(s_last_etag) - 1);
+    nvs_manager_set_str("etag", s_last_etag);
+}
 
 esp_err_t http_client_render(vellum_http_response_t *resp)
 {
@@ -249,7 +262,7 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
         char *etag_val = NULL;
         esp_http_client_get_header(client, "ETag", &etag_val);
         if (etag_val) {
-            strncpy(s_last_etag, etag_val, sizeof(s_last_etag) - 1);
+            save_etag(etag_val);
         }
 
         if (resp->status_code == 200) {

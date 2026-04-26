@@ -13,6 +13,7 @@
 #include "lvgl.h"
 #include "qrcode.h"
 #include "vellum_logo_img.h"
+#include "nvs_manager.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -38,8 +39,23 @@ static const char *TAG = "display";
 
 static epd_handle_t s_epd = NULL;
 static lv_display_t *s_lvgl_disp = NULL;
+static char s_last_screen[64] = {0};
 
 static void lvgl_tick_cb(void *arg) { (void)arg; lv_tick_inc(5); }
+
+/** Check if screen already showing this content — skip refresh if so */
+static bool screen_unchanged(const char *screen_id)
+{
+    char stored[64] = {0};
+    nvs_manager_get_str("last_scr", stored, sizeof(stored));
+    if (strcmp(stored, screen_id) == 0 && strcmp(s_last_screen, screen_id) == 0) {
+        ESP_LOGI(TAG, "Screen unchanged (%s) — skipping refresh", screen_id);
+        return true;
+    }
+    strncpy(s_last_screen, screen_id, sizeof(s_last_screen) - 1);
+    nvs_manager_set_str("last_scr", screen_id);
+    return false;
+}
 
 /* ── Panel config from Kconfig ────────────────────────────────── */
 
@@ -277,6 +293,9 @@ void display_show_ota_progress(uint8_t percent)
 void display_show_error(const char *message)
 {
     if (!s_lvgl_disp) return;
+    char screen_id[64];
+    snprintf(screen_id, sizeof(screen_id), "error:%s", message);
+    if (screen_unchanged(screen_id)) return;
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
@@ -313,6 +332,10 @@ esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
         ESP_LOGW(TAG, "Buffer size mismatch: %zu (expected %zu)", len, expected);
         return ESP_ERR_INVALID_SIZE;
     }
+
+    /* Clear last screen marker — server content is always fresh */
+    s_last_screen[0] = '\0';
+    nvs_manager_set_str("last_scr", "");
 
     return epd_update(s_epd, buffer, EPD_UPDATE_FULL);
 }

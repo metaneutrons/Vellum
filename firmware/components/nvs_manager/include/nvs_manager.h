@@ -68,3 +68,7 @@ esp_err_t nvs_manager_clear_all(void);
 #ifdef __cplusplus
 }
 #endif
+
+/* Generic key-value store */
+esp_err_t nvs_manager_set_str(const char *key, const char *value);
+esp_err_t nvs_manager_get_str(const char *key, char *buf, size_t buf_len);

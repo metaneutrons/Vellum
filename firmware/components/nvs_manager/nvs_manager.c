@@ -189,3 +189,24 @@ esp_err_t nvs_manager_clear_all(void)
     ESP_LOGI(TAG, "All NVS keys erased");
     return err;
 }
+
+esp_err_t nvs_manager_set_str(const char *key, const char *value)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("vellum", NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_str(h, key, value);
+    nvs_commit(h);
+    nvs_close(h);
+    return err;
+}
+
+esp_err_t nvs_manager_get_str(const char *key, char *buf, size_t buf_len)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("vellum", NVS_READONLY, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_get_str(h, key, buf, &buf_len);
+    nvs_close(h);
+    return err;
+}
