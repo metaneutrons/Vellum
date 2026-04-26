@@ -201,9 +201,14 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
 
       {/* Full-size preview modal */}
       {previewId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-8" onClick={() => setPreviewId(null)}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-8 cursor-pointer"
+          onClick={() => setPreviewId(null)}
+          onKeyDown={(e) => e.key === "Escape" && setPreviewId(null)}
+          tabIndex={0}
+          role="button"
+          aria-label="Close preview">
           <img src={`/api/v1/admin/preview?instanceId=${previewId}`} alt="Preview"
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
         </div>
       )}
 
