@@ -9,6 +9,7 @@ interface FirmwareVersion {
   version: string;
   channel: "stable" | "beta";
   date: string;
+  tag: string;
 }
 
 interface Device {
@@ -99,7 +100,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
           <div className="px-4 py-8 text-center text-gray-500">No firmware releases found on GitHub</div>
         )}
         {versions.map((v) => (
-          <div key={v.version + v.channel} className="px-4 py-3 flex items-center gap-3">
+          <div key={v.tag} className="px-4 py-3 flex items-center gap-3">
             <span className="font-mono text-sm font-semibold">v{v.version}</span>
             <span className={`text-xs px-2 py-0.5 rounded ${v.channel === "stable" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
               {v.channel}

@@ -168,13 +168,14 @@ export async function getManifestsByChannel(
  * Get all available versions (for admin dropdown).
  */
 export async function getAvailableVersions(): Promise<
-  { version: string; channel: FirmwareChannel; date: string }[]
+  { version: string; channel: FirmwareChannel; date: string; tag: string }[]
 > {
   const all = await getAllManifests();
   return all.map((m) => ({
     version: m.version,
     channel: m.channel as FirmwareChannel,
     date: m.date,
+    tag: m.tag,
   }));
 }
 
