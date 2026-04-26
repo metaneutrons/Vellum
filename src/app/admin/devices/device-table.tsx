@@ -112,17 +112,17 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     {hasWarning && <span className="text-sm" title={[bWarn && "Low battery", rWarn && "Weak signal", oWarn && "Offline >1h"].filter(Boolean).join(", ")}>⚠️</span>}
                     <span className="font-mono text-sm font-semibold tracking-tight">{d.mac}</span>
                     <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${d.status === "approved" ? "bg-green-100 text-green-700" : d.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{d.status}</span>
-                    <span className="text-xs text-gray-400">{model}</span>
-                    {caps?.width && <span className="text-[11px] text-gray-300">{caps.width}×{caps.height}</span>}
+                    <span className="text-xs text-gray-500">{model}</span>
+                    {caps?.width && <span className="text-[11px] text-gray-400">{caps.width}×{caps.height}</span>}
                     {contentName && <span className="text-xs text-blue-600">→ {contentName}</span>}
                   </div>
 
                   {/* Telemetry row */}
-                  <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-400">
+                  <div className="flex items-center gap-3 mt-1.5 text-[11px] text-gray-500">
                     {d.battery_level !== null && (
                       <span className={bWarn ? "text-amber-600 font-medium" : ""}>
                         🔋 {d.battery_level}%
-                        <span className="text-gray-300 ml-0.5">({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>
+                        <span className="text-gray-400 ml-0.5">({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>
                       </span>
                     )}
                     {d.wifi_rssi !== null && (
@@ -147,7 +147,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
               {/* Assignments row — only for approved devices */}
               {d.status === "approved" && (
                 <div className="flex items-center gap-3 px-4 py-2 border-t border-gray-100 bg-gray-50/50 text-[11px] flex-wrap">
-                  <label className="flex items-center gap-1 text-gray-500">
+                  <label className="flex items-center gap-1 text-gray-600">
                     Content
                     <select className="border rounded px-1 py-0.5 text-[11px]" value={d.content_instance_id ?? ""}
                       aria-label="Content" onChange={(e) => update(d.mac, { contentInstanceId: e.target.value || null })}>
@@ -155,7 +155,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                       {contentInstances.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1 text-gray-500">
+                  <label className="flex items-center gap-1 text-gray-600">
                     Theme
                     <select className="border rounded px-1 py-0.5 text-[11px]" value={d.theme_id ?? ""}
                       aria-label="Theme" onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
@@ -163,7 +163,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                       {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1 text-gray-500">
+                  <label className="flex items-center gap-1 text-gray-600">
                     Profile
                     <select className="border rounded px-1 py-0.5 text-[11px]" value={d.refresh_profile_id ?? ""}
                       aria-label="Refresh profile" onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
@@ -171,8 +171,8 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                       {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </label>
-                  <span className="text-gray-300">|</span>
-                  <label className="flex items-center gap-1 text-gray-500">
+                  <span className="text-gray-400">|</span>
+                  <label className="flex items-center gap-1 text-gray-600">
                     FW
                     <select className="border rounded px-1 py-0.5 text-[11px]" value={channel}
                       aria-label="Firmware channel" onChange={(e) => update(d.mac, { firmwareChannel: e.target.value })}>
@@ -180,7 +180,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                       <option value="beta">beta</option>
                     </select>
                   </label>
-                  <label className="flex items-center gap-1 text-gray-500">
+                  <label className="flex items-center gap-1 text-gray-600">
                     Pin
                     <select className="border rounded px-1 py-0.5 text-[11px]" value={d.firmware_pin_version ?? ""}
                       aria-label="Pin version" onChange={(e) => update(d.mac, { firmwarePinVersion: e.target.value || null })}>
