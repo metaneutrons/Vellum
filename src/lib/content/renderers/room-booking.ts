@@ -178,7 +178,7 @@ export function renderToCanvas(
   const footerH = 44;
   const gutterW = 90;
   const ff = fontFamily(colorCount);
-  const areaTop = headerH + 4;
+  const areaTop = headerH + 12;
   const areaH = height - headerH - footerH - 8;
   const eventLeft = gutterW + 4;
   const eventW = width - eventLeft - 16;
