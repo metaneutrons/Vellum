@@ -80,7 +80,7 @@ jobs:
           else
             SHA=$(echo ${{ github.sha }} | cut -c1-7)
             echo "channel=beta" >> $GITHUB_OUTPUT
-            echo "tag=firmware-beta-${SHA}" >> $GITHUB_OUTPUT
+            echo "tag=firmware-beta" >> $GITHUB_OUTPUT
           fi
 
       - name: Generate SHA256 checksums
@@ -148,8 +148,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Firmware ${{ steps.version.outputs.tag }}
+          name: Firmware Beta
           prerelease: true
+          make_latest: false
           files: |
             binaries/*.bin
             binaries/*.sha256
