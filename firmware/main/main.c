@@ -728,7 +728,9 @@ void app_main(void)
     if (wake != WAKE_REASON_TIMER) {
         display_show_boot(CONFIG_VELLUM_FIRMWARE_VERSION);
     }
-    buzzer_beep(1000, 100); /* Boot beep */
+    if (wake != WAKE_REASON_TIMER) {
+        buzzer_beep(1000, 100); /* Boot beep — not on timer wake */
+    }
     led_on();
     buttons_init();
     sleep_manager_init();
