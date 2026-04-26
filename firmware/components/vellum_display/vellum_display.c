@@ -73,6 +73,14 @@ static bool screen_unchanged(const char *screen_id)
   #define PANEL_HEIGHT 480
   #define PANEL_BPP    1
   #define PANEL_COLORS "bw"
+#elif defined(CONFIG_VELLUM_PANEL_E1003)
+  /* E1003: 10.3" 16-gray — driver TBD, display init will fail gracefully */
+  #define PANEL_TYPE   0  /* placeholder — no esp_epaper driver yet */
+  #define PANEL_MODEL  "e1003"
+  #define PANEL_WIDTH  1404
+  #define PANEL_HEIGHT 1872
+  #define PANEL_BPP    4
+  #define PANEL_COLORS "grayscale"
 #else
   #error "No display panel selected in Kconfig"
 #endif

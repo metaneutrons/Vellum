@@ -210,6 +210,20 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
         cJSON_AddItemToArray(palette, c);
     }
     cJSON_AddItemToObject(display, "palette", palette);
+#elif defined(CONFIG_VELLUM_PANEL_E1003)
+    cJSON_AddNumberToObject(display, "width", 1404);
+    cJSON_AddNumberToObject(display, "height", 1872);
+    cJSON_AddStringToObject(display, "quantize", "grayscale");
+    cJSON *palette = cJSON_CreateArray();
+    for (int i = 0; i < 16; i++) {
+        int v = i * 17; /* 0, 17, 34, ..., 255 */
+        cJSON *c = cJSON_CreateArray();
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(v));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(v));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(v));
+        cJSON_AddItemToArray(palette, c);
+    }
+    cJSON_AddItemToObject(display, "palette", palette);
 #endif
     cJSON_AddItemToObject(json, "display", display);
 

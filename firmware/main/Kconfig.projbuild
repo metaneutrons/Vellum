@@ -15,12 +15,15 @@ menu "Vellum Configuration"
             bool "E1001 — GDEY075T7 (7.5\" BW, 800x480)"
         config VELLUM_PANEL_GDEP073E01
             bool "E1002 — GDEP073E01 (7.3\" 6-Color, 800x480)"
+        config VELLUM_PANEL_E1003
+            bool "E1003 — 10.3\" 16-Gray, 1404x1872"
     endchoice
 
     config VELLUM_DISPLAY_MODEL
         string
         default "e1001" if VELLUM_PANEL_GDEY075T7
         default "e1002" if VELLUM_PANEL_GDEP073E01
+        default "e1003" if VELLUM_PANEL_E1003
 
     menu "Hardware Pins (reTerminal E Series)"
         config VELLUM_BUTTON_KEY0_GPIO
