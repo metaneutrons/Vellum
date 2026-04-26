@@ -220,26 +220,17 @@ export function renderToCanvas(
   text(tc, 16, 48, roomName, "lg-bold", T.headerText, "left", dateX - 28);
 
   // Hour grid
-  const roomNow = new TZDate(new Date(roundedNowMs), timezone);
-  const startHour = roomNow.getHours();
-
+  // Hour grid — iterate over each hour in the window
   for (let h = 0; h <= 8; h++) {
-    const hour = startHour + h;
-    const hourDate = new TZDate(new Date(roundedNowMs), timezone);
-    hourDate.setHours(hour, 0, 0, 0);
-    /* If hour >= 24, advance to next day */
-    if (hour >= 24) {
-      hourDate.setDate(hourDate.getDate() + 1);
-      hourDate.setHours(hour - 24, 0, 0, 0);
-    }
-    const y = timeToY(hourDate.getTime(), windowStart, windowEnd, areaTop, areaH);
+    const hourMs = windowStart + h * 3600_000;
+    const hourDate = new TZDate(new Date(hourMs), timezone);
+    const hour = hourDate.getHours();
+    const y = timeToY(hourMs, windowStart, windowEnd, areaTop, areaH);
     if (y < areaTop || y > areaTop + areaH) continue;
 
     /* Midnight separator: show next day label */
-    if (hour % 24 === 0 && h > 0) {
-      const nextDay = new TZDate(new Date(roundedNowMs), timezone);
-      nextDay.setDate(nextDay.getDate() + 1);
-      const dayLabel = format(nextDay, "EEEE, d. MMM");
+    if (hour === 0 && h > 0) {
+      const dayLabel = format(hourDate, "EEEE, d. MMM");
       ctx.fillStyle = T.slotSecondary;
       ctx.fillRect(gutterW, y - 1, width - 8 - gutterW, 1);
       const labelW = textWidth(tc, dayLabel, "sm");
