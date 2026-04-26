@@ -174,7 +174,7 @@ export function renderToCanvas(
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
 
-  const headerH = 80;
+  const headerH = 75;
   const footerH = 44;
   const gutterW = 90;
   const ff = fontFamily(colorCount);
@@ -207,17 +207,17 @@ export function renderToCanvas(
   const bw = textWidth(tc, badgeText, "md-bold");
   const badgeX = width - bw - 32;
   ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
-  ctx.fillRect(badgeX, 22, bw + 16, 34);
-  text(tc, badgeX + 8, 48, badgeText, "md-bold", T.badgeText);
+  ctx.fillRect(badgeX, 20, bw + 16, 34);
+  text(tc, badgeX + 8, 46, badgeText, "md-bold", T.badgeText);
 
   // Date (right-aligned before badge)
   const dateStr = format(new TZDate(now, timezone), "EEE, MMM d, yyyy");
   const dateW = textWidth(tc, dateStr, "md");
   const dateX = badgeX - dateW - 20;
-  text(tc, dateX, 48, dateStr, "md", T.headerText);
+  text(tc, dateX, 46, dateStr, "md", T.headerText);
 
   // Room name (left, clipped before date)
-  text(tc, 16, 50, roomName, "lg-bold", T.headerText, "left", dateX - 28);
+  text(tc, 16, 48, roomName, "lg-bold", T.headerText, "left", dateX - 28);
 
   // Hour grid
   const roomNow = new TZDate(new Date(roundedNowMs), timezone);
