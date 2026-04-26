@@ -130,8 +130,8 @@ export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema
   const events = await impl.fetchEvents({
     credentials,
     roomConfig: config.roomConfig,
-    windowStart: new Date(now.getTime() - WINDOW_BEFORE_H * 3600_000),
-    windowEnd: new Date(now.getTime() + WINDOW_AFTER_H * 3600_000),
+    windowStart: new Date(now.getTime() - 4 * 3600_000),
+    windowEnd: new Date(now.getTime() + 12 * 3600_000),
   });
 
   eventsCache.set(cacheKey, events, config.cacheTtlS * 1000);
@@ -225,7 +225,7 @@ export function renderToCanvas(
 
   for (let h = 0; h <= 8; h++) {
     const hour = startHour + h;
-    const hourDate = new TZDate(now, timezone);
+    const hourDate = new TZDate(new Date(roundedNowMs), timezone);
     hourDate.setHours(hour, 0, 0, 0);
     const y = timeToY(hourDate.getTime(), windowStart, windowEnd, areaTop, areaH);
     if (y < areaTop || y > areaTop + areaH) continue;
