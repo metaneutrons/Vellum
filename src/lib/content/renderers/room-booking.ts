@@ -227,8 +227,26 @@ export function renderToCanvas(
     const hour = startHour + h;
     const hourDate = new TZDate(new Date(roundedNowMs), timezone);
     hourDate.setHours(hour, 0, 0, 0);
+    /* If hour >= 24, advance to next day */
+    if (hour >= 24) {
+      hourDate.setDate(hourDate.getDate() + 1);
+      hourDate.setHours(hour - 24, 0, 0, 0);
+    }
     const y = timeToY(hourDate.getTime(), windowStart, windowEnd, areaTop, areaH);
     if (y < areaTop || y > areaTop + areaH) continue;
+
+    /* Midnight separator: show next day label */
+    if (hour % 24 === 0 && h > 0) {
+      const nextDay = new TZDate(new Date(roundedNowMs), timezone);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const dayLabel = format(nextDay, "EEEE, d. MMM");
+      ctx.fillStyle = T.slotSecondary;
+      ctx.fillRect(gutterW, y - 1, width - 8 - gutterW, 1);
+      const labelW = textWidth(tc, dayLabel, "sm");
+      const labelX = gutterW + (width - 8 - gutterW - labelW) / 2;
+      text(tc, labelX, y - 4, dayLabel, "sm", T.slotSecondary);
+      ctx.fillRect(gutterW, y + 1, width - 8 - gutterW, 1);
+    }
 
     text(tc, gutterW - 8, y + 8, fmtHour(hour), "md", T.slotSecondary, "right");
 
