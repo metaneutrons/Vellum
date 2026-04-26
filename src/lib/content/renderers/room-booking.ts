@@ -183,12 +183,12 @@ export function renderToCanvas(
   const eventLeft = gutterW + 4;
   const eventW = width - eventLeft - 16;
   const nowMs = now.getTime();
-  /* Round to current hour — content stays stable within each hour,
-     preventing unnecessary display refreshes on slow E-Paper */
-  const hourMs = 3600_000;
-  const roundedNowMs = Math.floor(nowMs / hourMs) * hourMs;
-  const windowStart = roundedNowMs - WINDOW_BEFORE_H * hourMs;
-  const windowEnd = roundedNowMs + WINDOW_AFTER_H * hourMs;
+  /* Round to 4-hour blocks — timeline only shifts every 4 hours,
+     minimizing unnecessary display refreshes on slow E-Paper */
+  const blockMs = 4 * 3600_000;
+  const roundedNowMs = Math.floor(nowMs / blockMs) * blockMs;
+  const windowStart = roundedNowMs;
+  const windowEnd = roundedNowMs + 8 * 3600_000;
 
   // Background
   ctx.fillStyle = T.background;
@@ -221,9 +221,9 @@ export function renderToCanvas(
 
   // Hour grid
   const roomNow = new TZDate(new Date(roundedNowMs), timezone);
-  const startHour = roomNow.getHours() - WINDOW_BEFORE_H;
+  const startHour = roomNow.getHours();
 
-  for (let h = 0; h <= WINDOW_BEFORE_H + WINDOW_AFTER_H; h++) {
+  for (let h = 0; h <= 8; h++) {
     const hour = startHour + h;
     const hourDate = new TZDate(now, timezone);
     hourDate.setHours(hour, 0, 0, 0);
