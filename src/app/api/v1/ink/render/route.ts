@@ -13,7 +13,7 @@ import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { resolveDisplayCaps } from "@/lib/display";
 import { getContentRenderer } from "@/lib/content";
-import { resolveTheme, parseTheme, type Theme } from "@/lib/theme";
+import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/theme";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -93,6 +93,9 @@ export async function GET(request: NextRequest) {
     const parsed = parseTheme(defaultTheme?.config);
     if (parsed) theme = parsed;
   }
+
+  // Snap theme colors to display palette — ensures exact color matches, no dithering artifacts
+  theme = snapThemeToPalette(theme, display.palette);
 
   // Render
   const now = new Date();
