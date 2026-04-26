@@ -273,6 +273,7 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
 
     set_telemetry_headers(client);
     set_auth_header(client);
+    esp_http_client_set_header(client, "X-Display-Model", CONFIG_VELLUM_DISPLAY_MODEL);
 
     /* Send last content hash — server returns 304 if unchanged */
     if (s_last_etag[0]) {
