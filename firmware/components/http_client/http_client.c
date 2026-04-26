@@ -178,6 +178,41 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     if (strlen(s_public_key) > 0) {
         cJSON_AddStringToObject(json, "publicKey", s_public_key);
     }
+
+    /* Display capabilities — server uses these for rendering */
+    cJSON *display = cJSON_CreateObject();
+    cJSON_AddStringToObject(display, "model", CONFIG_VELLUM_DISPLAY_MODEL);
+#if defined(CONFIG_VELLUM_PANEL_GDEP073E01)
+    cJSON_AddNumberToObject(display, "width", 800);
+    cJSON_AddNumberToObject(display, "height", 480);
+    cJSON_AddStringToObject(display, "quantize", "color");
+    cJSON *palette = cJSON_CreateArray();
+    int colors[][3] = {{0,0,0},{255,255,255},{255,255,0},{255,0,0},{255,128,0},{0,0,255},{0,255,0}};
+    for (int i = 0; i < 7; i++) {
+        cJSON *c = cJSON_CreateArray();
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][0]));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][1]));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][2]));
+        cJSON_AddItemToArray(palette, c);
+    }
+    cJSON_AddItemToObject(display, "palette", palette);
+#elif defined(CONFIG_VELLUM_PANEL_GDEY075T7)
+    cJSON_AddNumberToObject(display, "width", 800);
+    cJSON_AddNumberToObject(display, "height", 480);
+    cJSON_AddStringToObject(display, "quantize", "mono");
+    cJSON *palette = cJSON_CreateArray();
+    int bw[][3] = {{0,0,0},{255,255,255}};
+    for (int i = 0; i < 2; i++) {
+        cJSON *c = cJSON_CreateArray();
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(bw[i][0]));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(bw[i][1]));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(bw[i][2]));
+        cJSON_AddItemToArray(palette, c);
+    }
+    cJSON_AddItemToObject(display, "palette", palette);
+#endif
+    cJSON_AddItemToObject(json, "display", display);
+
     char *json_str = cJSON_PrintUnformatted(json);
     cJSON_Delete(json);
     if (!json_str) {
