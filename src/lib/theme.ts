@@ -32,7 +32,7 @@ export const THEME_DEFAULT: Theme = {
   name: "Default",
   headerBg: "#000000",
   headerText: "#FFFFFF",
-  freeBadge: "#008000",
+  freeBadge: "#00FF00",
   busyBadge: "#FF0000",
   badgeText: "#FFFFFF",
   background: "#FFFFFF",

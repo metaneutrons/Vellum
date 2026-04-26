@@ -25,7 +25,7 @@ import type { Theme } from "@/lib/theme";
 import type { DisplayEvent, RoomPolicy } from "@/lib/types";
 
 const WINDOW_BEFORE_H = 1;
-const WINDOW_AFTER_H = 5;
+const WINDOW_AFTER_H = 7;  /* 8h total: 1h past + 7h future */
 
 /* ── Bitmap font registration for color e-paper ──────────────── */
 
@@ -183,8 +183,12 @@ export function renderToCanvas(
   const eventLeft = gutterW + 4;
   const eventW = width - eventLeft - 16;
   const nowMs = now.getTime();
-  const windowStart = nowMs - WINDOW_BEFORE_H * 3600_000;
-  const windowEnd = nowMs + WINDOW_AFTER_H * 3600_000;
+  /* Round to current hour — content stays stable within each hour,
+     preventing unnecessary display refreshes on slow E-Paper */
+  const hourMs = 3600_000;
+  const roundedNowMs = Math.floor(nowMs / hourMs) * hourMs;
+  const windowStart = roundedNowMs - WINDOW_BEFORE_H * hourMs;
+  const windowEnd = roundedNowMs + WINDOW_AFTER_H * hourMs;
 
   // Background
   ctx.fillStyle = T.background;
@@ -195,7 +199,7 @@ export function renderToCanvas(
   ctx.fillRect(0, 0, width, headerH);
 
   // Badge (measure first to know available space)
-  const busy = isBusy(events, now);
+  const busy = isBusy(events, new Date(roundedNowMs));
   const badgeText = busy ? "BUSY" : "FREE";
   const tc: TextCtx = { ctx, useBitmap: quantize === "color", ff };
 
@@ -216,7 +220,7 @@ export function renderToCanvas(
   text(tc, 16, 50, roomName, "lg-bold", T.headerText, "left", dateX - 28);
 
   // Hour grid
-  const roomNow = new TZDate(now, timezone);
+  const roomNow = new TZDate(new Date(roundedNowMs), timezone);
   const startHour = roomNow.getHours() - WINDOW_BEFORE_H;
 
   for (let h = 0; h <= WINDOW_BEFORE_H + WINDOW_AFTER_H; h++) {
@@ -261,20 +265,6 @@ export function renderToCanvas(
 
   // Reset alignment
   ctx.textAlign = "left";
-
-  // NOW line
-  const nowY = timeToY(nowMs, windowStart, windowEnd, areaTop, areaH);
-  if (nowY >= areaTop && nowY <= areaTop + areaH) {
-    const nowColor = colorCount > 2 ? "#FF8000" : "#000000";
-    ctx.fillStyle = nowColor;
-    ctx.fillRect(gutterW - 4, nowY, width - gutterW - 4, 2);
-    ctx.beginPath();
-    ctx.moveTo(gutterW - 4, nowY - 6);
-    ctx.lineTo(gutterW - 4, nowY + 6);
-    ctx.lineTo(gutterW + 4, nowY);
-    ctx.closePath();
-    ctx.fill();
-  }
 
   // Footer
   text(tc, width - 12, height - 10, `Updated: ${fmtTime(now, timezone)}`, "sm", T.footerText, "right");
