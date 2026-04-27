@@ -270,9 +270,6 @@ export function renderToCanvas(
     }
 
     text(tc, gutterW - 8, y + 8, fmtHour(hour), "md", T.slotSecondary, "right");
-
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(gutterW, y, width - 8 - gutterW, 2);
   }
 
   // Event blocks
