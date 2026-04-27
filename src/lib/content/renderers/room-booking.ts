@@ -96,6 +96,33 @@ function textWidth(t: TextCtx, str: string, font: BitmapFontSize): number {
   return t.ctx.measureText(str).width;
 }
 
+/** Draw text with word-wrap. Returns number of lines drawn. */
+function textWrap(
+  t: TextCtx, x: number, y: number, str: string, font: BitmapFontSize,
+  color: string, maxWidth: number, lineH: number, maxLines: number
+): number {
+  const words = str.split(" ");
+  let line = "";
+  let lineNum = 0;
+
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (textWidth(t, test, font) > maxWidth && line) {
+      text(t, x, y + lineNum * lineH, line, font, color);
+      lineNum++;
+      if (lineNum >= maxLines) return lineNum;
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line && lineNum < maxLines) {
+    text(t, x, y + lineNum * lineH, line, font, color, "left", maxWidth);
+    lineNum++;
+  }
+  return lineNum;
+}
+
 export const roomBookingConfigSchema = z.object({
   providerId: z.string().uuid(),
   roomConfig: z.record(z.string(), z.unknown()),
@@ -301,10 +328,19 @@ export function renderToCanvas(
       text(tc, ex + ew - pad, textY, timeStr, fontSize, T.slotText, "right");
 
       const label = evt.showLockIcon ? `🔒 ${evt.displaySubject}` : evt.displaySubject;
-      text(tc, ex + pad, textY, label, fontSizeBold, T.slotText, "left", ew - timeW - pad * 3);
+      const labelMaxW = ew - timeW - pad * 3;
+      const availLines = Math.floor((blockH - lineH) / lineH);
+
+      if (availLines >= 1 && textWidth(tc, label, fontSizeBold) > labelMaxW) {
+        /* Wrap subject across available lines */
+        textWrap(tc, ex + pad, textY, label, fontSizeBold, T.slotText, ew - pad * 2, lineH, availLines + 1);
+      } else {
+        text(tc, ex + pad, textY, label, fontSizeBold, T.slotText, "left", labelMaxW);
+      }
     }
 
-    if (blockH > lineH * 2 && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
+    const usedLines = blockH >= 16 ? 1 : 0;
+    if (blockH > lineH * (usedLines + 1) && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
       text(tc, ex + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", ew - pad * 2);
     }
   }
