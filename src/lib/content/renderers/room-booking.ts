@@ -255,24 +255,29 @@ export function renderToCanvas(
     const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
     const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
     const blockH = y2 - y1;
-    if (blockH < 4) continue; /* too small to render */
-    const pad = 12;
+    if (blockH < 4) continue;
+    const pad = 10;
 
     ctx.fillStyle = (evt.isPrivate || evt.showLockIcon) ? T.busyBadge : T.eventBg;
     ctx.fillRect(eventLeft, y1, eventW, blockH);
 
-    if (blockH > 20) {
+    /* Dynamic font size based on block height */
+    const fontSize: "sm" | "md" | "md-bold" = blockH < 28 ? "sm" : "md";
+    const fontSizeBold: "sm" | "md-bold" = blockH < 28 ? "sm" : "md-bold";
+    const lineH = blockH < 28 ? 16 : 24;
+
+    if (blockH >= 16) {
       const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
-      const timeW = textWidth(tc, timeStr, "md");
-      const textY = y1 + Math.min(30, blockH - 6);
-      text(tc, eventLeft + eventW - pad, textY, timeStr, "md", T.slotText, "right");
+      const timeW = textWidth(tc, timeStr, fontSize);
+      const textY = y1 + Math.min(lineH, blockH - 4);
+      text(tc, eventLeft + eventW - pad, textY, timeStr, fontSize, T.slotText, "right");
 
       const label = evt.showLockIcon ? `🔒 ${evt.displaySubject}` : evt.displaySubject;
-      text(tc, eventLeft + pad, textY, label, "md-bold", T.slotText, "left", eventW - timeW - pad * 3);
+      text(tc, eventLeft + pad, textY, label, fontSizeBold, T.slotText, "left", eventW - timeW - pad * 3);
     }
 
-    if (blockH > 48 && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
-      text(tc, eventLeft + pad, y1 + Math.min(54, blockH - 6), evt.organizer, "md", T.slotText, "left", eventW - pad * 2);
+    if (blockH > lineH * 2 && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
+      text(tc, eventLeft + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", eventW - pad * 2);
     }
   }
 
