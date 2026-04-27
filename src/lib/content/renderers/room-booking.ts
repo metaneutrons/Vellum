@@ -258,8 +258,8 @@ export function renderToCanvas(
     const y = timeToY(hourMs, windowStart, windowEnd, areaTop, areaH);
     if (y < areaTop || y > areaTop + areaH) continue;
 
-    /* Midnight separator: show next day label */
-    if (hour === 0 && h > 0) {
+    /* Midnight separator: show next day label only if hours follow after 0:00 */
+    if (hour === 0 && h > 0 && h < 8) {
       const dayLabel = format(hourDate, "EEEE, d. MMM");
       ctx.fillStyle = T.slotSecondary;
       ctx.fillRect(gutterW, y - 1, width - 8 - gutterW, 1);
