@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 #pragma once
 // Vellum logo 1-bit bitmap (300x318)
 #define VELLUM_LOGO_W 300

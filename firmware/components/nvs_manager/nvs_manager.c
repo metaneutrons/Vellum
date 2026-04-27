@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 /**
  * @file nvs_manager.c
  * @brief NVS storage implementation for Vellum.

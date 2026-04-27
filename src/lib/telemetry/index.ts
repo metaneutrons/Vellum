@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { db } from "@/db";
 import { telemetry, devices } from "@/db/schema";
 import { eq } from "drizzle-orm";
