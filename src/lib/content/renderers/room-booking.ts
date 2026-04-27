@@ -130,6 +130,7 @@ export const roomBookingConfigSchema = z.object({
   timezone: z.string().default("UTC"),
   policy: z.enum(["Show All", "Hide Subject", "Hide All"]).default("Show All"),
   cacheTtlS: z.number().int().min(0).default(120),
+  timelineShiftH: z.number().int().min(1).max(8).default(2),
 });
 
 const eventsCache = new TtlCache<CalendarEvent[]>(Infinity); // TTL managed per-entry
@@ -197,7 +198,8 @@ export function renderToCanvas(
   width: number,
   height: number,
   colorCount: number,
-  quantize: string = "color"
+  quantize: string = "color",
+  timelineShiftH: number = 2
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -212,9 +214,8 @@ export function renderToCanvas(
   const eventLeft = gutterW + 4;
   const eventW = width - eventLeft - 16;
   const nowMs = now.getTime();
-  /* Round to 4-hour blocks — timeline only shifts every 4 hours,
-     minimizing unnecessary display refreshes on slow E-Paper */
-  const blockMs = 4 * 3600_000;
+  /* Round to timelineShiftH blocks — timeline only shifts every N hours */
+  const blockMs = timelineShiftH * 3600_000;
   const roundedNowMs = Math.floor(nowMs / blockMs) * blockMs;
   const windowStart = roundedNowMs;
   const windowEnd = roundedNowMs + 8 * 3600_000;
@@ -414,6 +415,6 @@ export const roomBookingRenderer: ContentRenderer = {
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy);
-    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.quantize) };
+    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.quantize, cfg.timelineShiftH) };
   },
 };
