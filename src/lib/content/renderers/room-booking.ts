@@ -314,7 +314,10 @@ export function renderToCanvas(
     const pad = 8;
 
     ctx.fillStyle = (evt.isPrivate || evt.showLockIcon) ? T.busyBadge : T.eventBg;
-    ctx.fillRect(ex, y1, ew, blockH);
+    /* Extend block by 2px top/bottom to fully cover grid lines at boundaries */
+    const drawY = y1 - 1;
+    const drawH = blockH + 2;
+    ctx.fillRect(ex, drawY, ew, drawH);
 
     /* Dynamic font size based on block height */
     if (blockH < 16) continue; /* block drawn, but too small for text */
