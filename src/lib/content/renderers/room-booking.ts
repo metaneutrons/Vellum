@@ -251,6 +251,7 @@ export function renderToCanvas(
   const visible = events.filter(
     (e) => e.endTime.getTime() > windowStart && e.startTime.getTime() < windowEnd
   );
+  // Event blocks — draw UNDER the grid lines (events rendered first, lines on top)
   for (const evt of visible) {
     const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
     const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
@@ -279,6 +280,15 @@ export function renderToCanvas(
     if (blockH > lineH * 2 && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
       text(tc, eventLeft + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", eventW - pad * 2);
     }
+  }
+
+  // Redraw grid lines ON TOP of events so boundaries are crisp
+  for (let h = 0; h <= 8; h++) {
+    const hourMs = windowStart + h * 3600_000;
+    const y = timeToY(hourMs, windowStart, windowEnd, areaTop, areaH);
+    if (y < areaTop || y > areaTop + areaH) continue;
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(gutterW, y, width - 8 - gutterW, 2);
   }
 
   // Reset alignment
