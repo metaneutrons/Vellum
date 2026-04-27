@@ -41,5 +41,5 @@ export async function GET(request: NextRequest) {
   });
 
   const png = result.canvas.toBuffer("image/png");
-  return new Response(new Uint8Array(png), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } });
+  return new Response(new Uint8Array(png), { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=60, stale-while-revalidate=300" } });
 }
