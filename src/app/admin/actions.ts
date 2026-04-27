@@ -75,7 +75,7 @@ export async function deleteTheme(id: string) {
 /* ── Calendar Providers ───────────────────────────────────────── */
 
 export async function createProvider(
-  type: "microsoft365" | "google" | "ical",
+  type: string,
   name: string,
   credentials: Record<string, string>
 ) {
@@ -223,6 +223,12 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
       if (!res.ok) return { ok: false, message: `HTTP ${res.status} from iCal URL` };
       const text = await res.text();
       return { ok: text.includes("VCALENDAR"), message: text.includes("VCALENDAR") ? "Connected — valid iCal feed" : "Response is not a valid iCal feed" };
+    }
+
+    if (provider.type === "anny") {
+      const { fetchAnnyResources } = await import("@/lib/calendar/providers/anny");
+      const result = await fetchAnnyResources({ apiToken: credentials.apiToken, organizationId: credentials.organizationId });
+      return { ok: true, message: `Connected — ${result.total} resources found` };
     }
 
     return { ok: false, message: `Unknown provider type: ${provider.type}` };

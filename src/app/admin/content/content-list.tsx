@@ -17,6 +17,8 @@ interface ContentType { slug: string; name: string; description?: string | null;
 interface Provider { id: string; type: string; name: string; }
 interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; }
 
+import { AnnyResourcePicker } from "@/components/anny-resource-picker";
+
 const POLICIES = ["Show All", "Hide Subject", "Hide All"] as const;
 
 function RoomBookingEditor({ config, onChange, providers }: {
@@ -24,10 +26,14 @@ function RoomBookingEditor({ config, onChange, providers }: {
 }) {
   const roomConfig = (config.roomConfig ?? {}) as Record<string, string>;
   const provider = providers.find((p) => p.id === config.providerId);
+
+  const isAnny = provider?.type === "anny";
   const fieldConfig = provider?.type === "google"
     ? { label: "Calendar ID", placeholder: "calendar-id@group.calendar.google.com", key: "calendarId" }
     : provider?.type === "ical"
     ? { label: "iCal Feed URL", placeholder: "https://example.com/calendar.ics", key: "icalUrl" }
+    : provider?.type === "anny"
+    ? { label: "Resource", placeholder: "", key: "resourceId" }
     : { label: "Room Mailbox Email", placeholder: "room@company.com", key: "roomEmail" };
 
   return (
@@ -44,9 +50,24 @@ function RoomBookingEditor({ config, onChange, providers }: {
         value={(config.roomName as string) ?? ""} onChange={(e) => onChange({ ...config, roomName: e.target.value })} />
 
       <label className="block text-sm font-medium mb-1">{fieldConfig.label}</label>
-      <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder={fieldConfig.placeholder}
-        value={roomConfig[fieldConfig.key] ?? ""}
-        onChange={(e) => onChange({ ...config, roomConfig: { [fieldConfig.key]: e.target.value } })} />
+      {isAnny && config.providerId ? (
+        <div className="mb-3">
+          <AnnyResourcePicker
+            providerId={config.providerId as string}
+            value={roomConfig.resourceId ?? ""}
+            valueName={roomConfig.resourceName}
+            onChange={(id, name) => onChange({
+              ...config,
+              roomConfig: { resourceId: id, resourceName: name },
+              roomName: (config.roomName as string) || name,
+            })}
+          />
+        </div>
+      ) : (
+        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder={fieldConfig.placeholder}
+          value={roomConfig[fieldConfig.key] ?? ""}
+          onChange={(e) => onChange({ ...config, roomConfig: { [fieldConfig.key]: e.target.value } })} />
+      )}
 
       <label className="block text-sm font-medium mb-1">Timezone</label>
       <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="Europe/Berlin"
