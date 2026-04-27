@@ -17,7 +17,7 @@ export function ThemePreview({ theme }: { theme: Theme }) {
         <rect x="640" y="15" width="120" height="40" rx="4" fill={T.freeBadge} />
         <text x="670" y="43" fill={T.badgeText} fontSize="24" fontWeight="bold" fontFamily="sans-serif">FREE</text>
         {/* Event block */}
-        <rect x="80" y="120" width="640" height="80" rx="4" fill={T.slotBg} />
+        <rect x="80" y="120" width="640" height="80" rx="4" fill={T.eventBg} />
         <text x="100" y="155" fill={T.slotText} fontSize="22" fontWeight="bold" fontFamily="sans-serif">Sprint Planning</text>
         <text x="100" y="182" fill={T.slotText} fontSize="16" fontFamily="sans-serif" opacity="0.8">10:00 – 11:00</text>
         {/* Second event */}

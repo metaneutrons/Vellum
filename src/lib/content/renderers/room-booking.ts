@@ -252,23 +252,25 @@ export function renderToCanvas(
   for (const evt of visible) {
     const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
     const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
-    const blockH = Math.max(y2 - y1, 48);
+    const blockH = y2 - y1;
+    if (blockH < 4) continue; /* too small to render */
     const pad = 12;
 
-    ctx.fillStyle = (evt.isPrivate || evt.showLockIcon) ? T.busyBadge : T.slotBg;
+    ctx.fillStyle = (evt.isPrivate || evt.showLockIcon) ? T.busyBadge : T.eventBg;
     ctx.fillRect(eventLeft, y1, eventW, blockH);
 
     if (blockH > 20) {
       const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
       const timeW = textWidth(tc, timeStr, "md");
-      text(tc, eventLeft + eventW - pad, y1 + 30, timeStr, "md", T.slotText, "right");
+      const textY = y1 + Math.min(30, blockH - 6);
+      text(tc, eventLeft + eventW - pad, textY, timeStr, "md", T.slotText, "right");
 
       const label = evt.showLockIcon ? `🔒 ${evt.displaySubject}` : evt.displaySubject;
-      text(tc, eventLeft + pad, y1 + 30, label, "md-bold", T.slotText, "left", eventW - timeW - pad * 3);
+      text(tc, eventLeft + pad, textY, label, "md-bold", T.slotText, "left", eventW - timeW - pad * 3);
     }
 
     if (blockH > 48 && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
-      text(tc, eventLeft + pad, y1 + 54, evt.organizer, "md", T.slotText, "left", eventW - pad * 2);
+      text(tc, eventLeft + pad, y1 + Math.min(54, blockH - 6), evt.organizer, "md", T.slotText, "left", eventW - pad * 2);
     }
   }
 

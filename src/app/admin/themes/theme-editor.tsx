@@ -19,7 +19,7 @@ const THEME_FIELDS: { key: keyof Theme; label: string }[] = [
   { key: "busyBadge", label: "BUSY Badge" },
   { key: "badgeText", label: "Badge Text" },
   { key: "background", label: "Background" },
-  { key: "slotBg", label: "Event Block" },
+  { key: "eventBg", label: "Event Block" },
   { key: "slotText", label: "Event Text" },
   { key: "slotSecondary", label: "Secondary Text" },
   { key: "footerText", label: "Footer Text" },
@@ -28,7 +28,7 @@ const THEME_FIELDS: { key: keyof Theme; label: string }[] = [
 const DEFAULT_CONFIG: Theme = {
   name: "", headerBg: "#000000", headerText: "#FFFFFF", freeBadge: "#008000",
   busyBadge: "#FF0000", badgeText: "#FFFFFF", background: "#FFFFFF",
-  slotBg: "#000000", slotText: "#FFFFFF", slotSecondary: "#000000", footerText: "#000000",
+  eventBg: "#000000", slotText: "#FFFFFF", slotSecondary: "#000000", footerText: "#000000",
 };
 
 interface DbTheme { id: string; name: string; config: unknown; isDefault: boolean; }
