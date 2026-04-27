@@ -270,6 +270,9 @@ export function renderToCanvas(
     }
 
     text(tc, gutterW - 8, y + 8, fmtHour(hour), "md", T.slotSecondary, "right");
+
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(gutterW, y, width - 8 - gutterW, 2);
   }
 
   // Event blocks
@@ -341,15 +344,6 @@ export function renderToCanvas(
     if (blockH > lineH * (usedLines + 1) && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
       text(tc, ex + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", ew - pad * 2);
     }
-  }
-
-  // Redraw grid lines ON TOP of events so boundaries are crisp
-  for (let h = 0; h <= 8; h++) {
-    const hourMs = windowStart + h * 3600_000;
-    const y = timeToY(hourMs, windowStart, windowEnd, areaTop, areaH);
-    if (y < areaTop || y > areaTop + areaH) continue;
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(gutterW, y, width - 8 - gutterW, 2);
   }
 
   // Reset alignment
