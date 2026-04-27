@@ -256,13 +256,14 @@ export function renderToCanvas(
     const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
     const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
     const blockH = y2 - y1;
-    if (blockH < 4) continue;
+    if (blockH < 1) continue;
     const pad = 10;
 
     ctx.fillStyle = (evt.isPrivate || evt.showLockIcon) ? T.busyBadge : T.eventBg;
-    ctx.fillRect(eventLeft, y1, eventW, blockH);
+    ctx.fillRect(eventLeft, y1, eventW, Math.max(blockH, 2));
 
     /* Dynamic font size based on block height */
+    if (blockH < 16) continue; /* block drawn, but too small for text */
     const fontSize: "sm" | "md" | "md-bold" = blockH < 28 ? "sm" : "md";
     const fontSizeBold: "sm" | "md-bold" = blockH < 28 ? "sm" : "md-bold";
     const lineH = blockH < 28 ? 16 : 24;
