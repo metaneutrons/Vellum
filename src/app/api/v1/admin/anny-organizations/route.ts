@@ -5,21 +5,15 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { dataProviders } from "@/db/schema";
 import { decryptCredentials } from "@/lib/encryption";
-import { fetchAnnyResources } from "@/lib/calendar/providers/anny";
+import { fetchAnnyOrganizations } from "@/lib/calendar/providers/anny";
 
 /**
- * Fetch anny resources (rooms) for the searchable dropdown.
- * Query params: providerId, organizationId, search (optional), page (optional)
+ * Fetch anny organizations available to the provider's API token.
+ * Query params: providerId
  */
 export async function GET(request: NextRequest) {
   const providerId = request.nextUrl.searchParams.get("providerId");
-  const organizationId = request.nextUrl.searchParams.get("organizationId");
-  const search = request.nextUrl.searchParams.get("search") ?? undefined;
-  const page = parseInt(request.nextUrl.searchParams.get("page") ?? "1", 10);
-
-  if (!providerId || !organizationId) {
-    return Response.json({ error: "Missing providerId or organizationId" }, { status: 400 });
-  }
+  if (!providerId) return Response.json({ error: "Missing providerId" }, { status: 400 });
 
   const [provider] = await db.select().from(dataProviders).where(eq(dataProviders.id, providerId)).limit(1);
   if (!provider || provider.type !== "anny") {
@@ -28,8 +22,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const credentials = decryptCredentials(provider.encryptedCredentials) as { apiToken: string };
-    const result = await fetchAnnyResources(credentials.apiToken, organizationId, search, page);
-    return Response.json(result);
+    const orgs = await fetchAnnyOrganizations(credentials.apiToken);
+    return Response.json({ organizations: orgs });
   } catch (err) {
     return Response.json({ error: String(err instanceof Error ? err.message : err) }, { status: 502 });
   }

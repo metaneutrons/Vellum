@@ -4,7 +4,7 @@
  * anny.co calendar provider — room/workspace booking system.
  *
  * Uses the anny Admin API to fetch bookings for a specific resource.
- * Auth: Bearer token + organization ID.
+ * Auth: Bearer token (may have access to multiple organizations).
  * API: JSON:API format, base URL https://b.anny.co
  */
 
@@ -15,10 +15,10 @@ const ANNY_BASE = "https://b.anny.co/api/v1";
 
 export const annyCredentialSchema = z.object({
   apiToken: z.string().min(1),
-  organizationId: z.string().min(1),
 });
 
 export const annyRoomConfigSchema = z.object({
+  organizationId: z.string().min(1),
   resourceId: z.string().uuid(),
   resourceName: z.string().optional(),
 });
@@ -32,12 +32,7 @@ interface AnnyBooking {
     notes?: string | null;
   };
   relationships?: {
-    customer?: {
-      data?: { id: string; type: string } | null;
-    };
-    service?: {
-      data?: { id: string; type: string } | null;
-    };
+    customer?: { data?: { id: string; type: string } | null };
   };
 }
 
@@ -50,11 +45,11 @@ interface AnnyIncluded {
 async function annyFetch(
   path: string,
   token: string,
-  orgId: string,
+  orgId: string | null,
   params: Record<string, string> = {}
 ): Promise<{ data: unknown[]; included?: unknown[]; meta?: { page?: { total?: number } } }> {
   const url = new URL(`${ANNY_BASE}${path}`);
-  url.searchParams.set("o", orgId);
+  if (orgId) url.searchParams.set("o", orgId);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
@@ -76,10 +71,28 @@ async function annyFetch(
 }
 
 /**
- * Fetch resources (rooms) from anny — used by the room picker dropdown.
+ * Fetch organizations available to this API token.
+ */
+export async function fetchAnnyOrganizations(
+  apiToken: string
+): Promise<{ id: string; name: string; slug: string }[]> {
+  const result = await annyFetch("/organizations", apiToken, null, {
+    "fields[organizations]": "name,slug",
+  });
+
+  return (result.data as { id: string; attributes: { name: string; slug: string } }[]).map((o) => ({
+    id: o.id,
+    name: o.attributes.name,
+    slug: o.attributes.slug,
+  }));
+}
+
+/**
+ * Fetch resources (rooms) from anny for a specific organization.
  */
 export async function fetchAnnyResources(
-  credentials: z.infer<typeof annyCredentialSchema>,
+  apiToken: string,
+  organizationId: string,
   search?: string,
   page = 1,
   perPage = 20
@@ -93,12 +106,7 @@ export async function fetchAnnyResources(
     params["filter[search]"] = search;
   }
 
-  const result = await annyFetch(
-    "/resources",
-    credentials.apiToken,
-    credentials.organizationId,
-    params
-  );
+  const result = await annyFetch("/resources", apiToken, organizationId, params);
 
   const resources = (result.data as { id: string; attributes: { name: string; description?: string } }[]).map((r) => ({
     id: r.id,
@@ -125,7 +133,7 @@ export const annyProvider: CalendarProvider = {
     const result = await annyFetch(
       "/bookings",
       creds.apiToken,
-      creds.organizationId,
+      room.organizationId,
       {
         "filter[resource_id]": room.resourceId,
         "filter[date_from]": windowStart.toISOString().split("T")[0],
@@ -141,7 +149,6 @@ export const annyProvider: CalendarProvider = {
     const bookings = result.data as AnnyBooking[];
     const included = (result.included ?? []) as AnnyIncluded[];
 
-    // Build customer lookup
     const customers = new Map<string, string>();
     for (const inc of included) {
       if (inc.type === "customers") {
@@ -155,8 +162,6 @@ export const annyProvider: CalendarProvider = {
     for (const b of bookings) {
       const start = new Date(b.attributes.start);
       const end = new Date(b.attributes.end);
-
-      // Skip bookings outside our window
       if (end <= windowStart || start >= windowEnd) continue;
 
       const customerId = b.relationships?.customer?.data?.id;

@@ -226,9 +226,9 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
     }
 
     if (provider.type === "anny") {
-      const { fetchAnnyResources } = await import("@/lib/calendar/providers/anny");
-      const result = await fetchAnnyResources({ apiToken: credentials.apiToken, organizationId: credentials.organizationId });
-      return { ok: true, message: `Connected — ${result.total} resources found` };
+      const { fetchAnnyOrganizations } = await import("@/lib/calendar/providers/anny");
+      const orgs = await fetchAnnyOrganizations(credentials.apiToken);
+      return { ok: true, message: `Connected — ${orgs.length} organization${orgs.length !== 1 ? "s" : ""}` };
     }
 
     return { ok: false, message: `Unknown provider type: ${provider.type}` };
