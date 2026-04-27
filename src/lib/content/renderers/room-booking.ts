@@ -251,16 +251,42 @@ export function renderToCanvas(
   const visible = events.filter(
     (e) => e.endTime.getTime() > windowStart && e.startTime.getTime() < windowEnd
   );
-  // Event blocks — draw UNDER the grid lines (events rendered first, lines on top)
+  // Event blocks — detect overlaps and arrange side by side
+  const columns: { end: number; col: number }[] = [];
+  const eventLayout: { evt: typeof visible[0]; y1: number; y2: number; col: number; totalCols: number }[] = [];
+
   for (const evt of visible) {
     const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
     const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
-    const blockH = y2 - y1;
-    if (blockH < 1) continue;
-    const pad = 10;
+
+    // Find first available column
+    let col = 0;
+    for (col = 0; col < columns.length; col++) {
+      if (columns[col].end <= y1) break;
+    }
+    if (col === columns.length) columns.push({ end: 0, col });
+    columns[col] = { end: y2, col };
+
+    eventLayout.push({ evt, y1, y2, col, totalCols: 0 });
+  }
+
+  // Calculate total columns for each group
+  for (const item of eventLayout) {
+    const overlapping = eventLayout.filter(
+      (o) => o.y1 < item.y2 && o.y2 > item.y1
+    );
+    item.totalCols = Math.max(...overlapping.map((o) => o.col + 1));
+  }
+
+  for (const { evt, y1, y2, col, totalCols } of eventLayout) {
+    const blockH = Math.max(y2 - y1, 5); /* minimum 5px visible */
+    const colW = eventW / Math.max(totalCols, 1);
+    const ex = eventLeft + col * colW;
+    const ew = colW - 2; /* 2px gap between columns */
+    const pad = 8;
 
     ctx.fillStyle = (evt.isPrivate || evt.showLockIcon) ? T.busyBadge : T.eventBg;
-    ctx.fillRect(eventLeft, y1, eventW, Math.max(blockH, 2));
+    ctx.fillRect(ex, y1, ew, blockH);
 
     /* Dynamic font size based on block height */
     if (blockH < 16) continue; /* block drawn, but too small for text */
@@ -272,14 +298,14 @@ export function renderToCanvas(
       const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
       const timeW = textWidth(tc, timeStr, fontSize);
       const textY = y1 + Math.min(lineH, blockH - 4);
-      text(tc, eventLeft + eventW - pad, textY, timeStr, fontSize, T.slotText, "right");
+      text(tc, ex + ew - pad, textY, timeStr, fontSize, T.slotText, "right");
 
       const label = evt.showLockIcon ? `🔒 ${evt.displaySubject}` : evt.displaySubject;
-      text(tc, eventLeft + pad, textY, label, fontSizeBold, T.slotText, "left", eventW - timeW - pad * 3);
+      text(tc, ex + pad, textY, label, fontSizeBold, T.slotText, "left", ew - timeW - pad * 3);
     }
 
     if (blockH > lineH * 2 && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
-      text(tc, eventLeft + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", eventW - pad * 2);
+      text(tc, ex + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", ew - pad * 2);
     }
   }
 
