@@ -273,29 +273,25 @@ void display_show_connecting(const char *ssid)
 void display_show_ota_progress(uint8_t percent)
 {
     if (!s_lvgl_disp) return;
+    (void)percent; /* Progress not shown on slow E-Paper — use LED/buzzer instead */
+
+    /* Skip if already showing OTA screen */
+    if (screen_unchanged("ota")) return;
+
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Updating firmware...");
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -50);
-
-    lv_obj_t *bar = lv_bar_create(scr);
-    lv_obj_set_size(bar, 400, 30);
-    lv_bar_set_value(bar, percent, LV_ANIM_OFF);
-    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 0);
-
-    lv_obj_t *pct = lv_label_create(scr);
-    lv_label_set_text_fmt(pct, "%d%%", percent);
-    lv_obj_set_style_text_font(pct, &lv_font_montserrat_18, 0);
-    lv_obj_align(pct, LV_ALIGN_CENTER, 0, 35);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_48, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -20);
 
     lv_obj_t *warn = lv_label_create(scr);
     lv_label_set_text(warn, "Do not power off");
-    lv_obj_set_style_text_color(warn, lv_color_hex(0xCC0000), 0);
-    lv_obj_align(warn, LV_ALIGN_CENTER, 0, 70);
+    lv_obj_set_style_text_font(warn, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(warn, lv_color_hex(0x888888), 0);
+    lv_obj_align(warn, LV_ALIGN_CENTER, 0, 30);
 
     lvgl_refresh();
 }
