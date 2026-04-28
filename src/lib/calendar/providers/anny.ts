@@ -14,9 +14,19 @@ import { log } from "@/lib/logger";
 
 const ANNY_BASE = "https://b.anny.co/api/v1";
 
+/** Extract organization (tenant) ID from anny JWT token */
+export function extractOrgFromToken(token: string): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    return payload.tenant ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const annyCredentialSchema = z.object({
   apiToken: z.string().min(1),
-  organizationId: z.string().min(1),
+  organizationId: z.string().optional(),
 });
 
 export const annyRoomConfigSchema = z.object({
@@ -132,9 +142,12 @@ export const annyProvider: CalendarProvider = {
     const creds = annyCredentialSchema.parse(credentials);
     const room = annyRoomConfigSchema.parse(roomConfig);
 
+    const orgId = creds.organizationId || extractOrgFromToken(creds.apiToken) || "";
+    if (!orgId) throw new Error("Cannot determine organization ID from token");
+
     log.info("anny: fetching bookings", {
       resourceId: room.resourceId,
-      orgId: creds.organizationId,
+      orgId,
       from: windowStart.toISOString().split("T")[0],
       to: windowEnd.toISOString().split("T")[0],
     });
@@ -142,7 +155,7 @@ export const annyProvider: CalendarProvider = {
     const result = await annyFetch(
       "/bookings",
       creds.apiToken,
-      creds.organizationId,
+      orgId,
       {
         "filter[resource_id]": room.resourceId,
         "filter[date_from]": windowStart.toISOString().split("T")[0],

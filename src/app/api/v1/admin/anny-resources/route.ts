@@ -27,8 +27,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const credentials = decryptCredentials(provider.encryptedCredentials) as { apiToken: string; organizationId: string };
-    const result = await fetchAnnyResources(credentials.apiToken, credentials.organizationId, search, page);
+    const credentials = decryptCredentials(provider.encryptedCredentials) as { apiToken: string; organizationId?: string };
+    const { extractOrgFromToken } = await import("@/lib/calendar/providers/anny");
+    const orgId = credentials.organizationId || extractOrgFromToken(credentials.apiToken) || "";
+    if (!orgId) return Response.json({ error: "Cannot determine organization ID" }, { status: 400 });
+    const result = await fetchAnnyResources(credentials.apiToken, orgId, search, page);
     return Response.json(result);
   } catch (err) {
     return Response.json({ error: String(err instanceof Error ? err.message : err) }, { status: 502 });

@@ -226,8 +226,10 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
     }
 
     if (provider.type === "anny") {
-      const { fetchAnnyResources } = await import("@/lib/calendar/providers/anny");
-      const result = await fetchAnnyResources(credentials.apiToken, credentials.organizationId);
+      const { fetchAnnyResources, extractOrgFromToken } = await import("@/lib/calendar/providers/anny");
+      const orgId = credentials.organizationId || extractOrgFromToken(credentials.apiToken) || "";
+      if (!orgId) return { ok: false, message: "Cannot extract organization ID from token" };
+      const result = await fetchAnnyResources(credentials.apiToken, orgId);
       return { ok: true, message: `Connected — ${result.total} resources found` };
     }
 
