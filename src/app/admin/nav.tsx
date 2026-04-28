@@ -64,13 +64,12 @@ export function AdminNav() {
 
         {/* Controls: language, theme, logout */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 12px 12px", borderBottom: "1px solid #374151" }}>
-          {/* Language flags */}
-          {LOCALES.map((l) => (
-            <button key={l} onClick={() => setLocale(l)} title={l.toUpperCase()}
-              style={{ fontSize: 16, padding: "4px 3px", borderRadius: 4, border: "none", background: l === currentLocale ? "#1f2937" : "transparent", cursor: "pointer", opacity: l === currentLocale ? 1 : 0.5 }}>
-              {FLAGS[l]}
-            </button>
-          ))}
+          {/* Language dropdown with flags */}
+          <select value={currentLocale} onChange={(e) => setLocale(e.target.value)}
+            aria-label="Language"
+            style={{ background: "#1f2937", color: "#fff", border: "1px solid #374151", borderRadius: 4, padding: "4px 6px", fontSize: 14, cursor: "pointer" }}>
+            {LOCALES.map((l) => <option key={l} value={l}>{FLAGS[l]} {l.toUpperCase()}</option>)}
+          </select>
           <div style={{ flex: 1 }} />
           {/* Theme toggle */}
           <button onClick={toggleTheme} title={dark ? "Light mode" : "Dark mode"}
