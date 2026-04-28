@@ -10,6 +10,7 @@
 
 import { z } from "zod";
 import type { CalendarProvider, CalendarEvent } from "../types";
+import { log } from "@/lib/logger";
 
 const ANNY_BASE = "https://b.anny.co/api/v1";
 
@@ -64,6 +65,7 @@ async function annyFetch(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    log.warn("anny API error", { path, status: res.status, body: text.slice(0, 200) });
     throw new Error(`anny API ${res.status}: ${text.slice(0, 200)}`);
   }
 
@@ -130,6 +132,13 @@ export const annyProvider: CalendarProvider = {
     const creds = annyCredentialSchema.parse(credentials);
     const room = annyRoomConfigSchema.parse(roomConfig);
 
+    log.info("anny: fetching bookings", {
+      resourceId: room.resourceId,
+      orgId: room.organizationId,
+      from: windowStart.toISOString().split("T")[0],
+      to: windowEnd.toISOString().split("T")[0],
+    });
+
     const result = await annyFetch(
       "/bookings",
       creds.apiToken,
@@ -176,6 +185,7 @@ export const annyProvider: CalendarProvider = {
       });
     }
 
+    log.info("anny: bookings fetched", { resourceId: room.resourceId, count: events.length });
     return events;
   },
 };
