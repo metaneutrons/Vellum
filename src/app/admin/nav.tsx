@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 const linkKeys = [
   { href: "/admin/devices", key: "devices" as const, icon: "◻" },
@@ -25,6 +25,12 @@ export function AdminNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const t = useTranslations("nav");
+  const currentLocale = useLocale();
+
+  function setLocale(locale: string) {
+    document.cookie = `locale=${locale}; path=/; max-age=31536000`;
+    window.location.reload();
+  }
 
   return (
     <>
@@ -45,6 +51,17 @@ export function AdminNav() {
               {t(l.key)}
             </Link>
           ))}
+        </div>
+        <div style={{ padding: "8px 16px", borderTop: "1px solid #374151" }}>
+          <select value={currentLocale} onChange={(e) => setLocale(e.target.value)}
+            aria-label="Language"
+            style={{ width: "100%", background: "#1f2937", color: "#9ca3af", border: "1px solid #374151", borderRadius: 4, padding: "6px 8px", fontSize: 13, cursor: "pointer" }}>
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="es">Español</option>
+          </select>
         </div>
         <button onClick={logout}
           style={{ padding: "12px 16px", fontSize: 14, color: "#6b7280", borderTop: "1px solid #374151", textAlign: "left", background: "none", border: "none", borderTopStyle: "solid", borderTopWidth: 1, borderTopColor: "#374151", cursor: "pointer", width: "100%" }}>
