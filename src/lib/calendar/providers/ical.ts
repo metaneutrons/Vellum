@@ -10,11 +10,11 @@
 import { z } from "zod";
 import type { CalendarProvider, CalendarEvent } from "../types";
 
-export const icalCredentialSchema = z.object({}).optional();
-
-export const icalRoomConfigSchema = z.object({
-  icalUrl: z.string().url(),
+export const icalCredentialSchema = z.object({
+  url: z.string().url(),
 });
+
+export const icalRoomConfigSchema = z.object({});
 
 /** Minimal VEVENT parser — extracts events from raw ICS text */
 function parseIcs(ics: string, windowStart: Date, windowEnd: Date): CalendarEvent[] {
@@ -67,9 +67,9 @@ export const icalProvider: CalendarProvider = {
   credentialSchema: icalCredentialSchema,
   roomConfigSchema: icalRoomConfigSchema,
 
-  async fetchEvents({ roomConfig, windowStart, windowEnd }) {
-    const room = icalRoomConfigSchema.parse(roomConfig);
-    const res = await fetch(room.icalUrl, {
+  async fetchEvents({ credentials, windowStart, windowEnd }) {
+    const creds = icalCredentialSchema.parse(credentials);
+    const res = await fetch(creds.url, {
       headers: { Accept: "text/calendar" },
       signal: AbortSignal.timeout(15_000),
     });

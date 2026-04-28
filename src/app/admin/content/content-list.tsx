@@ -30,10 +30,10 @@ function RoomBookingEditor({ config, onChange, providers }: {
   const isAnny = provider?.type === "anny";
   const fieldConfig = provider?.type === "google"
     ? { label: "Calendar ID", placeholder: "calendar-id@group.calendar.google.com", key: "calendarId" }
-    : provider?.type === "ical"
-    ? { label: "iCal Feed URL", placeholder: "https://example.com/calendar.ics", key: "icalUrl" }
     : provider?.type === "anny"
     ? { label: "Resource", placeholder: "", key: "resourceId" }
+    : provider?.type === "ical"
+    ? null  /* iCal URL is in provider credentials, not room config */
     : { label: "Room Mailbox Email", placeholder: "room@company.com", key: "roomEmail" };
 
   return (
@@ -49,7 +49,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
       <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. Besprechungsraum EG"
         value={(config.roomName as string) ?? ""} onChange={(e) => onChange({ ...config, roomName: e.target.value })} />
 
-      <label className="block text-sm font-medium mb-1">{fieldConfig.label}</label>
+      <label className="block text-sm font-medium mb-1">{fieldConfig?.label ?? ""}</label>
       {isAnny && config.providerId ? (
         <div className="mb-3">
           <AnnyResourcePicker
@@ -64,11 +64,11 @@ function RoomBookingEditor({ config, onChange, providers }: {
             })}
           />
         </div>
-      ) : (
+      ) : fieldConfig ? (
         <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder={fieldConfig.placeholder}
           value={roomConfig[fieldConfig.key] ?? ""}
           onChange={(e) => onChange({ ...config, roomConfig: { [fieldConfig.key]: e.target.value } })} />
-      )}
+      ) : <div className="mb-3" /> }
 
       <label className="block text-sm font-medium mb-1">Timezone</label>
       <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="Europe/Berlin"

@@ -31,7 +31,9 @@ const PROVIDER_TYPES = {
   },
   ical: {
     label: "iCal Feed — Calendar", category: "calendar",
-    fields: [] as { key: string; label: string; secret: boolean }[],
+    fields: [
+      { key: "url", label: "iCal Feed URL", secret: false },
+    ],
   },
   anny: {
     label: "anny.co — Room & Workspace Booking", category: "calendar",
