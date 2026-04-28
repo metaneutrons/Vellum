@@ -74,6 +74,17 @@ function RoomBookingEditor({ config, onChange, providers }: {
       <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="Europe/Berlin"
         value={(config.timezone as string) ?? "UTC"} onChange={(e) => onChange({ ...config, timezone: e.target.value })} />
 
+      <label className="block text-sm font-medium mb-1">Display Language</label>
+      <select className="w-full border rounded px-3 py-2 mb-3 text-sm"
+        value={(config.locale as string) ?? "en"}
+        onChange={(e) => onChange({ ...config, locale: e.target.value })}>
+        <option value="en">English</option>
+        <option value="de">Deutsch</option>
+        <option value="fr">Français</option>
+        <option value="it">Italiano</option>
+        <option value="es">Español</option>
+      </select>
+
       <label className="block text-sm font-medium mb-1">Privacy Policy</label>
       <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>

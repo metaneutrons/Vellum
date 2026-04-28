@@ -11,6 +11,22 @@ import { z } from "zod";
 import { createCanvas, GlobalFonts, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { format } from "date-fns";
 import { TZDate } from "@date-fns/tz";
+import { de, fr, it, es, enUS } from "date-fns/locale";
+import type { Locale as DateLocale } from "date-fns";
+
+const DATE_LOCALES: Record<string, DateLocale> = { en: enUS, de, fr, it, es };
+
+const BADGE_TEXT: Record<string, { free: string; busy: string }> = {
+  en: { free: "FREE", busy: "BUSY" },
+  de: { free: "FREI", busy: "BELEGT" },
+  fr: { free: "LIBRE", busy: "OCCUPÉ" },
+  it: { free: "LIBERO", busy: "OCCUPATO" },
+  es: { free: "LIBRE", busy: "OCUPADO" },
+};
+
+const UPDATED_TEXT: Record<string, string> = {
+  en: "Updated", de: "Aktualisiert", fr: "Mis à jour", it: "Aggiornato", es: "Actualizado",
+};
 import { eq } from "drizzle-orm";
 import path from "path";
 import { db } from "@/db";
@@ -128,6 +144,7 @@ export const roomBookingConfigSchema = z.object({
   roomConfig: z.record(z.string(), z.unknown()),
   roomName: z.string().default("Meeting Room"),
   timezone: z.string().default("UTC"),
+  locale: z.string().default("en"),
   policy: z.enum(["Show All", "Hide Subject", "Hide All"]).default("Show All"),
   cacheTtlS: z.number().int().min(0).default(120),
   timelineShiftH: z.number().int().min(1).max(8).default(2),
@@ -199,7 +216,8 @@ export function renderToCanvas(
   height: number,
   colorCount: number,
   quantize: string = "color",
-  timelineShiftH: number = 2
+  timelineShiftH: number = 2,
+  locale: string = "en"
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -230,7 +248,8 @@ export function renderToCanvas(
 
   // Badge (measure first to know available space)
   const busy = isBusy(events, new Date(roundedNowMs));
-  const badgeText = busy ? "BUSY" : "FREE";
+  const badge = BADGE_TEXT[locale] ?? BADGE_TEXT.en;
+  const badgeText = busy ? badge.busy : badge.free;
   const tc: TextCtx = { ctx, useBitmap: quantize === "color", ff };
 
   // Badge
@@ -241,7 +260,8 @@ export function renderToCanvas(
   text(tc, badgeX + 8, 46, badgeText, "md-bold", T.badgeText);
 
   // Date (right-aligned before badge)
-  const dateStr = format(new TZDate(now, timezone), "EEE, MMM d, yyyy");
+  const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
+  const dateStr = format(new TZDate(now, timezone), "EEE, MMM d, yyyy", { locale: dfLocale });
   const dateW = textWidth(tc, dateStr, "md");
   const dateX = badgeX - dateW - 20;
   text(tc, dateX, 46, dateStr, "md", T.headerText);
@@ -260,7 +280,7 @@ export function renderToCanvas(
 
     /* Midnight separator: show next day label only if hours follow after 0:00 */
     if (hour === 0 && h > 0 && h < 8) {
-      const dayLabel = format(hourDate, "EEEE, d. MMM");
+      const dayLabel = format(hourDate, "EEEE, d. MMM", { locale: dfLocale });
       ctx.fillStyle = T.slotSecondary;
       ctx.fillRect(gutterW, y - 1, width - 8 - gutterW, 1);
       const labelW = textWidth(tc, dayLabel, "sm");
@@ -351,7 +371,8 @@ export function renderToCanvas(
   ctx.textAlign = "left";
 
   // Footer
-  text(tc, width - 12, height - 10, `Updated: ${fmtTime(now, timezone)}`, "sm", T.footerText, "right");
+  const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
+  text(tc, width - 12, height - 10, `${updatedLabel}: ${fmtTime(now, timezone)}`, "sm", T.footerText, "right");
 
   return canvas;
 }
@@ -407,6 +428,6 @@ export const roomBookingRenderer: ContentRenderer = {
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy);
-    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.quantize, cfg.timelineShiftH) };
+    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.quantize, cfg.timelineShiftH, cfg.locale) };
   },
 };
