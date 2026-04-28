@@ -10,6 +10,7 @@ import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { useTranslations } from "next-intl";
 
 interface Device {
   mac: string;
@@ -44,6 +45,7 @@ interface Props {
 export function DeviceTable({ devices: rawDevices, themes, contentInstances, refreshProfiles, firmwareVersions }: Props) {
   const devices = rawDevices as unknown as Device[];
   const { toast } = useToast();
+  const t = useTranslations("devices");
   const [pending, startTransition] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -56,7 +58,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
   }
 
   function update(mac: string, data: Record<string, unknown>) {
-    act(() => updateDevice(mac, data), "Updated", "Failed");
+    act(() => updateDevice(mac, data), t("updated"), t("failed"));
   }
 
   const filtered = devices.filter((d) => {
@@ -72,8 +74,8 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
 
   return (
     <div className={pending ? "opacity-60 pointer-events-none" : ""}>
-      <PageHeader title="Devices" description="Manage displays, content, and firmware"
-        actions={<SearchInput value={search} onChange={setSearch} placeholder="Search MAC, model, firmware..." />} />
+      <PageHeader title={t("title")} description={t("description")}
+        actions={<SearchInput value={search} onChange={setSearch} placeholder={t("search")} />} />
 
       <div className="space-y-3">
         {filtered.map((d) => {
@@ -97,7 +99,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                   {hasContent ? (
                     <button onClick={() => setPreviewId(d.content_instance_id)}
                       className="block w-24 h-14 rounded border border-gray-200 hover:border-blue-400 overflow-hidden cursor-pointer transition-colors"
-                      title="Click to preview">
+                      title={t("preview")}>
                       <img src={`/api/v1/admin/preview?instanceId=${d.content_instance_id}&w=192&h=112`}
                         alt="" className="w-full h-full object-cover" loading="lazy" />
                     </button>
@@ -111,7 +113,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                 {/* Device info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {hasWarning && <span className="text-sm" title={[bWarn && "Low battery", rWarn && "Weak signal", oWarn && "Offline >1h"].filter(Boolean).join(", ")}>⚠️</span>}
+                    {hasWarning && <span className="text-sm" title={[bWarn && t("warnings.lowBattery"), rWarn && t("warnings.weakSignal"), oWarn && t("warnings.offline")].filter(Boolean).join(", ")}>⚠️</span>}
                     <span className="font-mono text-sm font-semibold tracking-tight">{d.mac}</span>
                     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${d.status === "approved" ? "bg-green-100 text-green-700" : d.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{d.status}</span>
                     <span className="text-xs text-gray-500">{model}</span>
@@ -141,7 +143,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
 
                 {/* Actions */}
                 <div className="flex items-start gap-1 shrink-0">
-                  {d.status === "pending" && <Button size="sm" onClick={() => act(() => approveDevice(d.mac), "Approved", "Failed")}>Approve</Button>}
+                  {d.status === "pending" && <Button size="sm" onClick={() => act(() => approveDevice(d.mac), t("approved"), t("failed"))}>{t("approve")}</Button>}
                   <Button size="sm" variant="danger" onClick={() => setDeleting(d.mac)}>×</Button>
                 </div>
               </div>
@@ -161,7 +163,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     Theme
                     <select className="border rounded px-1 py-0.5 text-xs" value={d.theme_id ?? ""}
                       aria-label="Theme" onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
-                      <option value="">default</option>
+                      <option value="">{t("default")}</option>
                       {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </label>
@@ -169,7 +171,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     Profile
                     <select className="border rounded px-1 py-0.5 text-xs" value={d.refresh_profile_id ?? ""}
                       aria-label="Refresh profile" onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
-                      <option value="">default</option>
+                      <option value="">{t("default")}</option>
                       {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </label>
@@ -186,7 +188,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     Pin
                     <select className="border rounded px-1 py-0.5 text-xs" value={d.firmware_pin_version ?? ""}
                       aria-label="Pin version" onChange={(e) => update(d.mac, { firmwarePinVersion: e.target.value || null })}>
-                      <option value="">latest</option>
+                      <option value="">{t("latest")}</option>
                       {channelVersions.map((v) => <option key={v.tag} value={v.version}>v{v.version}</option>)}
                     </select>
                   </label>
@@ -197,7 +199,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
         })}
 
         {filtered.length === 0 && (
-          <EmptyState icon="◻" title={devices.length === 0 ? "No devices" : "No match"} description="Devices appear when they connect." />
+          <EmptyState icon="◻" title={devices.length === 0 ? t("noDevices") : t("noMatch")} description={t("noDevicesHint")} />
         )}
       </div>
 
@@ -217,11 +219,11 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
       {deleting && (
         <ConfirmDialog
           open={!!deleting}
-          title="Delete device?"
-          message={`Remove ${deleting} and all telemetry?`}
+          title={t("deleteConfirm")}
+          message={t("deleteMessage", { mac: deleting ?? "" })}
           confirmLabel="Delete"
           destructive
-          onConfirm={() => { act(() => deleteDevice(deleting!), "Deleted", "Failed"); setDeleting(null); }}
+          onConfirm={() => { act(() => deleteDevice(deleting!), t("deleted"), t("failed")); setDeleting(null); }}
           onClose={() => setDeleting(null)}
         />
       )}

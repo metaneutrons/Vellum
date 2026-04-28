@@ -9,6 +9,7 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
+import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 
@@ -45,6 +46,7 @@ interface Provider { id: string; type: string; name: string; createdAt: Date; }
 
 export function ProviderList({ providers }: { providers: Provider[] }) {
   const { toast } = useToast();
+  const t = useTranslations("providers");
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
 
   return (
     <div>
-      <PageHeader title="Data Providers" description="Connect calendar and data sources" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search providers..." /><Button onClick={startNew}>Add Provider</Button></div>} />
+      <PageHeader title={t("title")} description="Connect calendar and data sources" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search providers..." /><Button onClick={startNew}>{t("add")}</Button></div>} />
 
       <div className="bg-white rounded-lg shadow divide-y">
         {filteredProviders.map((p) => (
@@ -119,8 +121,8 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
                 if (r && !r.ok) return <span className="text-xs text-red-600 max-w-48 truncate" title={r.message}>✗ {r.message}</span>;
                 return null;
               })()}
-              <Button size="sm" variant="ghost" onClick={() => testProvider(p.id)}>Test</Button>
-              <Button size="sm" variant="ghost" onClick={() => startEdit(p)}>Edit</Button>
+              <Button size="sm" variant="ghost" onClick={() => testProvider(p.id)}>{t("test")}</Button>
+              <Button size="sm" variant="ghost" onClick={() => startEdit(p)}>{t("edit")}</Button>
               <Button size="sm" variant="danger" onClick={() => setDeleting(p.id)}>Delete</Button>
             </div>
           </div>

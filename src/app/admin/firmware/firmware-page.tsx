@@ -5,6 +5,7 @@
 import { useTransition } from "react";
 import { updateDevice, updateSetting } from "../actions";
 import { useToast } from "@/components/toast";
+import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/page-header";
 
 interface FirmwareVersion {
@@ -29,6 +30,7 @@ interface Props {
 
 export function FirmwarePage({ devices, versions, settings }: Props) {
   const { toast } = useToast();
+  const t = useTranslations("firmware");
   const [pending, startTransition] = useTransition();
 
   const autoPoll = settings["firmware.autoPoll"] as boolean ?? false;
@@ -67,15 +69,15 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
 
   return (
     <div className={pending ? "opacity-60 pointer-events-none" : ""}>
-      <PageHeader title="Firmware" description="OTA firmware updates via GitHub Releases" actions={<a href="/admin/firmware/flash" className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">Flash Device</a>} />
+      <PageHeader title={t("title")} description={t("description")} actions={<a href="/admin/firmware/flash" className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">{t("flash")}</a>} />
 
       {/* Auto-poll settings */}
-      <h2 className="text-lg font-semibold mb-3">Auto-Update</h2>
+      <h2 className="text-lg font-semibold mb-3">{t("autoUpdate")}</h2>
       <div className="bg-white rounded-lg shadow px-4 py-4 mb-8 flex items-center gap-6">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={autoPoll} onChange={toggleAutoPoll}
             className="w-4 h-4 rounded" aria-label="Enable auto-poll" />
-          <span className="text-sm">Background polling</span>
+          <span className="text-sm">{t("backgroundPolling")}</span>
         </label>
         {autoPoll && (
           <label className="flex items-center gap-2 text-sm">
@@ -96,10 +98,10 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
       </div>
 
       {/* Available versions */}
-      <h2 className="text-lg font-semibold mb-3">Available Versions</h2>
+      <h2 className="text-lg font-semibold mb-3">{t("versions")}</h2>
       <div className="bg-white rounded-lg shadow divide-y mb-8">
         {versions.length === 0 && (
-          <div className="px-4 py-8 text-center text-gray-500">No firmware releases found on GitHub</div>
+          <div className="px-4 py-8 text-center text-gray-500">{t("noVersions")}</div>
         )}
         {versions.map((v) => (
           <div key={v.tag} className="px-4 py-3 flex items-center gap-3">
@@ -113,7 +115,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
       </div>
 
       {/* Device assignments */}
-      <h2 className="text-lg font-semibold mb-3">Device Firmware</h2>
+      <h2 className="text-lg font-semibold mb-3">{t("deviceFirmware")}</h2>
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-100 text-left">
