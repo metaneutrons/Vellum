@@ -1,0 +1,152 @@
+{
+  "nav": {
+    "title": "Vellum Console",
+    "devices": "Geräte",
+    "content": "Inhalte",
+    "providers": "Datenquellen",
+    "themes": "Designs",
+    "profiles": "Aktualisierungsprofile",
+    "firmware": "Firmware",
+    "logout": "Abmelden"
+  },
+  "devices": {
+    "title": "Geräte",
+    "description": "Displays, Inhalte und Firmware verwalten",
+    "search": "MAC, Modell, Firmware suchen...",
+    "noDevices": "Keine Geräte",
+    "noMatch": "Keine Treffer",
+    "noDevicesHint": "Geräte erscheinen nach der ersten Verbindung.",
+    "approve": "Genehmigen",
+    "delete": "Löschen",
+    "deleteConfirm": "Gerät löschen?",
+    "deleteMessage": "{mac} und alle Telemetriedaten entfernen?",
+    "noContent": "Kein Inhalt",
+    "preview": "Vorschau anzeigen",
+    "change": "Ändern",
+    "content": "Inhalt",
+    "theme": "Design",
+    "profile": "Profil",
+    "firmware": "FW",
+    "pin": "Version",
+    "latest": "aktuell",
+    "default": "Standard",
+    "none": "keine",
+    "stable": "stabil",
+    "beta": "Beta",
+    "updated": "Aktualisiert",
+    "failed": "Fehlgeschlagen",
+    "approved": "Genehmigt",
+    "deleted": "Gelöscht",
+    "warnings": {
+      "lowBattery": "Niedriger Akkustand",
+      "weakSignal": "Schwaches Signal",
+      "offline": "Offline >1h"
+    }
+  },
+  "content": {
+    "title": "Inhalte",
+    "description": "Inhaltsinstanzen für Displays verwalten",
+    "add": "Inhalt hinzufügen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "test": "Testen",
+    "preview": "Vorschau",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "name": "Name",
+    "type": "Typ",
+    "provider": "Kalenderanbieter",
+    "selectProvider": "— auswählen —",
+    "roomName": "Raumanzeigename",
+    "roomNamePlaceholder": "z.B. Besprechungsraum EG",
+    "timezone": "Zeitzone",
+    "policy": "Datenschutzrichtlinie",
+    "cacheTtl": "Cache-Dauer (Sekunden)",
+    "timelineShift": "Zeitachsenverschiebung (Stunden)"
+  },
+  "providers": {
+    "title": "Datenquellen",
+    "description": "Kalender- und Buchungsdatenquellen konfigurieren",
+    "add": "Anbieter hinzufügen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "test": "Testen",
+    "testing": "Teste…",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "name": "Name",
+    "type": "Typ",
+    "types": {
+      "microsoft365": "Microsoft 365 — Kalender",
+      "google": "Google — Kalender",
+      "ical": "iCal-Feed — Kalender",
+      "anny": "anny.co — Raum- & Arbeitsplatzbuchung"
+    }
+  },
+  "themes": {
+    "title": "Designs",
+    "description": "Darstellung der Displays anpassen",
+    "add": "Design hinzufügen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "save": "Speichern",
+    "cancel": "Abbrechen"
+  },
+  "profiles": {
+    "title": "Aktualisierungsprofile",
+    "description": "Aktualisierungszeitpläne konfigurieren",
+    "add": "Profil hinzufügen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "save": "Speichern",
+    "cancel": "Abbrechen"
+  },
+  "firmware": {
+    "title": "Firmware",
+    "description": "OTA-Firmware-Updates über GitHub Releases",
+    "flash": "Gerät flashen",
+    "versions": "Verfügbare Versionen",
+    "noVersions": "Keine Firmware-Releases auf GitHub gefunden",
+    "deviceFirmware": "Geräte-Firmware",
+    "autoUpdate": "Auto-Update",
+    "backgroundPolling": "Hintergrundabfrage",
+    "interval": "Intervall",
+    "autoUpdateOn": "Server prüft GitHub automatisch auf neue Releases",
+    "autoUpdateOff": "Prüft nur beim Öffnen der Admin-Seite oder bei Geräteanfrage"
+  },
+  "flash": {
+    "title": "Firmware flashen",
+    "description": "Firmware direkt über USB im Browser flashen",
+    "model": "Display-Modell",
+    "channel": "Kanal",
+    "connect": "⚡ Verbinden & Flashen",
+    "unsupported": "Web Serial wird in diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden.",
+    "instructions": {
+      "title": "Anleitung:",
+      "step1": "Gerät per USB-C-Kabel verbinden",
+      "step2": "Gerät einschalten (Schalter auf der Rückseite)",
+      "step3": "\"Verbinden & Flashen\" klicken und den seriellen Port auswählen",
+      "step4": "Warten bis der Flash-Vorgang abgeschlossen ist — nicht trennen"
+    }
+  },
+  "login": {
+    "title": "Bei Vellum Console anmelden",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "error": "Ungültige Anmeldedaten"
+  },
+  "common": {
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "confirm": "Bestätigen",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "close": "Schließen",
+    "search": "Suchen...",
+    "noResults": "Keine Ergebnisse"
+  }
+}

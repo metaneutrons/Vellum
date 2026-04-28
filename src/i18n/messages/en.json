@@ -1,0 +1,152 @@
+{
+  "nav": {
+    "title": "Vellum Console",
+    "devices": "Devices",
+    "content": "Content",
+    "providers": "Data Providers",
+    "themes": "Themes",
+    "profiles": "Refresh Profiles",
+    "firmware": "Firmware",
+    "logout": "Logout"
+  },
+  "devices": {
+    "title": "Devices",
+    "description": "Manage displays, content, and firmware",
+    "search": "Search MAC, model, firmware...",
+    "noDevices": "No devices",
+    "noMatch": "No match",
+    "noDevicesHint": "Devices appear when they connect.",
+    "approve": "Approve",
+    "delete": "Delete",
+    "deleteConfirm": "Delete device?",
+    "deleteMessage": "Remove {mac} and all telemetry?",
+    "noContent": "No content",
+    "preview": "Click to preview",
+    "change": "Change",
+    "content": "Content",
+    "theme": "Theme",
+    "profile": "Profile",
+    "firmware": "FW",
+    "pin": "Pin",
+    "latest": "latest",
+    "default": "default",
+    "none": "none",
+    "stable": "stable",
+    "beta": "beta",
+    "updated": "Updated",
+    "failed": "Failed",
+    "approved": "Approved",
+    "deleted": "Deleted",
+    "warnings": {
+      "lowBattery": "Low battery",
+      "weakSignal": "Weak signal",
+      "offline": "Offline >1h"
+    }
+  },
+  "content": {
+    "title": "Content",
+    "description": "Manage content instances for displays",
+    "add": "Add Content",
+    "edit": "Edit",
+    "delete": "Delete",
+    "test": "Test",
+    "preview": "Preview",
+    "save": "Save",
+    "cancel": "Cancel",
+    "name": "Name",
+    "type": "Type",
+    "provider": "Calendar Provider",
+    "selectProvider": "— select —",
+    "roomName": "Room Display Name",
+    "roomNamePlaceholder": "e.g. Meeting Room 1",
+    "timezone": "Timezone",
+    "policy": "Privacy Policy",
+    "cacheTtl": "Cache TTL (seconds)",
+    "timelineShift": "Timeline Shift (hours)"
+  },
+  "providers": {
+    "title": "Data Providers",
+    "description": "Configure calendar and booking data sources",
+    "add": "Add Provider",
+    "edit": "Edit",
+    "delete": "Delete",
+    "test": "Test",
+    "testing": "Testing…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "name": "Name",
+    "type": "Type",
+    "types": {
+      "microsoft365": "Microsoft 365 — Calendar",
+      "google": "Google — Calendar",
+      "ical": "iCal Feed — Calendar",
+      "anny": "anny.co — Room & Workspace Booking"
+    }
+  },
+  "themes": {
+    "title": "Themes",
+    "description": "Customize display appearance",
+    "add": "Add Theme",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "profiles": {
+    "title": "Refresh Profiles",
+    "description": "Configure display refresh schedules",
+    "add": "Add Profile",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "firmware": {
+    "title": "Firmware",
+    "description": "OTA firmware updates via GitHub Releases",
+    "flash": "Flash Device",
+    "versions": "Available Versions",
+    "noVersions": "No firmware releases found on GitHub",
+    "deviceFirmware": "Device Firmware",
+    "autoUpdate": "Auto-Update",
+    "backgroundPolling": "Background polling",
+    "interval": "Interval",
+    "autoUpdateOn": "Server checks GitHub for new releases automatically",
+    "autoUpdateOff": "Only checks when admin page is opened or device requests /config"
+  },
+  "flash": {
+    "title": "Flash Firmware",
+    "description": "Flash firmware directly from the browser via USB",
+    "model": "Display Model",
+    "channel": "Channel",
+    "connect": "⚡ Connect & Flash",
+    "unsupported": "Web Serial is not supported in this browser. Please use Chrome or Edge.",
+    "instructions": {
+      "title": "Instructions:",
+      "step1": "Connect the device via USB-C cable",
+      "step2": "Turn on the device (power switch on back)",
+      "step3": "Click \"Connect & Flash\" and select the serial port",
+      "step4": "Wait for the flash to complete — do not disconnect"
+    }
+  },
+  "login": {
+    "title": "Sign in to Vellum Console",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "error": "Invalid credentials"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "search": "Search...",
+    "noResults": "No results"
+  }
+}

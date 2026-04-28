@@ -1,0 +1,152 @@
+{
+  "nav": {
+    "title": "Vellum Console",
+    "devices": "Appareils",
+    "content": "Contenus",
+    "providers": "Sources de données",
+    "themes": "Thèmes",
+    "profiles": "Profils de rafraîchissement",
+    "firmware": "Firmware",
+    "logout": "Déconnexion"
+  },
+  "devices": {
+    "title": "Appareils",
+    "description": "Gérer les écrans, contenus et firmware",
+    "search": "Rechercher MAC, modèle, firmware...",
+    "noDevices": "Aucun appareil",
+    "noMatch": "Aucun résultat",
+    "noDevicesHint": "Les appareils apparaissent après leur première connexion.",
+    "approve": "Approuver",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer l'appareil ?",
+    "deleteMessage": "Supprimer {mac} et toutes les données de télémétrie ?",
+    "noContent": "Aucun contenu",
+    "preview": "Cliquer pour prévisualiser",
+    "change": "Modifier",
+    "content": "Contenu",
+    "theme": "Thème",
+    "profile": "Profil",
+    "firmware": "FW",
+    "pin": "Version",
+    "latest": "dernière",
+    "default": "défaut",
+    "none": "aucun",
+    "stable": "stable",
+    "beta": "bêta",
+    "updated": "Mis à jour",
+    "failed": "Échec",
+    "approved": "Approuvé",
+    "deleted": "Supprimé",
+    "warnings": {
+      "lowBattery": "Batterie faible",
+      "weakSignal": "Signal faible",
+      "offline": "Hors ligne >1h"
+    }
+  },
+  "content": {
+    "title": "Contenus",
+    "description": "Gérer les instances de contenu pour les écrans",
+    "add": "Ajouter un contenu",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "test": "Tester",
+    "preview": "Aperçu",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "name": "Nom",
+    "type": "Type",
+    "provider": "Fournisseur de calendrier",
+    "selectProvider": "— sélectionner —",
+    "roomName": "Nom d'affichage de la salle",
+    "roomNamePlaceholder": "ex. Salle de réunion RDC",
+    "timezone": "Fuseau horaire",
+    "policy": "Politique de confidentialité",
+    "cacheTtl": "Durée du cache (secondes)",
+    "timelineShift": "Décalage de la chronologie (heures)"
+  },
+  "providers": {
+    "title": "Sources de données",
+    "description": "Configurer les sources de calendrier et de réservation",
+    "add": "Ajouter un fournisseur",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "test": "Tester",
+    "testing": "Test en cours…",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "name": "Nom",
+    "type": "Type",
+    "types": {
+      "microsoft365": "Microsoft 365 — Calendrier",
+      "google": "Google — Calendrier",
+      "ical": "Flux iCal — Calendrier",
+      "anny": "anny.co — Réservation de salles et postes"
+    }
+  },
+  "themes": {
+    "title": "Thèmes",
+    "description": "Personnaliser l'apparence des écrans",
+    "add": "Ajouter un thème",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "save": "Enregistrer",
+    "cancel": "Annuler"
+  },
+  "profiles": {
+    "title": "Profils de rafraîchissement",
+    "description": "Configurer les plannings de rafraîchissement",
+    "add": "Ajouter un profil",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "save": "Enregistrer",
+    "cancel": "Annuler"
+  },
+  "firmware": {
+    "title": "Firmware",
+    "description": "Mises à jour OTA via GitHub Releases",
+    "flash": "Flasher l'appareil",
+    "versions": "Versions disponibles",
+    "noVersions": "Aucune version firmware trouvée sur GitHub",
+    "deviceFirmware": "Firmware des appareils",
+    "autoUpdate": "Mise à jour automatique",
+    "backgroundPolling": "Vérification en arrière-plan",
+    "interval": "Intervalle",
+    "autoUpdateOn": "Le serveur vérifie automatiquement les nouvelles versions sur GitHub",
+    "autoUpdateOff": "Vérifie uniquement à l'ouverture de la page admin ou à la demande de l'appareil"
+  },
+  "flash": {
+    "title": "Flasher le firmware",
+    "description": "Flasher le firmware directement via USB dans le navigateur",
+    "model": "Modèle d'écran",
+    "channel": "Canal",
+    "connect": "⚡ Connecter et flasher",
+    "unsupported": "Web Serial n'est pas pris en charge dans ce navigateur. Veuillez utiliser Chrome ou Edge.",
+    "instructions": {
+      "title": "Instructions :",
+      "step1": "Connecter l'appareil via câble USB-C",
+      "step2": "Allumer l'appareil (interrupteur à l'arrière)",
+      "step3": "Cliquer sur « Connecter et flasher » et sélectionner le port série",
+      "step4": "Attendre la fin du flash — ne pas déconnecter"
+    }
+  },
+  "login": {
+    "title": "Connexion à Vellum Console",
+    "username": "Nom d'utilisateur",
+    "password": "Mot de passe",
+    "submit": "Se connecter",
+    "error": "Identifiants invalides"
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "confirm": "Confirmer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "close": "Fermer",
+    "search": "Rechercher...",
+    "noResults": "Aucun résultat"
+  }
+}
