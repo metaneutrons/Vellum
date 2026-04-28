@@ -16,10 +16,10 @@ const ANNY_BASE = "https://b.anny.co/api/v1";
 
 export const annyCredentialSchema = z.object({
   apiToken: z.string().min(1),
+  organizationId: z.string().min(1),
 });
 
 export const annyRoomConfigSchema = z.object({
-  organizationId: z.string().min(1),
   resourceId: z.string().uuid(),
   resourceName: z.string().optional(),
 });
@@ -134,7 +134,7 @@ export const annyProvider: CalendarProvider = {
 
     log.info("anny: fetching bookings", {
       resourceId: room.resourceId,
-      orgId: room.organizationId,
+      orgId: creds.organizationId,
       from: windowStart.toISOString().split("T")[0],
       to: windowEnd.toISOString().split("T")[0],
     });
@@ -142,7 +142,7 @@ export const annyProvider: CalendarProvider = {
     const result = await annyFetch(
       "/bookings",
       creds.apiToken,
-      room.organizationId,
+      creds.organizationId,
       {
         "filter[resource_id]": room.resourceId,
         "filter[date_from]": windowStart.toISOString().split("T")[0],

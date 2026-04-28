@@ -54,12 +54,11 @@ function RoomBookingEditor({ config, onChange, providers }: {
         <div className="mb-3">
           <AnnyResourcePicker
             providerId={config.providerId as string}
-            organizationId={(roomConfig.organizationId as string) ?? ""}
             resourceId={roomConfig.resourceId ?? ""}
             resourceName={roomConfig.resourceName}
-            onChange={(orgId, resId, resName) => onChange({
+            onChange={(resId, resName) => onChange({
               ...config,
-              roomConfig: { organizationId: orgId, resourceId: resId, resourceName: resName },
+              roomConfig: { resourceId: resId, resourceName: resName },
               roomName: (config.roomName as string) || resName,
             })}
           />

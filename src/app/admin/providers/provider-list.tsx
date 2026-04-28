@@ -39,6 +39,7 @@ const PROVIDER_TYPES = {
     label: "anny.co — Room & Workspace Booking", category: "calendar",
     fields: [
       { key: "apiToken", label: "API Token", secret: true },
+      { key: "organizationId", label: "Organization ID", secret: false },
     ],
   },
 } as const;
