@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 
 const linkKeys = [
@@ -16,6 +16,9 @@ const linkKeys = [
   { href: "/admin/firmware", key: "firmware" as const, icon: "↑" },
 ];
 
+const FLAGS: Record<string, string> = { en: "🇬🇧", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", es: "🇪🇸" };
+const LOCALES = ["en", "de", "fr", "it", "es"];
+
 function logout() {
   document.cookie = "admin_session=; path=/; max-age=0";
   window.location.href = "/login";
@@ -26,6 +29,20 @@ export function AdminNav() {
   const [open, setOpen] = useState(false);
   const t = useTranslations("nav");
   const currentLocale = useLocale();
+  const [dark, setDark] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored === "light") { setDark(false); document.documentElement.classList.remove("dark"); }
+    else { document.documentElement.classList.add("dark"); }
+  }, []);
+
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", next);
+  }
 
   function setLocale(locale: string) {
     document.cookie = `locale=${locale}; path=/; max-age=31536000`;
@@ -39,11 +56,36 @@ export function AdminNav() {
       </button>
       {open && <div className="sidebar-overlay" onClick={() => setOpen(false)} />}
       <nav className={`sidebar ${open ? "sidebar-open" : ""}`}>
-        <div style={{ padding: 16, fontSize: 18, fontWeight: 700, color: "#fff", borderBottom: "1px solid #374151", display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/vellum-icon.svg" alt="" width={48} height={48} style={{ filter: "brightness(0) invert(1)" }} />
+        {/* Logo */}
+        <div style={{ padding: "16px 16px 12px", fontSize: 18, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
+          <img src="/vellum-icon.svg" alt="" width={40} height={40} style={{ filter: "brightness(0) invert(1)" }} />
           {t("title")}
         </div>
-        <div style={{ flex: 1, paddingTop: 8 }}>
+
+        {/* Controls: language, theme, logout */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 12px 12px", borderBottom: "1px solid #374151" }}>
+          {/* Language flags */}
+          {LOCALES.map((l) => (
+            <button key={l} onClick={() => setLocale(l)} title={l.toUpperCase()}
+              style={{ fontSize: 16, padding: "4px 3px", borderRadius: 4, border: "none", background: l === currentLocale ? "#1f2937" : "transparent", cursor: "pointer", opacity: l === currentLocale ? 1 : 0.5 }}>
+              {FLAGS[l]}
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          {/* Theme toggle */}
+          <button onClick={toggleTheme} title={dark ? "Light mode" : "Dark mode"}
+            style={{ fontSize: 14, padding: "4px 6px", borderRadius: 4, border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer" }}>
+            {dark ? "☀️" : "🌙"}
+          </button>
+          {/* Logout */}
+          <button onClick={logout} title={t("logout")}
+            style={{ fontSize: 14, padding: "4px 6px", borderRadius: 4, border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer" }}>
+            ⏻
+          </button>
+        </div>
+
+        {/* Navigation links */}
+        <div style={{ flex: 1, paddingTop: 4 }}>
           {linkKeys.map((l) => (
             <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
               style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, color: pathname.startsWith(l.href) ? "#fff" : "#9ca3af", background: pathname.startsWith(l.href) ? "#1f2937" : "transparent", textDecoration: "none" }}>
@@ -52,21 +94,6 @@ export function AdminNav() {
             </Link>
           ))}
         </div>
-        <div style={{ padding: "8px 16px", borderTop: "1px solid #374151" }}>
-          <select value={currentLocale} onChange={(e) => setLocale(e.target.value)}
-            aria-label="Language"
-            style={{ width: "100%", background: "#1f2937", color: "#9ca3af", border: "1px solid #374151", borderRadius: 4, padding: "6px 8px", fontSize: 13, cursor: "pointer" }}>
-            <option value="en">English</option>
-            <option value="de">Deutsch</option>
-            <option value="fr">Français</option>
-            <option value="it">Italiano</option>
-            <option value="es">Español</option>
-          </select>
-        </div>
-        <button onClick={logout}
-          style={{ padding: "12px 16px", fontSize: 14, color: "#6b7280", borderTop: "1px solid #374151", textAlign: "left", background: "none", border: "none", borderTopStyle: "solid", borderTopWidth: 1, borderTopColor: "#374151", cursor: "pointer", width: "100%" }}>
-          {t("logout")}
-        </button>
       </nav>
       <style>{`
         .sidebar { width: 224px; min-height: 100vh; background: #0a0c14; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid #1e2030; }
