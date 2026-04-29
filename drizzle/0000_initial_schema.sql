@@ -59,6 +59,16 @@ CREATE TABLE "devices" (
   "created_at" timestamp DEFAULT now() NOT NULL
 );
 
+CREATE TABLE "assets" (
+  "id" uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  "name" text NOT NULL,
+  "mime_type" text NOT NULL,
+  "width" integer,
+  "height" integer,
+  "data" text NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL
+);
+
 CREATE TABLE "telemetry" (
   "id" serial PRIMARY KEY,
   "mac" text NOT NULL REFERENCES "devices"("mac"),

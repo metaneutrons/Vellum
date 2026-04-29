@@ -18,8 +18,71 @@ interface Provider { id: string; type: string; name: string; }
 interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; }
 
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
+import { DoorSignEditor } from "@/components/door-sign-editor";
+import type { Design } from "@/components/door-sign-editor";
 
 const POLICIES = ["Show All", "Hide Subject", "Hide All"] as const;
+
+function DoorSignConfigEditor({ config, onChange, providers }: {
+  config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[];
+}) {
+  const design = (config.design ?? { backgroundAssetId: null, textBoxes: [], freeTextBoxes: [], backgroundColor: "#FFFFFF" }) as Design;
+  const designOverrides = (config.designOverrides ?? {}) as Record<string, Design>;
+
+  return (
+    <>
+      <label className="block text-sm font-medium mb-1">Calendar Provider</label>
+      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
+        onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
+        <option value="">— select —</option>
+        {providers.filter(p => p.type === "anny").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+
+      {config.providerId && (
+        <>
+          <label className="block text-sm font-medium mb-1">Resource (Room/Desk)</label>
+          <div className="mb-3">
+            <AnnyResourcePicker
+              providerId={config.providerId as string}
+              resourceId={(config.resourceId as string) ?? ""}
+              resourceName={config.resourceName as string | undefined}
+              onChange={(resId, resName) => onChange({ ...config, resourceId: resId, resourceName: resName })}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Timezone</label>
+          <input className="w-full border rounded px-3 py-2 text-sm" placeholder="Europe/Berlin"
+            value={(config.timezone as string) ?? "Europe/Berlin"} onChange={(e) => onChange({ ...config, timezone: e.target.value })} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Locale</label>
+          <select className="w-full border rounded px-3 py-2 text-sm" value={(config.locale as string) ?? "de"}
+            onChange={(e) => onChange({ ...config, locale: e.target.value })}>
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="border-t pt-3 mt-3">
+        <label className="block text-sm font-semibold mb-2">Visual Layout</label>
+        <DoorSignEditor
+          design={design}
+          designOverrides={designOverrides}
+          onChange={(d, o) => onChange({ ...config, design: d, designOverrides: o })}
+          providerId={config.providerId as string}
+        />
+      </div>
+    </>
+  );
+}
 
 function RoomBookingEditor({ config, onChange, providers }: {
   config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[];
@@ -180,6 +243,7 @@ export function ContentList({ instances, types, providers }: Props) {
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
         title={editing === "new" ? "New Content Instance" : "Edit Content"}
+        wide={typeSlug === "door-sign"}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
@@ -203,6 +267,9 @@ export function ContentList({ instances, types, providers }: Props) {
 
         {typeSlug === "room-booking" && (
           <RoomBookingEditor config={config} onChange={setConfig} providers={providers} />
+        )}
+        {typeSlug === "door-sign" && (
+          <DoorSignConfigEditor config={config} onChange={setConfig} providers={providers} />
         )}
       </Modal>
 

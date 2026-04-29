@@ -91,6 +91,18 @@ export const devices = pgTable("devices", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/* ── Assets (background images, logos) ────────────────────────── */
+
+export const assets = pgTable("assets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  data: text("data").notNull(), /* base64-encoded binary */
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 /* ── Telemetry ────────────────────────────────────────────────── */
 
 export const telemetry = pgTable("telemetry", {

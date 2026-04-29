@@ -6,6 +6,7 @@
 
 import type { ContentRenderer } from "./types";
 import { roomBookingRenderer } from "./renderers/room-booking";
+import { doorSignRenderer } from "./renderers/door-sign";
 
 const renderers = new Map<string, ContentRenderer>();
 
@@ -14,6 +15,7 @@ function register(renderer: ContentRenderer) {
 }
 
 register(roomBookingRenderer);
+register(doorSignRenderer);
 
 export function getContentRenderer(slug: string): ContentRenderer | undefined {
   return renderers.get(slug);
