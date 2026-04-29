@@ -34,24 +34,19 @@ export async function POST(request: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const data = buffer.toString("base64");
 
   let width: number | null = null;
   let height: number | null = null;
 
-  if (file.type === "image/png" || file.type === "image/jpeg") {
-    // Extract dimensions from PNG/JPEG header
-    if (file.type === "image/png" && buffer.length >= 24) {
-      width = buffer.readUInt32BE(16);
-      height = buffer.readUInt32BE(20);
-    } else if (file.type === "image/jpeg") {
-      // JPEG: scan for SOF marker
-      for (let i = 0; i < buffer.length - 9; i++) {
-        if (buffer[i] === 0xff && (buffer[i + 1] === 0xc0 || buffer[i + 1] === 0xc2)) {
-          height = buffer.readUInt16BE(i + 5);
-          width = buffer.readUInt16BE(i + 7);
-          break;
-        }
+  if (file.type === "image/png" && buffer.length >= 24) {
+    width = buffer.readUInt32BE(16);
+    height = buffer.readUInt32BE(20);
+  } else if (file.type === "image/jpeg") {
+    for (let i = 0; i < buffer.length - 9; i++) {
+      if (buffer[i] === 0xff && (buffer[i + 1] === 0xc0 || buffer[i + 1] === 0xc2)) {
+        height = buffer.readUInt16BE(i + 5);
+        width = buffer.readUInt16BE(i + 7);
+        break;
       }
     }
   }
@@ -61,7 +56,7 @@ export async function POST(request: Request) {
     mimeType: file.type,
     width,
     height,
-    data,
+    data: buffer,
   }).returning({ id: assets.id });
 
   return Response.json({ id: row.id, name, mimeType: file.type, width, height }, { status: 201 });

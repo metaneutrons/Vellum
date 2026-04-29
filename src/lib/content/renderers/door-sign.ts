@@ -222,8 +222,7 @@ async function renderDoorSign(
   if (design.backgroundAssetId) {
     const [asset] = await db.select().from(assets).where(eq(assets.id, design.backgroundAssetId)).limit(1);
     if (asset) {
-      const buf = Buffer.from(asset.data, "base64");
-      const img = await loadImage(buf);
+      const img = await loadImage(asset.data);
       c.drawImage(img, 0, 0, width, height);
     } else {
       c.fillStyle = design.backgroundColor;

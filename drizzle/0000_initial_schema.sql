@@ -65,7 +65,7 @@ CREATE TABLE "assets" (
   "mime_type" text NOT NULL,
   "width" integer,
   "height" integer,
-  "data" text NOT NULL,
+  "data" bytea NOT NULL,
   "created_at" timestamp DEFAULT now() NOT NULL
 );
 

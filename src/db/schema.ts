@@ -10,6 +10,7 @@ import {
   jsonb,
   uuid,
   boolean,
+  customType,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -91,6 +92,14 @@ export const devices = pgTable("devices", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/* ── Custom column types ───────────────────────────────────────── */
+
+const bytea = customType<{ data: Buffer }>({
+  dataType() { return "bytea"; },
+  toDriver(value: Buffer) { return value; },
+  fromDriver(value: unknown) { return value as Buffer; },
+});
+
 /* ── Assets (background images, logos) ────────────────────────── */
 
 export const assets = pgTable("assets", {
@@ -99,7 +108,7 @@ export const assets = pgTable("assets", {
   mimeType: text("mime_type").notNull(),
   width: integer("width"),
   height: integer("height"),
-  data: text("data").notNull(), /* base64-encoded binary */
+  data: bytea("data").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
