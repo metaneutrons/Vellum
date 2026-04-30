@@ -29,34 +29,47 @@ export async function GET(request: NextRequest) {
 
   const url = new URL("https://b.anny.co/api/v1/resource-properties");
   url.searchParams.set("o", orgId);
-  url.searchParams.set("include", "property");
-  url.searchParams.set("filter[resource_id]", resourceId);
-  url.searchParams.set("page[size]", "50");
+  url.searchParams.set("include", "property,resource");
+  url.searchParams.set("page[size]", "200");
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${creds.apiToken}`, Accept: "application/vnd.api+json" },
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  if (!res.ok) return Response.json({ error: `anny API ${res.status}` }, { status: 502 });
-  const data = await res.json();
-
-  // Build property label map from included
-  const propLabels = new Map<string, string>();
-  for (const inc of (data.included ?? []) as { id: string; type: string; attributes: { label?: string } }[]) {
-    if (inc.type === "properties" && inc.attributes.label) {
-      propLabels.set(inc.id, inc.attributes.label);
-    }
-  }
-
-  // Resolve values keyed by label
+  // Paginate until we find properties for our resource (API doesn't support filtering by resource)
   const props: Record<string, string> = {};
-  for (const rp of (data.data ?? []) as { attributes: { value: unknown }; relationships?: { property?: { data?: { id: string } } } }[]) {
-    const propId = rp.relationships?.property?.data?.id;
-    const label = propId ? propLabels.get(propId) : undefined;
-    if (label && rp.attributes.value != null) {
-      props[`prop.${label}`] = String(rp.attributes.value);
+  let page = 1;
+  const MAX_PAGES = 10;
+
+  while (page <= MAX_PAGES) {
+    url.searchParams.set("page[number]", String(page));
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${creds.apiToken}`, Accept: "application/vnd.api+json" },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!res.ok) break;
+    const data = await res.json();
+
+    // Build property label map from included
+    const propLabels = new Map<string, string>();
+    for (const inc of (data.included ?? []) as { id: string; type: string; attributes: { label?: string } }[]) {
+      if (inc.type === "properties" && inc.attributes.label) {
+        propLabels.set(inc.id, inc.attributes.label);
+      }
     }
+
+    // Filter for our resource and resolve values
+    for (const rp of (data.data ?? []) as { attributes: { value: unknown }; relationships?: { resource?: { data?: { id: string } }; property?: { data?: { id: string } } } }[]) {
+      if (rp.relationships?.resource?.data?.id !== resourceId) continue;
+      const propId = rp.relationships?.property?.data?.id;
+      const label = propId ? propLabels.get(propId) : undefined;
+      if (label && rp.attributes.value != null) {
+        props[`prop.${label}`] = String(rp.attributes.value);
+      }
+    }
+
+    // Stop if we found properties or reached last page
+    if (Object.keys(props).length > 0) break;
+    const lastPage = data.meta?.page?.["last-page"] ?? 1;
+    if (page >= lastPage) break;
+    page++;
   }
 
   return Response.json(props);

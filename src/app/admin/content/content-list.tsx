@@ -70,6 +70,35 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
         </div>
       </div>
 
+      {/* Custom Properties — manual key-value pairs for template variables */}
+      <div className="border-t pt-3 mt-3">
+        <label className="block text-sm font-semibold mb-1">Custom Properties</label>
+        <p className="text-xs text-gray-500 mb-2">Define static values available as template variables (e.g. prop.Raumnummer → 1J.2.02)</p>
+        {Object.entries((config.cachedProperties as Record<string, string>) ?? {}).map(([key, val]) => (
+          <div key={key} className="flex gap-2 mb-1">
+            <input className="flex-1 border rounded px-2 py-1 text-sm" value={key} readOnly />
+            <input className="flex-1 border rounded px-2 py-1 text-sm" value={val}
+              onChange={(e) => onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [key]: e.target.value } })} />
+            <button className="text-red-500 text-sm px-1" onClick={() => {
+              const { [key]: _, ...rest } = (config.cachedProperties as Record<string, string>) ?? {};
+              onChange({ ...config, cachedProperties: rest });
+            }}>×</button>
+          </div>
+        ))}
+        <div className="flex gap-2 mt-1">
+          <input id="newPropKey" className="flex-1 border rounded px-2 py-1 text-sm" placeholder="prop.Raumnummer" />
+          <input id="newPropVal" className="flex-1 border rounded px-2 py-1 text-sm" placeholder="1J.2.02" />
+          <button className="text-blue-600 text-sm font-medium px-2" onClick={() => {
+            const keyEl = document.getElementById("newPropKey") as HTMLInputElement;
+            const valEl = document.getElementById("newPropVal") as HTMLInputElement;
+            if (keyEl.value && valEl.value) {
+              onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [keyEl.value]: valEl.value } });
+              keyEl.value = ""; valEl.value = "";
+            }
+          }}>+ Add</button>
+        </div>
+      </div>
+
       <div className="border-t pt-3 mt-3">
         <label className="block text-sm font-semibold mb-2">Visual Layout</label>
         <DoorSignEditor
