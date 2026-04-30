@@ -185,8 +185,10 @@ export const doorSignRenderer: ContentRenderer = {
       }
     }
 
-    // Render text boxes
-    const boxes = isOccupied ? design.textBoxes : design.freeTextBoxes;
+    // Render text boxes — fall back to occupied layout if free layout is empty
+    const boxes = isOccupied
+      ? design.textBoxes
+      : (design.freeTextBoxes.length > 0 ? design.freeTextBoxes : design.textBoxes);
     renderTextBoxes(c, boxes, ctx, width, height);
 
     return { canvas };
