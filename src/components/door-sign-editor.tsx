@@ -208,9 +208,13 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
                   {selectedBox === box.id && (
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow hover:bg-red-600"
+                      className="absolute top-1 right-1 w-6 h-6 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md backdrop-blur-sm bg-white/60 dark:bg-black/40 flex items-center justify-center transition-colors"
                       title="Delete"
-                    >×</button>
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14M10 11v6M14 11v6"/>
+                      </svg>
+                    </button>
                   )}
                 </div>
               </Rnd>
