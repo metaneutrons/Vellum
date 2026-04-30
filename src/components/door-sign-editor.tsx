@@ -4,17 +4,11 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Rnd } from "react-rnd";
-import type { TextBox, Design } from "@/lib/content/renderers/door-sign-types";
+import { TEMPLATE_VARS, DEFAULT_DISPLAY, type TextBox, type Design, type DisplaySize } from "@/lib/content/renderers/door-sign-types";
 
-export type { TextBox, Design };
+export type { TextBox, Design, DisplaySize };
 
 /* ── Types ────────────────────────────────────────────────────── */
-
-interface DisplaySize {
-  label: string;
-  width: number;
-  height: number;
-}
 
 interface Props {
   design: Design;
@@ -26,17 +20,6 @@ interface Props {
   onPropertiesResolved?: (props: Record<string, string>) => void;
 }
 
-/* ── Template variables ───────────────────────────────────────── */
-
-const TEMPLATE_VARS = [
-  { key: "{full_name}", label: "Full name (organizer)" },
-  { key: "{booking_description}", label: "Booking description" },
-  { key: "{start}", label: "Start time" },
-  { key: "{end}", label: "End time" },
-  { key: "{date}", label: "Date" },
-  { key: "{resource_name}", label: "Resource name" },
-];
-
 /* ── Component ────────────────────────────────────────────────── */
 
 export function DoorSignEditor({ design, designOverrides, onChange, knownDisplays, providerId, resourceId, onPropertiesResolved }: Props) {
@@ -47,7 +30,7 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 600, h: 360 });
 
-  const displays = knownDisplays.length > 0 ? knownDisplays : [{ label: "Default (800×480)", width: 800, height: 480 }];
+  const displays = knownDisplays.length > 0 ? knownDisplays : [DEFAULT_DISPLAY];
 
   const currentDisplay = activeDisplay === "default"
     ? displays[0]

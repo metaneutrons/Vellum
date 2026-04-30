@@ -15,12 +15,11 @@ import { EmptyState } from "@/components/empty-state";
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
 interface ContentType { slug: string; name: string; description?: string | null; }
 interface Provider { id: string; type: string; name: string; }
-interface DisplaySize { label: string; width: number; height: number; }
 interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; knownDisplays: DisplaySize[]; }
 
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
-import type { Design } from "@/lib/content/renderers/door-sign-types";
+import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
 
 const POLICIES = ["Show All", "Hide Subject", "Hide All"] as const;
 

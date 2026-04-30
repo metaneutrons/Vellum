@@ -317,6 +317,7 @@ export async function updateSetting(key: string, value: unknown) {
 }
 
 export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
+  const { DEFAULT_DISPLAY } = await import("@/lib/content/renderers/door-sign-types");
   const rows = await db.select({ displayCaps: devices.displayCaps }).from(devices);
   const seen = new Set<string>();
   const sizes: { label: string; width: number; height: number }[] = [];
@@ -331,10 +332,6 @@ export async function getKnownDisplaySizes(): Promise<{ label: string; width: nu
     sizes.push({ label: `${caps.model ?? "Unknown"} (${key})`, width: caps.width, height: caps.height });
   }
 
-  // Fallback if no devices registered yet
-  if (sizes.length === 0) {
-    sizes.push({ label: "E1002 (800×480)", width: 800, height: 480 });
-  }
-
+  if (sizes.length === 0) sizes.push(DEFAULT_DISPLAY);
   return sizes;
 }

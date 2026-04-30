@@ -8,12 +8,13 @@
  * at config time (stored in content instance config), not fetched per render.
  */
 
-import { createCanvas, loadImage, type Canvas } from "@napi-rs/canvas";
+import { createCanvas, loadImage, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
+import { TZDate } from "@date-fns/tz";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, dataProviders } from "@/db/schema";
-import { decryptCredentials } from "@/lib/encryption";
+import { assets } from "@/db/schema";
 import { getCalendarProvider } from "@/lib/calendar/registry";
+import { getProviderWithCredentials } from "@/lib/providers";
 import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
 import type { CalendarEvent } from "@/lib/calendar/types";
@@ -22,10 +23,10 @@ import { doorSignConfigSchema, type DoorSignConfig, type Design, type TextBox } 
 
 /* ── Caches ───────────────────────────────────────────────────── */
 
-const ASSET_CACHE_TTL_MS = 5 * 60_000; // 5 min
+const ASSET_CACHE_TTL_MS = 5 * 60_000;
 const assetCache = new TtlCache<Buffer>(ASSET_CACHE_TTL_MS);
 
-const BOOKING_CACHE_TTL_MS = 60_000; // 1 min
+const BOOKING_CACHE_TTL_MS = 60_000;
 const bookingCache = new TtlCache<CalendarEvent[]>(BOOKING_CACHE_TTL_MS);
 
 /* ── Template variable resolution ─────────────────────────────── */
@@ -41,38 +42,26 @@ function resolveTemplate(template: string, ctx: TemplateContext): string {
 
 /* ── Fetch current booking via provider interface ─────────────── */
 
-async function fetchCurrentBooking(
-  config: DoorSignConfig,
-  now: Date,
-): Promise<CalendarEvent | null> {
+async function fetchCurrentBooking(config: DoorSignConfig, now: Date): Promise<CalendarEvent | null> {
   const cacheKey = `door-sign:${config.providerId}:${config.resourceId}`;
   const cached = bookingCache.get(cacheKey);
   const events = cached ?? await fetchEventsFromProvider(config, now);
-
   if (!cached) bookingCache.set(cacheKey, events);
-
-  // Find event covering "now"
   return events.find(e => now >= e.startTime && now < e.endTime) ?? null;
 }
 
 async function fetchEventsFromProvider(config: DoorSignConfig, now: Date): Promise<CalendarEvent[]> {
-  const [provider] = await db.select().from(dataProviders)
-    .where(eq(dataProviders.id, config.providerId)).limit(1);
-  if (!provider) throw new Error(`Provider ${config.providerId} not found`);
-
+  const provider = await getProviderWithCredentials(config.providerId);
   const impl = getCalendarProvider(provider.type);
   if (!impl) throw new Error(`No implementation for provider type: ${provider.type}`);
 
-  const credentials = decryptCredentials(provider.encryptedCredentials);
-
-  // Window: today (midnight to midnight in configured timezone)
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  // Timezone-aware day boundaries
+  const tzNow = new TZDate(now, config.timezone);
+  const dayStart = new TZDate(tzNow.getFullYear(), tzNow.getMonth(), tzNow.getDate(), 0, 0, 0, config.timezone);
+  const dayEnd = new TZDate(tzNow.getFullYear(), tzNow.getMonth(), tzNow.getDate() + 1, 0, 0, 0, config.timezone);
 
   return impl.fetchEvents({
-    credentials,
+    credentials: provider.credentials,
     roomConfig: { resourceId: config.resourceId, resourceName: config.resourceName },
     windowStart: dayStart,
     windowEnd: dayEnd,
@@ -103,13 +92,7 @@ function formatTime(date: Date, locale: string, timezone: string): string {
   return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone: timezone });
 }
 
-function renderTextBoxes(
-  c: CanvasRenderingContext2D,
-  boxes: TextBox[],
-  ctx: TemplateContext,
-  width: number,
-  height: number,
-): void {
+function renderTextBoxes(c: SKRSContext2D, boxes: TextBox[], ctx: TemplateContext, width: number, height: number): void {
   for (const box of boxes) {
     const text = resolveTemplate(box.template, ctx);
     if (!text) continue;
@@ -123,14 +106,9 @@ function renderTextBoxes(
     c.fillStyle = box.color;
     c.font = `${box.bold ? "bold " : ""}${fs}px sans-serif`;
     c.textBaseline = "top";
+    c.textAlign = box.align === "center" ? "center" : box.align === "right" ? "right" : "left";
 
-    if (box.align === "center") { c.textAlign = "center"; }
-    else if (box.align === "right") { c.textAlign = "right"; }
-    else { c.textAlign = "left"; }
-
-    const tx = box.align === "center" ? px + pw / 2
-      : box.align === "right" ? px + pw
-      : px;
+    const tx = box.align === "center" ? px + pw / 2 : box.align === "right" ? px + pw : px;
 
     // Word wrap
     const words = text.split(" ");
@@ -174,7 +152,7 @@ export const doorSignRenderer: ContentRenderer = {
     // Build template context
     const ctx: TemplateContext = {
       resource_name: config.resourceName ?? "",
-      ...config.cachedProperties, // pre-resolved at config time
+      ...config.cachedProperties,
     };
 
     if (event) {
@@ -187,28 +165,29 @@ export const doorSignRenderer: ContentRenderer = {
       });
     }
 
-    // Create canvas
+    // Create canvas + background
     const canvas = createCanvas(width, height);
     const c = canvas.getContext("2d");
 
-    // Background
+    // Always fill background color first (fallback if image fails)
+    c.fillStyle = design.backgroundColor;
+    c.fillRect(0, 0, width, height);
+
     if (design.backgroundAssetId) {
-      const buf = await loadBackgroundAsset(design.backgroundAssetId);
-      if (buf) {
-        const img = await loadImage(buf);
-        c.drawImage(img, 0, 0, width, height);
-      } else {
-        c.fillStyle = design.backgroundColor;
-        c.fillRect(0, 0, width, height);
+      try {
+        const buf = await loadBackgroundAsset(design.backgroundAssetId);
+        if (buf) {
+          const img = await loadImage(buf);
+          c.drawImage(img, 0, 0, width, height);
+        }
+      } catch (err) {
+        log.warn("door-sign: failed to load background image", { assetId: design.backgroundAssetId, error: String(err) });
       }
-    } else {
-      c.fillStyle = design.backgroundColor;
-      c.fillRect(0, 0, width, height);
     }
 
     // Render text boxes
     const boxes = isOccupied ? design.textBoxes : design.freeTextBoxes;
-    renderTextBoxes(c as unknown as CanvasRenderingContext2D, boxes, ctx, width, height);
+    renderTextBoxes(c, boxes, ctx, width, height);
 
     return { canvas };
   },

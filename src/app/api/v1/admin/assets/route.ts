@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
+import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/svg+xml", "image/jpeg"];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_LIMIT = 50;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "") || DEFAULT_LIMIT, 200);
+  const offset = parseInt(request.nextUrl.searchParams.get("offset") ?? "") || 0;
+
   const rows = await db.select({
     id: assets.id,
     name: assets.name,
@@ -15,7 +21,7 @@ export async function GET() {
     width: assets.width,
     height: assets.height,
     createdAt: assets.createdAt,
-  }).from(assets).orderBy(assets.createdAt);
+  }).from(assets).orderBy(assets.createdAt).limit(limit).offset(offset);
 
   return Response.json(rows);
 }
@@ -51,18 +57,11 @@ export async function POST(request: Request) {
     }
   }
 
-  const [row] = await db.insert(assets).values({
-    name,
-    mimeType: file.type,
-    width,
-    height,
-    data: buffer,
-  }).returning({ id: assets.id });
+  const [row] = await db.insert(assets).values({ name, mimeType: file.type, width, height, data: buffer })
+    .returning({ id: assets.id });
 
   return Response.json({ id: row.id, name, mimeType: file.type, width, height }, { status: 201 });
 }
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
