@@ -201,10 +201,17 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
                 className={`cursor-move ${selectedBox === box.id ? "ring-2 ring-blue-500" : ""}`}
               >
                 <div
-                  className={`w-full h-full border border-dashed flex items-center justify-center overflow-hidden ${selectedBox === box.id ? "border-blue-500 bg-blue-50/30" : "border-gray-400/50 hover:border-blue-300"}`}
+                  className={`relative w-full h-full border border-dashed flex items-center justify-center overflow-hidden ${selectedBox === box.id ? "border-blue-500 bg-blue-50/30" : "border-gray-400/50 hover:border-blue-300"}`}
                   style={{ fontSize: `${box.fontSize * containerSize.h}px`, textAlign: box.align, color: box.color, fontWeight: box.bold ? "bold" : "normal" }}
                 >
                   <span className="px-1 truncate">{box.template}</span>
+                  {selectedBox === box.id && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow hover:bg-red-600"
+                      title="Delete"
+                    >×</button>
+                  )}
                 </div>
               </Rnd>
             ))}
