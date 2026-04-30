@@ -30,17 +30,18 @@ export const annyCredentialSchema = z.object({
 });
 
 export const annyRoomConfigSchema = z.object({
-  resourceId: z.string().uuid(),
+  resourceId: z.string().min(1),
   resourceName: z.string().optional(),
 });
 
 interface AnnyBooking {
   id: string;
   attributes: {
-    start: string;
-    end: string;
+    start_date: string;
+    end_date: string;
     status: string;
-    notes?: string | null;
+    description?: string | null;
+    note?: string | null;
   };
   relationships?: {
     customer?: { data?: { id: string; type: string } | null };
@@ -157,13 +158,9 @@ export const annyProvider: CalendarProvider = {
       creds.apiToken,
       orgId,
       {
-        "filter[resource_id]": room.resourceId,
-        "filter[date_from]": windowStart.toISOString().split("T")[0],
-        "filter[date_to]": windowEnd.toISOString().split("T")[0],
+        "filter[resources]": room.resourceId,
         "filter[status]": "accepted",
         "include": "customer",
-        "fields[bookings]": "start,end,status,notes",
-        "fields[customers]": "first_name,last_name",
         "page[size]": "100",
       }
     );
@@ -174,23 +171,23 @@ export const annyProvider: CalendarProvider = {
     const customers = new Map<string, string>();
     for (const inc of included) {
       if (inc.type === "customers") {
-        const first = (inc.attributes.first_name as string) ?? "";
-        const last = (inc.attributes.last_name as string) ?? "";
+        const first = (inc.attributes.given_name as string) ?? "";
+        const last = (inc.attributes.family_name as string) ?? "";
         customers.set(inc.id, `${first} ${last}`.trim());
       }
     }
 
     const events: CalendarEvent[] = [];
     for (const b of bookings) {
-      const start = new Date(b.attributes.start);
-      const end = new Date(b.attributes.end);
+      const start = new Date(b.attributes.start_date);
+      const end = new Date(b.attributes.end_date);
       if (end <= windowStart || start >= windowEnd) continue;
 
       const customerId = b.relationships?.customer?.data?.id;
       const organizer = customerId ? (customers.get(customerId) ?? "Booked") : "Booked";
 
       events.push({
-        subject: b.attributes.notes || room.resourceName || "Booking",
+        subject: b.attributes.description || room.resourceName || "Booking",
         organizer,
         startTime: start,
         endTime: end,
