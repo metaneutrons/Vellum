@@ -207,7 +207,7 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
                   <span className="px-1 truncate">{box.template}</span>
                   {selectedBox === box.id && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }}
+                      onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); deleteBox(box.id); }}
                       className="absolute top-1 right-1 w-6 h-6 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md backdrop-blur-sm bg-white/60 dark:bg-black/40 flex items-center justify-center transition-colors"
                       title="Delete"
                     >
@@ -251,7 +251,11 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
               <div className="flex flex-wrap gap-1">
                 {allVars.map(v => (
                   <button key={v.key}
-                    onClick={() => updateBox(selectedBoxData.id, { template: selectedBoxData.template + " " + v.key })}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      const current = boxes.find(b => b.id === selectedBox);
+                      if (current) updateBox(current.id, { template: current.template + (current.template ? " " : "") + v.key });
+                    }}
                     className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200"
                     title={v.label}>{v.key}</button>
                 ))}
