@@ -15,16 +15,17 @@ import { EmptyState } from "@/components/empty-state";
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
 interface ContentType { slug: string; name: string; description?: string | null; }
 interface Provider { id: string; type: string; name: string; }
-interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; }
+interface DisplaySize { label: string; width: number; height: number; }
+interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; knownDisplays: DisplaySize[]; }
 
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
-import type { Design } from "@/components/door-sign-editor";
+import type { Design } from "@/lib/content/renderers/door-sign-types";
 
 const POLICIES = ["Show All", "Hide Subject", "Hide All"] as const;
 
-function DoorSignConfigEditor({ config, onChange, providers }: {
-  config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[];
+function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
+  config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
 }) {
   const design = (config.design ?? { backgroundAssetId: null, textBoxes: [], freeTextBoxes: [], backgroundColor: "#FFFFFF" }) as Design;
   const designOverrides = (config.designOverrides ?? {}) as Record<string, Design>;
@@ -77,7 +78,10 @@ function DoorSignConfigEditor({ config, onChange, providers }: {
           design={design}
           designOverrides={designOverrides}
           onChange={(d, o) => onChange({ ...config, design: d, designOverrides: o })}
+          knownDisplays={knownDisplays}
           providerId={config.providerId as string}
+          resourceId={config.resourceId as string}
+          onPropertiesResolved={(props) => onChange({ ...config, cachedProperties: props })}
         />
       </div>
     </>
@@ -162,7 +166,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
   );
 }
 
-export function ContentList({ instances, types, providers }: Props) {
+export function ContentList({ instances, types, providers, knownDisplays }: Props) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
@@ -269,7 +273,7 @@ export function ContentList({ instances, types, providers }: Props) {
           <RoomBookingEditor config={config} onChange={setConfig} providers={providers} />
         )}
         {typeSlug === "door-sign" && (
-          <DoorSignConfigEditor config={config} onChange={setConfig} providers={providers} />
+          <DoorSignConfigEditor config={config} onChange={setConfig} providers={providers} knownDisplays={knownDisplays} />
         )}
       </Modal>
 

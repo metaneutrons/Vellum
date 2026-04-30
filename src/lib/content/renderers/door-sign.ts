@@ -3,240 +3,113 @@
 /**
  * Door-sign content renderer — configurable name plate for rooms/desks.
  *
- * Renders a background image with positioned text boxes filled from
- * anny booking data (customer, resource properties). Supports per-display
- * design overrides for different aspect ratios.
+ * Provider-agnostic: uses the calendar provider interface to fetch bookings.
+ * Background images are cached in memory. Resource properties are cached
+ * at config time (stored in content instance config), not fetched per render.
  */
 
-import { z } from "zod";
 import { createCanvas, loadImage, type Canvas } from "@napi-rs/canvas";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, dataProviders } from "@/db/schema";
 import { decryptCredentials } from "@/lib/encryption";
-import { extractOrgFromToken, annyCredentialSchema, annyRoomConfigSchema } from "@/lib/calendar/providers/anny";
+import { getCalendarProvider } from "@/lib/calendar/registry";
+import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
+import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
+import { doorSignConfigSchema, type DoorSignConfig, type Design, type TextBox } from "./door-sign-types";
 
-/* ── Schema ───────────────────────────────────────────────────── */
+/* ── Caches ───────────────────────────────────────────────────── */
 
-const textBoxSchema = z.object({
-  id: z.string(),
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  w: z.number().min(0).max(1),
-  h: z.number().min(0).max(1),
-  template: z.string(),
-  fontSize: z.number().min(0.01).max(0.5), // relative to height
-  align: z.enum(["left", "center", "right"]).default("center"),
-  color: z.string().default("#000000"),
-  bold: z.boolean().default(false),
-});
+const ASSET_CACHE_TTL_MS = 5 * 60_000; // 5 min
+const assetCache = new TtlCache<Buffer>(ASSET_CACHE_TTL_MS);
 
-const designSchema = z.object({
-  backgroundAssetId: z.string().uuid().nullable().default(null),
-  textBoxes: z.array(textBoxSchema).default([]),
-  freeTextBoxes: z.array(textBoxSchema).default([]),
-  backgroundColor: z.string().default("#FFFFFF"),
-});
-
-export const doorSignConfigSchema = z.object({
-  providerId: z.string().uuid(),
-  resourceId: z.string(),
-  resourceName: z.string().optional(),
-  locale: z.string().default("de"),
-  timezone: z.string().default("Europe/Berlin"),
-  // Default design (used when no size-specific override matches)
-  design: designSchema,
-  // Per-display-size overrides: key = "WxH" (e.g. "800x480")
-  designOverrides: z.record(z.string(), designSchema).default({}),
-});
-
-export type DoorSignConfig = z.infer<typeof doorSignConfigSchema>;
-export type TextBox = z.infer<typeof textBoxSchema>;
-type Design = z.infer<typeof designSchema>;
+const BOOKING_CACHE_TTL_MS = 60_000; // 1 min
+const bookingCache = new TtlCache<CalendarEvent[]>(BOOKING_CACHE_TTL_MS);
 
 /* ── Template variable resolution ─────────────────────────────── */
 
-interface BookingContext {
-  title?: string;
-  given_name?: string;
-  family_name?: string;
-  full_name?: string;
-  company?: string;
-  email?: string;
-  booking_description?: string;
-  booking_note?: string;
-  start?: string;
-  end?: string;
-  date?: string;
-  resource_name?: string;
-  [key: string]: string | undefined; // prop.* and custom.*
+interface TemplateContext {
+  [key: string]: string | undefined;
 }
 
-function resolveTemplate(template: string, ctx: BookingContext): string {
-  return template.replace(/\{([^}]+)\}/g, (_, key: string) => {
-    const val = ctx[key] ?? ctx[key.replace("prop.", "")] ?? "";
-    return String(val);
-  }).replace(/\s{2,}/g, " ").trim();
+function resolveTemplate(template: string, ctx: TemplateContext): string {
+  return template.replace(/\{([^}]+)\}/g, (_, key: string) => ctx[key] ?? "")
+    .replace(/\s{2,}/g, " ").trim();
 }
 
-/* ── Fetch current booking from anny ──────────────────────────── */
-
-interface CurrentBooking {
-  customerTitle?: string;
-  customerGivenName?: string;
-  customerFamilyName?: string;
-  customerFullName?: string;
-  customerCompany?: string;
-  customerEmail?: string;
-  description?: string;
-  note?: string;
-  startDate: Date;
-  endDate: Date;
-}
+/* ── Fetch current booking via provider interface ─────────────── */
 
 async function fetchCurrentBooking(
-  apiToken: string,
-  orgId: string,
-  resourceId: string,
+  config: DoorSignConfig,
   now: Date,
-): Promise<CurrentBooking | null> {
-  const ANNY_BASE = "https://b.anny.co/api/v1";
-  const today = now.toISOString().split("T")[0];
+): Promise<CalendarEvent | null> {
+  const cacheKey = `door-sign:${config.providerId}:${config.resourceId}`;
+  const cached = bookingCache.get(cacheKey);
+  const events = cached ?? await fetchEventsFromProvider(config, now);
 
-  const url = new URL(`${ANNY_BASE}/bookings`);
-  url.searchParams.set("o", orgId);
-  url.searchParams.set("filter[resource_id]", resourceId);
-  url.searchParams.set("filter[date_from]", today);
-  url.searchParams.set("filter[date_to]", today);
-  url.searchParams.set("filter[status]", "accepted");
-  url.searchParams.set("include", "customer");
-  url.searchParams.set("page[size]", "20");
+  if (!cached) bookingCache.set(cacheKey, events);
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${apiToken}`, Accept: "application/vnd.api+json" },
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  if (!res.ok) return null;
-  const data = await res.json();
-
-  // Build customer map
-  const customers = new Map<string, Record<string, unknown>>();
-  for (const inc of (data.included ?? []) as { id: string; type: string; attributes: Record<string, unknown> }[]) {
-    if (inc.type === "customers") customers.set(inc.id, inc.attributes);
-  }
-
-  // Find booking that covers "now"
-  for (const b of (data.data ?? []) as { attributes: Record<string, unknown>; relationships?: Record<string, { data?: { id: string } | null }> }[]) {
-    const start = new Date(b.attributes.start_date as string);
-    const end = new Date(b.attributes.end_date as string);
-    if (now >= start && now < end) {
-      const custId = b.relationships?.customer?.data?.id;
-      const cust = custId ? customers.get(custId) : undefined;
-      return {
-        customerTitle: cust?.title as string | undefined,
-        customerGivenName: cust?.given_name as string | undefined,
-        customerFamilyName: cust?.family_name as string | undefined,
-        customerFullName: cust?.full_name as string | undefined,
-        customerCompany: cust?.company as string | undefined,
-        customerEmail: cust?.email as string | undefined,
-        description: b.attributes.description as string | undefined,
-        note: b.attributes.note as string | undefined,
-        startDate: start,
-        endDate: end,
-      };
-    }
-  }
-
-  return null;
+  // Find event covering "now"
+  return events.find(e => now >= e.startTime && now < e.endTime) ?? null;
 }
 
-/* ── Fetch resource properties ────────────────────────────────── */
+async function fetchEventsFromProvider(config: DoorSignConfig, now: Date): Promise<CalendarEvent[]> {
+  const [provider] = await db.select().from(dataProviders)
+    .where(eq(dataProviders.id, config.providerId)).limit(1);
+  if (!provider) throw new Error(`Provider ${config.providerId} not found`);
 
-async function fetchResourceProperties(
-  apiToken: string,
-  orgId: string,
-  resourceId: string,
-): Promise<Record<string, string>> {
-  const ANNY_BASE = "https://b.anny.co/api/v1";
-  const url = new URL(`${ANNY_BASE}/resource-properties`);
-  url.searchParams.set("o", orgId);
-  url.searchParams.set("include", "property");
-  url.searchParams.set("page[size]", "200");
+  const impl = getCalendarProvider(provider.type);
+  if (!impl) throw new Error(`No implementation for provider type: ${provider.type}`);
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${apiToken}`, Accept: "application/vnd.api+json" },
-    signal: AbortSignal.timeout(15_000),
+  const credentials = decryptCredentials(provider.encryptedCredentials);
+
+  // Window: today (midnight to midnight in configured timezone)
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  return impl.fetchEvents({
+    credentials,
+    roomConfig: { resourceId: config.resourceId, resourceName: config.resourceName },
+    windowStart: dayStart,
+    windowEnd: dayEnd,
   });
+}
 
-  if (!res.ok) return {};
-  const data = await res.json();
+/* ── Load background asset (cached) ──────────────────────────── */
 
-  // Build property label map
-  const propLabels = new Map<string, string>();
-  for (const inc of (data.included ?? []) as { id: string; type: string; attributes: { label?: string } }[]) {
-    if (inc.type === "properties" && inc.attributes.label) {
-      propLabels.set(inc.id, inc.attributes.label);
-    }
-  }
+async function loadBackgroundAsset(assetId: string): Promise<Buffer | null> {
+  const cached = assetCache.get(assetId);
+  if (cached) return cached;
 
-  // Match resource-properties to this resource (we can't filter by resource_id via API)
-  // For now, return all properties — the template will only use what it references
-  const props: Record<string, string> = {};
-  for (const rp of (data.data ?? []) as { attributes: { value: unknown }; relationships?: { property?: { data?: { id: string } } } }[]) {
-    const propId = rp.relationships?.property?.data?.id;
-    const label = propId ? propLabels.get(propId) : undefined;
-    if (label && rp.attributes.value != null) {
-      props[`prop.${label}`] = String(rp.attributes.value);
-    }
-  }
+  const [asset] = await db.select({ data: assets.data }).from(assets)
+    .where(eq(assets.id, assetId)).limit(1);
+  if (!asset) return null;
 
-  return props;
+  assetCache.set(assetId, asset.data);
+  return asset.data;
 }
 
 /* ── Render ───────────────────────────────────────────────────── */
 
 function selectDesign(config: DoorSignConfig, width: number, height: number): Design {
-  const key = `${width}x${height}`;
-  return config.designOverrides[key] ?? config.design;
+  return config.designOverrides[`${width}x${height}`] ?? config.design;
 }
 
-function formatTime(date: Date, timezone: string): string {
-  return date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: timezone });
+function formatTime(date: Date, locale: string, timezone: string): string {
+  return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone: timezone });
 }
 
-async function renderDoorSign(
-  config: DoorSignConfig,
-  design: Design,
-  ctx: BookingContext,
-  isOccupied: boolean,
+function renderTextBoxes(
+  c: CanvasRenderingContext2D,
+  boxes: TextBox[],
+  ctx: TemplateContext,
   width: number,
   height: number,
-): Promise<Canvas> {
-  const canvas = createCanvas(width, height);
-  const c = canvas.getContext("2d");
-
-  // Background
-  if (design.backgroundAssetId) {
-    const [asset] = await db.select().from(assets).where(eq(assets.id, design.backgroundAssetId)).limit(1);
-    if (asset) {
-      const img = await loadImage(asset.data);
-      c.drawImage(img, 0, 0, width, height);
-    } else {
-      c.fillStyle = design.backgroundColor;
-      c.fillRect(0, 0, width, height);
-    }
-  } else {
-    c.fillStyle = design.backgroundColor;
-    c.fillRect(0, 0, width, height);
-  }
-
-  // Select text boxes based on occupancy
-  const boxes = isOccupied ? design.textBoxes : design.freeTextBoxes;
-
-  // Render text boxes
+): void {
   for (const box of boxes) {
     const text = resolveTemplate(box.template, ctx);
     if (!text) continue;
@@ -251,17 +124,13 @@ async function renderDoorSign(
     c.font = `${box.bold ? "bold " : ""}${fs}px sans-serif`;
     c.textBaseline = "top";
 
-    let tx: number;
-    if (box.align === "center") {
-      c.textAlign = "center";
-      tx = px + pw / 2;
-    } else if (box.align === "right") {
-      c.textAlign = "right";
-      tx = px + pw;
-    } else {
-      c.textAlign = "left";
-      tx = px;
-    }
+    if (box.align === "center") { c.textAlign = "center"; }
+    else if (box.align === "right") { c.textAlign = "right"; }
+    else { c.textAlign = "left"; }
+
+    const tx = box.align === "center" ? px + pw / 2
+      : box.align === "right" ? px + pw
+      : px;
 
     // Word wrap
     const words = text.split(" ");
@@ -271,12 +140,11 @@ async function renderDoorSign(
 
     for (const word of words) {
       const test = line ? `${line} ${word}` : word;
-      const metrics = c.measureText(test);
-      if (metrics.width > pw && line) {
+      if (c.measureText(test).width > pw && line) {
         c.fillText(line, tx, lineY);
         line = word;
         lineY += lineHeight;
-        if (lineY + fs > py + ph) break; // overflow
+        if (lineY + fs > py + ph) break;
       } else {
         line = test;
       }
@@ -285,8 +153,6 @@ async function renderDoorSign(
       c.fillText(line, tx, lineY);
     }
   }
-
-  return canvas;
 }
 
 /* ── Renderer export ──────────────────────────────────────────── */
@@ -301,46 +167,49 @@ export const doorSignRenderer: ContentRenderer = {
     const { width, height } = params.display;
     const design = selectDesign(config, width, height);
 
-    // Fetch provider credentials
-    const [provider] = await db.select().from(dataProviders).where(eq(dataProviders.id, config.providerId)).limit(1);
-    if (!provider) throw new Error("Provider not found");
-
-    const creds = decryptCredentials(provider.encryptedCredentials) as { apiToken: string; organizationId?: string };
-    const orgId = creds.organizationId || extractOrgFromToken(creds.apiToken) || "";
-    if (!orgId) throw new Error("Cannot determine anny organization ID");
-
-    // Fetch current booking
-    const booking = await fetchCurrentBooking(creds.apiToken, orgId, config.resourceId, params.now);
-    const isOccupied = booking !== null;
+    // Fetch current booking via provider interface
+    const event = await fetchCurrentBooking(config, params.now);
+    const isOccupied = event !== null;
 
     // Build template context
-    const ctx: BookingContext = {
+    const ctx: TemplateContext = {
       resource_name: config.resourceName ?? "",
+      ...config.cachedProperties, // pre-resolved at config time
     };
 
-    if (booking) {
-      ctx.title = booking.customerTitle ?? "";
-      ctx.given_name = booking.customerGivenName ?? "";
-      ctx.family_name = booking.customerFamilyName ?? "";
-      ctx.full_name = booking.customerFullName ?? "";
-      ctx.company = booking.customerCompany ?? "";
-      ctx.email = booking.customerEmail ?? "";
-      ctx.booking_description = booking.description ?? "";
-      ctx.booking_note = booking.note ?? "";
-      ctx.start = formatTime(booking.startDate, config.timezone);
-      ctx.end = formatTime(booking.endDate, config.timezone);
-      ctx.date = booking.startDate.toLocaleDateString(config.locale, { weekday: "short", day: "numeric", month: "short", timeZone: config.timezone });
+    if (event) {
+      ctx.full_name = event.organizer;
+      ctx.booking_description = event.subject;
+      ctx.start = formatTime(event.startTime, config.locale, config.timezone);
+      ctx.end = formatTime(event.endTime, config.locale, config.timezone);
+      ctx.date = event.startTime.toLocaleDateString(config.locale, {
+        weekday: "short", day: "numeric", month: "short", timeZone: config.timezone,
+      });
     }
 
-    // Fetch resource properties (best-effort)
-    try {
-      const props = await fetchResourceProperties(creds.apiToken, orgId, config.resourceId);
-      Object.assign(ctx, props);
-    } catch (err) {
-      log.warn("door-sign: failed to fetch resource properties", { error: String(err) });
+    // Create canvas
+    const canvas = createCanvas(width, height);
+    const c = canvas.getContext("2d");
+
+    // Background
+    if (design.backgroundAssetId) {
+      const buf = await loadBackgroundAsset(design.backgroundAssetId);
+      if (buf) {
+        const img = await loadImage(buf);
+        c.drawImage(img, 0, 0, width, height);
+      } else {
+        c.fillStyle = design.backgroundColor;
+        c.fillRect(0, 0, width, height);
+      }
+    } else {
+      c.fillStyle = design.backgroundColor;
+      c.fillRect(0, 0, width, height);
     }
 
-    const canvas = await renderDoorSign(config, design, ctx, isOccupied, width, height);
+    // Render text boxes
+    const boxes = isOccupied ? design.textBoxes : design.freeTextBoxes;
+    renderTextBoxes(c as unknown as CanvasRenderingContext2D, boxes, ctx, width, height);
+
     return { canvas };
   },
 };

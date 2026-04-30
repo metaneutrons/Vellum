@@ -62,10 +62,12 @@ export async function POST(request: Request) {
   return Response.json({ id: row.id, name, mimeType: file.type, width, height }, { status: 201 });
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
-  if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+  if (!id || !UUID_RE.test(id)) return Response.json({ error: "Invalid or missing id" }, { status: 400 });
 
   await db.delete(assets).where(eq(assets.id, id));
   return new Response(null, { status: 204 });

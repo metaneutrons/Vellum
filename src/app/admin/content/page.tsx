@@ -4,14 +4,16 @@ import {
   getAllContentInstances,
   getAllContentTypes,
   getAllProviders,
+  getKnownDisplaySizes,
 } from "../actions";
 import { ContentList } from "./content-list";
 
 export default async function ContentPage() {
-  const [instances, types, providers] = await Promise.all([
+  const [instances, types, providers, knownDisplays] = await Promise.all([
     getAllContentInstances(),
     getAllContentTypes(),
     getAllProviders(),
+    getKnownDisplaySizes(),
   ]);
 
   return (
@@ -19,6 +21,7 @@ export default async function ContentPage() {
       instances={instances}
       types={types}
       providers={providers}
+      knownDisplays={knownDisplays}
     />
   );
 }

@@ -315,3 +315,26 @@ export async function updateSetting(key: string, value: unknown) {
   if (key.startsWith("firmware.")) await syncAutoPoll();
   revalidatePath("/admin/firmware");
 }
+
+export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
+  const rows = await db.select({ displayCaps: devices.displayCaps }).from(devices);
+  const seen = new Set<string>();
+  const sizes: { label: string; width: number; height: number }[] = [];
+
+  for (const row of rows) {
+    if (!row.displayCaps || typeof row.displayCaps !== "object") continue;
+    const caps = row.displayCaps as { model?: string; width?: number; height?: number };
+    if (!caps.width || !caps.height) continue;
+    const key = `${caps.width}x${caps.height}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sizes.push({ label: `${caps.model ?? "Unknown"} (${key})`, width: caps.width, height: caps.height });
+  }
+
+  // Fallback if no devices registered yet
+  if (sizes.length === 0) {
+    sizes.push({ label: "E1002 (800×480)", width: 800, height: 480 });
+  }
+
+  return sizes;
+}
