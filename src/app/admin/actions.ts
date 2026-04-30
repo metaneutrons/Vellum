@@ -257,6 +257,23 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
       return { ok: true, message: `OK — ${events.length} events today` };
     }
 
+    if (instance.typeSlug === "door-sign") {
+      const { getProviderWithCredentials } = await import("@/lib/providers");
+      const { getCalendarProvider } = await import("@/lib/calendar/registry");
+      const provider = await getProviderWithCredentials(config.providerId);
+      const impl = getCalendarProvider(provider.type);
+      if (!impl) return { ok: false, message: `No provider implementation: ${provider.type}` };
+      const now = new Date();
+      const events = await impl.fetchEvents({
+        credentials: provider.credentials,
+        roomConfig: { resourceId: config.resourceId, resourceName: config.resourceName },
+        windowStart: new Date(now.getTime() - 3600_000),
+        windowEnd: new Date(now.getTime() + 3600_000),
+      });
+      const current = events.find(e => now >= e.startTime && now < e.endTime);
+      return { ok: true, message: current ? `Occupied: ${current.organizer}` : `Free — ${events.length} bookings today` };
+    }
+
     return { ok: true, message: "Config valid" };
   } catch (err) {
     return { ok: false, message: String(err instanceof Error ? err.message : err) };

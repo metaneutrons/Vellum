@@ -47,13 +47,20 @@ export async function POST(request: Request) {
   if (file.type === "image/png" && buffer.length >= 24) {
     width = buffer.readUInt32BE(16);
     height = buffer.readUInt32BE(20);
-  } else if (file.type === "image/jpeg") {
-    for (let i = 0; i < buffer.length - 9; i++) {
-      if (buffer[i] === 0xff && (buffer[i + 1] === 0xc0 || buffer[i + 1] === 0xc2)) {
+  } else if (file.type === "image/jpeg" && buffer.length > 2) {
+    // Proper JPEG marker parsing — skip by marker length, find SOF0/SOF2
+    let i = 2; // skip SOI (0xFFD8)
+    while (i < buffer.length - 9) {
+      if (buffer[i] !== 0xff) break;
+      const marker = buffer[i + 1];
+      if (marker === 0xc0 || marker === 0xc2) {
         height = buffer.readUInt16BE(i + 5);
         width = buffer.readUInt16BE(i + 7);
         break;
       }
+      // Skip marker payload (length includes the 2 length bytes)
+      const len = buffer.readUInt16BE(i + 2);
+      i += 2 + len;
     }
   }
 

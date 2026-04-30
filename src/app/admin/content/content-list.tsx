@@ -20,8 +20,7 @@ interface Props { instances: ContentInstance[]; types: ContentType[]; providers:
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
 import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
-
-const POLICIES = ["Show All", "Hide Subject", "Hide All"] as const;
+import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking";
 
 function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
   config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
@@ -153,7 +152,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
       <label className="block text-sm font-medium mb-1">Privacy Policy</label>
       <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>
-        {POLICIES.map((p) => <option key={p} value={p}>{p}</option>)}
+        {ROOM_POLICIES.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
 
       <label className="block text-sm font-medium mb-1">Cache TTL (seconds)</label>

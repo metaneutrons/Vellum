@@ -48,13 +48,16 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
   useEffect(() => {
     if (!providerId || !resourceId) return;
     fetch(`/api/v1/admin/resource-properties?providerId=${providerId}&resourceId=${resourceId}`)
-      .then(r => r.ok ? r.json() : {})
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then((props: Record<string, string>) => {
         const vars = Object.keys(props).map(k => ({ key: `{${k}}`, label: k }));
         setDynamicVars(vars);
         if (onPropertiesResolved) onPropertiesResolved(props);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn("Failed to load resource properties:", err);
+        setDynamicVars([]);
+      });
   }, [providerId, resourceId, onPropertiesResolved]);
 
   // Measure container

@@ -139,13 +139,16 @@ function textWrap(
   return lineNum;
 }
 
+/** Room privacy policies — SSOT for schema + UI */
+export const ROOM_POLICIES = ["Show All", "Hide Subject", "Hide All"] as const;
+
 export const roomBookingConfigSchema = z.object({
   providerId: z.string().uuid(),
   roomConfig: z.record(z.string(), z.unknown()),
   roomName: z.string().default("Meeting Room"),
   timezone: z.string().default("UTC"),
   locale: z.string().default("en"),
-  policy: z.enum(["Show All", "Hide Subject", "Hide All"]).default("Show All"),
+  policy: z.enum(ROOM_POLICIES).default("Show All"),
   cacheTtlS: z.number().int().min(0).default(120),
   timelineShiftH: z.number().int().min(1).max(8).default(2),
 });
