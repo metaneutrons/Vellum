@@ -140,7 +140,8 @@ function textWrap(
 }
 
 /** Room privacy policies — SSOT for schema + UI */
-export const ROOM_POLICIES = ["Show All", "Hide Subject", "Hide All"] as const;
+export { ROOM_POLICIES } from "./room-booking-types";
+import { ROOM_POLICIES } from "./room-booking-types";
 
 export const roomBookingConfigSchema = z.object({
   providerId: z.string().uuid(),

@@ -20,7 +20,7 @@ interface Props { instances: ContentInstance[]; types: ContentType[]; providers:
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
 import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
-import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking";
+import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
 
 function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
   config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
