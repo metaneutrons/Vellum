@@ -3,6 +3,9 @@
 import { z } from "zod";
 import { displayCapsSchema } from "./display";
 
+/** UUID v4 regex — use for validating path/query params before DB queries */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * MAC address schema — accepts both "AABBCCDDEEFF" and "AA:BB:CC:DD:EE:FF",
  * normalizes to uppercase compact form (no colons).

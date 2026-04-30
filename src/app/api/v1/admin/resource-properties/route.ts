@@ -3,8 +3,7 @@
 import { NextRequest } from "next/server";
 import { getProviderWithCredentials } from "@/lib/providers";
 import { extractOrgFromToken } from "@/lib/calendar/providers/anny";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { UUID_RE } from "@/lib/validation";
 
 /**
  * Resolve resource properties from anny for a given provider + resource.
@@ -31,7 +30,8 @@ export async function GET(request: NextRequest) {
   const url = new URL("https://b.anny.co/api/v1/resource-properties");
   url.searchParams.set("o", orgId);
   url.searchParams.set("include", "property");
-  url.searchParams.set("page[size]", "200");
+  url.searchParams.set("filter[resource_id]", resourceId);
+  url.searchParams.set("page[size]", "50");
 
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${creds.apiToken}`, Accept: "application/vnd.api+json" },

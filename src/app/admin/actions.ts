@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
@@ -318,7 +318,8 @@ export async function updateSetting(key: string, value: unknown) {
 
 export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
   const { DEFAULT_DISPLAY } = await import("@/lib/content/renderers/door-sign-types");
-  const rows = await db.select({ displayCaps: devices.displayCaps }).from(devices);
+  const rows = await db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
+    .where(sql`${devices.displayCaps} IS NOT NULL`);
   const seen = new Set<string>();
   const sizes: { label: string; width: number; height: number }[] = [];
 

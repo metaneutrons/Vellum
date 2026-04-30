@@ -97,7 +97,11 @@ export const devices = pgTable("devices", {
 const bytea = customType<{ data: Buffer }>({
   dataType() { return "bytea"; },
   toDriver(value: Buffer) { return value; },
-  fromDriver(value: unknown) { return value as Buffer; },
+  fromDriver(value: unknown) {
+    if (Buffer.isBuffer(value)) return value;
+    if (value instanceof Uint8Array) return Buffer.from(value);
+    return Buffer.from(value as ArrayBuffer);
+  },
 });
 
 /* ── Assets (background images, logos) ────────────────────────── */

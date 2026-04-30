@@ -4,10 +4,10 @@ import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { UUID_RE } from "@/lib/validation";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/svg+xml", "image/jpeg"];
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEFAULT_LIMIT = 50;
 
 export async function GET(request: NextRequest) {
