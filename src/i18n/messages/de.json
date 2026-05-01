@@ -61,7 +61,7 @@
     "roomNamePlaceholder": "z.B. Besprechungsraum EG",
     "timezone": "Zeitzone",
     "locale": "Sprache",
-    "policy": "Datenschutzrichtlinie",
+    "policy": "Datenschutz",
     "cacheTtl": "Cache-Dauer (Sekunden)",
     "timelineShift": "Zeitachsenverschiebung (Stunden)",
     "doorSign": {
