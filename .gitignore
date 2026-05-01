@@ -45,4 +45,5 @@ firmware-signing.key
 src/app/page.module.css
 firmware/dependencies.lock
 firmware/managed_components/
+!firmware/managed_components/tuanpmt__esp_epaper/
 firmware/build/

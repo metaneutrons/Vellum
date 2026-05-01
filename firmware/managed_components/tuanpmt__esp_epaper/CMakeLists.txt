@@ -1,0 +1,24 @@
+idf_component_register(
+    SRCS
+        "src/epaper.c"
+        "src/epaper_spi.c"
+        "src/epaper_lvgl.c"
+        "src/epaper_common.c"
+        "src/epaper_registry.c"
+        "src/controllers/ssd16xx.c"
+        "src/controllers/gdey0154_lut.c"
+        "src/controllers/acep_6color.c"
+        "src/controllers/bwry_4color.c"
+        "src/controllers/uc8179_bw.c"
+        "src/controllers/ed103tc2.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        driver
+        esp_driver_gpio
+        esp_driver_spi
+        esp_timer
+    PRIV_REQUIRES
+        lvgl
+        esp_psram
+)
