@@ -85,10 +85,27 @@ export function canvasToPixelBuffer(
   }
 
   if (quantize === "grayscale") {
-    return nearestColorQuantize(data, width, height, palette);
+    return packTo4bit(nearestColorQuantize(data, width, height, palette), width, height);
   }
 
-  return floydSteinbergDither(data, width, height, palette);
+  // "mono" — Floyd-Steinberg dither then pack to 1-bit
+  return packTo1bit(floydSteinbergDither(data, width, height, palette), width, height);
+}
+
+/**
+ * Pack 1-byte-per-pixel palette indices into 1-bit packed format.
+ * 8 pixels per byte, MSB first. Index 0 = black (bit 0), index 1 = white (bit 1).
+ * Native format for B/W e-paper displays (E1001).
+ */
+function packTo1bit(input: Buffer, width: number, height: number): Buffer {
+  const output = Buffer.alloc(Math.ceil((width * height) / 8));
+  for (let i = 0; i < width * height; i++) {
+    // Palette index 0 = black = bit 0, index 1 = white = bit 1
+    if (input[i] > 0) {
+      output[Math.floor(i / 8)] |= (0x80 >> (i % 8));
+    }
+  }
+  return output;
 }
 
 /**
