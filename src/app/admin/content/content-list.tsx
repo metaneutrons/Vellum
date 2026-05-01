@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { createContentInstance, updateContentInstance, deleteContentInstance, testContentInstance } from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
@@ -25,12 +26,14 @@ import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
 function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
   config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
 }) {
+  const t = useTranslations("content");
+  const td = useTranslations("content.doorSign");
   const design = (config.design ?? { backgroundAssetId: null, textBoxes: [], freeTextBoxes: [], backgroundColor: "#FFFFFF" }) as Design;
   const designOverrides = (config.designOverrides ?? {}) as Record<string, Design>;
 
   return (
     <>
-      <label className="block text-sm font-medium mb-1">Calendar Provider</label>
+      <label className="block text-sm font-medium mb-1">{t("provider")}</label>
       <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
         <option value="">— select —</option>
@@ -39,7 +42,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
       {config.providerId && (
         <>
-          <label className="block text-sm font-medium mb-1">Resource (Room/Desk)</label>
+          <label className="block text-sm font-medium mb-1">{td("resource")}</label>
           <div className="mb-3">
             <AnnyResourcePicker
               providerId={config.providerId as string}
@@ -72,8 +75,8 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
       {/* Custom Properties — manual key-value pairs for template variables */}
       <div className="border-t pt-3 mt-3">
-        <label className="block text-sm font-semibold mb-1">Custom Properties</label>
-        <p className="text-xs text-gray-500 mb-2">Define static values available as template variables (e.g. prop.Raumnummer → 1J.2.02)</p>
+        <label className="block text-sm font-semibold mb-1">{td("customProperties")}</label>
+        <p className="text-xs text-gray-500 mb-2">{td("customPropertiesHint")}</p>
         {Object.entries((config.cachedProperties as Record<string, string>) ?? {}).map(([key, val]) => (
           <div key={key} className="flex gap-2 mb-1">
             <input className="flex-1 border rounded px-2 py-1 text-sm" value={key} readOnly />
@@ -100,7 +103,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
       </div>
 
       <div className="border-t pt-3 mt-3">
-        <label className="block text-sm font-semibold mb-2">Visual Layout</label>
+        <label className="block text-sm font-semibold mb-2">{td("visualLayout")}</label>
         <DoorSignEditor
           design={design}
           designOverrides={designOverrides}
@@ -118,6 +121,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 function RoomBookingEditor({ config, onChange, providers }: {
   config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[];
 }) {
+  const t = useTranslations("content");
   const roomConfig = (config.roomConfig ?? {}) as Record<string, string>;
   const provider = providers.find((p) => p.id === config.providerId);
 
@@ -132,7 +136,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
 
   return (
     <>
-      <label className="block text-sm font-medium mb-1">Calendar Provider</label>
+      <label className="block text-sm font-medium mb-1">{t("provider")}</label>
       <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
         <option value="">— select —</option>

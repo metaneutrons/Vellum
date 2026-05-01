@@ -4,6 +4,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Rnd } from "react-rnd";
+import { useTranslations } from "next-intl";
 import { TEMPLATE_VARS, DEFAULT_DISPLAY, type TextBox, type Design, type DisplaySize } from "@/lib/content/renderers/door-sign-types";
 
 export type { TextBox, Design, DisplaySize };
@@ -23,6 +24,7 @@ interface Props {
 /* ── Component ────────────────────────────────────────────────── */
 
 export function DoorSignEditor({ design, designOverrides, onChange, knownDisplays, providerId, resourceId, onPropertiesResolved }: Props) {
+  const t = useTranslations("content.doorSign");
   const [activeDisplay, setActiveDisplay] = useState<string>("default");
   const [editingFree, setEditingFree] = useState(false);
   const [selectedBox, setSelectedBox] = useState<string | null>(null);
@@ -139,7 +141,7 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
           onClick={() => setActiveDisplay("default")}
           className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeDisplay === "default" ? "bg-black text-white dark:bg-white dark:text-black" : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200"}`}
         >
-          Default
+{t("default")}
         </button>
         {displays.map(d => {
           const key = `${d.width}x${d.height}`;
@@ -157,21 +159,21 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
         })}
         {activeDisplay !== "default" && activeDisplay in designOverrides && (
           <button onClick={() => removeOverride(activeDisplay)} className="text-xs text-red-500 hover:text-red-700 ml-2">
-            Remove override
+  {t("removeOverride")}
           </button>
         )}
       </div>
 
       {/* Occupied / Free toggle */}
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Editing:</span>
+        <span className="text-sm font-medium">{t("editing")}:</span>
         <button onClick={() => setEditingFree(false)}
           className={`px-3 py-1 text-sm rounded-md ${!editingFree ? "bg-green-600 text-white" : "bg-gray-100 dark:bg-gray-800"}`}>
-          Occupied
+{t("occupied")}
         </button>
         <button onClick={() => setEditingFree(true)}
           className={`px-3 py-1 text-sm rounded-md ${editingFree ? "bg-orange-500 text-white" : "bg-gray-100 dark:bg-gray-800"}`}>
-          Free
+{t("free")}
         </button>
       </div>
 
@@ -221,7 +223,7 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
             ))}
           </div>
           <button onClick={addBox} className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
-            + Add text box
+  {t("addTextBox")}
           </button>
         </div>
 
@@ -229,12 +231,12 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
         <div className="w-64 shrink-0 space-y-3">
           {/* Background */}
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Background</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{t("background")}</label>
             <input type="file" accept="image/png,image/svg+xml,image/jpeg" onChange={handleBgUpload} className="text-xs w-full" />
             {activeDesign.backgroundAssetId && (
-              <button onClick={() => updateDesign({ ...activeDesign, backgroundAssetId: null })} className="text-xs text-red-500 mt-1">Remove</button>
+              <button onClick={() => updateDesign({ ...activeDesign, backgroundAssetId: null })} className="text-xs text-red-500 mt-1">{t("remove")}</button>
             )}
-            <label className="block text-xs mt-2">Color</label>
+            <label className="block text-xs mt-2">{t("color")}</label>
             <input type="color" value={activeDesign.backgroundColor}
               onChange={e => updateDesign({ ...activeDesign, backgroundColor: e.target.value })}
               className="w-8 h-8 rounded border cursor-pointer" />
@@ -243,8 +245,8 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
           {/* Selected box properties */}
           {selectedBoxData && (
             <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-2">
-              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Text Box</label>
-              <label className="block text-xs">Template</label>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">{t("textBox")}</label>
+              <label className="block text-xs">{t("template")}</label>
               <textarea value={selectedBoxData.template}
                 onChange={e => updateBox(selectedBoxData.id, { template: e.target.value })}
                 className="w-full border rounded px-2 py-1 text-sm h-16 resize-none" placeholder="{full_name}" />
@@ -262,7 +264,7 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs">Size</label>
+                  <label className="block text-xs">{t("size")}</label>
                   <input type="range" min="0.02" max="0.2" step="0.005"
                     value={selectedBoxData.fontSize}
                     onChange={e => updateBox(selectedBoxData.id, { fontSize: parseFloat(e.target.value) })}
@@ -270,19 +272,19 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
                   <span className="text-[10px] text-gray-500">{Math.round(selectedBoxData.fontSize * 100)}%</span>
                 </div>
                 <div>
-                  <label className="block text-xs">Align</label>
+                  <label className="block text-xs">{t("align")}</label>
                   <select value={selectedBoxData.align}
                     onChange={e => updateBox(selectedBoxData.id, { align: e.target.value as TextBox["align"] })}
                     className="w-full border rounded px-1 py-0.5 text-sm">
-                    <option value="left">Left</option>
-                    <option value="center">Center</option>
-                    <option value="right">Right</option>
+                    <option value="left">{t("alignLeft")}</option>
+                    <option value="center">{t("alignCenter")}</option>
+                    <option value="right">{t("alignRight")}</option>
                   </select>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <div>
-                  <label className="block text-xs">Color</label>
+                  <label className="block text-xs">{t("color")}</label>
                   <input type="color" value={selectedBoxData.color}
                     onChange={e => updateBox(selectedBoxData.id, { color: e.target.value })}
                     className="w-8 h-8 rounded border cursor-pointer" />
@@ -290,18 +292,18 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
                 <label className="flex items-center gap-1 text-sm cursor-pointer">
                   <input type="checkbox" checked={selectedBoxData.bold}
                     onChange={e => updateBox(selectedBoxData.id, { bold: e.target.checked })} />
-                  Bold
+{t("bold")}
                 </label>
               </div>
               <button onClick={() => deleteBox(selectedBoxData.id)} className="text-xs text-red-500 hover:text-red-700">
-                Delete text box
+{t("deleteTextBox")}
               </button>
             </div>
           )}
 
           {/* Multi-display preview */}
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preview all sizes</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{t("previewAllSizes")}</label>
             <div className="space-y-2">
               {displays.map(d => {
                 const key = `${d.width}x${d.height}`;
