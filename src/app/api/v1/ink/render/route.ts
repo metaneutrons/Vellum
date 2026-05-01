@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
   return new Response(new Uint8Array(pixelBuffer), {
     status: 200,
     headers: {
-      "Content-Type": display.quantize === "none" ? "image/png" : "application/octet-stream",
+      "Content-Type": display.quantize === "none" ? "image/png" : display.quantize === "jpeg" ? "image/jpeg" : "application/octet-stream",
       "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
       "ETag": contentHash,
     },

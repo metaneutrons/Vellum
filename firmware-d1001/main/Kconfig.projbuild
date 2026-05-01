@@ -1,0 +1,9 @@
+menu "Vellum D1001 Configuration"
+
+    config VELLUM_SERVER_URL
+        string "Vellum Server URL"
+        default "http://vellum.local:3000"
+        help
+            URL of the Vellum server (without trailing slash).
+
+endmenu

@@ -1,0 +1,2 @@
+source /Users/fabian/Source/vellum-fresh/firmware-d1001/build/bootloader/gdbinit/symbols
+source /Users/fabian/Source/vellum-fresh/firmware-d1001/build/bootloader/gdbinit/connect

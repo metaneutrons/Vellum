@@ -47,6 +47,10 @@ export function canvasToPixelBuffer(
     return canvas.toBuffer("image/png");
   }
 
+  if (quantize === "jpeg") {
+    return canvas.toBuffer("image/jpeg", 95);
+  }
+
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
   const data = new Uint8ClampedArray(ctx.getImageData(0, 0, width, height).data);

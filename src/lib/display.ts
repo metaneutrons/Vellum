@@ -14,7 +14,7 @@
 import { z } from "zod";
 import type { ColorPalette } from "./render/dither";
 
-export type QuantizeMode = "color" | "grayscale" | "mono" | "none";
+export type QuantizeMode = "color" | "grayscale" | "mono" | "none" | "jpeg";
 
 /** Schema for device-reported display capabilities */
 export const displayCapsSchema = z.object({
@@ -22,7 +22,7 @@ export const displayCapsSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   palette: z.array(z.tuple([z.number(), z.number(), z.number()])).min(0),
-  quantize: z.enum(["color", "grayscale", "mono", "none"]),
+  quantize: z.enum(["color", "grayscale", "mono", "none", "jpeg"]),
 });
 
 export type DisplayCaps = z.infer<typeof displayCapsSchema>;
