@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { useTranslations } from "next-intl";
 import { ContentEditModal } from "./content-edit-modal";
+import { BatteryChartModal } from "./battery-chart-modal";
 
 interface Device {
   mac: string;
@@ -53,6 +54,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
   const [pending, startTransition] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string | null>(null);
+  const [batteryMac, setBatteryMac] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [previewId, setPreviewId] = useState<string | null>(null);
 
@@ -129,10 +131,10 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                   {/* Telemetry row */}
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
                     {d.battery_level !== null && (
-                      <span className={bWarn ? "text-amber-600 font-medium" : ""}>
+                      <button onClick={() => setBatteryMac(d.mac)} className={`hover:underline ${bWarn ? "text-amber-600 font-medium" : ""}`}>
                         🔋 {d.battery_level}%
                         <span className="text-gray-400 ml-0.5">({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>
-                      </span>
+                      </button>
                     )}
                     {d.wifi_rssi !== null && (
                       <span className={rWarn ? "text-amber-600 font-medium" : ""}>📶 {d.wifi_rssi}dBm</span>
@@ -242,6 +244,8 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
           onClose={() => setEditingContent(null)}
         />
       )}
+
+      <BatteryChartModal mac={batteryMac ?? ""} open={!!batteryMac} onClose={() => setBatteryMac(null)} />
     </div>
   );
 }
