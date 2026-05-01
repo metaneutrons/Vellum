@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { createContentInstance, updateContentInstance, deleteContentInstance, testContentInstance } from "../actions";
 import { useToast } from "@/components/toast";
@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/empty-state";
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
 interface ContentType { slug: string; name: string; description?: string | null; }
 interface Provider { id: string; type: string; name: string; }
-interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; knownDisplays: DisplaySize[]; }
+interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; knownDisplays: DisplaySize[]; initialEditId?: string | null; }
 
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
@@ -197,10 +197,10 @@ function RoomBookingEditor({ config, onChange, providers }: {
   );
 }
 
-export function ContentList({ instances, types, providers, knownDisplays }: Props) {
+export function ContentList({ instances, types, providers, knownDisplays, initialEditId }: Props) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(initialEditId ?? null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [typeSlug, setTypeSlug] = useState("room-booking");
@@ -219,6 +219,14 @@ export function ContentList({ instances, types, providers, knownDisplays }: Prop
     setEditing(inst.id); setTypeSlug(inst.typeSlug); setName(inst.name);
     setConfig(inst.config as Record<string, unknown>);
   }
+
+  // Auto-open editor when navigated from device table
+  useEffect(() => {
+    if (initialEditId) {
+      const inst = instances.find(i => i.id === initialEditId);
+      if (inst) startEdit(inst);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function save() {
     startTransition(async () => {

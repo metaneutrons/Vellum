@@ -118,7 +118,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${d.status === "approved" ? "bg-green-100 text-green-700" : d.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{d.status}</span>
                     <span className="text-xs text-gray-500">{model}</span>
                     {caps?.width && <span className="text-xs text-gray-400">{caps.width}×{caps.height}</span>}
-                    {contentName && <span className="text-xs text-blue-600">→ {contentName}</span>}
+                    {contentName && <a href={`/admin/content?edit=${d.content_instance_id}`} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">→ {contentName}</a>}
                   </div>
 
                   {/* Telemetry row */}

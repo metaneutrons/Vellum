@@ -8,7 +8,8 @@ import {
 } from "../actions";
 import { ContentList } from "./content-list";
 
-export default async function ContentPage() {
+export default async function ContentPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+  const { edit } = await searchParams;
   const [instances, types, providers, knownDisplays] = await Promise.all([
     getAllContentInstances(),
     getAllContentTypes(),
@@ -22,6 +23,7 @@ export default async function ContentPage() {
       types={types}
       providers={providers}
       knownDisplays={knownDisplays}
+      initialEditId={edit}
     />
   );
 }
