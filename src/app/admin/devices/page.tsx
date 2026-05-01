@@ -2,15 +2,17 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { getAllThemes, getAllContentInstances, getAllRefreshProfiles, getAvailableVersions } from "../actions";
+import { getAllThemes, getAllContentInstances, getAllRefreshProfiles, getAvailableVersions, getAllProviders, getKnownDisplaySizes } from "../actions";
 import { DeviceTable } from "./device-table";
 
 export default async function DevicesPage() {
-  const [themeList, contentList, profileList, versions] = await Promise.all([
+  const [themeList, contentList, profileList, versions, providers, knownDisplays] = await Promise.all([
     getAllThemes(),
     getAllContentInstances(),
     getAllRefreshProfiles(),
     getAvailableVersions(),
+    getAllProviders(),
+    getKnownDisplaySizes(),
   ]);
 
   // Single query: devices + latest telemetry
@@ -35,6 +37,8 @@ export default async function DevicesPage() {
       contentInstances={contentList}
       refreshProfiles={profileList}
       firmwareVersions={versions}
+      providers={providers}
+      knownDisplays={knownDisplays}
     />
   );
 }

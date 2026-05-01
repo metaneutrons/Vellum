@@ -3,14 +3,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { approveDevice, updateDevice, deleteDevice } from "../actions";
+import { approveDevice, updateDevice, deleteDevice, updateContentInstance } from "../actions";
 import { useToast } from "@/components/toast";
 import { ConfirmDialog } from "@/components/confirm";
+import { Modal } from "@/components/modal";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { useTranslations } from "next-intl";
+import { ContentEditModal } from "./content-edit-modal";
 
 interface Device {
   mac: string;
@@ -37,17 +39,20 @@ interface FirmwareVersion {
 interface Props {
   devices: Record<string, unknown>[];
   themes: { id: string; name: string }[];
-  contentInstances: { id: string; name: string }[];
+  contentInstances: { id: string; name: string; typeSlug: string; config: unknown }[];
   refreshProfiles: { id: string; name: string }[];
   firmwareVersions: FirmwareVersion[];
+  providers: { id: string; type: string; name: string }[];
+  knownDisplays: { label: string; width: number; height: number }[];
 }
 
-export function DeviceTable({ devices: rawDevices, themes, contentInstances, refreshProfiles, firmwareVersions }: Props) {
+export function DeviceTable({ devices: rawDevices, themes, contentInstances, refreshProfiles, firmwareVersions, providers, knownDisplays }: Props) {
   const devices = rawDevices as unknown as Device[];
   const { toast } = useToast();
   const t = useTranslations("devices");
   const [pending, startTransition] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [previewId, setPreviewId] = useState<string | null>(null);
 
@@ -118,7 +123,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${d.status === "approved" ? "bg-green-100 text-green-700" : d.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{d.status}</span>
                     <span className="text-xs text-gray-500">{model}</span>
                     {caps?.width && <span className="text-xs text-gray-400">{caps.width}×{caps.height}</span>}
-                    {contentName && <a href={`/admin/content?edit=${d.content_instance_id}`} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">→ {contentName}</a>}
+                    {contentName && <button onClick={() => setEditingContent(d.content_instance_id)} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">→ {contentName}</button>}
                   </div>
 
                   {/* Telemetry row */}
@@ -225,6 +230,16 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
           destructive
           onConfirm={() => { act(() => deleteDevice(deleting!), t("deleted"), t("failed")); setDeleting(null); }}
           onClose={() => setDeleting(null)}
+        />
+      )}
+
+      {editingContent && (
+        <ContentEditModal
+          instanceId={editingContent}
+          contentInstances={contentInstances}
+          providers={providers}
+          knownDisplays={knownDisplays}
+          onClose={() => setEditingContent(null)}
         />
       )}
     </div>
