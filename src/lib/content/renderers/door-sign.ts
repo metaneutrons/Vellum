@@ -137,7 +137,7 @@ function renderTextBoxes(c: SKRSContext2D, boxes: TextBox[], ctx: TemplateContex
 
 export const doorSignRenderer: ContentRenderer = {
   slug: "door-sign",
-  name: "Door Sign (Türschild)",
+  name: "Türschild",
   configSchema: doorSignConfigSchema,
 
   async render(params: RenderParams): Promise<RenderResult> {

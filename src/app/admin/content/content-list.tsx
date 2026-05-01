@@ -199,6 +199,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
 
 export function ContentList({ instances, types, providers, knownDisplays, initialEditId }: Props) {
   const { toast } = useToast();
+  const tc = useTranslations("contentTypes");
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(initialEditId ?? null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -259,7 +260,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
             <div className="flex items-center gap-2">
               <span className="font-medium">{inst.name}</span>
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                {types.find((t) => t.slug === inst.typeSlug)?.name ?? inst.typeSlug}
+                {tc(inst.typeSlug as "room-booking" | "door-sign")}
               </span>
             </div>
             <div className="flex gap-2">
@@ -299,7 +300,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
             <label className="block text-sm font-medium mb-1">Content Type</label>
             <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={typeSlug}
               onChange={(e) => setTypeSlug(e.target.value)}>
-              {types.map((t) => <option key={t.slug} value={t.slug}>{t.name}</option>)}
+              {types.map((t) => <option key={t.slug} value={t.slug}>{tc(t.slug as "room-booking" | "door-sign")}</option>)}
             </select>
           </>
         )}

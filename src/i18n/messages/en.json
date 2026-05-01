@@ -177,5 +177,9 @@
     "close": "Close",
     "search": "Search...",
     "noResults": "No results"
+  },
+  "contentTypes": {
+    "room-booking": "Room Booking",
+    "door-sign": "Door Sign"
   }
 }

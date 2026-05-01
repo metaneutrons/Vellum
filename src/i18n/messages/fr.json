@@ -177,5 +177,9 @@
     "close": "Fermer",
     "search": "Rechercher...",
     "noResults": "Aucun résultat"
+  },
+  "contentTypes": {
+    "room-booking": "Réservation de salle",
+    "door-sign": "Plaque de porte"
   }
 }

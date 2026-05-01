@@ -177,5 +177,9 @@
     "close": "Schließen",
     "search": "Suchen...",
     "noResults": "Keine Ergebnisse"
+  },
+  "contentTypes": {
+    "room-booking": "Raumbelegung",
+    "door-sign": "Türschild"
   }
 }
