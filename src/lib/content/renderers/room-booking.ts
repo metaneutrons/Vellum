@@ -71,6 +71,7 @@ interface TextCtx {
   ctx: SKRSContext2D;
   useBitmap: boolean;
   ff: string;
+  scale: number;
 }
 
 /** Draw text — bitmap for color e-paper, vector for everything else */
@@ -86,10 +87,10 @@ function text(
     return drawBitmapText(t.ctx, str, x, y, font, color, maxWidth);
   }
   const sizeMap: Record<BitmapFontSize, string> = {
-    "sm": `16px ${t.ff}`,
-    "md": `24px ${t.ff}`,
-    "md-bold": `bold 24px ${t.ff}`,
-    "lg-bold": `bold 32px ${t.ff}`,
+    "sm": `${Math.round(16 * t.scale)}px ${t.ff}`,
+    "md": `${Math.round(24 * t.scale)}px ${t.ff}`,
+    "md-bold": `bold ${Math.round(24 * t.scale)}px ${t.ff}`,
+    "lg-bold": `bold ${Math.round(32 * t.scale)}px ${t.ff}`,
   };
   t.ctx.font = sizeMap[font];
   t.ctx.fillStyle = color;
@@ -103,10 +104,10 @@ function text(
 function textWidth(t: TextCtx, str: string, font: BitmapFontSize): number {
   if (t.useBitmap) return measureBitmapText(str, font);
   const sizeMap: Record<BitmapFontSize, string> = {
-    "sm": `16px ${t.ff}`,
-    "md": `24px ${t.ff}`,
-    "md-bold": `bold 24px ${t.ff}`,
-    "lg-bold": `bold 32px ${t.ff}`,
+    "sm": `${Math.round(16 * t.scale)}px ${t.ff}`,
+    "md": `${Math.round(24 * t.scale)}px ${t.ff}`,
+    "md-bold": `bold ${Math.round(24 * t.scale)}px ${t.ff}`,
+    "lg-bold": `bold ${Math.round(32 * t.scale)}px ${t.ff}`,
   };
   t.ctx.font = sizeMap[font];
   return t.ctx.measureText(str).width;
@@ -225,16 +226,21 @@ export function renderToCanvas(
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = false;
 
-  const headerH = 75;
-  const footerH = 44;
-  const gutterW = 90;
+  /* Enable anti-aliasing for grayscale displays (smooth fonts) */
+  ctx.imageSmoothingEnabled = quantize === "grayscale" || quantize === "mono";
+
+  /* Scale factor relative to reference display (800×480) */
+  const scale = Math.min(width / 800, height / 480);
+
+  const headerH = Math.round(75 * scale);
+  const footerH = Math.round(44 * scale);
+  const gutterW = Math.round(90 * scale);
   const ff = fontFamily(colorCount);
-  const areaTop = headerH + 16;
-  const areaH = height - headerH - footerH - 8;
-  const eventLeft = gutterW + 4;
-  const eventW = width - eventLeft - 16;
+  const areaTop = headerH + Math.round(16 * scale);
+  const areaH = height - headerH - footerH - Math.round(8 * scale);
+  const eventLeft = gutterW + Math.round(4 * scale);
+  const eventW = width - eventLeft - Math.round(16 * scale);
   const nowMs = now.getTime();
   /* Round to timelineShiftH blocks — timeline only shifts every N hours */
   const blockMs = timelineShiftH * 3600_000;
@@ -254,7 +260,7 @@ export function renderToCanvas(
   const busy = isBusy(events, new Date(roundedNowMs));
   const badge = BADGE_TEXT[locale] ?? BADGE_TEXT.en;
   const badgeText = busy ? badge.busy : badge.free;
-  const tc: TextCtx = { ctx, useBitmap: quantize === "color", ff };
+  const tc: TextCtx = { ctx, useBitmap: quantize === "color", ff, scale };
 
   // Badge
   const bw = textWidth(tc, badgeText, "md-bold");
