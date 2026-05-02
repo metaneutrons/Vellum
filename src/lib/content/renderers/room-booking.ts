@@ -237,7 +237,7 @@ export function renderToCanvas(
   const footerH = Math.round(44 * scale);
   const gutterW = Math.round(90 * scale);
   const ff = fontFamily(colorCount);
-  const areaTop = headerH + Math.round(16 * scale);
+  const areaTop = headerH + Math.round(24 * scale);
   const areaH = height - headerH - footerH - Math.round(8 * scale);
   const eventLeft = gutterW + Math.round(4 * scale);
   const eventW = width - eventLeft - Math.round(16 * scale);
