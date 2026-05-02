@@ -25,7 +25,7 @@ const BADGE_TEXT: Record<string, { free: string; busy: string }> = {
 };
 
 const UPDATED_TEXT: Record<string, string> = {
-  en: "Updated", de: "Aktualisiert", fr: "Mis à jour", it: "Aggiornato", es: "Actualizado",
+  en: "updated", de: "aktualisiert", fr: "mis à jour", it: "aggiornato", es: "actualizado",
 };
 import { eq } from "drizzle-orm";
 import path from "path";
@@ -384,7 +384,8 @@ export function renderToCanvas(
 
   // Footer
   const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
-  text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${fmtTime(now, timezone)}`, "sm", T.footerText, "right");
+  const timeStr = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
+  text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${timeStr}`, "sm", T.footerText, "right");
 
   return canvas;
 }
