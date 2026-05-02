@@ -59,6 +59,7 @@ static const char *TAG = "it8951";
 static spi_device_handle_t s_spi = NULL;
 static int s_busy_pin = -1;
 static int s_rst_pin = -1;
+static int s_cs_pin = -1;
 static it8951_dev_info_t s_info = {0};
 static uint32_t s_img_buf_addr = 0;
 
@@ -78,67 +79,76 @@ static void wait_busy(void)
 
 static void spi_write_16(uint16_t data)
 {
-    uint8_t buf[2] = { (data >> 8) & 0xFF, data & 0xFF };
-    spi_transaction_t t = { .length = 16, .tx_buffer = buf };
+    spi_transaction_t t = {
+        .length = 16,
+        .flags = SPI_TRANS_USE_TXDATA,
+    };
+    t.tx_data[0] = (data >> 8) & 0xFF;
+    t.tx_data[1] = data & 0xFF;
     spi_device_transmit(s_spi, &t);
 }
 
 static uint16_t spi_read_16(void)
 {
-    uint8_t rx[2] = {0};
-    spi_transaction_t t = { .length = 16, .rxlength = 16, .tx_buffer = rx, .rx_buffer = rx };
+    spi_transaction_t t = {
+        .length = 16,
+        .rxlength = 16,
+        .flags = SPI_TRANS_USE_TXDATA | SPI_TRANS_USE_RXDATA,
+    };
+    t.tx_data[0] = 0;
+    t.tx_data[1] = 0;
     spi_device_transmit(s_spi, &t);
-    return (rx[0] << 8) | rx[1];
+    return (t.rx_data[0] << 8) | t.rx_data[1];
 }
 
 static void write_cmd(uint16_t cmd)
 {
-    spi_device_acquire_bus(s_spi, portMAX_DELAY);
+    gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_CMD);
     wait_busy();
     spi_write_16(cmd);
-    spi_device_release_bus(s_spi);
+    gpio_set_level(s_cs_pin, 1);
 }
 
 static void write_data(uint16_t data)
 {
-    spi_device_acquire_bus(s_spi, portMAX_DELAY);
+    gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_WR);
     wait_busy();
     spi_write_16(data);
-    spi_device_release_bus(s_spi);
+    gpio_set_level(s_cs_pin, 1);
 }
 
 static uint16_t read_data(void)
 {
     uint16_t val;
-    spi_device_acquire_bus(s_spi, portMAX_DELAY);
+    gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_RD);
     wait_busy();
     spi_read_16(); // dummy
     val = spi_read_16();
-    spi_device_release_bus(s_spi);
+    gpio_set_level(s_cs_pin, 1);
     return val;
 }
 
 static void write_n_data(const uint16_t *buf, uint32_t count)
 {
-    spi_device_acquire_bus(s_spi, portMAX_DELAY);
+    gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_WR);
     wait_busy();
     for (uint32_t i = 0; i < count; i++) {
         spi_write_16(buf[i]);
     }
-    spi_device_release_bus(s_spi);
+    gpio_set_level(s_cs_pin, 1);
 }
 
 static void read_n_data(uint16_t *buf, uint32_t count)
 {
-    spi_device_acquire_bus(s_spi, portMAX_DELAY);
+    gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_RD);
     wait_busy();
@@ -146,7 +156,7 @@ static void read_n_data(uint16_t *buf, uint32_t count)
     for (uint32_t i = 0; i < count; i++) {
         buf[i] = spi_read_16();
     }
-    spi_device_release_bus(s_spi);
+    gpio_set_level(s_cs_pin, 1);
 }
 
 static void send_cmd_arg(uint16_t cmd, const uint16_t *args, uint16_t n_args)
@@ -170,6 +180,7 @@ esp_err_t it8951_init(const it8951_config_t *config)
 {
     s_busy_pin = config->pin_busy;
     s_rst_pin = config->pin_rst;
+    s_cs_pin = config->pin_cs;
 
     gpio_set_direction(s_busy_pin, GPIO_MODE_INPUT);
     gpio_set_direction(s_rst_pin, GPIO_MODE_OUTPUT);
@@ -210,10 +221,14 @@ esp_err_t it8951_init(const it8951_config_t *config)
     spi_device_interface_config_t dev = {
         .clock_speed_hz = config->speed_hz,
         .mode = 0,
-        .spics_io_num = config->pin_cs,
+        .spics_io_num = -1, /* Manual CS control — IT8951 needs CS held during preamble+data */
         .queue_size = 1,
     };
     spi_bus_add_device(config->spi_host, &dev, &s_spi);
+
+    /* Configure CS pin manually */
+    gpio_set_direction(config->pin_cs, GPIO_MODE_OUTPUT);
+    gpio_set_level(config->pin_cs, 1);
 
     /* Get device info */
     write_cmd(0x0302); // GET_DEV_INFO
@@ -260,7 +275,7 @@ esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, ui
     uint32_t byte_count = (uint32_t)w * h / 2; // 4bpp = 2 pixels per byte
     uint32_t word_count = (byte_count + 1) / 2;
 
-    spi_device_acquire_bus(s_spi, portMAX_DELAY);
+    gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_WR);
     wait_busy();
@@ -269,7 +284,7 @@ esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, ui
         if (i * 2 + 1 < byte_count) word |= data[i * 2 + 1];
         spi_write_16(word);
     }
-    spi_device_release_bus(s_spi);
+    gpio_set_level(s_cs_pin, 1);
 
     /* End load */
     write_cmd(IT8951_CMD_LD_IMG_END);
