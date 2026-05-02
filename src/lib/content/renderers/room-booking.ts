@@ -150,6 +150,7 @@ export const roomBookingConfigSchema = z.object({
   roomName: z.string().default("Meeting Room"),
   timezone: z.string().default("UTC"),
   locale: z.string().default("en"),
+  dateFormat: z.enum(["PPPP", "PPP", "PP", "P"]).default("PPPP"),
   policy: z.enum(ROOM_POLICIES).default("Show All"),
   cacheTtlS: z.number().int().min(0).default(120),
   timelineShiftH: z.number().int().min(1).max(8).default(2),
@@ -222,7 +223,8 @@ export function renderToCanvas(
   colorCount: number,
   quantize: string = "color",
   timelineShiftH: number = 2,
-  locale: string = "en"
+  locale: string = "en",
+  dateFormat: string = "PPPP"
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -271,7 +273,7 @@ export function renderToCanvas(
 
   // Date (right-aligned before badge)
   const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
-  const dateStr = format(new TZDate(now, timezone), "PPPP", { locale: dfLocale });
+  const dateStr = format(new TZDate(now, timezone), dateFormat, { locale: dfLocale });
   const dateW = textWidth(tc, dateStr, "md");
   const dateX = badgeX - dateW - Math.round(20 * scale);
   text(tc, dateX, Math.round(46 * scale), dateStr, "md", T.headerText);
@@ -438,6 +440,6 @@ export const roomBookingRenderer: ContentRenderer = {
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy);
-    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.quantize, cfg.timelineShiftH, cfg.locale) };
+    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.quantize, cfg.timelineShiftH, cfg.locale, cfg.dateFormat) };
   },
 };
