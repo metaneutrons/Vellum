@@ -731,12 +731,17 @@ void app_main(void)
 
     wake_reason_t wake = sleep_manager_get_wake_reason();
 
+    /* Button wake: immediate beep before anything else */
+    if (wake == WAKE_REASON_BUTTON) {
+        buzzer_beep(1000, 100);
+    }
+
     /* Only show boot screen on power-on or button wake, not timer wake */
     if (wake != WAKE_REASON_TIMER) {
         display_show_boot(CONFIG_VELLUM_FIRMWARE_VERSION);
     }
-    if (wake != WAKE_REASON_TIMER) {
-        buzzer_beep(1000, 100); /* Boot beep — not on timer wake */
+    if (wake == WAKE_REASON_POWER_ON) {
+        buzzer_beep(1000, 100);
     }
     led_on();
     buttons_init();
