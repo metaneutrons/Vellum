@@ -68,7 +68,7 @@ static uint32_t s_img_buf_addr = 0;
 
 static void wait_busy(void)
 {
-    int timeout = 5000; // 5 seconds max
+    int timeout = 30000; // 30 seconds max (large image uploads take time)
     while (gpio_get_level(s_busy_pin) == 0) {
         vTaskDelay(pdMS_TO_TICKS(1));
         if (--timeout <= 0) {

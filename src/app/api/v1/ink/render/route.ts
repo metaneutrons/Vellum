@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
   }
 
   const pixelBuffer = canvasToPixelBuffer(renderResult.canvas, display.palette, display.quantize);
+  log.info("Render output", { mac: validation.data.mac, quantize: display.quantize, canvasW: renderResult.canvas.width, canvasH: renderResult.canvas.height, bufferSize: pixelBuffer.length });
 
   // Sleep duration
   const USB_VOLTAGE_THRESHOLD = 4.5;
