@@ -264,20 +264,20 @@ export function renderToCanvas(
 
   // Badge
   const bw = textWidth(tc, badgeText, "md-bold");
-  const badgeX = width - bw - 32;
+  const badgeX = width - bw - Math.round(32 * scale);
   ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
-  ctx.fillRect(badgeX, 20, bw + 16, 34);
-  text(tc, badgeX + 8, 46, badgeText, "md-bold", T.badgeText);
+  ctx.fillRect(badgeX, Math.round(20 * scale), bw + Math.round(16 * scale), Math.round(34 * scale));
+  text(tc, badgeX + Math.round(8 * scale), Math.round(46 * scale), badgeText, "md-bold", T.badgeText);
 
   // Date (right-aligned before badge)
   const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
   const dateStr = format(new TZDate(now, timezone), "EEE, MMM d, yyyy", { locale: dfLocale });
   const dateW = textWidth(tc, dateStr, "md");
-  const dateX = badgeX - dateW - 20;
-  text(tc, dateX, 46, dateStr, "md", T.headerText);
+  const dateX = badgeX - dateW - Math.round(20 * scale);
+  text(tc, dateX, Math.round(46 * scale), dateStr, "md", T.headerText);
 
   // Room name (left, clipped before date)
-  text(tc, 16, 48, roomName, "lg-bold", T.headerText, "left", dateX - 28);
+  text(tc, Math.round(16 * scale), Math.round(48 * scale), roomName, "lg-bold", T.headerText, "left", dateX - Math.round(28 * scale));
 
   // Hour grid
   // Hour grid — iterate over each hour in the window
@@ -348,10 +348,10 @@ export function renderToCanvas(
     ctx.fillRect(ex, y1, ew, blockH + 2);
 
     /* Dynamic font size based on block height */
-    if (blockH < 16) continue; /* block drawn, but too small for text */
-    const fontSize: "sm" | "md" | "md-bold" = blockH < 28 ? "sm" : "md";
-    const fontSizeBold: "sm" | "md-bold" = blockH < 28 ? "sm" : "md-bold";
-    const lineH = blockH < 28 ? 16 : 24;
+    if (blockH < Math.round(16 * scale)) continue; /* block drawn, but too small for text */
+    const fontSize: "sm" | "md" | "md-bold" = blockH < Math.round(28 * scale) ? "sm" : "md";
+    const fontSizeBold: "sm" | "md-bold" = blockH < Math.round(28 * scale) ? "sm" : "md-bold";
+    const lineH = blockH < Math.round(28 * scale) ? Math.round(16 * scale) : Math.round(24 * scale);
 
     if (blockH >= 16) {
       const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
@@ -382,7 +382,7 @@ export function renderToCanvas(
 
   // Footer
   const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
-  text(tc, width - 12, height - 10, `${updatedLabel}: ${fmtTime(now, timezone)}`, "sm", T.footerText, "right");
+  text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${fmtTime(now, timezone)}`, "sm", T.footerText, "right");
 
   return canvas;
 }
