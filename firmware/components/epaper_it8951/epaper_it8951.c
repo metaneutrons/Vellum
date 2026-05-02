@@ -16,6 +16,7 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
@@ -248,6 +249,25 @@ esp_err_t it8951_init(const it8951_config_t *config)
     /* Enable packed write mode */
     write_reg(IT8951_REG_I80CPCR, 0x0001);
 
+    /* Verify register write works */
+    write_cmd(IT8951_CMD_REG_RD);
+    write_data(IT8951_REG_I80CPCR);
+    uint16_t verify = read_data();
+    ESP_LOGI(TAG, "I80CPCR read-back: 0x%04X (expected 0x0001)", verify);
+
+    /* Also read MCSR base register for sanity */
+    write_cmd(IT8951_CMD_REG_RD);
+    write_data(0x0200); /* MCSR */
+    uint16_t mcsr = read_data();
+    ESP_LOGI(TAG, "MCSR: 0x%04X", mcsr);
+
+    /* Set temperature for waveform selection (required for display refresh) */
+    write_cmd(0x0040); /* USDEF_I80_CMD_TEMP */
+    write_data(0x0001); /* external temp mode */
+    write_data(25);     /* 25°C */
+
+    ESP_LOGI(TAG, "Temperature set to 25C for waveform");
+
     return ESP_OK;
 }
 
@@ -259,31 +279,44 @@ esp_err_t it8951_get_info(it8951_dev_info_t *info)
 
 esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
-    /* Set image buffer base address */
-    write_reg(IT8951_REG_LISAR, s_img_buf_addr & 0xFFFF);
+    /* Set image buffer base address (high word first, then low) */
     write_reg(IT8951_REG_LISAR + 2, (s_img_buf_addr >> 16) & 0xFFFF);
+    write_reg(IT8951_REG_LISAR, s_img_buf_addr & 0xFFFF);
 
-    /* Load image area */
-    uint16_t args[5] = {
-        (IT8951_4BPP << 4) | 0, // endian=little, pixel_format=4bpp, rotate=0
-        x, y, w, h
-    };
+    /* Clear UP1SR bit 2 (required for 4bpp mode per ESPHome reference) */
+    write_cmd(IT8951_CMD_REG_RD);
+    write_data(0x113A); /* UP1SR + 2 */
+    uint16_t up1sr2 = read_data();
+    write_reg(0x113A, up1sr2 & ~(1 << 2));
+
+    /* Load image area: endian=little(0), pixel_format=4bpp(2), rotate=0 */
+    uint16_t arg0 = (0 << 8) | (IT8951_4BPP << 4) | 0;
     write_cmd(IT8951_CMD_LD_IMG_AREA);
-    for (int i = 0; i < 5; i++) write_data(args[i]);
+    write_data(arg0);
+    write_data(x);
+    write_data(y);
+    write_data(w);
+    write_data(h);
 
-    /* Write pixel data as 16-bit words */
-    uint32_t byte_count = (uint32_t)w * h / 2; // 4bpp = 2 pixels per byte
-    uint32_t word_count = (byte_count + 1) / 2;
+    /* Write pixel data — simple bulk transfer (no row reverse for now) */
+    uint32_t total_bytes = (uint32_t)w * h / 2; /* 4bpp */
 
     gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_WR);
     wait_busy();
-    for (uint32_t i = 0; i < word_count; i++) {
-        uint16_t word = (data[i * 2] << 8);
-        if (i * 2 + 1 < byte_count) word |= data[i * 2 + 1];
-        spi_write_16(word);
+
+    /* Send in chunks */
+    uint32_t chunk_size = 1024;
+    uint8_t *chunk_buf = heap_caps_malloc(chunk_size, MALLOC_CAP_DMA);
+    for (uint32_t offset = 0; offset < total_bytes; offset += chunk_size) {
+        uint32_t len = (offset + chunk_size > total_bytes) ? (total_bytes - offset) : chunk_size;
+        memcpy(chunk_buf, data + offset, len);
+        spi_transaction_t t = { .length = len * 8, .tx_buffer = chunk_buf };
+        spi_device_transmit(s_spi, &t);
     }
+    heap_caps_free(chunk_buf);
+
     gpio_set_level(s_cs_pin, 1);
 
     /* End load */
@@ -303,15 +336,42 @@ esp_err_t it8951_load_image_1bpp(const uint8_t *data, uint16_t x, uint16_t y, ui
 
 esp_err_t it8951_display_area(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t mode)
 {
-    uint16_t args[7] = { x, y, w, h, mode, 0, 0 };
-    send_cmd_arg(IT8951_CMD_DPY_AREA, args, 5);
+    /* Read LUTAFSR before to check state */
+    write_cmd(IT8951_CMD_REG_RD);
+    write_data(0x1224);
+    uint16_t lutafsr_before = read_data();
+    ESP_LOGI(TAG, "LUTAFSR before: 0x%04X", lutafsr_before);
 
-    ESP_LOGI(TAG, "Display area %dx%d at (%d,%d) mode=%d", w, h, x, y, mode);
+    write_cmd(IT8951_CMD_DPY_AREA);
+    write_data(x);
+    write_data(y);
+    write_data(w);
+    write_data(h);
+    write_data(mode);
 
-    /* Wait for display to finish */
-    vTaskDelay(pdMS_TO_TICKS(100));
-    wait_busy();
+    ESP_LOGI(TAG, "Display area %dx%d at (%d,%d) mode=%d — waiting...", w, h, x, y, mode);
 
+    /* Wait for display refresh to complete */
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    /* Read LUTAFSR after */
+    write_cmd(IT8951_CMD_REG_RD);
+    write_data(0x1224);
+    uint16_t lutafsr_after = read_data();
+    ESP_LOGI(TAG, "LUTAFSR after: 0x%04X", lutafsr_after);
+
+    /* Wait for LUTAFSR to clear (refresh complete) */
+    for (int i = 0; i < 100; i++) {
+        write_cmd(IT8951_CMD_REG_RD);
+        write_data(0x1224);
+        uint16_t val = read_data();
+        if (val == 0) {
+            ESP_LOGI(TAG, "Display refresh complete (%d ms)", (i + 1) * 100 + 500);
+            return ESP_OK;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    ESP_LOGW(TAG, "Display refresh timeout (LUTAFSR never cleared)");
     return ESP_OK;
 }
 

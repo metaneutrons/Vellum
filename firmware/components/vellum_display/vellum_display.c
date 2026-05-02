@@ -122,6 +122,19 @@ esp_err_t display_init(void)
     }
     /* For E1003, we don't use the epd_handle — set to NULL */
     s_epd = NULL;
+
+    /* Test: small black square */
+    ESP_LOGI(TAG, "E1003: Drawing test pattern...");
+    uint16_t tw = 64, th = 64;
+    size_t test_size = (size_t)tw * th / 2;
+    uint8_t *black = heap_caps_malloc(test_size, MALLOC_CAP_DMA);
+    if (black) {
+        memset(black, 0x00, test_size); /* 0x0 = black in 4bpp */
+        it8951_load_image_4bpp(black, 0, 0, tw, th);
+        it8951_display_area(0, 0, tw, th, 2);
+        heap_caps_free(black);
+        ESP_LOGI(TAG, "E1003: Test done!");
+    }
 #else
     epd_config_t cfg = {
         .pins = {
