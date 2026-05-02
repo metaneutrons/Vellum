@@ -66,8 +66,13 @@ static uint32_t s_img_buf_addr = 0;
 
 static void wait_busy(void)
 {
+    int timeout = 5000; // 5 seconds max
     while (gpio_get_level(s_busy_pin) == 0) {
         vTaskDelay(pdMS_TO_TICKS(1));
+        if (--timeout <= 0) {
+            ESP_LOGW(TAG, "BUSY timeout!");
+            return;
+        }
     }
 }
 
@@ -169,14 +174,29 @@ esp_err_t it8951_init(const it8951_config_t *config)
     gpio_set_direction(s_busy_pin, GPIO_MODE_INPUT);
     gpio_set_direction(s_rst_pin, GPIO_MODE_OUTPUT);
 
+    /* Enable IT8951 TCON power (ITE_ENABLE = GPIO21 on E1003) */
+    gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_21, 1);
+
+    /* Enable TFT (TFT_ENABLE = GPIO11 / DC pin on E1003) */
+    gpio_set_direction(GPIO_NUM_11, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_11, 1);
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+    ESP_LOGI(TAG, "Resetting IT8951...");
+
     /* Hardware reset */
     gpio_set_level(s_rst_pin, 0);
     vTaskDelay(pdMS_TO_TICKS(20));
     gpio_set_level(s_rst_pin, 1);
     vTaskDelay(pdMS_TO_TICKS(100));
+
+    ESP_LOGI(TAG, "Waiting for TCON ready (BUSY pin=%d)...", gpio_get_level(s_busy_pin));
     wait_busy();
+    ESP_LOGI(TAG, "TCON ready");
 
     /* Init SPI */
+    ESP_LOGI(TAG, "Initializing SPI...");
     spi_bus_config_t bus = {
         .mosi_io_num = config->pin_mosi,
         .miso_io_num = config->pin_miso,

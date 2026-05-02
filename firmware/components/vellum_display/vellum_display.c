@@ -17,6 +17,10 @@
 #include "vellum_logo_img.h"
 #include "nvs_manager.h"
 
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+#include "epaper_it8951.h"
+#endif
+
 #include <string.h>
 #include <stdlib.h>
 #include "esp_log.h"
@@ -99,6 +103,26 @@ esp_err_t display_init(void)
     gpio_set_direction(SD_PIN_EN, GPIO_MODE_OUTPUT);
     gpio_set_level(SD_PIN_EN, 0);
 
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+    /* IT8951 TCON — different protocol than UC8179 */
+    it8951_config_t tcon_cfg = {
+        .pin_busy = EPD_PIN_BUSY,
+        .pin_rst  = EPD_PIN_RST,
+        .pin_cs   = EPD_PIN_CS,
+        .pin_sck  = EPD_PIN_SCK,
+        .pin_mosi = EPD_PIN_MOSI,
+        .pin_miso = 8,  /* SD_MISO shared */
+        .spi_host = SPI2_HOST,
+        .speed_hz = 12000000, /* IT8951 supports up to 24MHz */
+    };
+    esp_err_t ret = it8951_init(&tcon_cfg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "it8951_init failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    /* For E1003, we don't use the epd_handle — set to NULL */
+    s_epd = NULL;
+#else
     epd_config_t cfg = {
         .pins = {
             .busy = EPD_PIN_BUSY,
@@ -122,16 +146,24 @@ esp_err_t display_init(void)
         ESP_LOGE(TAG, "epd_init failed: %s", esp_err_to_name(ret));
         return ret;
     }
+#endif
 
     ESP_LOGI(TAG, "Panel: %s (%dx%d, %d bpp, %s)", PANEL_MODEL,
              PANEL_WIDTH, PANEL_HEIGHT, PANEL_BPP, PANEL_COLORS);
 
     /* Initialize LVGL for local screens */
     lv_init();
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+    /* E1003 uses IT8951 TCON — LVGL renders to a buffer, then we push via IT8951 */
+    /* TODO: implement LVGL flush callback for IT8951 */
+    ESP_LOGW(TAG, "E1003: LVGL local screens not yet implemented with IT8951");
+    s_lvgl_disp = NULL;
+#else
     epd_lvgl_config_t lvgl_cfg = EPD_LVGL_CONFIG_DEFAULT();
     lvgl_cfg.epd = s_epd;
     lvgl_cfg.update_mode = EPD_UPDATE_FULL;
     s_lvgl_disp = epd_lvgl_init(&lvgl_cfg);
+#endif
 
     if (!s_lvgl_disp) {
         ESP_LOGW(TAG, "LVGL display init failed — local screens unavailable");
@@ -362,7 +394,7 @@ void display_show_low_battery(void)
 
 esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
 {
-    if (!s_epd || !buffer) return ESP_ERR_INVALID_ARG;
+    if (!buffer) return ESP_ERR_INVALID_ARG;
 
     size_t expected = (size_t)PANEL_WIDTH * PANEL_HEIGHT * PANEL_BPP / 8;
     if (len != expected) {
@@ -374,7 +406,14 @@ esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
     s_last_screen[0] = '\0';
     nvs_manager_set_str("last_scr", "");
 
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+    esp_err_t ret = it8951_load_image_4bpp(buffer, 0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+    if (ret != ESP_OK) return ret;
+    return it8951_display_area(0, 0, PANEL_WIDTH, PANEL_HEIGHT, 2); /* GC16 mode */
+#else
+    if (!s_epd) return ESP_ERR_INVALID_STATE;
     return epd_update(s_epd, buffer, EPD_UPDATE_FULL);
+#endif
 }
 
 /* ── Power management ─────────────────────────────────────────── */
