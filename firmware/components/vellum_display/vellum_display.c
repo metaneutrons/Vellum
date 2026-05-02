@@ -84,13 +84,37 @@ static bool screen_unchanged(const char *screen_id)
 #elif defined(CONFIG_VELLUM_PANEL_E1003)
   #define PANEL_TYPE   EPD_PANEL_ED103TC2
   #define PANEL_MODEL  "e1003"
-  #define PANEL_WIDTH  1404
-  #define PANEL_HEIGHT 1872
+  #define PANEL_WIDTH  1872
+  #define PANEL_HEIGHT 1404
   #define PANEL_BPP    4
   #define PANEL_COLORS "grayscale"
   #define PANEL_FAST_REFRESH 1
 #else
   #error "No display panel selected in Kconfig"
+#endif
+
+/* ── IT8951 LVGL flush ────────────────────────────────────────── */
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+{
+    /* Convert 1bpp (I1) to 4bpp for IT8951 */
+    size_t buf_size = (size_t)PANEL_WIDTH * PANEL_HEIGHT / 2;
+    uint8_t *buf = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
+    if (buf) {
+        uint32_t total_pixels = (uint32_t)PANEL_WIDTH * PANEL_HEIGHT;
+        for (uint32_t i = 0; i < total_pixels; i += 2) {
+            uint8_t byte = px_map[i / 8];
+            uint8_t bit1 = (byte >> (7 - (i % 8))) & 1;
+            uint8_t bit2 = (byte >> (7 - ((i + 1) % 8))) & 1;
+            /* 1=white(0xF), 0=black(0x0) */
+            buf[i / 2] = (bit1 ? 0xF0 : 0x00) | (bit2 ? 0x0F : 0x00);
+        }
+        it8951_load_image_4bpp(buf, 0, 0, PANEL_WIDTH, PANEL_HEIGHT);
+        it8951_display_area(0, 0, PANEL_WIDTH, PANEL_HEIGHT, 2);
+        heap_caps_free(buf);
+    }
+    lv_display_flush_ready(disp);
+}
 #endif
 
 /* ── Init ─────────────────────────────────────────────────────── */
@@ -122,49 +146,6 @@ esp_err_t display_init(void)
     }
     /* For E1003, we don't use the epd_handle — set to NULL */
     s_epd = NULL;
-
-    /* Test: draw pattern — black square + gray gradient */
-    ESP_LOGI(TAG, "E1003: Drawing test pattern...");
-    uint16_t tw = 1872, th = 1404;
-    size_t buf_size = (size_t)tw * th / 2;
-    uint8_t *fb = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
-    if (fb) {
-        /* Fill white */
-        memset(fb, 0xFF, buf_size);
-
-        /* Black rectangle (200x200 at top-left) */
-        for (int y = 50; y < 250; y++) {
-            for (int x = 50; x < 250; x++) {
-                int idx = (y * tw + x) / 2;
-                if ((x % 2) == 0) fb[idx] = (fb[idx] & 0x0F) | 0x00; /* high nibble = black */
-                else fb[idx] = (fb[idx] & 0xF0) | 0x00; /* low nibble = black */
-            }
-        }
-
-        /* Gray gradient bar (16 steps, 100px tall, full width) */
-        for (int y = 400; y < 500; y++) {
-            for (int x = 0; x < tw; x++) {
-                uint8_t gray = (x * 15) / tw; /* 0-15 */
-                int idx = (y * tw + x) / 2;
-                if ((x % 2) == 0) fb[idx] = (fb[idx] & 0x0F) | (gray << 4);
-                else fb[idx] = (fb[idx] & 0xF0) | gray;
-            }
-        }
-
-        /* "VELLUM" text area — dark gray rectangle */
-        for (int y = 600; y < 700; y++) {
-            for (int x = 700; x < 1200; x++) {
-                int idx = (y * tw + x) / 2;
-                if ((x % 2) == 0) fb[idx] = (fb[idx] & 0x0F) | 0x30;
-                else fb[idx] = (fb[idx] & 0xF0) | 0x03;
-            }
-        }
-
-        it8951_load_image_4bpp(fb, 0, 0, tw, th);
-        it8951_display_area(0, 0, tw, th, 2);
-        heap_caps_free(fb);
-        ESP_LOGI(TAG, "E1003: Test pattern sent!");
-    }
 #else
     epd_config_t cfg = {
         .pins = {
@@ -197,10 +178,16 @@ esp_err_t display_init(void)
     /* Initialize LVGL for local screens */
     lv_init();
 #if defined(CONFIG_VELLUM_PANEL_E1003)
-    /* E1003 uses IT8951 TCON — LVGL renders to a buffer, then we push via IT8951 */
-    /* TODO: implement LVGL flush callback for IT8951 */
-    ESP_LOGW(TAG, "E1003: LVGL local screens not yet implemented with IT8951");
-    s_lvgl_disp = NULL;
+    /* E1003: Full framebuffer in PSRAM, 1-bit (same as other ePaper panels) */
+    size_t lvgl_buf_size = (size_t)PANEL_WIDTH * PANEL_HEIGHT / 8; /* 1bpp */
+    uint8_t *lvgl_buf = heap_caps_calloc(1, lvgl_buf_size, MALLOC_CAP_SPIRAM);
+    if (lvgl_buf) {
+        s_lvgl_disp = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
+        lv_display_set_color_format(s_lvgl_disp, LV_COLOR_FORMAT_I1);
+        lv_display_set_buffers(s_lvgl_disp, lvgl_buf, NULL, lvgl_buf_size, LV_DISPLAY_RENDER_MODE_FULL);
+        lv_display_set_flush_cb(s_lvgl_disp, it8951_lvgl_flush);
+        ESP_LOGI(TAG, "LVGL display initialized for IT8951 (%zu bytes)", lvgl_buf_size);
+    }
 #else
     epd_lvgl_config_t lvgl_cfg = EPD_LVGL_CONFIG_DEFAULT();
     lvgl_cfg.epd = s_epd;
@@ -240,7 +227,13 @@ esp_err_t display_get_info(display_info_t *info)
 static void lvgl_refresh(void)
 {
     if (!s_lvgl_disp) return;
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+    lv_obj_invalidate(lv_screen_active());
+    lv_tick_inc(100);
+    lv_timer_handler();
+#else
     epd_lvgl_refresh(s_lvgl_disp);
+#endif
 }
 
 void display_show_boot(const char *version)
