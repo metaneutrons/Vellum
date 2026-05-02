@@ -123,17 +123,47 @@ esp_err_t display_init(void)
     /* For E1003, we don't use the epd_handle — set to NULL */
     s_epd = NULL;
 
-    /* Test: small black square */
+    /* Test: draw pattern — black square + gray gradient */
     ESP_LOGI(TAG, "E1003: Drawing test pattern...");
-    uint16_t tw = 64, th = 64;
-    size_t test_size = (size_t)tw * th / 2;
-    uint8_t *black = heap_caps_malloc(test_size, MALLOC_CAP_DMA);
-    if (black) {
-        memset(black, 0x00, test_size); /* 0x0 = black in 4bpp */
-        it8951_load_image_4bpp(black, 0, 0, tw, th);
+    uint16_t tw = 1872, th = 1404;
+    size_t buf_size = (size_t)tw * th / 2;
+    uint8_t *fb = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
+    if (fb) {
+        /* Fill white */
+        memset(fb, 0xFF, buf_size);
+
+        /* Black rectangle (200x200 at top-left) */
+        for (int y = 50; y < 250; y++) {
+            for (int x = 50; x < 250; x++) {
+                int idx = (y * tw + x) / 2;
+                if ((x % 2) == 0) fb[idx] = (fb[idx] & 0x0F) | 0x00; /* high nibble = black */
+                else fb[idx] = (fb[idx] & 0xF0) | 0x00; /* low nibble = black */
+            }
+        }
+
+        /* Gray gradient bar (16 steps, 100px tall, full width) */
+        for (int y = 400; y < 500; y++) {
+            for (int x = 0; x < tw; x++) {
+                uint8_t gray = (x * 15) / tw; /* 0-15 */
+                int idx = (y * tw + x) / 2;
+                if ((x % 2) == 0) fb[idx] = (fb[idx] & 0x0F) | (gray << 4);
+                else fb[idx] = (fb[idx] & 0xF0) | gray;
+            }
+        }
+
+        /* "VELLUM" text area — dark gray rectangle */
+        for (int y = 600; y < 700; y++) {
+            for (int x = 700; x < 1200; x++) {
+                int idx = (y * tw + x) / 2;
+                if ((x % 2) == 0) fb[idx] = (fb[idx] & 0x0F) | 0x30;
+                else fb[idx] = (fb[idx] & 0xF0) | 0x03;
+            }
+        }
+
+        it8951_load_image_4bpp(fb, 0, 0, tw, th);
         it8951_display_area(0, 0, tw, th, 2);
-        heap_caps_free(black);
-        ESP_LOGI(TAG, "E1003: Test done!");
+        heap_caps_free(fb);
+        ESP_LOGI(TAG, "E1003: Test pattern sent!");
     }
 #else
     epd_config_t cfg = {
