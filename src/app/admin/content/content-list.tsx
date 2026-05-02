@@ -8,6 +8,7 @@ import { createContentInstance, updateContentInstance, deleteContentInstance, te
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
+import { LocalePicker } from "@/components/locale-picker";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
@@ -61,15 +62,8 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
             value={(config.timezone as string) ?? "Europe/Berlin"} onChange={(e) => onChange({ ...config, timezone: e.target.value })} />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Locale</label>
-          <select className="w-full border rounded px-3 py-2 text-sm" value={(config.locale as string) ?? "de"}
-            onChange={(e) => onChange({ ...config, locale: e.target.value })}>
-            <option value="de">Deutsch</option>
-            <option value="en">English</option>
-            <option value="fr">Français</option>
-            <option value="it">Italiano</option>
-            <option value="es">Español</option>
-          </select>
+          <LocalePicker label="Locale" value={(config.locale as string) ?? "de"}
+            onChange={(v) => onChange({ ...config, locale: v })} />
         </div>
       </div>
 
@@ -171,16 +165,8 @@ function RoomBookingEditor({ config, onChange, providers }: {
       <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="Europe/Berlin"
         value={(config.timezone as string) ?? "UTC"} onChange={(e) => onChange({ ...config, timezone: e.target.value })} />
 
-      <label className="block text-sm font-medium mb-1">Display Language</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm"
-        value={(config.locale as string) ?? "en"}
-        onChange={(e) => onChange({ ...config, locale: e.target.value })}>
-        <option value="en">English</option>
-        <option value="de">Deutsch</option>
-        <option value="fr">Français</option>
-        <option value="it">Italiano</option>
-        <option value="es">Español</option>
-      </select>
+      <LocalePicker label="Display Language" className="mb-3" value={(config.locale as string) ?? "en"}
+        onChange={(v) => onChange({ ...config, locale: v })} />
 
       <label className="block text-sm font-medium mb-1">Privacy Policy</label>
       <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}

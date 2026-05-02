@@ -16,8 +16,13 @@ const linkKeys = [
   { href: "/admin/firmware", key: "firmware" as const, icon: "↑" },
 ];
 
-const FLAGS: Record<string, string> = { en: "🇬🇧", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", es: "🇪🇸" };
-const LOCALES = ["en", "de", "fr", "it", "es"];
+const LOCALES = [
+  { code: "de", flag: "🇩🇪", label: "Deutsch" },
+  { code: "en", flag: "🇬🇧", label: "English" },
+  { code: "fr", flag: "🇫🇷", label: "Français" },
+  { code: "it", flag: "🇮🇹", label: "Italiano" },
+  { code: "es", flag: "🇪🇸", label: "Español" },
+];
 
 function logout() {
   document.cookie = "admin_session=; path=/; max-age=0";
@@ -68,7 +73,7 @@ export function AdminNav() {
           <select value={currentLocale} onChange={(e) => setLocale(e.target.value)}
             aria-label="Language"
             style={{ background: "#1f2937", color: "#fff", border: "1px solid #374151", borderRadius: 4, padding: "4px 6px", fontSize: 14, cursor: "pointer" }}>
-            {LOCALES.map((l) => <option key={l} value={l}>{FLAGS[l]} {l.toUpperCase()}</option>)}
+            {LOCALES.map((l) => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
           </select>
           <div style={{ flex: 1 }} />
           {/* Theme toggle */}
