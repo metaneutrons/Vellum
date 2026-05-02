@@ -9,6 +9,7 @@ import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { LocalePicker } from "@/components/locale-picker";
+import { TimezonePicker } from "@/components/timezone-picker";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
@@ -57,9 +58,8 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label className="block text-sm font-medium mb-1">Timezone</label>
-          <input className="w-full border rounded px-3 py-2 text-sm" placeholder="Europe/Berlin"
-            value={(config.timezone as string) ?? "Europe/Berlin"} onChange={(e) => onChange({ ...config, timezone: e.target.value })} />
+          <TimezonePicker label="Timezone" value={(config.timezone as string) ?? "Europe/Berlin"}
+            onChange={(v) => onChange({ ...config, timezone: v })} />
         </div>
         <div>
           <LocalePicker label="Locale" value={(config.locale as string) ?? "de"}
@@ -161,9 +161,8 @@ function RoomBookingEditor({ config, onChange, providers }: {
           onChange={(e) => onChange({ ...config, roomConfig: { [fieldConfig.key]: e.target.value } })} />
       ) : <div className="mb-3" /> }
 
-      <label className="block text-sm font-medium mb-1">Timezone</label>
-      <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="Europe/Berlin"
-        value={(config.timezone as string) ?? "UTC"} onChange={(e) => onChange({ ...config, timezone: e.target.value })} />
+      <TimezonePicker label="Timezone" className="mb-3" value={(config.timezone as string) ?? "Europe/Berlin"}
+        onChange={(v) => onChange({ ...config, timezone: v })} />
 
       <LocalePicker label="Display Language" className="mb-3" value={(config.locale as string) ?? "en"}
         onChange={(v) => onChange({ ...config, locale: v })} />
