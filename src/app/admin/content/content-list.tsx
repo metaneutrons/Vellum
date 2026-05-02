@@ -168,6 +168,15 @@ function RoomBookingEditor({ config, onChange, providers }: {
       <LocalePicker label="Display Language" className="mb-3" value={(config.locale as string) ?? "en"}
         onChange={(v) => onChange({ ...config, locale: v })} />
 
+      <label className="block text-sm font-medium mb-1">Date Format</label>
+      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.dateFormat as string) ?? "PPPP"}
+        onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}>
+        <option value="PPPP">Sonntag, 3. Mai 2026</option>
+        <option value="PPP">3. Mai 2026</option>
+        <option value="PP">03.05.2026</option>
+        <option value="P">03.05.26</option>
+      </select>
+
       <label className="block text-sm font-medium mb-1">Privacy Policy</label>
       <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>
