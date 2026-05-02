@@ -113,3 +113,12 @@ uint64_t buttons_get_wake_mask(void)
     /* Only green button wakes from deep sleep */
     return (1ULL << KEY0_GPIO);
 }
+
+bool buttons_key0_pressed(void)
+{
+    if (s_key0_pressed) {
+        s_key0_pressed = false;
+        return true;
+    }
+    return false;
+}

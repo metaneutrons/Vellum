@@ -855,6 +855,12 @@ void app_main(void)
     /* 7. Request render and draw to display */
     uint32_t sleep_duration = perform_render();
 
+    /* 7b. If green button pressed during render, beep + re-render */
+    while (buttons_key0_pressed()) {
+        buzzer_beep(1000, 100);
+        sleep_duration = perform_render();
+    }
+
     /* 8. Check for OTA update */
     check_ota_update();
     led_off();

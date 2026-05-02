@@ -14,3 +14,4 @@ typedef enum {
 void buttons_init(void);
 button_action_t buttons_poll(void);
 uint64_t buttons_get_wake_mask(void);
+bool buttons_key0_pressed(void);
