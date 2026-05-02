@@ -271,7 +271,7 @@ export function renderToCanvas(
 
   // Date (right-aligned before badge)
   const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
-  const dateStr = format(new TZDate(now, timezone), "EEE, MMM d, yyyy", { locale: dfLocale });
+  const dateStr = format(new TZDate(now, timezone), "EEEE, d. MMMM yyyy", { locale: dfLocale });
   const dateW = textWidth(tc, dateStr, "md");
   const dateX = badgeX - dateW - Math.round(20 * scale);
   text(tc, dateX, Math.round(46 * scale), dateStr, "md", T.headerText);
