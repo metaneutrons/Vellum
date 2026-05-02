@@ -279,6 +279,37 @@ esp_err_t it8951_get_info(it8951_dev_info_t *info)
 
 esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
+    /* Ensure TCON is ready (may still be refreshing from previous update) */
+    ESP_LOGI(TAG, "Waking TCON (BUSY pin=%d)", gpio_get_level(s_busy_pin));
+
+    /* Re-assert power enable pins (sleep/WiFi may have changed them) */
+    gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_21, 1); /* ITE_ENABLE */
+    gpio_set_direction(GPIO_NUM_11, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_11, 1); /* TFT_ENABLE */
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    /* Hardware reset */
+    gpio_set_level(s_rst_pin, 0);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    gpio_set_level(s_rst_pin, 1);
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    /* Wait for TCON to become ready after reset */
+    int retries = 3000;
+    while (gpio_get_level(s_busy_pin) == 0 && retries-- > 0) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    ESP_LOGI(TAG, "After reset: BUSY pin=%d (waited %dms)", gpio_get_level(s_busy_pin), 3000 - retries);
+
+    /* Re-enable packed pixel mode */
+    write_reg(IT8951_REG_I80CPCR, 0x0001);
+
+    /* Re-set temperature for waveform */
+    write_cmd(0x0040);
+    write_data(0x0001);
+    write_data(25);
+
     /* Set image buffer base address (high word first, then low) */
     write_reg(IT8951_REG_LISAR + 2, (s_img_buf_addr >> 16) & 0xFFFF);
     write_reg(IT8951_REG_LISAR, s_img_buf_addr & 0xFFFF);
@@ -298,24 +329,28 @@ esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, ui
     write_data(w);
     write_data(h);
 
-    /* Write pixel data — simple bulk transfer (no row reverse for now) */
-    uint32_t total_bytes = (uint32_t)w * h / 2; /* 4bpp */
+    /* Send pixel data row-by-row with horizontal mirror (word-level reverse) */
+    uint32_t row_bytes = (uint32_t)w / 2; /* 4bpp: w pixels = w/2 bytes */
+    uint32_t row_words = row_bytes / 2;
+    uint8_t *row_buf = heap_caps_malloc(row_bytes, MALLOC_CAP_DMA);
 
     gpio_set_level(s_cs_pin, 0);
     wait_busy();
     spi_write_16(PREAMBLE_WR);
-    wait_busy();
+    /* No wait_busy here — data flows immediately after preamble */
 
-    /* Send in chunks */
-    uint32_t chunk_size = 1024;
-    uint8_t *chunk_buf = heap_caps_malloc(chunk_size, MALLOC_CAP_DMA);
-    for (uint32_t offset = 0; offset < total_bytes; offset += chunk_size) {
-        uint32_t len = (offset + chunk_size > total_bytes) ? (total_bytes - offset) : chunk_size;
-        memcpy(chunk_buf, data + offset, len);
-        spi_transaction_t t = { .length = len * 8, .tx_buffer = chunk_buf };
+    for (uint16_t row = 0; row < h; row++) {
+        const uint8_t *src = data + (uint32_t)row * row_bytes;
+        /* Reverse words in each row (horizontal mirror) */
+        for (uint32_t i = 0; i < row_words; i++) {
+            uint32_t src_idx = (row_words - 1 - i) * 2;
+            row_buf[i * 2] = src[src_idx];
+            row_buf[i * 2 + 1] = src[src_idx + 1];
+        }
+        spi_transaction_t t = { .length = row_bytes * 8, .tx_buffer = row_buf };
         spi_device_transmit(s_spi, &t);
     }
-    heap_caps_free(chunk_buf);
+    heap_caps_free(row_buf);
 
     gpio_set_level(s_cs_pin, 1);
 

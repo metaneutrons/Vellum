@@ -491,6 +491,8 @@ static uint32_t perform_render(void)
 
     if (resp.status_code == 200) {
         if (resp.binary_body && resp.binary_len > 0) {
+            /* Re-assert BUSY pin as input (WiFi/sleep may have reconfigured it) */
+            gpio_set_direction(GPIO_NUM_13, GPIO_MODE_INPUT);
             if (display_update_raw(resp.binary_body, resp.binary_len) != ESP_OK) {
                 ESP_LOGW(TAG, "Malformed pixel buffer (%zu bytes)", resp.binary_len);
                 display_show_error("Error");
