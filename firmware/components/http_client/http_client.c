@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include "esp_log.h"
 #include "esp_http_client.h"
-#include "esp_crt_bundle.h"
 #include "cJSON.h"
 
 static const char *TAG = "http_cli";
@@ -161,9 +160,10 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_POST,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .transport_type = HTTP_TRANSPORT_OVER_TCP,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        .crt_bundle_attach = esp_crt_bundle_attach,
+        
         .disable_auto_redirect = false,
     };
 
@@ -278,9 +278,10 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_GET,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .transport_type = HTTP_TRANSPORT_OVER_TCP,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        .crt_bundle_attach = esp_crt_bundle_attach,
+        
         .disable_auto_redirect = false,
     };
 
@@ -353,9 +354,10 @@ esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_POST,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .transport_type = HTTP_TRANSPORT_OVER_TCP,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        .crt_bundle_attach = esp_crt_bundle_attach,
+        
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -408,9 +410,10 @@ esp_err_t http_client_config(vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_GET,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .transport_type = HTTP_TRANSPORT_OVER_TCP,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        .crt_bundle_attach = esp_crt_bundle_attach,
+        
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
