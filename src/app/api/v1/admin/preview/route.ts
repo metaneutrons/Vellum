@@ -33,9 +33,7 @@ export async function GET(request: NextRequest) {
     .where(eq(devices.contentInstanceId, instanceId))
     .limit(1);
   if (device?.displayCaps) {
-    const resolved = resolveDisplayCaps(device.displayCaps);
-    // Use device dimensions but keep quantize as "none" for PNG preview
-    display = { ...resolved, quantize: "none" };
+    display = resolveDisplayCaps(device.displayCaps);
   }
 
   let theme = resolveTheme(display.colorCount);
