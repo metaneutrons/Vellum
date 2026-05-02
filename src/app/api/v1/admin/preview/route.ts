@@ -3,12 +3,12 @@
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { contentInstances, themes } from "@/db/schema";
+import { contentInstances, devices, themes } from "@/db/schema";
 import { getContentRenderer } from "@/lib/content";
 import { resolveTheme, parseTheme } from "@/lib/theme";
-import type { ResolvedDisplay } from "@/lib/display";
+import { resolveDisplayCaps, type ResolvedDisplay } from "@/lib/display";
 
-const PREVIEW_DISPLAY: ResolvedDisplay = {
+const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
   width: 800, height: 480,
   palette: [[0,0,0],[255,255,255],[0,128,0],[0,0,255],[255,0,0],[255,255,0],[255,128,0]],
   quantize: "none",
@@ -26,7 +26,19 @@ export async function GET(request: NextRequest) {
   const renderer = getContentRenderer(instance.typeSlug);
   if (!renderer) return new Response("No renderer", { status: 500 });
 
-  let theme = resolveTheme(PREVIEW_DISPLAY.colorCount);
+  // Find a device using this content to get its display caps
+  let display: ResolvedDisplay = DEFAULT_PREVIEW_DISPLAY;
+  const [device] = await db.select({ displayCaps: devices.displayCaps })
+    .from(devices)
+    .where(eq(devices.contentInstanceId, instanceId))
+    .limit(1);
+  if (device?.displayCaps) {
+    const resolved = resolveDisplayCaps(device.displayCaps);
+    // Use device dimensions but keep quantize as "none" for PNG preview
+    display = { ...resolved, quantize: "none" };
+  }
+
+  let theme = resolveTheme(display.colorCount);
   if (themeId) {
     const [dbTheme] = await db.select().from(themes).where(eq(themes.id, themeId)).limit(1);
     const parsed = parseTheme(dbTheme?.config);
@@ -36,7 +48,7 @@ export async function GET(request: NextRequest) {
   const result = await renderer.render({
     config: instance.config,
     theme,
-    display: PREVIEW_DISPLAY,
+    display,
     now: new Date(),
   });
 
