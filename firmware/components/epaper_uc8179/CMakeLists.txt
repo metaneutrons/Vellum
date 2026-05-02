@@ -10,7 +10,6 @@ idf_component_register(
         "src/controllers/acep_6color.c"
         "src/controllers/bwry_4color.c"
         "src/controllers/uc8179_bw.c"
-        "src/controllers/ed103tc2.c"
     INCLUDE_DIRS
         "include"
     REQUIRES

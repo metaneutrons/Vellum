@@ -745,7 +745,7 @@ void app_main(void)
     int battery = read_battery_level();
     ESP_LOGI(TAG, "Battery level: %d%%", battery);
 
-    if (battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !is_usb_powered()) {
+    if (battery > 0 && battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !is_usb_powered()) {
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
         display_show_error("Low Battery");

@@ -164,7 +164,7 @@ static const epd_panel_desc_t panel_registry[EPD_PANEL_COUNT] = {
         .name = "ED103TC2",
         .width = 1404, .height = 1872,
         .color_mode = EPD_COLOR_16GRAY, .bits_per_pixel = 4,
-        .caps = EPD_CAP_FAST,
+        .caps = EPD_CAP_FAST | EPD_CAP_BUSY_INV,
         .ctrl = EPD_CTRL_ED103TC2,
         .init_data = NULL,
     },
