@@ -292,17 +292,17 @@ export function renderToCanvas(
     if (hour === 0 && h > 0 && h < 8) {
       const dayLabel = format(hourDate, "EEEE, d. MMM", { locale: dfLocale });
       ctx.fillStyle = T.slotSecondary;
-      ctx.fillRect(gutterW, y - 1, width - 8 - gutterW, 1);
+      ctx.fillRect(gutterW, y - 1, width - Math.round(8 * scale) - gutterW, 1);
       const labelW = textWidth(tc, dayLabel, "sm");
-      const labelX = gutterW + (width - 8 - gutterW - labelW) / 2;
-      text(tc, labelX, y - 4, dayLabel, "sm", T.slotSecondary);
-      ctx.fillRect(gutterW, y + 1, width - 8 - gutterW, 1);
+      const labelX = gutterW + (width - Math.round(8 * scale) - gutterW - labelW) / 2;
+      text(tc, labelX, y - Math.round(4 * scale), dayLabel, "sm", T.slotSecondary);
+      ctx.fillRect(gutterW, y + 1, width - Math.round(8 * scale) - gutterW, 1);
     }
 
-    text(tc, gutterW - 8, y + 8, fmtHour(hour), "md", T.slotSecondary, "right");
+    text(tc, gutterW - Math.round(8 * scale), y + Math.round(8 * scale), fmtHour(hour), "md", T.slotSecondary, "right");
 
     ctx.fillStyle = "#000000";
-    ctx.fillRect(gutterW, y, width - 8 - gutterW, 2);
+    ctx.fillRect(gutterW, y, width - Math.round(8 * scale) - gutterW, Math.round(2 * scale));
   }
 
   // Event blocks
