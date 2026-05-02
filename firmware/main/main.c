@@ -67,7 +67,10 @@ static float read_battery_voltage(void)
     vTaskDelay(pdMS_TO_TICKS(10));
     int raw = 0;
     if (s_adc_handle) adc_oneshot_read(s_adc_handle, ADC_CHANNEL_0, &raw);
+#if !defined(CONFIG_VELLUM_PANEL_E1003)
+    /* Don't disable on E1003 — GPIO21 is shared with IT8951 ITE_ENABLE */
     gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 0);
+#endif
     return (raw / 4095.0f) * 3.3f * 2.0f;
 }
 
