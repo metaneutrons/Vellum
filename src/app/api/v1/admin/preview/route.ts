@@ -13,6 +13,7 @@ const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
   palette: [[0,0,0],[255,255,255],[0,128,0],[0,0,255],[255,0,0],[255,255,0],[255,128,0]],
   quantize: "none",
   colorCount: 7,
+  orientation: "landscape",
 };
 
 export async function GET(request: NextRequest) {

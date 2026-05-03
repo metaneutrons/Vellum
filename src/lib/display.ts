@@ -23,6 +23,10 @@ export const displayCapsSchema = z.object({
   height: z.number().int().positive(),
   palette: z.array(z.tuple([z.number(), z.number(), z.number()])).min(0),
   quantize: z.enum(["color", "grayscale", "mono", "none", "jpeg"]),
+  /** Orientations the device supports. Empty = fixed (no rotation). */
+  orientations: z.array(z.enum(["portrait", "landscape"])).default([]),
+  /** Current orientation as reported by the device (from IMU or fixed). */
+  orientation: z.enum(["portrait", "landscape"]).optional(),
 });
 
 export type DisplayCaps = z.infer<typeof displayCapsSchema>;
@@ -34,6 +38,7 @@ export interface ResolvedDisplay {
   palette: ColorPalette;
   quantize: QuantizeMode;
   colorCount: number;
+  orientation: "portrait" | "landscape";
 }
 
 /** Fallback when device hasn't reported capabilities */
@@ -43,20 +48,33 @@ const DEFAULT_CAPS: DisplayCaps = {
   height: 480,
   palette: [[0, 0, 0], [255, 255, 255]],
   quantize: "mono",
+  orientations: [],
 };
 
 /**
  * Parse and validate display capabilities from a JSONB value.
- * Returns validated caps or the default fallback.
+ * Optionally accepts an admin orientation override for sensorless devices.
  */
-export function resolveDisplayCaps(raw: unknown): ResolvedDisplay {
+export function resolveDisplayCaps(raw: unknown, orientationOverride?: "portrait" | "landscape"): ResolvedDisplay {
   const result = displayCapsSchema.safeParse(raw);
   const caps = result.success ? result.data : DEFAULT_CAPS;
+
+  // Determine orientation: override > device-reported > infer from dimensions
+  const orientation = orientationOverride
+    ?? caps.orientation
+    ?? (caps.height > caps.width ? "portrait" : "landscape");
+
+  // Swap width/height if orientation doesn't match native dimensions
+  const nativePortrait = caps.height > caps.width;
+  const wantPortrait = orientation === "portrait";
+  const needSwap = nativePortrait !== wantPortrait;
+
   return {
-    width: caps.width,
-    height: caps.height,
+    width: needSwap ? caps.height : caps.width,
+    height: needSwap ? caps.width : caps.height,
     palette: caps.palette,
     quantize: caps.quantize,
     colorCount: caps.palette.length,
+    orientation,
   };
 }
