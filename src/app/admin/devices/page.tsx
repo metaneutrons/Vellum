@@ -20,7 +20,7 @@ export default async function DevicesPage() {
     SELECT
       d.mac, d.status, d.content_instance_id, d.theme_id,
       d.refresh_profile_id, d.firmware_channel, d.firmware_pin_version,
-      d.display_caps, d.last_seen, d.approved_at, d.created_at,
+      d.display_caps, d.orientation_override, d.last_seen, d.approved_at, d.created_at,
       t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
     FROM devices d
     LEFT JOIN LATERAL (

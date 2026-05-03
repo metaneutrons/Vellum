@@ -32,7 +32,7 @@ export async function approveDevice(mac: string) {
 
 export async function updateDevice(
   mac: string,
-  data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null; firmwareChannel?: string | null; firmwarePinVersion?: string | null }
+  data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null; firmwareChannel?: string | null; firmwarePinVersion?: string | null; orientationOverride?: string | null }
 ) {
   try {
     await db.update(devices).set(data).where(eq(devices.mac, mac));
