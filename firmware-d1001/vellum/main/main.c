@@ -392,15 +392,23 @@ static void button_task(void *arg)
         if (gpio_get_level(GPIO_NUM_3) == 1) {
             int64_t press_start = esp_timer_get_time();
             bool showed_menu = false;
+            int last_countdown = -1;
 
             /* Wait for release or timeout */
             while (gpio_get_level(GPIO_NUM_3) == 1) {
                 int64_t held_ms = (esp_timer_get_time() - press_start) / 1000;
 
-                if (held_ms >= 5000 && !showed_menu) {
-                    /* Show reset menu after 5s hold */
-                    display_show_status("Release: Reboot\nHold 10s: Factory Reset");
-                    showed_menu = true;
+                if (held_ms >= 5000) {
+                    int remaining = (int)((10000 - held_ms) / 1000);
+                    if (remaining < 0) remaining = 0;
+
+                    if (remaining != last_countdown) {
+                        char msg[64];
+                        snprintf(msg, sizeof(msg), "Release: Reboot\n\nFactory Reset in %d", remaining);
+                        display_show_status(msg);
+                        last_countdown = remaining;
+                        showed_menu = true;
+                    }
                 }
 
                 if (held_ms >= 10000) {
