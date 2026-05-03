@@ -112,16 +112,18 @@ static void display_init(void)
         .rst_mask = D1001_EXP_LCD_RST,
     };
     esp_lcd_panel_handle_t panel = NULL;
-    ESP_ERROR_CHECK(lcd_jd9365_init(&lcd_cfg, &panel));
+    esp_lcd_panel_io_handle_t io = NULL;
+    ESP_ERROR_CHECK(lcd_jd9365_init(&lcd_cfg, &panel, &io));
 
     /* LVGL port */
     const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     ESP_ERROR_CHECK(lvgl_port_init(&lvgl_cfg));
 
     const lvgl_port_display_cfg_t disp_cfg = {
+        .io_handle = io,
         .panel_handle = panel,
-        .buffer_size = LCD_WIDTH * LCD_HEIGHT,
-        .double_buffer = true,
+        .buffer_size = LCD_WIDTH * 100,
+        .double_buffer = false,
         .hres = LCD_WIDTH,
         .vres = LCD_HEIGHT,
         .flags = { .buff_spiram = true },

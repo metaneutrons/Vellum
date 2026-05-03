@@ -24,6 +24,7 @@ typedef struct {
  * @brief Initialize JD9365 LCD panel over MIPI-DSI
  * @param config Panel configuration
  * @param[out] ret_panel Panel handle for esp_lcd operations
+ * @param[out] ret_io Panel IO handle (needed for LVGL port)
  * @return ESP_OK on success
  */
-esp_err_t lcd_jd9365_init(const lcd_jd9365_config_t *config, esp_lcd_panel_handle_t *ret_panel);
+esp_err_t lcd_jd9365_init(const lcd_jd9365_config_t *config, esp_lcd_panel_handle_t *ret_panel, esp_lcd_panel_io_handle_t *ret_io);

@@ -11,7 +11,7 @@
 
 static const char *TAG = "lcd_jd9365";
 
-esp_err_t lcd_jd9365_init(const lcd_jd9365_config_t *config, esp_lcd_panel_handle_t *ret_panel)
+esp_err_t lcd_jd9365_init(const lcd_jd9365_config_t *config, esp_lcd_panel_handle_t *ret_panel, esp_lcd_panel_io_handle_t *ret_io)
 {
     /* Power MIPI-DSI PHY via LDO */
     esp_ldo_channel_handle_t phy_pwr = NULL;
@@ -91,5 +91,6 @@ esp_err_t lcd_jd9365_init(const lcd_jd9365_config_t *config, esp_lcd_panel_handl
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(*ret_panel, true), TAG, "Panel ON failed");
 
     ESP_LOGI(TAG, "JD9365 %dx%d initialized", config->h_res, config->v_res);
+    if (ret_io) *ret_io = io;
     return ESP_OK;
 }
