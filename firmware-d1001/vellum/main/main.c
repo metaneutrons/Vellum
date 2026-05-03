@@ -381,6 +381,12 @@ static void button_task(void *arg)
     gpio_set_direction(GPIO_NUM_3, GPIO_MODE_INPUT);
     gpio_set_pull_mode(GPIO_NUM_3, GPIO_PULLUP_ONLY);
 
+    /* Wait for button to be released after boot (ignore boot-time press) */
+    while (gpio_get_level(GPIO_NUM_3) == 0) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    vTaskDelay(pdMS_TO_TICKS(500)); /* Debounce after release */
+
     while (1) {
         /* Wait for button press (active low) */
         if (gpio_get_level(GPIO_NUM_3) == 0) {
