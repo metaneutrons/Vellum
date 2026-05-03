@@ -330,6 +330,26 @@ static bool fetch_and_display(const char *mac_str)
     }
     ESP_LOGI(TAG, "JPEG decoded: %dx%d", out_info.width, out_info.height);
 
+    /* Rotate 90° CW if image is landscape but panel is portrait */
+    uint16_t disp_w = out_info.width;
+    uint16_t disp_h = out_info.height;
+    if (out_info.width > out_info.height && LCD_HEIGHT > LCD_WIDTH) {
+        ESP_LOGI(TAG, "Rotating 90° CW for portrait panel");
+        uint16_t *src = (uint16_t *)rgb_buf;
+        uint16_t *dst = heap_caps_malloc(out_info.width * out_info.height * 2, MALLOC_CAP_SPIRAM);
+        if (dst) {
+            for (int y = 0; y < out_info.height; y++) {
+                for (int x = 0; x < out_info.width; x++) {
+                    dst[x * out_info.height + (out_info.height - 1 - y)] = src[y * out_info.width + x];
+                }
+            }
+            free(rgb_buf);
+            rgb_buf = (uint8_t *)dst;
+            disp_w = out_info.height;
+            disp_h = out_info.width;
+        }
+    }
+
     /* Display decoded image via LVGL */
     bsp_display_lock(0);
     lv_obj_t *scr = lv_disp_get_scr_act(NULL);
@@ -338,10 +358,10 @@ static bool fetch_and_display(const char *mac_str)
     lv_obj_t *img = lv_img_create(scr);
     static lv_img_dsc_t img_dsc;
     memset(&img_dsc, 0, sizeof(img_dsc));
-    img_dsc.header.w = out_info.width;
-    img_dsc.header.h = out_info.height;
+    img_dsc.header.w = disp_w;
+    img_dsc.header.h = disp_h;
     img_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
-    img_dsc.data_size = out_info.width * out_info.height * 2;
+    img_dsc.data_size = disp_w * disp_h * 2;
     img_dsc.data = rgb_buf;
     lv_img_set_src(img, &img_dsc);
     lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);

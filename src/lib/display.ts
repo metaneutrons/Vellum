@@ -53,18 +53,18 @@ const DEFAULT_CAPS: DisplayCaps = {
 
 /**
  * Parse and validate display capabilities from a JSONB value.
- * Optionally accepts an admin orientation override for sensorless devices.
+ * Swaps width/height to match desired orientation.
+ * Firmware is responsible for rotating the image if needed.
  */
 export function resolveDisplayCaps(raw: unknown, orientationOverride?: "portrait" | "landscape"): ResolvedDisplay {
   const result = displayCapsSchema.safeParse(raw);
   const caps = result.success ? result.data : DEFAULT_CAPS;
 
-  // Determine orientation: override > device-reported > infer from dimensions
   const orientation = orientationOverride
     ?? caps.orientation
     ?? (caps.height > caps.width ? "portrait" : "landscape");
 
-  // Swap width/height if orientation doesn't match native dimensions
+  // Swap width/height if desired orientation doesn't match native
   const nativePortrait = caps.height > caps.width;
   const wantPortrait = orientation === "portrait";
   const needSwap = nativePortrait !== wantPortrait;
