@@ -26,19 +26,22 @@
 #include "lvgl.h"
 #include "jpeg_decoder.h"
 #include "esp-bsp.h"
+#include "vellum_logo_img.h"
 #include "display.h"
 
 static const char *TAG = "vellum_d1001";
 
 #define WIFI_SSID      "Schmieder24"
 #define WIFI_PASS      "oberon2017"
-#define SERVER_URL     "http://192.168.16.6:3000"
+#define SERVER_URL     "http://192.168.16.5:3000"
 
 #define LCD_WIDTH      800
 #define LCD_HEIGHT     1280
 
 static bool s_wifi_connected = false;
 static lv_display_t *s_display = NULL;
+
+static void display_show_status(const char *text);
 
 /* ─── Orientation ──────────────────────────────────────────────────────── */
 
@@ -111,27 +114,35 @@ static void display_init(void)
     assert(s_display);
 
     /* Boot screen */
-    bsp_display_lock(0);
-    lv_obj_t *scr = lv_disp_get_scr_act(NULL);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-
-    lv_obj_t *logo = lv_label_create(scr);
-    lv_label_set_text(logo, LV_SYMBOL_IMAGE " Vellum");
-    lv_obj_set_style_text_font(logo, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(logo, lv_color_black(), 0);
-    lv_obj_align(logo, LV_ALIGN_CENTER, 0, -20);
-
-    lv_obj_t *ver = lv_label_create(scr);
-    lv_label_set_text(ver, "v1.0.0 | D1001");
-    lv_obj_set_style_text_font(ver, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(ver, lv_color_make(128, 128, 128), 0);
-    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 30);
-    bsp_display_unlock();
+    display_show_status("v1.0.0 | D1001");
 
     vTaskDelay(pdMS_TO_TICKS(200));
     bsp_display_backlight_on();
     ESP_LOGI(TAG, "Display initialized: %dx%d", LCD_WIDTH, LCD_HEIGHT);
+}
+
+static lv_color_t *s_logo_buf = NULL;
+
+static void draw_logo(lv_obj_t *parent)
+{
+    if (!s_logo_buf) {
+        s_logo_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    }
+    if (!s_logo_buf) return;
+
+    lv_obj_t *canvas = lv_canvas_create(parent);
+    lv_canvas_set_buffer(canvas, s_logo_buf, VELLUM_LOGO_W, VELLUM_LOGO_H, LV_COLOR_FORMAT_NATIVE);
+    lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
+    for (int y = 0; y < VELLUM_LOGO_H; y++) {
+        for (int x = 0; x < VELLUM_LOGO_W; x++) {
+            int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
+            int bit_idx = 7 - (x % 8);
+            if (vellum_logo_bits[byte_idx] & (1 << bit_idx)) {
+                lv_canvas_set_px(canvas, x, y, lv_color_black(), LV_OPA_COVER);
+            }
+        }
+    }
+    lv_obj_align(canvas, LV_ALIGN_TOP_MID, 0, (LCD_HEIGHT / 2) - VELLUM_LOGO_H - 40);
 }
 
 static void display_show_status(const char *text)
@@ -140,11 +151,16 @@ static void display_show_status(const char *text)
     lv_obj_t *scr = lv_disp_get_scr_act(NULL);
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    draw_logo(scr);
 
     lv_obj_t *label = lv_label_create(scr);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_32, 0);
-    lv_obj_center(label);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(label, lv_color_make(80, 80, 80), 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, VELLUM_LOGO_H / 2);
     bsp_display_unlock();
 }
 
@@ -257,12 +273,11 @@ static bool fetch_and_display(const char *mac_str)
     }
     /* Telemetry headers */
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d", bsp_battery_percent_read());
+    snprintf(buf, sizeof(buf), "%d", 100); /* TODO: bsp_battery_percent_read() hangs */
     esp_http_client_set_header(client, "X-Battery-Level", buf);
-    snprintf(buf, sizeof(buf), "%d", bsp_battery_voltage_read());
-    esp_http_client_set_header(client, "X-Battery-Voltage", buf);
-    esp_http_client_set_header(client, "X-Power-Source", bsp_usb_voltage_read() > 4000 ? "usb" : "battery");
+    esp_http_client_set_header(client, "X-Power-Source", "usb");
     esp_http_client_set_header(client, "X-Display-Model", "D1001");
+    ESP_LOGI(TAG, "Fetching render...");
 
     esp_err_t err = esp_http_client_perform(client);
     int status = esp_http_client_get_status_code(client);

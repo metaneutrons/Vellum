@@ -27,14 +27,21 @@ export async function GET(request: NextRequest) {
   const renderer = getContentRenderer(instance.typeSlug);
   if (!renderer) return new Response("No renderer", { status: 500 });
 
-  // Find a device using this content to get its display caps
+  // Find device display caps — prefer explicit mac, fall back to any device using this content
   let display: ResolvedDisplay = DEFAULT_PREVIEW_DISPLAY;
-  const [device] = await db.select({ displayCaps: devices.displayCaps })
-    .from(devices)
-    .where(eq(devices.contentInstanceId, instanceId))
-    .limit(1);
-  if (device?.displayCaps) {
-    display = resolveDisplayCaps(device.displayCaps);
+  const mac = request.nextUrl.searchParams.get("mac");
+  if (mac) {
+    const [device] = await db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
+      .from(devices).where(eq(devices.mac, mac)).limit(1);
+    if (device?.displayCaps) {
+      display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
+    }
+  } else {
+    const [device] = await db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
+      .from(devices).where(eq(devices.contentInstanceId, instanceId)).limit(1);
+    if (device?.displayCaps) {
+      display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
+    }
   }
 
   let theme = resolveTheme(display.colorCount);

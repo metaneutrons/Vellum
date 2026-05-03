@@ -107,7 +107,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     <button onClick={() => setPreviewId(d.content_instance_id)}
                       className="block w-24 h-14 rounded border border-gray-200 hover:border-blue-400 overflow-hidden cursor-pointer transition-colors"
                       title={t("preview")}>
-                      <img src={`/api/v1/admin/preview?instanceId=${d.content_instance_id}&w=192&h=112`}
+                      <img src={`/api/v1/admin/preview?instanceId=${d.content_instance_id}&mac=${d.mac}&w=192&h=112`}
                         alt="" className="w-full h-full object-cover" loading="lazy" />
                     </button>
                   ) : (
