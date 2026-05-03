@@ -21,6 +21,7 @@
 #include "esp_wifi.h"
 #include "esp_mac.h"
 #include "esp_sleep.h"
+#include "esp_timer.h"
 #include "cJSON.h"
 #include "bsp_lsm6ds3.h"
 #include "lvgl.h"
@@ -372,6 +373,59 @@ static bool fetch_and_display(const char *mac_str)
     return true;
 }
 
+/* ─── Button Task ──────────────────────────────────────────────────────── */
+
+static void button_task(void *arg)
+{
+    (void)arg;
+    gpio_set_direction(GPIO_NUM_3, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(GPIO_NUM_3, GPIO_PULLUP_ONLY);
+
+    while (1) {
+        /* Wait for button press (active low) */
+        if (gpio_get_level(GPIO_NUM_3) == 0) {
+            int64_t press_start = esp_timer_get_time();
+            bool showed_menu = false;
+
+            /* Wait for release or timeout */
+            while (gpio_get_level(GPIO_NUM_3) == 0) {
+                int64_t held_ms = (esp_timer_get_time() - press_start) / 1000;
+
+                if (held_ms >= 5000 && !showed_menu) {
+                    /* Show reset menu after 5s hold */
+                    display_show_status("Release: Reboot\nHold 10s: Factory Reset");
+                    showed_menu = true;
+                }
+
+                if (held_ms >= 10000) {
+                    /* Factory reset */
+                    display_show_status("Factory Reset...");
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    nvs_flash_erase();
+                    esp_restart();
+                }
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+
+            int64_t held_ms = (esp_timer_get_time() - press_start) / 1000;
+
+            if (held_ms >= 5000) {
+                /* Released after 5s+ but before 10s → reboot */
+                display_show_status("Rebooting...");
+                vTaskDelay(pdMS_TO_TICKS(500));
+                esp_restart();
+            } else if (held_ms >= 100) {
+                /* Short press → refresh */
+                ESP_LOGI(TAG, "Button: refresh");
+                /* Signal main loop to refresh immediately */
+                /* For now just reboot to trigger fresh render */
+                esp_restart();
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 /* ─── Main ─────────────────────────────────────────────────────────────── */
 
 void app_main(void)
@@ -438,6 +492,9 @@ void app_main(void)
     }
 
     display_show_status("Fetching content...");
+
+    /* Start button monitor task */
+    xTaskCreate(button_task, "button", 4096, NULL, 5, NULL);
 
     /* Main loop — server controls refresh interval and sleep mode */
     while (1) {
