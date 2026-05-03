@@ -57,6 +57,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
   const [batteryMac, setBatteryMac] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewMac, setPreviewMac] = useState<string | null>(null);
 
   function act(fn: () => Promise<unknown>, ok: string, fail: string) {
     startTransition(async () => {
@@ -104,7 +105,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                 {/* Preview thumbnail */}
                 <div className="shrink-0">
                   {hasContent ? (
-                    <button onClick={() => setPreviewId(d.content_instance_id)}
+                    <button onClick={() => { setPreviewId(d.content_instance_id); setPreviewMac(d.mac); }}
                       className="block w-24 h-14 rounded border border-gray-200 hover:border-blue-400 overflow-hidden cursor-pointer transition-colors"
                       title={t("preview")}>
                       <img src={`/api/v1/admin/preview?instanceId=${d.content_instance_id}&mac=${d.mac}&w=192&h=112`}
@@ -218,7 +219,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
           tabIndex={0}
           role="button"
           aria-label="Close preview">
-          <img src={`/api/v1/admin/preview?instanceId=${previewId}`} alt="Preview"
+          <img src={`/api/v1/admin/preview?instanceId=${previewId}&mac=${previewMac}`} alt="Preview"
             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
         </div>
       )}
