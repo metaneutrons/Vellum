@@ -221,7 +221,7 @@ export function renderToCanvas(
   width: number,
   height: number,
   colorCount: number,
-  quantize: string = "color",
+  colorMode: string = "indexed",
   timelineShiftH: number = 2,
   locale: string = "en",
   dateFormat: string = "PPPP"
@@ -230,7 +230,7 @@ export function renderToCanvas(
   const ctx = canvas.getContext("2d");
 
   /* Enable anti-aliasing for grayscale displays (smooth fonts) */
-  ctx.imageSmoothingEnabled = quantize !== "color";
+  ctx.imageSmoothingEnabled = colorMode !== "indexed";
 
   /* Scale based on shorter dimension (480px reference) for consistent proportions */
   const shortSide = Math.min(width, height);
@@ -263,7 +263,7 @@ export function renderToCanvas(
   const busy = isBusy(events, new Date(roundedNowMs));
   const badge = BADGE_TEXT[locale] ?? BADGE_TEXT.en;
   const badgeText = busy ? badge.busy : badge.free;
-  const tc: TextCtx = { ctx, useBitmap: quantize === "color", ff, scale };
+  const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
 
   // Badge
   const bw = textWidth(tc, badgeText, "md-bold");
@@ -442,6 +442,6 @@ export const roomBookingRenderer: ContentRenderer = {
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy);
-    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.quantize, cfg.timelineShiftH, cfg.locale, cfg.dateFormat) };
+    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.timelineShiftH, cfg.locale, cfg.dateFormat) };
   },
 };

@@ -11,7 +11,8 @@ import { resolveDisplayCaps, type ResolvedDisplay } from "@/lib/display";
 const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
   width: 800, height: 480,
   palette: [[0,0,0],[255,255,255],[0,128,0],[0,0,255],[255,0,0],[255,255,0],[255,128,0]],
-  quantize: "none",
+  format: "raw",
+  colorMode: "fullcolor",
   colorCount: 7,
   orientation: "landscape",
 };

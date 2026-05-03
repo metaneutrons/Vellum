@@ -187,7 +187,8 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
 #if defined(CONFIG_VELLUM_PANEL_GDEP073E01)
     cJSON_AddNumberToObject(display, "width", 800);
     cJSON_AddNumberToObject(display, "height", 480);
-    cJSON_AddStringToObject(display, "quantize", "color");
+    cJSON_AddStringToObject(display, "format", "raw");
+    cJSON_AddStringToObject(display, "colorMode", "indexed");
     cJSON *palette = cJSON_CreateArray();
     int colors[][3] = {{0,0,0},{255,255,255},{255,255,0},{255,0,0},{255,128,0},{0,0,255},{0,255,0}};
     for (int i = 0; i < 7; i++) {
@@ -201,7 +202,8 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
 #elif defined(CONFIG_VELLUM_PANEL_GDEY075T7)
     cJSON_AddNumberToObject(display, "width", 800);
     cJSON_AddNumberToObject(display, "height", 480);
-    cJSON_AddStringToObject(display, "quantize", "mono");
+    cJSON_AddStringToObject(display, "format", "raw");
+    cJSON_AddStringToObject(display, "colorMode", "mono");
     cJSON *palette = cJSON_CreateArray();
     int bw[][3] = {{0,0,0},{255,255,255}};
     for (int i = 0; i < 2; i++) {
@@ -215,7 +217,8 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
 #elif defined(CONFIG_VELLUM_PANEL_E1003)
     cJSON_AddNumberToObject(display, "width", 1872);
     cJSON_AddNumberToObject(display, "height", 1404);
-    cJSON_AddStringToObject(display, "quantize", "grayscale");
+    cJSON_AddStringToObject(display, "format", "raw");
+    cJSON_AddStringToObject(display, "colorMode", "grayscale");
     cJSON *palette = cJSON_CreateArray();
     for (int i = 0; i < 16; i++) {
         int v = i * 17; /* 0, 17, 34, ..., 255 */

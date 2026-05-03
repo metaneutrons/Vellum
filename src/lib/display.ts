@@ -3,18 +3,22 @@
 /**
  * Display capabilities — device-reported, server-stored.
  *
- * The device sends its full capabilities in /hello. The server
- * stores them as JSONB and uses them for rendering. No server
- * changes needed when new display hardware is added.
+ * Two orthogonal axes:
+ *   - format: How pixels are transmitted (raw binary or JPEG)
+ *   - colorMode: Color depth of the display hardware
  *
- * Fallback defaults are provided for devices that haven't
- * reported capabilities yet.
+ * The palette array serves different purposes per colorMode:
+ *   - fullcolor: Theme color scheme (renderer picks from these for UI elements)
+ *   - indexed: Exact colors the display can show (dithering target)
+ *   - grayscale: Gray levels available (e.g. 16 entries for 4bpp)
+ *   - mono: Always [[0,0,0],[255,255,255]]
  */
 
 import { z } from "zod";
 import type { ColorPalette } from "./render/dither";
 
-export type QuantizeMode = "color" | "grayscale" | "mono" | "none" | "jpeg";
+export type OutputFormat = "raw" | "jpeg";
+export type ColorMode = "fullcolor" | "indexed" | "grayscale" | "mono";
 
 /** Schema for device-reported display capabilities */
 export const displayCapsSchema = z.object({
@@ -22,7 +26,12 @@ export const displayCapsSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   palette: z.array(z.tuple([z.number(), z.number(), z.number()])).min(0),
-  quantize: z.enum(["color", "grayscale", "mono", "none", "jpeg"]),
+  /** Output format: raw binary pixels or JPEG-compressed */
+  format: z.enum(["raw", "jpeg"]).default("raw"),
+  /** Color mode of the display hardware */
+  colorMode: z.enum(["fullcolor", "indexed", "grayscale", "mono"]).default("mono"),
+  /** @deprecated Use format + colorMode instead. Kept for migration. */
+  quantize: z.enum(["color", "grayscale", "mono", "none", "jpeg"]).optional(),
   /** Orientations the device supports. Empty = fixed (no rotation). */
   orientations: z.array(z.enum(["portrait", "landscape"])).default([]),
   /** Current orientation as reported by the device (from IMU or fixed). */
@@ -36,7 +45,8 @@ export interface ResolvedDisplay {
   width: number;
   height: number;
   palette: ColorPalette;
-  quantize: QuantizeMode;
+  format: OutputFormat;
+  colorMode: ColorMode;
   colorCount: number;
   orientation: "portrait" | "landscape";
 }
@@ -47,24 +57,41 @@ const DEFAULT_CAPS: DisplayCaps = {
   width: 800,
   height: 480,
   palette: [[0, 0, 0], [255, 255, 255]],
-  quantize: "mono",
+  format: "raw",
+  colorMode: "mono",
   orientations: [],
 };
+
+/** Migrate legacy quantize field to format + colorMode */
+function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: ColorMode } {
+  if (caps.format && caps.colorMode) {
+    return { format: caps.format, colorMode: caps.colorMode };
+  }
+  // Legacy migration from quantize field
+  switch (caps.quantize) {
+    case "jpeg": return { format: "jpeg", colorMode: "fullcolor" };
+    case "color": return { format: "raw", colorMode: "indexed" };
+    case "grayscale": return { format: "raw", colorMode: "grayscale" };
+    case "mono": return { format: "raw", colorMode: "mono" };
+    case "none": return { format: "raw", colorMode: "fullcolor" };
+    default: return { format: caps.format ?? "raw", colorMode: caps.colorMode ?? "mono" };
+  }
+}
 
 /**
  * Parse and validate display capabilities from a JSONB value.
  * Swaps width/height to match desired orientation.
- * Firmware is responsible for rotating the image if needed.
  */
 export function resolveDisplayCaps(raw: unknown, orientationOverride?: "portrait" | "landscape"): ResolvedDisplay {
   const result = displayCapsSchema.safeParse(raw);
   const caps = result.success ? result.data : DEFAULT_CAPS;
 
+  const { format, colorMode } = migrateQuantize(caps);
+
   const orientation = orientationOverride
     ?? caps.orientation
     ?? (caps.height > caps.width ? "portrait" : "landscape");
 
-  // Swap width/height if desired orientation doesn't match native
   const nativePortrait = caps.height > caps.width;
   const wantPortrait = orientation === "portrait";
   const needSwap = nativePortrait !== wantPortrait;
@@ -73,7 +100,8 @@ export function resolveDisplayCaps(raw: unknown, orientationOverride?: "portrait
     width: needSwap ? caps.height : caps.width,
     height: needSwap ? caps.width : caps.height,
     palette: caps.palette,
-    quantize: caps.quantize,
+    format,
+    colorMode,
     colorCount: caps.palette.length,
     orientation,
   };

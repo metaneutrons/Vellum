@@ -8,7 +8,10 @@ export { floydSteinbergDither, type ColorPalette } from "./dither";
 
 import type { Canvas } from "@napi-rs/canvas";
 import { floydSteinbergDither, nearestPaletteIndex, type ColorPalette } from "./dither";
-import type { QuantizeMode } from "@/lib/display";
+import type { OutputFormat, ColorMode } from "@/lib/display";
+
+/** @deprecated — use OutputFormat + ColorMode */
+export type QuantizeMode = "color" | "grayscale" | "mono" | "none" | "jpeg";
 
 export const DEFAULT_PALETTE: ColorPalette = [
   [0, 0, 0],
@@ -31,56 +34,51 @@ function nearestColorQuantize(
 }
 
 /**
- * Convert canvas to palette-indexed pixel buffer.
+ * Convert canvas to pixel buffer based on format + colorMode.
  *
- * "color":     Snap non-palette pixels to B&W by luminance, then nearest-color.
- * "grayscale": Nearest-color directly — AA gray pixels map to gray palette entries.
- * "mono":      Floyd-Steinberg dithering for pure B&W.
- * "none":      No quantization — returns raw PNG bytes for TFT displays.
+ * format=jpeg: JPEG-compressed output (for LCD displays)
+ * format=raw + colorMode:
+ *   - fullcolor: PNG (for preview/testing)
+ *   - indexed: Snap AA artifacts to palette, then nearest-color 4bpp
+ *   - grayscale: Nearest-color 4bpp (AA grays map to gray palette)
+ *   - mono: Floyd-Steinberg dithering, 1bpp packed
  */
 export function canvasToPixelBuffer(
   canvas: Canvas,
   palette: ColorPalette = DEFAULT_PALETTE,
-  quantize: QuantizeMode = "mono"
+  format: OutputFormat | QuantizeMode = "raw",
+  colorMode: ColorMode = "mono"
 ): Buffer {
-  if (quantize === "none") {
-    return canvas.toBuffer("image/png");
-  }
+  // Legacy QuantizeMode support
+  if (format === "none") return canvas.toBuffer("image/png");
+  if (format === "jpeg") return canvas.toBuffer("image/jpeg", 95);
+  if (format === "color") { format = "raw"; colorMode = "indexed"; }
+  if (format === "grayscale") { format = "raw"; colorMode = "grayscale"; }
+  if (format === "mono") { format = "raw"; colorMode = "mono"; }
 
-  if (quantize === "jpeg") {
-    return canvas.toBuffer("image/jpeg", 95);
+  // New format + colorMode (format is now guaranteed "raw" after legacy handling)
+  if (colorMode === "fullcolor") {
+    return canvas.toBuffer("image/png");
   }
 
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
   const data = new Uint8ClampedArray(ctx.getImageData(0, 0, width, height).data);
 
-  if (quantize === "color") {
-    // Pre-pass: fix anti-aliasing artifacts on color e-paper.
-    // For each pixel, find the nearest palette color. If the distance
-    // is large (AA blend between two colors), snap to B&W by luminance.
-    // Small distances (near a palette color) are left alone.
-    const AA_THRESHOLD = 3000; // squared distance — ~55 per channel
-
+  if (colorMode === "indexed") {
+    // Snap anti-aliasing artifacts to palette colors
+    const AA_THRESHOLD = 3000;
     for (let i = 0; i < width * height; i++) {
       const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-
-      // Find nearest palette color and its distance
       let bestDist = Infinity;
       let bestR = 0, bestG = 0, bestB = 0;
       for (const [pr, pg, pb] of palette) {
         const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestR = pr; bestG = pg; bestB = pb;
-        }
+        if (dist < bestDist) { bestDist = dist; bestR = pr; bestG = pg; bestB = pb; }
       }
-
       if (bestDist < AA_THRESHOLD) {
-        // Close enough to a palette color — snap to it
         data[i * 4] = bestR; data[i * 4 + 1] = bestG; data[i * 4 + 2] = bestB;
       } else {
-        // Far from any palette color — AA artifact, snap to B&W
         const v = (0.299 * r + 0.587 * g + 0.114 * b) > 128 ? 255 : 0;
         data[i * 4] = v; data[i * 4 + 1] = v; data[i * 4 + 2] = v;
       }
@@ -88,11 +86,11 @@ export function canvasToPixelBuffer(
     return packTo4bit(nearestColorQuantize(data, width, height, palette), width, height);
   }
 
-  if (quantize === "grayscale") {
+  if (colorMode === "grayscale") {
     return packTo4bit(nearestColorQuantize(data, width, height, palette), width, height);
   }
 
-  // "mono" — Floyd-Steinberg dither then pack to 1-bit
+  // mono — Floyd-Steinberg dither then pack to 1-bit
   return packTo1bit(floydSteinbergDither(data, width, height, palette), width, height);
 }
 

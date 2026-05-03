@@ -113,8 +113,8 @@ export async function GET(request: NextRequest) {
     return Response.json(errorResponse("Render failed"), { status: 500 });
   }
 
-  const pixelBuffer = canvasToPixelBuffer(renderResult.canvas, display.palette, display.quantize);
-  log.info("Render output", { mac: validation.data.mac, quantize: display.quantize, canvasW: renderResult.canvas.width, canvasH: renderResult.canvas.height, bufferSize: pixelBuffer.length });
+  const pixelBuffer = canvasToPixelBuffer(renderResult.canvas, display.palette, display.format, display.colorMode);
+  log.info("Render output", { mac: validation.data.mac, format: display.format, colorMode: display.colorMode, canvasW: renderResult.canvas.width, canvasH: renderResult.canvas.height, bufferSize: pixelBuffer.length });
 
   // Sleep duration
   const USB_VOLTAGE_THRESHOLD = 4.5;
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
   return new Response(new Uint8Array(pixelBuffer), {
     status: 200,
     headers: {
-      "Content-Type": display.quantize === "none" ? "image/png" : display.quantize === "jpeg" ? "image/jpeg" : "application/octet-stream",
+      "Content-Type": display.format === "jpeg" ? "image/jpeg" : (display.colorMode === "fullcolor" ? "image/png" : "application/octet-stream"),
       "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
       "X-Sleep-Mode": sleepMode,
       "ETag": contentHash,
