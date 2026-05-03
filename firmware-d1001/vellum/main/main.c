@@ -19,6 +19,7 @@
 #include "esp_netif.h"
 #include "esp_wifi.h"
 #include "esp_mac.h"
+#include "esp_sleep.h"
 #include "cJSON.h"
 #include "lvgl.h"
 #include "jpeg_decoder.h"
@@ -189,6 +190,9 @@ static bool perform_hello(const char *mac_str)
     return strlen(s_token) > 0;
 }
 
+static uint32_t s_sleep_duration = 60;
+static bool s_sleep_deep = false;
+
 static bool fetch_and_display(const char *mac_str)
 {
     char url[256];
@@ -217,6 +221,17 @@ static bool fetch_and_display(const char *mac_str)
     }
     esp_err_t err = esp_http_client_perform(client);
     int status = esp_http_client_get_status_code(client);
+
+    /* Capture sleep headers */
+    char *hdr_val = NULL;
+    if (esp_http_client_get_header(client, "X-Sleep-Duration", &hdr_val) == ESP_OK && hdr_val) {
+        s_sleep_duration = (uint32_t)atoi(hdr_val);
+    }
+    char *mode_val = NULL;
+    if (esp_http_client_get_header(client, "X-Sleep-Mode", &mode_val) == ESP_OK && mode_val) {
+        s_sleep_deep = (strcmp(mode_val, "sleep") == 0);
+    }
+
     esp_http_client_cleanup(client);
 
     if (err != ESP_OK || status != 200) {
@@ -338,13 +353,24 @@ void app_main(void)
 
     display_show_status("Fetching content...");
 
-    /* Main loop — poll for content every 60s */
+    /* Main loop — server controls refresh interval and sleep mode */
     while (1) {
         if (s_wifi_connected) {
             if (fetch_and_display(mac_str)) {
                 ESP_LOGI(TAG, "Display updated");
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(60000));
+
+        ESP_LOGI(TAG, "Next: %s for %lus", s_sleep_deep ? "DEEP SLEEP" : "poll", (unsigned long)s_sleep_duration);
+
+        if (s_sleep_deep) {
+            /* Deep sleep — display off, full power down */
+            bsp_display_backlight_off();
+            esp_deep_sleep(s_sleep_duration * 1000000ULL);
+            /* does not return */
+        }
+
+        /* Poll mode — stay awake, refresh after interval */
+        vTaskDelay(pdMS_TO_TICKS(s_sleep_duration * 1000));
     }
 }
