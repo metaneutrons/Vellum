@@ -24,6 +24,7 @@ interface Device {
   firmware_channel: string | null;
   firmware_pin_version: string | null;
   display_caps: unknown;
+  orientation_override: string | null;
   last_seen: string | null;
   battery_level: number | null;
   battery_voltage: number | null;
