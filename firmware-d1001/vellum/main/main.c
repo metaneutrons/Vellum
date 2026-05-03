@@ -194,7 +194,7 @@ static bool perform_hello(const char *mac_str)
     const char *orient = detect_orientation();
     snprintf(body, sizeof(body),
         "{\"mac\":\"%s\",\"display\":{\"model\":\"D1001\",\"width\":%d,\"height\":%d,"
-        "\"quantize\":\"jpeg\",\"palette\":[[0,0,0],[255,255,255]],"
+        "\"quantize\":\"jpeg\",\"palette\":[[0,0,0],[255,255,255],[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,128,0]],"
         "\"orientations\":[\"portrait\",\"landscape\"],\"orientation\":\"%s\"}}",
         mac_str, LCD_WIDTH, LCD_HEIGHT, orient);
 
