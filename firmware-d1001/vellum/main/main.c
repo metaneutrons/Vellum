@@ -415,7 +415,7 @@ static void button_task(void *arg)
                         draw_logo(scr);
 
                         lv_obj_t *hint = lv_label_create(scr);
-                        lv_label_set_text(hint, "Release: Reboot");
+                        lv_label_set_text(hint, "Release now for reboot!");
                         lv_obj_set_style_text_font(hint, &lv_font_montserrat_24, 0);
                         lv_obj_set_style_text_color(hint, lv_color_make(80, 80, 80), 0);
                         lv_obj_align(hint, LV_ALIGN_CENTER, 0, 60);
