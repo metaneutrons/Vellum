@@ -1,0 +1,13 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+*.pyc
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

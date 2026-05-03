@@ -1,0 +1,50 @@
+dependencies:
+  esp_cam_sensor:
+    dependencies:
+    - name: espressif/cmake_utilities
+      version: 0.*
+    - name: espressif/esp_sccb_intf
+      version: '>=0.0.5'
+    - name: idf
+      version: '>=5.3'
+    source:
+      path: E:\esp-idf-v5.4.1\workspace\esp_cam_sensor
+      type: local
+    targets:
+    - esp32p4
+    - esp32s3
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    - esp32c61
+    version: 1.2.0
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.5.3
+  espressif/esp_sccb_intf:
+    component_hash: 71e3def402f6193a23c599bdde4fa0b544ca2b1f63608b6d0ec2bee3cd9a1c33
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.0.5
+  idf:
+    source:
+      type: idf
+    version: 5.4.1
+direct_dependencies:
+- esp_cam_sensor
+- idf
+manifest_hash: 70108f2308dd321c589577b4bec62abde7748751d87ad552c6ebce72478c8de5
+target: esp32p4
+version: 2.0.0

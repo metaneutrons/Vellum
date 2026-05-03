@@ -1,6 +1,0 @@
-dependencies:
-  idf: ">=5.4"
-  esp_jpeg:
-    version: "*"
-  cjson:
-    version: "*"
