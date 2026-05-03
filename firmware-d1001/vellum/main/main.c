@@ -424,7 +424,8 @@ static void button_task(void *arg)
                         lv_label_set_text(big, num);
                         lv_obj_set_style_text_font(big, &lv_font_montserrat_48, 0);
                         lv_obj_set_style_text_color(big, lv_color_make(200, 0, 0), 0);
-                        lv_obj_align(big, LV_ALIGN_CENTER, 0, 140);
+                        lv_obj_set_style_transform_scale(big, 512, 0); /* 2x scale */
+                        lv_obj_align(big, LV_ALIGN_CENTER, 0, 160);
 
                         lv_obj_t *sub = lv_label_create(scr);
                         lv_label_set_text(sub, "Factory Reset");
