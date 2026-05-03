@@ -230,7 +230,7 @@ export function renderToCanvas(
   const ctx = canvas.getContext("2d");
 
   /* Enable anti-aliasing for grayscale displays (smooth fonts) */
-  ctx.imageSmoothingEnabled = quantize === "grayscale" || quantize === "mono";
+  ctx.imageSmoothingEnabled = quantize !== "color";
 
   /* Scale based on shorter dimension (480px reference) for consistent proportions */
   const shortSide = Math.min(width, height);
