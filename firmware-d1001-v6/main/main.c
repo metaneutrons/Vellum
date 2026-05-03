@@ -122,13 +122,16 @@ static void display_init(void)
     const lvgl_port_display_cfg_t disp_cfg = {
         .io_handle = io,
         .panel_handle = panel,
-        .buffer_size = LCD_WIDTH * 100,
-        .double_buffer = false,
+        .buffer_size = LCD_WIDTH * LCD_HEIGHT,
+        .double_buffer = true,
         .hres = LCD_WIDTH,
         .vres = LCD_HEIGHT,
         .flags = { .buff_spiram = true },
     };
-    s_display = lvgl_port_add_disp(&disp_cfg);
+    const lvgl_port_display_dsi_cfg_t dsi_cfg = {
+        .flags = { .avoid_tearing = 0 },
+    };
+    s_display = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
 
     vTaskDelay(pdMS_TO_TICKS(100));
     d1001_backlight_on();
