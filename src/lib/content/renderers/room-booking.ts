@@ -232,8 +232,9 @@ export function renderToCanvas(
   /* Enable anti-aliasing for grayscale displays (smooth fonts) */
   ctx.imageSmoothingEnabled = quantize === "grayscale" || quantize === "mono";
 
-  /* Scale factor relative to reference display (800×480) */
-  const scale = Math.min(width / 800, height / 480);
+  /* Scale based on shorter dimension (480px reference) for consistent proportions */
+  const shortSide = Math.min(width, height);
+  const scale = shortSide / 480;
 
   const headerH = Math.round(75 * scale);
   const footerH = Math.round(44 * scale);
