@@ -8,6 +8,11 @@
  *   2. Schedule rule match (weekday/time-based override)
  *   3. Device refresh profile defaults
  *   4. Hardcoded fallback
+ *
+ * Schedule rules support two modes:
+ *   - "poll": Device stays awake (or light-sleeps), polls after intervalS.
+ *   - "sleep": Device enters deep sleep until the rule's endHour.
+ *             No polling, display off. Use for overnight/weekend rest.
  */
 
 import { z } from "zod";
@@ -22,8 +27,14 @@ const scheduleRuleSchema = z.object({
   startHour: z.number().min(0).max(23),
   /** End hour (0-23). If < startHour, wraps past midnight. */
   endHour: z.number().min(0).max(23),
-  /** Override interval in seconds when this rule is active */
+  /** Override interval in seconds when this rule is active (used for mode=poll) */
   intervalS: z.number().min(0),
+  /**
+   * Device behavior during this rule:
+   * - "poll": Stay awake, refresh every intervalS seconds.
+   * - "sleep": Deep sleep until endHour. No polling, display off.
+   */
+  mode: z.enum(["poll", "sleep"]).default("poll"),
 });
 
 export type ScheduleRule = z.infer<typeof scheduleRuleSchema>;
@@ -35,6 +46,8 @@ export const refreshProfileSchema = z.object({
   lowBatteryThresholdPct: z.number().default(20),
   imminentEventWindowS: z.number().default(1200),
   wakeBeforeEventS: z.number().default(300),
+  /** Default mode when no schedule rule matches */
+  defaultMode: z.enum(["poll", "sleep"]).default("sleep"),
   /** Schedule rules — checked in order, first match wins */
   schedule: z.array(scheduleRuleSchema).default([]),
 });
@@ -53,6 +66,11 @@ export interface SleepContext {
   timezone?: string;
 }
 
+export interface SleepResult {
+  durationS: number;
+  mode: "poll" | "sleep";
+}
+
 export function parseRefreshProfile(raw: unknown): RefreshProfile {
   const result = refreshProfileSchema.safeParse(raw);
   return result.success ? result.data : DEFAULT_PROFILE;
@@ -63,53 +81,64 @@ function matchesRule(rule: ScheduleRule, now: Date): boolean {
   const day = now.getDay();
   const hour = now.getHours();
 
-  // Check day filter (empty = all days)
   if (rule.days.length > 0 && !rule.days.includes(day)) return false;
 
-  // Check time window
   if (rule.startHour <= rule.endHour) {
-    // Same-day window: e.g. 9-17
     return hour >= rule.startHour && hour < rule.endHour;
   }
-  // Overnight window: e.g. 22-6
   return hour >= rule.startHour || hour < rule.endHour;
 }
 
-export function computeSleepDuration(ctx: SleepContext): number {
+/** Compute seconds from now until a target hour (today or tomorrow) */
+function secondsUntilHour(now: Date, targetHour: number): number {
+  const target = new Date(now);
+  target.setHours(targetHour, 0, 0, 0);
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return Math.floor((target.getTime() - now.getTime()) / 1000);
+}
+
+export function computeSleep(ctx: SleepContext): SleepResult {
   const p = ctx.profile ?? DEFAULT_PROFILE;
 
-  // 1. Content renderer override
-  if (ctx.rendererOverrideS !== null && ctx.rendererOverrideS !== undefined && ctx.rendererOverrideS > 0) {
-    return ctx.rendererOverrideS;
+  // 1. Content renderer override (always poll mode)
+  if (ctx.rendererOverrideS != null && ctx.rendererOverrideS > 0) {
+    return { durationS: ctx.rendererOverrideS, mode: "poll" };
   }
 
-  // 2. USB powered
-  if (ctx.powerSource === "usb") {
-    return p.usbIntervalS;
+  // 2. Low battery → sleep to conserve
+  if (ctx.powerSource === "battery" && ctx.batteryLevel < p.lowBatteryThresholdPct) {
+    return { durationS: p.lowBatteryIntervalS, mode: "sleep" };
   }
 
-  // 3. Low battery
-  if (ctx.batteryLevel < p.lowBatteryThresholdPct) {
-    return p.lowBatteryIntervalS;
-  }
-
-  // 4. Schedule rules — first match wins
+  // 3. Schedule rules — first match wins
   for (const rule of p.schedule) {
     if (matchesRule(rule, ctx.now)) {
-      return rule.intervalS;
+      if (rule.mode === "sleep") {
+        // Sleep until the rule's endHour
+        return { durationS: secondsUntilHour(ctx.now, rule.endHour), mode: "sleep" };
+      }
+      return { durationS: rule.intervalS, mode: "poll" };
     }
   }
 
-  // 5. Imminent event
+  // 4. Imminent event (poll mode — want to be ready)
   if (ctx.nextEventStart !== null) {
     const diffS = Math.floor((ctx.nextEventStart.getTime() - ctx.now.getTime()) / 1000);
     if (diffS > 0 && diffS <= p.imminentEventWindowS) {
-      return Math.max(diffS - p.wakeBeforeEventS, 0);
+      return { durationS: Math.max(diffS - p.wakeBeforeEventS, 0), mode: "poll" };
     }
   }
 
-  // 6. Default battery interval
-  return p.batteryIntervalS;
+  // 5. Default based on power source
+  const durationS = ctx.powerSource === "usb" ? p.usbIntervalS : p.batteryIntervalS;
+  return { durationS, mode: p.defaultMode };
+}
+
+/** Legacy wrapper — returns just the duration in seconds */
+export function computeSleepDuration(ctx: SleepContext): number {
+  return computeSleep(ctx).durationS;
 }
 
 export function applyJitter(baseDuration: number, maxJitter: number = 10): number {

@@ -9,8 +9,7 @@ import { validateRequest, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { canvasToPixelBuffer } from "@/lib/render";
-import { computeSleepDuration, applyJitter } from "@/lib/sleep";
-import { parseRefreshProfile } from "@/lib/sleep";
+import { computeSleep, parseRefreshProfile, applyJitter } from "@/lib/sleep";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { resolveDisplayCaps } from "@/lib/display";
@@ -130,7 +129,7 @@ export async function GET(request: NextRequest) {
     if (rp) profile = parseRefreshProfile(rp.config);
   }
 
-  const sleepDuration = computeSleepDuration({
+  const { durationS: sleepDuration, mode: sleepMode } = computeSleep({
     powerSource,
     batteryLevel: telemetryData?.batteryLevel ?? 100,
     nextEventStart: null,
@@ -148,7 +147,10 @@ export async function GET(request: NextRequest) {
   if (ifNoneMatch === contentHash) {
     return new Response(null, {
       status: 304,
-      headers: { "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))) },
+      headers: {
+        "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
+        "X-Sleep-Mode": sleepMode,
+      },
     });
   }
 
@@ -157,6 +159,7 @@ export async function GET(request: NextRequest) {
     headers: {
       "Content-Type": display.quantize === "none" ? "image/png" : display.quantize === "jpeg" ? "image/jpeg" : "application/octet-stream",
       "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
+      "X-Sleep-Mode": sleepMode,
       "ETag": contentHash,
     },
   });
