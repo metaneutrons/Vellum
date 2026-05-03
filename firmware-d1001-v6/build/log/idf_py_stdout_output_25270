@@ -1,0 +1,87 @@
+Command: cmake -G Ninja -B /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/build -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/Users/fabian/.espressif/python_env/idf6.0_py3.14_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=True /Users/fabian/Source/vellum-fresh/firmware-d1001-v6
+-- IDF_TARGET is not set, guessed 'esp32p4' from sdkconfig '/Users/fabian/Source/vellum-fresh/firmware-d1001-v6/sdkconfig'
+-- Found Git: /opt/homebrew/bin/git (found version "2.53.0")
+-- Component directory /Users/fabian/.espressif/v6.0/esp-idf/components/mqtt does not contain a CMakeLists.txt file. No component will be added
+-- Minimal build - OFF
+-- ccache will be used for faster recompilation
+-- The C compiler identification is GNU 15.2.0
+-- The CXX compiler identification is GNU 15.2.0
+-- The ASM compiler identification is GNU
+-- Found assembler: /Users/fabian/.espressif/tools/riscv32-esp-elf/esp-15.2.0_20251204/riscv32-esp-elf/bin/riscv32-esp-elf-gcc
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /Users/fabian/.espressif/tools/riscv32-esp-elf/esp-15.2.0_20251204/riscv32-esp-elf/bin/riscv32-esp-elf-gcc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /Users/fabian/.espressif/tools/riscv32-esp-elf/esp-15.2.0_20251204/riscv32-esp-elf/bin/riscv32-esp-elf-g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Building ESP-IDF components for target esp32p4
+NOTICE: Processing 12 dependencies:
+NOTICE: [1/12] espressif/cjson (1.7.19~2)
+NOTICE: [2/12] espressif/cmake_utilities (0.5.3)
+NOTICE: [3/12] espressif/eppp_link (1.1.5)
+NOTICE: [4/12] espressif/esp_hosted (2.12.6)
+NOTICE: [5/12] espressif/esp_io_expander (1.2.1)
+NOTICE: [6/12] espressif/esp_jpeg (1.3.1)
+NOTICE: [7/12] espressif/esp_lvgl_port (2.7.2)
+NOTICE: [8/12] espressif/esp_serial_slave_link (1.1.2)
+NOTICE: [9/12] espressif/esp_wifi_remote (1.5.1)
+NOTICE: [10/12] espressif/wifi_remote_over_eppp (0.3.2)
+NOTICE: [11/12] lvgl/lvgl (9.5.0)
+NOTICE: [12/12] idf (6.0.0)
+-- Using new driver components (IDF ≥ 5.0)
+-- ESP-TEE is currently supported only on the esp32c6;esp32h2;esp32c5;esp32c61 SoCs
+-- KCONFIG_REPORT_VERBOSITY not set, using default
+-- Project sdkconfig file /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/sdkconfig
+Loading defaults file /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/sdkconfig.defaults...
+warning: unknown kconfig symbol 'LV_MEM_CUSTOM' assigned to 'y' in /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/sdkconfig.defaults
+warning: unknown kconfig symbol 'LV_MEMCPY_MEMSET_STD' assigned to 'y' in /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/sdkconfig.defaults
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/riscv/ld/rom.api.ld
+-- App "vellum-d1001" version: 1.0.0
+-- Found Python3: /Users/fabian/.espressif/python_env/idf6.0_py3.14_env/bin/python (found version "3.14.3") found components: Interpreter
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS
+-- Performing Test C_COMPILER_SUPPORTS_WFORMAT_SIGNEDNESS - Success
+-- Setting up mbedtls configuration
+-- Linkage type is PUBLIC
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_wdt/esp32p4/rom.wdt.ld
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_system/ld/esp32p4/memory.ld.in
+--   -> Preprocessing .in script: /Users/fabian/.espressif/v6.0/esp-idf/components/esp_system/ld/esp32p4/memory.ld.in
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_system/ld/esp32p4/sections.rev3.ld.in
+--   -> Preprocessing .in script: /Users/fabian/.espressif/v6.0/esp-idf/components/esp_system/ld/esp32p4/sections.rev3.ld.in
+--   -> Applying ldgen processing: /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/build/esp-idf/esp_system/ld/sections.rev3.ld.in
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_rom/esp32p4/ld/esp32p4.rom.eco5.ld
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_rom/esp32p4/ld/esp32p4.rom.api.ld
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_rom/esp32p4/ld/esp32p4.rom.eco5.rvfp.ld
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_rom/esp32p4/ld/esp32p4.rom.systimer.ld
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_rom/esp32p4/ld/esp32p4.rom.version.ld
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/esp_rom/esp32p4/ld/esp32p4.rom.eco5.libc.ld
+-- Adding linker script /Users/fabian/.espressif/v6.0/esp-idf/components/soc/esp32p4/ld/esp32p4.peripherals.ld
+-- ESP_LCD_JD9365_8: 1.0.0
+-- Using Hosted Wi-Fi
+-- Using new driver components (IDF ≥ 5.0)
+-- LVGL version: 9.5.0
+-- Component idf::esp_trace will be linked with -Wl,--whole-archive
+-- Component idf::espressif__esp_hosted will be linked with -Wl,--whole-archive
+-- Components: app_trace app_update bootloader bootloader_support bt cmock console cxx d1001_board driver efuse esp-tls esp_adc esp_app_format esp_blockdev esp_bootloader_format esp_coex esp_common esp_driver_ana_cmpr esp_driver_bitscrambler esp_driver_cam esp_driver_dac esp_driver_dma esp_driver_gpio esp_driver_gptimer esp_driver_i2c esp_driver_i2s esp_driver_i3c esp_driver_isp esp_driver_jpeg esp_driver_ledc esp_driver_mcpwm esp_driver_parlio esp_driver_pcnt esp_driver_ppa esp_driver_rmt esp_driver_sd_intf esp_driver_sdio esp_driver_sdm esp_driver_sdmmc esp_driver_sdspi esp_driver_spi esp_driver_touch_sens esp_driver_tsens esp_driver_twai esp_driver_uart esp_driver_usb_serial_jtag esp_eth esp_event esp_gdbstub esp_hal_ana_cmpr esp_hal_ana_conv esp_hal_cam esp_hal_clock esp_hal_dma esp_hal_gpio esp_hal_gpspi esp_hal_i2c esp_hal_i2s esp_hal_ieee802154 esp_hal_jpeg esp_hal_lcd esp_hal_ledc esp_hal_mcpwm esp_hal_mspi esp_hal_parlio esp_hal_pcnt esp_hal_pmu esp_hal_ppa esp_hal_rmt esp_hal_rtc_timer esp_hal_security esp_hal_timg esp_hal_touch_sens esp_hal_twai esp_hal_uart esp_hal_usb esp_hal_wdt esp_hid esp_http_client esp_http_server esp_https_ota esp_https_server esp_hw_support esp_io_expander_pca9535 esp_lcd esp_lcd_jd9365_8 esp_libc esp_local_ctrl esp_mm esp_netif esp_netif_stack esp_partition esp_phy esp_pm esp_psram esp_ringbuf esp_rom esp_security esp_stdio esp_system esp_timer esp_trace esp_usb_cdc_rom_console esp_wifi espcoredump espressif__cjson espressif__cmake_utilities espressif__eppp_link espressif__esp_hosted espressif__esp_io_expander espressif__esp_jpeg espressif__esp_lvgl_port espressif__esp_serial_slave_link espressif__esp_wifi_remote espressif__wifi_remote_over_eppp esptool_py fatfs freertos hal heap http_parser idf_test ieee802154 lcd_jd9365 log lvgl__lvgl lwip main mbedtls nvs_flash nvs_sec_provider openthread partition_table protobuf-c protocomm pthread riscv rt sdmmc soc spi_flash spiffs tcp_transport ulp unity vfs wear_levelling wpa_supplicant
+-- Component paths: /Users/fabian/.espressif/v6.0/esp-idf/components/app_trace /Users/fabian/.espressif/v6.0/esp-idf/components/app_update /Users/fabian/.espressif/v6.0/esp-idf/components/bootloader /Users/fabian/.espressif/v6.0/esp-idf/components/bootloader_support /Users/fabian/.espressif/v6.0/esp-idf/components/bt /Users/fabian/.espressif/v6.0/esp-idf/components/cmock /Users/fabian/.espressif/v6.0/esp-idf/components/console /Users/fabian/.espressif/v6.0/esp-idf/components/cxx /Users/fabian/Source/vellum-fresh/firmware/components/d1001_board /Users/fabian/.espressif/v6.0/esp-idf/components/driver /Users/fabian/.espressif/v6.0/esp-idf/components/efuse /Users/fabian/.espressif/v6.0/esp-idf/components/esp-tls /Users/fabian/.espressif/v6.0/esp-idf/components/esp_adc /Users/fabian/.espressif/v6.0/esp-idf/components/esp_app_format /Users/fabian/.espressif/v6.0/esp-idf/components/esp_blockdev /Users/fabian/.espressif/v6.0/esp-idf/components/esp_bootloader_format /Users/fabian/.espressif/v6.0/esp-idf/components/esp_coex /Users/fabian/.espressif/v6.0/esp-idf/components/esp_common /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_ana_cmpr /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_bitscrambler /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_cam /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_dac /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_dma /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_gpio /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_gptimer /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_i2c /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_i2s /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_i3c /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_isp /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_jpeg /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_ledc /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_mcpwm /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_parlio /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_pcnt /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_ppa /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_rmt /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_sd_intf /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_sdio /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_sdm /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_sdmmc /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_sdspi /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_spi /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_touch_sens /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_tsens /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_twai /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_uart /Users/fabian/.espressif/v6.0/esp-idf/components/esp_driver_usb_serial_jtag /Users/fabian/.espressif/v6.0/esp-idf/components/esp_eth /Users/fabian/.espressif/v6.0/esp-idf/components/esp_event /Users/fabian/.espressif/v6.0/esp-idf/components/esp_gdbstub /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_ana_cmpr /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_ana_conv /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_cam /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_clock /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_dma /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_gpio /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_gpspi /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_i2c /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_i2s /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_ieee802154 /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_jpeg /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_lcd /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_ledc /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_mcpwm /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_mspi /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_parlio /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_pcnt /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_pmu /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_ppa /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_rmt /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_rtc_timer /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_security /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_timg /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_touch_sens /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_twai /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_uart /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_usb /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hal_wdt /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hid /Users/fabian/.espressif/v6.0/esp-idf/components/esp_http_client /Users/fabian/.espressif/v6.0/esp-idf/components/esp_http_server /Users/fabian/.espressif/v6.0/esp-idf/components/esp_https_ota /Users/fabian/.espressif/v6.0/esp-idf/components/esp_https_server /Users/fabian/.espressif/v6.0/esp-idf/components/esp_hw_support /Users/fabian/Source/vellum-fresh/firmware/components/esp_io_expander_pca9535 /Users/fabian/.espressif/v6.0/esp-idf/components/esp_lcd /Users/fabian/Source/vellum-fresh/firmware/components/esp_lcd_jd9365_8 /Users/fabian/.espressif/v6.0/esp-idf/components/esp_libc /Users/fabian/.espressif/v6.0/esp-idf/components/esp_local_ctrl /Users/fabian/.espressif/v6.0/esp-idf/components/esp_mm /Users/fabian/.espressif/v6.0/esp-idf/components/esp_netif /Users/fabian/.espressif/v6.0/esp-idf/components/esp_netif_stack /Users/fabian/.espressif/v6.0/esp-idf/components/esp_partition /Users/fabian/.espressif/v6.0/esp-idf/components/esp_phy /Users/fabian/.espressif/v6.0/esp-idf/components/esp_pm /Users/fabian/.espressif/v6.0/esp-idf/components/esp_psram /Users/fabian/.espressif/v6.0/esp-idf/components/esp_ringbuf /Users/fabian/.espressif/v6.0/esp-idf/components/esp_rom /Users/fabian/.espressif/v6.0/esp-idf/components/esp_security /Users/fabian/.espressif/v6.0/esp-idf/components/esp_stdio /Users/fabian/.espressif/v6.0/esp-idf/components/esp_system /Users/fabian/.espressif/v6.0/esp-idf/components/esp_timer /Users/fabian/.espressif/v6.0/esp-idf/components/esp_trace /Users/fabian/.espressif/v6.0/esp-idf/components/esp_usb_cdc_rom_console /Users/fabian/.espressif/v6.0/esp-idf/components/esp_wifi /Users/fabian/.espressif/v6.0/esp-idf/components/espcoredump /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__cjson /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__cmake_utilities /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__eppp_link /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__esp_hosted /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__esp_io_expander /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__esp_jpeg /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__esp_lvgl_port /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__esp_serial_slave_link /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__esp_wifi_remote /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/espressif__wifi_remote_over_eppp /Users/fabian/.espressif/v6.0/esp-idf/components/esptool_py /Users/fabian/.espressif/v6.0/esp-idf/components/fatfs /Users/fabian/.espressif/v6.0/esp-idf/components/freertos /Users/fabian/.espressif/v6.0/esp-idf/components/hal /Users/fabian/.espressif/v6.0/esp-idf/components/heap /Users/fabian/.espressif/v6.0/esp-idf/components/http_parser /Users/fabian/.espressif/v6.0/esp-idf/components/idf_test /Users/fabian/.espressif/v6.0/esp-idf/components/ieee802154 /Users/fabian/Source/vellum-fresh/firmware/components/lcd_jd9365 /Users/fabian/.espressif/v6.0/esp-idf/components/log /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/managed_components/lvgl__lvgl /Users/fabian/.espressif/v6.0/esp-idf/components/lwip /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/main /Users/fabian/.espressif/v6.0/esp-idf/components/mbedtls /Users/fabian/.espressif/v6.0/esp-idf/components/nvs_flash /Users/fabian/.espressif/v6.0/esp-idf/components/nvs_sec_provider /Users/fabian/.espressif/v6.0/esp-idf/components/openthread /Users/fabian/.espressif/v6.0/esp-idf/components/partition_table /Users/fabian/.espressif/v6.0/esp-idf/components/protobuf-c /Users/fabian/.espressif/v6.0/esp-idf/components/protocomm /Users/fabian/.espressif/v6.0/esp-idf/components/pthread /Users/fabian/.espressif/v6.0/esp-idf/components/riscv /Users/fabian/.espressif/v6.0/esp-idf/components/rt /Users/fabian/.espressif/v6.0/esp-idf/components/sdmmc /Users/fabian/.espressif/v6.0/esp-idf/components/soc /Users/fabian/.espressif/v6.0/esp-idf/components/spi_flash /Users/fabian/.espressif/v6.0/esp-idf/components/spiffs /Users/fabian/.espressif/v6.0/esp-idf/components/tcp_transport /Users/fabian/.espressif/v6.0/esp-idf/components/ulp /Users/fabian/.espressif/v6.0/esp-idf/components/unity /Users/fabian/.espressif/v6.0/esp-idf/components/vfs /Users/fabian/.espressif/v6.0/esp-idf/components/wear_levelling /Users/fabian/.espressif/v6.0/esp-idf/components/wpa_supplicant
+-- Configuring done (17.6s)
+-- Generating done (1.8s)
+-- Build files have been written to: /Users/fabian/Source/vellum-fresh/firmware-d1001-v6/build

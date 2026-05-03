@@ -2,19 +2,19 @@ dependencies:
   esp_cam_sensor:
     dependencies: []
     source:
-      path: /Users/fabian/Source/vellum-fresh/firmware-d1001/components/esp_cam_sensor
+      path: ../components/esp_cam_sensor
       type: local
     version: 1.2.0
   esp_io_expander_pca9535:
     dependencies: []
     source:
-      path: /Users/fabian/Source/vellum-fresh/firmware-d1001/components/esp_io_expander_pca9535
+      path: ../components/esp_io_expander_pca9535
       type: local
     version: 1.0.1
   esp_lcd_jd9365_8:
     dependencies: []
     source:
-      path: /Users/fabian/Source/vellum-fresh/firmware-d1001/components/esp_lcd_jd9365_8
+      path: ../components/esp_lcd_jd9365_8
       type: local
     version: 1.0.0
   esp_lcd_touch_gsl3670:
@@ -25,7 +25,7 @@ dependencies:
     - name: esp_io_expander_pca9535
       path: ../esp_io_expander_pca9535
     source:
-      path: /Users/fabian/Source/vellum-fresh/firmware-d1001/components/esp_lcd_touch_gsl3670
+      path: ../components/esp_lcd_touch_gsl3670
       type: local
     version: '*'
   espressif/button:
@@ -239,7 +239,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.4.2
+    version: 6.0.0
   lvgl/lvgl:
     component_hash: 184e532558c1c45fefed631f3e235423d22582aafb4630f3e8885c35281a49ae
     dependencies: []
@@ -267,4 +267,4 @@ direct_dependencies:
 - lvgl/lvgl
 manifest_hash: 31a7461969aae3da98cb46b17875db23f76c53b5d0629892a8fc8ecdb2b8d29d
 target: esp32p4
-version: 2.0.0
+version: 3.0.0
