@@ -111,13 +111,16 @@ static void display_init(void)
         }
     };
     s_display = bsp_display_start_with_config(&cfg);
-    assert(s_display);
+    if (!s_display) {
+        ESP_LOGE(TAG, "Display init failed!");
+        return;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+    bsp_display_backlight_on();
 
     /* Boot screen */
     display_show_status("v1.0.0 | D1001");
-
-    vTaskDelay(pdMS_TO_TICKS(200));
-    bsp_display_backlight_on();
     ESP_LOGI(TAG, "Display initialized: %dx%d", LCD_WIDTH, LCD_HEIGHT);
 }
 
@@ -273,9 +276,11 @@ static bool fetch_and_display(const char *mac_str)
     }
     /* Telemetry headers */
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d", 100); /* TODO: bsp_battery_percent_read() hangs */
+    snprintf(buf, sizeof(buf), "%d", bsp_battery_percent_read());
     esp_http_client_set_header(client, "X-Battery-Level", buf);
-    esp_http_client_set_header(client, "X-Power-Source", "usb");
+    snprintf(buf, sizeof(buf), "%d", bsp_battery_voltage_read());
+    esp_http_client_set_header(client, "X-Battery-Voltage", buf);
+    esp_http_client_set_header(client, "X-Power-Source", bsp_usb_voltage_read() > 4000 ? "usb" : "battery");
     esp_http_client_set_header(client, "X-Display-Model", "D1001");
     ESP_LOGI(TAG, "Fetching render...");
 
@@ -363,12 +368,12 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(err);
 
-    /* WiFi first (needs DMA memory before display claims it) */
-    wifi_init();
-
-    /* Display */
+    /* Display first — show boot screen immediately */
     display_init();
-    display_show_status("Vellum D1001\nConnecting...");
+
+    /* WiFi (SDIO to C6 — may take a few seconds) */
+    display_show_status("Connecting...");
+    wifi_init();
 
     /* Wait for WiFi */
     for (int i = 0; i < 100 && !s_wifi_connected; i++) {
@@ -425,7 +430,9 @@ void app_main(void)
 
         if (s_sleep_deep) {
             /* Deep sleep — display off, full power down */
+            ESP_LOGI(TAG, "Entering deep sleep...");
             bsp_display_backlight_off();
+            esp_sleep_enable_ext1_wakeup(1ULL << GPIO_NUM_3, ESP_EXT1_WAKEUP_ALL_LOW);
             esp_deep_sleep(s_sleep_duration * 1000000ULL);
             /* does not return */
         }
