@@ -1,0 +1,27 @@
+version: 0.0.1
+
+description: Board Support Package (BSP) for ESP32-P4 reTerminalD1001 Board
+
+targets:
+- esp32p4
+
+dependencies:
+  esp_lcd_jd9365_8: 
+    path: ../esp_lcd_jd9365_8
+  esp_lcd_touch_gsl3670:
+    path: ../esp_lcd_touch_gsl3670
+  esp_io_expander_pca9535:
+    path: ../esp_io_expander_pca9535
+  esp_cam_sensor:
+    path: ../esp_cam_sensor
+  button:
+      version: "^4.0.0"
+  espressif/esp_lvgl_port:
+    public: true
+    version: ^2
+  esp-sr: 2.*
+  esp_codec_dev:
+    public: true
+    version: 1.2.*
+  idf: '>=5.3'
+  lvgl/lvgl: '>=8,<10'
