@@ -236,6 +236,15 @@ static bool fetch_and_display(const char *mac_str)
     if (strlen(s_token) > 0) {
         esp_http_client_set_header(client, "x-device-token", s_token);
     }
+    /* Telemetry headers */
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", bsp_battery_percent_read());
+    esp_http_client_set_header(client, "X-Battery-Level", buf);
+    snprintf(buf, sizeof(buf), "%d", bsp_battery_voltage_read());
+    esp_http_client_set_header(client, "X-Battery-Voltage", buf);
+    esp_http_client_set_header(client, "X-Power-Source", bsp_usb_voltage_read() > 4000 ? "usb" : "battery");
+    esp_http_client_set_header(client, "X-Display-Model", "D1001");
+
     esp_err_t err = esp_http_client_perform(client);
     int status = esp_http_client_get_status_code(client);
 
