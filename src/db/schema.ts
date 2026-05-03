@@ -82,6 +82,7 @@ export const devices = pgTable("devices", {
   token: text("token"),
   publicKey: text("public_key"),
   displayCaps: jsonb("display_caps"),
+  orientationOverride: text("orientation_override"),  /* null = use device-reported, "portrait" | "landscape" */
   contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id),
   themeId: uuid("theme_id").references(() => themes.id),
   refreshProfileId: uuid("refresh_profile_id").references(() => refreshProfiles.id),

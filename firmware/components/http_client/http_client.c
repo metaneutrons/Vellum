@@ -227,6 +227,11 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     }
     cJSON_AddItemToObject(display, "palette", palette);
 #endif
+    /* Orientation — E-Paper devices are fixed (no sensor) */
+    cJSON *orientations = cJSON_CreateArray();
+    cJSON_AddItemToObject(display, "orientations", orientations);
+    cJSON_AddStringToObject(display, "orientation", "landscape");
+
     cJSON_AddItemToObject(json, "display", display);
 
     char *json_str = cJSON_PrintUnformatted(json);

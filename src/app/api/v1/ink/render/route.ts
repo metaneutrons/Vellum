@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Resolve display capabilities
-  const display = resolveDisplayCaps(device.displayCaps);
+  const display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
 
   // Resolve theme: device-specific → DB default → hardcoded fallback
   let theme: Theme = resolveTheme(display.colorCount);

@@ -10,6 +10,7 @@
  */
 
 #include <string.h>
+#include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -21,6 +22,7 @@
 #include "esp_mac.h"
 #include "esp_sleep.h"
 #include "cJSON.h"
+#include "bsp_lsm6ds3.h"
 #include "lvgl.h"
 #include "jpeg_decoder.h"
 #include "esp-bsp.h"
@@ -37,6 +39,19 @@ static const char *TAG = "vellum_d1001";
 
 static bool s_wifi_connected = false;
 static lv_display_t *s_display = NULL;
+
+/* ─── Orientation ──────────────────────────────────────────────────────── */
+
+static const char *detect_orientation(void)
+{
+    extern lsm6ds3_handle_t lsm6ds3;
+    float x, y, z;
+    if (bsp_lsm6ds3_read_accel(&lsm6ds3, &x, &y, &z) != ESP_OK) {
+        return "portrait"; /* fallback */
+    }
+    /* If |x| > |y|, device is landscape (gravity along short axis) */
+    return (fabsf(x) > fabsf(y)) ? "landscape" : "portrait";
+}
 
 /* ─── WiFi ─────────────────────────────────────────────────────────────── */
 
@@ -138,10 +153,12 @@ static bool perform_hello(const char *mac_str)
     snprintf(url, sizeof(url), "%s/api/v1/ink/hello", SERVER_URL);
 
     char body[512];
+    const char *orient = detect_orientation();
     snprintf(body, sizeof(body),
         "{\"mac\":\"%s\",\"display\":{\"model\":\"D1001\",\"width\":%d,\"height\":%d,"
-        "\"quantize\":\"jpeg\",\"palette\":[[0,0,0],[255,255,255]]}}",
-        mac_str, LCD_WIDTH, LCD_HEIGHT);
+        "\"quantize\":\"jpeg\",\"palette\":[[0,0,0],[255,255,255]],"
+        "\"orientations\":[\"portrait\",\"landscape\"],\"orientation\":\"%s\"}}",
+        mac_str, LCD_WIDTH, LCD_HEIGHT, orient);
 
     /* Ensure buffer exists for response capture */
     if (!s_img_buf) {
