@@ -238,8 +238,39 @@ static void lvgl_refresh(void)
 
 void display_show_boot(const char *version)
 {
-    /* No separate boot screen — wifi_setup screen includes branding */
-    (void)version;
+    if (!s_lvgl_disp) return;
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+
+    /* Vellum logo (1-bit bitmap → canvas) */
+    lv_color_t *logo_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    if (logo_buf) {
+        lv_obj_t *logo_canvas = lv_canvas_create(scr);
+        lv_canvas_set_buffer(logo_canvas, logo_buf, VELLUM_LOGO_W, VELLUM_LOGO_H, LV_COLOR_FORMAT_NATIVE);
+        lv_canvas_fill_bg(logo_canvas, lv_color_white(), LV_OPA_COVER);
+        for (int y = 0; y < VELLUM_LOGO_H; y++) {
+            for (int x = 0; x < VELLUM_LOGO_W; x++) {
+                int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
+                int bit_idx = 7 - (x % 8);
+                if (vellum_logo_bits[byte_idx] & (1 << bit_idx)) {
+                    lv_canvas_set_px(logo_canvas, x, y, lv_color_black(), LV_OPA_COVER);
+                }
+            }
+        }
+        lv_obj_align(logo_canvas, LV_ALIGN_CENTER, 0, -30);
+    }
+
+    /* Version label */
+    lv_obj_t *ver = lv_label_create(scr);
+    char ver_str[64];
+    snprintf(ver_str, sizeof(ver_str), "v%s", version);
+    lv_label_set_text(ver, ver_str);
+    lv_obj_set_style_text_font(ver, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(ver, lv_color_make(128, 128, 128), 0);
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, VELLUM_LOGO_H / 2 + 10);
+
+    lv_refr_now(s_lvgl_disp);
 }
 
 static void qr_display_cb(esp_qrcode_handle_t qrcode, void *user_data)

@@ -110,6 +110,25 @@ static void display_init(void)
     s_display = bsp_display_start_with_config(&cfg);
     assert(s_display);
 
+    /* Boot screen */
+    bsp_display_lock(0);
+    lv_obj_t *scr = lv_disp_get_scr_act(NULL);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    lv_obj_t *logo = lv_label_create(scr);
+    lv_label_set_text(logo, LV_SYMBOL_IMAGE " Vellum");
+    lv_obj_set_style_text_font(logo, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(logo, lv_color_black(), 0);
+    lv_obj_align(logo, LV_ALIGN_CENTER, 0, -20);
+
+    lv_obj_t *ver = lv_label_create(scr);
+    lv_label_set_text(ver, "v1.0.0 | D1001");
+    lv_obj_set_style_text_font(ver, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(ver, lv_color_make(128, 128, 128), 0);
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 30);
+    bsp_display_unlock();
+
     vTaskDelay(pdMS_TO_TICKS(200));
     bsp_display_backlight_on();
     ESP_LOGI(TAG, "Display initialized: %dx%d", LCD_WIDTH, LCD_HEIGHT);
