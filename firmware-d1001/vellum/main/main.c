@@ -381,20 +381,20 @@ static void button_task(void *arg)
     gpio_set_direction(GPIO_NUM_3, GPIO_MODE_INPUT);
     gpio_set_pull_mode(GPIO_NUM_3, GPIO_PULLUP_ONLY);
 
-    /* Wait for button to be released after boot (ignore boot-time press) */
-    while (gpio_get_level(GPIO_NUM_3) == 0) {
+    /* Wait for button to be released after boot (active HIGH) */
+    while (gpio_get_level(GPIO_NUM_3) == 1) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
     vTaskDelay(pdMS_TO_TICKS(500)); /* Debounce after release */
 
     while (1) {
-        /* Wait for button press (active low) */
-        if (gpio_get_level(GPIO_NUM_3) == 0) {
+        /* Wait for button press (active HIGH) */
+        if (gpio_get_level(GPIO_NUM_3) == 1) {
             int64_t press_start = esp_timer_get_time();
             bool showed_menu = false;
 
             /* Wait for release or timeout */
-            while (gpio_get_level(GPIO_NUM_3) == 0) {
+            while (gpio_get_level(GPIO_NUM_3) == 1) {
                 int64_t held_ms = (esp_timer_get_time() - press_start) / 1000;
 
                 if (held_ms >= 5000 && !showed_menu) {
@@ -516,7 +516,7 @@ void app_main(void)
             /* Deep sleep — display off, full power down */
             ESP_LOGI(TAG, "Entering deep sleep...");
             bsp_display_backlight_off();
-            esp_sleep_enable_ext1_wakeup(1ULL << GPIO_NUM_3, ESP_EXT1_WAKEUP_ALL_LOW);
+            esp_sleep_enable_ext1_wakeup(1ULL << GPIO_NUM_3, ESP_EXT1_WAKEUP_ANY_HIGH);
             esp_deep_sleep(s_sleep_duration * 1000000ULL);
             /* does not return */
         }
