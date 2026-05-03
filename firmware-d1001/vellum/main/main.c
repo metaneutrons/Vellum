@@ -403,9 +403,36 @@ static void button_task(void *arg)
                     if (remaining < 0) remaining = 0;
 
                     if (remaining != last_countdown) {
-                        char msg[64];
-                        snprintf(msg, sizeof(msg), "Release: Reboot\n\nFactory Reset in %d", remaining);
-                        display_show_status(msg);
+                        char num[16];
+                        snprintf(num, sizeof(num), "%d", remaining);
+
+                        bsp_display_lock(0);
+                        lv_obj_t *scr = lv_disp_get_scr_act(NULL);
+                        lv_obj_clean(scr);
+                        lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+                        lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+                        draw_logo(scr);
+
+                        lv_obj_t *hint = lv_label_create(scr);
+                        lv_label_set_text(hint, "Release: Reboot");
+                        lv_obj_set_style_text_font(hint, &lv_font_montserrat_24, 0);
+                        lv_obj_set_style_text_color(hint, lv_color_make(80, 80, 80), 0);
+                        lv_obj_align(hint, LV_ALIGN_CENTER, 0, 60);
+
+                        lv_obj_t *big = lv_label_create(scr);
+                        lv_label_set_text(big, num);
+                        lv_obj_set_style_text_font(big, &lv_font_montserrat_48, 0);
+                        lv_obj_set_style_text_color(big, lv_color_make(200, 0, 0), 0);
+                        lv_obj_align(big, LV_ALIGN_CENTER, 0, 140);
+
+                        lv_obj_t *sub = lv_label_create(scr);
+                        lv_label_set_text(sub, "Factory Reset");
+                        lv_obj_set_style_text_font(sub, &lv_font_montserrat_16, 0);
+                        lv_obj_set_style_text_color(sub, lv_color_make(200, 0, 0), 0);
+                        lv_obj_align(sub, LV_ALIGN_CENTER, 0, 190);
+
+                        bsp_display_unlock();
                         last_countdown = remaining;
                         showed_menu = true;
                     }
