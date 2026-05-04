@@ -441,7 +441,7 @@ export const roomBookingRenderer: ContentRenderer = {
       return { canvas: renderOffline(cfg.roomName, now, theme, width, height) };
     }
 
-    const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy);
+    const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy, cfg.locale);
     return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.timelineShiftH, cfg.locale, cfg.dateFormat) };
   },
 };

@@ -2,24 +2,31 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import type { CalendarEvent, DisplayEvent, RoomPolicy } from "@/lib/types";
 
+const RESERVED_TEXT: Record<string, string> = {
+  en: "Reserved", de: "Reserviert", fr: "Réservé", it: "Riservato", es: "Reservado",
+};
+
+const BOOKED_BY_TEXT: Record<string, string> = {
+  en: "Booked by", de: "Gebucht von", fr: "Réservé par", it: "Prenotato da", es: "Reservado por",
+};
+
 /**
  * Transforms calendar events based on the room's privacy policy.
- *
- * - "Show All": public events keep subject/organizer; private events
- *   become "Booked by [Organizer]" with a lock icon.
- * - "Hide Subject": all events get "Reserved" subject, time preserved.
- * - "Hide All": returns only a FREE/BUSY indicator (no event details).
  */
 export function applyRoomPolicy(
   events: CalendarEvent[],
-  policy: RoomPolicy
+  policy: RoomPolicy,
+  locale: string = "en"
 ): DisplayEvent[] {
+  const reserved = RESERVED_TEXT[locale] ?? RESERVED_TEXT.en;
+  const bookedBy = BOOKED_BY_TEXT[locale] ?? BOOKED_BY_TEXT.en;
+
   switch (policy) {
     case "Show All":
       return events.map((evt) =>
         evt.isPrivate
           ? {
-              displaySubject: `Booked by ${evt.organizer}`,
+              displaySubject: `${bookedBy} ${evt.organizer}`,
               organizer: evt.organizer,
               startTime: evt.startTime,
               endTime: evt.endTime,
@@ -38,7 +45,7 @@ export function applyRoomPolicy(
 
     case "Hide Subject":
       return events.map((evt) => ({
-        displaySubject: "Reserved",
+        displaySubject: reserved,
         organizer: "",
         startTime: evt.startTime,
         endTime: evt.endTime,
@@ -47,7 +54,6 @@ export function applyRoomPolicy(
       }));
 
     case "Hide All":
-      // No event details exposed — caller uses array length to determine FREE/BUSY
       return [];
   }
 }
