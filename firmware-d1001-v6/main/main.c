@@ -171,7 +171,7 @@ static void display_show_status(const char *text)
 
     lv_obj_t *label = lv_label_create(scr);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(label, lv_color_make(180, 180, 180), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, VELLUM_LOGO_H / 2 + 20);
