@@ -77,7 +77,7 @@ static lv_color_t *s_logo_buf = NULL;
 
 static void draw_logo(lv_obj_t *parent)
 {
-    /* Pre-render logo to RGB565 buffer once */
+    /* Pre-render logo to RGB565 buffer once (white on black for dark mode) */
     if (!s_logo_buf) {
         s_logo_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * 2, MALLOC_CAP_SPIRAM);
         if (!s_logo_buf) return;
@@ -86,7 +86,7 @@ static void draw_logo(lv_obj_t *parent)
             for (int x = 0; x < VELLUM_LOGO_W; x++) {
                 int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
                 int bit_idx = 7 - (x % 8);
-                px[y * VELLUM_LOGO_W + x] = (vellum_logo_bits[byte_idx] & (1 << bit_idx)) ? 0x0000 : 0xFFFF;
+                px[y * VELLUM_LOGO_W + x] = (vellum_logo_bits[byte_idx] & (1 << bit_idx)) ? 0xFFFF : 0x0000;
             }
         }
     }
@@ -164,7 +164,7 @@ static void display_show_status(const char *text)
 {
     lv_obj_t *scr = lv_display_get_screen_active(s_display);
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     draw_logo(scr);
@@ -172,7 +172,7 @@ static void display_show_status(const char *text)
     lv_obj_t *label = lv_label_create(scr);
     lv_label_set_text(label, text);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(label, lv_color_make(80, 80, 80), 0);
+    lv_obj_set_style_text_color(label, lv_color_make(180, 180, 180), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, VELLUM_LOGO_H / 2 + 20);
 }
