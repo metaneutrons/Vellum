@@ -229,11 +229,33 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
         cJSON_AddItemToArray(palette, c);
     }
     cJSON_AddItemToObject(display, "palette", palette);
+#elif defined(CONFIG_VELLUM_PANEL_D1001)
+    cJSON_AddNumberToObject(display, "width", 800);
+    cJSON_AddNumberToObject(display, "height", 1280);
+    cJSON_AddStringToObject(display, "format", "jpeg");
+    cJSON_AddStringToObject(display, "colorMode", "fullcolor");
+    cJSON *palette = cJSON_CreateArray();
+    int colors[][3] = {{0,0,0},{255,255,255},{255,0,0},{0,255,0},{0,0,255},{255,255,0},{255,128,0}};
+    for (int i = 0; i < 7; i++) {
+        cJSON *c = cJSON_CreateArray();
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][0]));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][1]));
+        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][2]));
+        cJSON_AddItemToArray(palette, c);
+    }
+    cJSON_AddItemToObject(display, "palette", palette);
 #endif
-    /* Orientation — E-Paper devices are fixed (no sensor) */
+    /* Orientation */
     cJSON *orientations = cJSON_CreateArray();
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    cJSON_AddItemToArray(orientations, cJSON_CreateString("portrait"));
+    cJSON_AddItemToArray(orientations, cJSON_CreateString("landscape"));
+    cJSON_AddItemToObject(display, "orientations", orientations);
+    cJSON_AddStringToObject(display, "orientation", "portrait");
+#else
     cJSON_AddItemToObject(display, "orientations", orientations);
     cJSON_AddStringToObject(display, "orientation", "landscape");
+#endif
 
     cJSON_AddItemToObject(json, "display", display);
 

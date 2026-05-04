@@ -21,6 +21,13 @@
 #include "epaper_it8951.h"
 #endif
 
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+#include "d1001_board.h"
+#include "lcd_jd9365.h"
+#include "esp_lcd_mipi_dsi.h"
+#include "jpeg_decoder.h"
+#endif
+
 #include <string.h>
 #include <stdlib.h>
 #include "esp_log.h"
@@ -89,6 +96,14 @@ static bool screen_unchanged(const char *screen_id)
   #define PANEL_BPP    4
   #define PANEL_COLORS "grayscale"
   #define PANEL_FAST_REFRESH 1
+#elif defined(CONFIG_VELLUM_PANEL_D1001)
+  #define PANEL_MODEL  "d1001"
+  #define PANEL_WIDTH  800
+  #define PANEL_HEIGHT 1280
+  #define PANEL_BPP    16
+  #define PANEL_COLORS "fullcolor"
+  #define PANEL_FAST_REFRESH 0
+  #define PANEL_IS_LCD 1
 #else
   #error "No display panel selected in Kconfig"
 #endif
@@ -145,6 +160,27 @@ esp_err_t display_init(void)
         return ret;
     }
     /* For E1003, we don't use the epd_handle — set to NULL */
+    s_epd = NULL;
+#elif defined(CONFIG_VELLUM_PANEL_D1001)
+    /* D1001 LCD — MIPI-DSI + JD9365 */
+    ESP_ERROR_CHECK(d1001_board_init());
+    lcd_jd9365_config_t lcd_cfg = {
+        .lane_num = D1001_DSI_LANE_NUM,
+        .lane_mbps = D1001_DSI_LANE_MBPS,
+        .phy_ldo_chan = D1001_DSI_PHY_LDO_CHAN,
+        .phy_ldo_mv = D1001_DSI_PHY_LDO_MV,
+        .h_res = PANEL_WIDTH, .v_res = PANEL_HEIGHT,
+        .num_fb = 2,
+        .io_expander = d1001_io_expander(),
+        .rst_mask = D1001_EXP_LCD_RST,
+    };
+    static esp_lcd_panel_handle_t s_lcd_panel = NULL;
+    static esp_lcd_panel_io_handle_t s_lcd_io = NULL;
+    esp_err_t ret = lcd_jd9365_init(&lcd_cfg, &s_lcd_panel, &s_lcd_io);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "lcd_jd9365_init failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
     s_epd = NULL;
 #else
     epd_config_t cfg = {
@@ -477,6 +513,56 @@ esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
     esp_err_t ret = it8951_load_image_4bpp(buffer, 0, 0, PANEL_WIDTH, PANEL_HEIGHT);
     if (ret != ESP_OK) return ret;
     return it8951_display_area(0, 0, PANEL_WIDTH, PANEL_HEIGHT, 2); /* GC16 mode */
+#elif defined(CONFIG_VELLUM_PANEL_D1001)
+    /* Decode JPEG to RGB565 and display via LVGL */
+    static uint8_t *s_rgb_buf = NULL;
+    if (!s_rgb_buf)
+        s_rgb_buf = heap_caps_malloc(PANEL_WIDTH * PANEL_HEIGHT * 2, MALLOC_CAP_SPIRAM);
+    if (!s_rgb_buf) return ESP_ERR_NO_MEM;
+
+    esp_jpeg_image_cfg_t jpeg_cfg = {
+        .indata = buffer, .indata_size = len,
+        .outbuf = s_rgb_buf, .outbuf_size = PANEL_WIDTH * PANEL_HEIGHT * 2,
+        .out_format = JPEG_IMAGE_FORMAT_RGB565,
+        .out_scale = JPEG_IMAGE_SCALE_0,
+    };
+    esp_jpeg_image_output_t out;
+    esp_err_t ret = esp_jpeg_decode(&jpeg_cfg, &out);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "JPEG decode failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    /* Rotate if landscape image on portrait panel */
+    uint16_t disp_w = out.width, disp_h = out.height;
+    if (out.width > out.height && PANEL_HEIGHT > PANEL_WIDTH) {
+        uint16_t *src = (uint16_t *)s_rgb_buf;
+        uint16_t *dst = heap_caps_malloc(out.width * out.height * 2, MALLOC_CAP_SPIRAM);
+        if (dst) {
+            for (int y = 0; y < out.height; y++)
+                for (int x = 0; x < out.width; x++)
+                    dst[x * out.height + (out.height - 1 - y)] = src[y * out.width + x];
+            memcpy(s_rgb_buf, dst, out.width * out.height * 2);
+            free(dst);
+            disp_w = out.height; disp_h = out.width;
+        }
+    }
+
+    /* Display via LVGL image */
+    lv_obj_t *scr = lv_display_get_screen_active(s_lvgl_disp);
+    lv_obj_clean(scr);
+    lv_obj_t *img = lv_image_create(scr);
+    static lv_image_dsc_t img_dsc;
+    memset(&img_dsc, 0, sizeof(img_dsc));
+    img_dsc.header.w = disp_w;
+    img_dsc.header.h = disp_h;
+    img_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
+    img_dsc.data_size = disp_w * disp_h * 2;
+    img_dsc.data = s_rgb_buf;
+    lv_image_set_src(img, &img_dsc);
+    lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_refr_now(s_lvgl_disp);
+    return ESP_OK;
 #else
     if (!s_epd) return ESP_ERR_INVALID_STATE;
     return epd_update(s_epd, buffer, EPD_UPDATE_FULL);
