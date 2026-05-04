@@ -30,7 +30,7 @@ static const char *TAG = "vellum_d1001";
 
 #define WIFI_SSID      "Schmieder24"
 #define WIFI_PASS      "oberon2017"
-#define SERVER_URL     "http://192.168.16.5:3000"
+#define SERVER_URL     "http://192.168.18.1:3000"
 #define LCD_WIDTH      800
 #define LCD_HEIGHT     1280
 
@@ -351,9 +351,15 @@ void app_main(void)
 
     display_init();
     display_show_status("Connecting...");
+
+    /* WiFi init in background (SDIO to C6 may block for seconds) */
     wifi_init();
 
-    for (int i = 0; i < 100 && !s_wifi_connected; i++) vTaskDelay(pdMS_TO_TICKS(100));
+    /* Wait for WiFi with LVGL rendering */
+    for (int i = 0; i < 200 && !s_wifi_connected; i++) {
+        lv_timer_handler();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
     if (!s_wifi_connected) { display_show_status("WiFi failed!"); return; }
 
     uint8_t mac[6];
