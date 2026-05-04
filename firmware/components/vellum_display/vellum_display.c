@@ -359,7 +359,7 @@ void display_show_boot(const char *version)
     lv_obj_set_style_text_font(ver, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(ver, lv_color_hex(0x808080), 0);
 
-    lv_refr_now(s_lvgl_disp);
+    /* LVGL task will render this */
 }
 
 static void qr_display_cb(esp_qrcode_handle_t qrcode, void *user_data)
@@ -606,7 +606,7 @@ esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
     img_dsc.data = s_rgb_buf;
     lv_image_set_src(img, &img_dsc);
     lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_refr_now(s_lvgl_disp);
+    /* LVGL task will render this */
     return ESP_OK;
 #else
     if (!s_epd) return ESP_ERR_INVALID_STATE;
