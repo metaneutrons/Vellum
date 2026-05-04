@@ -152,18 +152,19 @@ static void display_init(void)
 
 static void display_show_status(const char *text)
 {
-    
     lv_obj_t *scr = lv_display_get_screen_active(s_display);
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
+    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    draw_logo(scr);
 
     lv_obj_t *label = lv_label_create(scr);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(label, lv_color_white(), 0);
-    lv_obj_center(label);
-    
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(label, lv_color_make(80, 80, 80), 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, VELLUM_LOGO_H / 2 + 20);
 }
 
 /* ─── HTTP ─────────────────────────────────────────────────────────────── */
