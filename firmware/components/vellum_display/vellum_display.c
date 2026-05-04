@@ -112,6 +112,21 @@ static bool screen_unchanged(const char *screen_id)
   #error "No display panel selected in Kconfig"
 #endif
 
+/* ── Theme colors (dark mode for LCD, light for E-Paper) ──────── */
+#ifdef PANEL_IS_LCD
+  #define THEME_BG        lv_color_black()
+  #define THEME_FG        lv_color_white()
+  #define THEME_MUTED     lv_color_hex(0x999999)
+  #define THEME_DIM       lv_color_hex(0x666666)
+  #define THEME_BG_OPA    LV_OPA_COVER
+#else
+  #define THEME_BG        lv_color_white()
+  #define THEME_FG        lv_color_black()
+  #define THEME_MUTED     lv_color_hex(0x808080)
+  #define THEME_DIM       lv_color_hex(0xAAAAAA)
+  #define THEME_BG_OPA    LV_OPA_COVER
+#endif
+
 /* ── IT8951 LVGL flush ────────────────────────────────────────── */
 #if defined(CONFIG_VELLUM_PANEL_E1003)
 static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
@@ -336,7 +351,7 @@ static lv_obj_t *add_logo(lv_obj_t *parent)
     lv_obj_t *lbl = lv_label_create(parent);
     lv_label_set_text(lbl, "Vellum");
     lv_obj_set_style_text_font(lbl, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(lbl, lv_color_black(), 0);
+    lv_obj_set_style_text_color(lbl, THEME_FG, 0);
     return lbl;
 #else
     ensure_logo_rendered();
@@ -352,7 +367,7 @@ void display_show_boot(const char *version)
     if (!s_lvgl_disp) return;
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(scr, THEME_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     /* Flex column, centered */
@@ -366,7 +381,7 @@ void display_show_boot(const char *version)
     snprintf(ver_str, sizeof(ver_str), "v%s | %s", version, PANEL_MODEL);
     lv_label_set_text(ver, ver_str);
     lv_obj_set_style_text_font(ver, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(ver, lv_color_hex(0x808080), 0);
+    lv_obj_set_style_text_color(ver, THEME_MUTED, 0);
 
     /* LVGL task will render this */
 }
@@ -400,7 +415,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     if (!s_lvgl_disp) return;
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(scr, THEME_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     /* Flex container — vertical, centered */
@@ -439,7 +454,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
         "Scan QR code to configure WiFi\n"
         "or use Vellum Console via USB.");
     lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(lbl_hint, lv_color_hex(0x666666), 0);
+    lv_obj_set_style_text_color(lbl_hint, THEME_MUTED, 0);
     lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_hint, PANEL_WIDTH * 3 / 4);
 
@@ -447,7 +462,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_t *lbl_ver = lv_label_create(scr);
     lv_label_set_text(lbl_ver, "v" CONFIG_VELLUM_FIRMWARE_VERSION " | " PANEL_MODEL);
     lv_obj_set_style_text_font(lbl_ver, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_ver, lv_color_hex(0xAAAAAA), 0);
+    lv_obj_set_style_text_color(lbl_ver, THEME_DIM, 0);
 
     lvgl_refresh();
     ESP_LOGI(TAG, "WiFi setup screen shown");
@@ -467,7 +482,7 @@ void display_show_ota_progress(uint8_t percent)
     /* Fast display: show progress bar with percentage */
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(scr, THEME_BG, 0);
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Updating firmware...");
@@ -486,7 +501,7 @@ void display_show_ota_progress(uint8_t percent)
 
     lv_obj_t *warn = lv_label_create(scr);
     lv_label_set_text(warn, "Do not power off");
-    lv_obj_set_style_text_color(warn, lv_color_hex(0x888888), 0);
+    lv_obj_set_style_text_color(warn, THEME_MUTED, 0);
     lv_obj_align(warn, LV_ALIGN_CENTER, 0, 70);
 
     lvgl_refresh();
@@ -497,7 +512,7 @@ void display_show_ota_progress(uint8_t percent)
 
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(scr, THEME_BG, 0);
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Updating firmware...");
@@ -507,7 +522,7 @@ void display_show_ota_progress(uint8_t percent)
     lv_obj_t *warn = lv_label_create(scr);
     lv_label_set_text(warn, "Do not power off");
     lv_obj_set_style_text_font(warn, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(warn, lv_color_hex(0x888888), 0);
+    lv_obj_set_style_text_color(warn, THEME_MUTED, 0);
     lv_obj_align(warn, LV_ALIGN_CENTER, 0, 30);
 
     lvgl_refresh();
@@ -522,7 +537,7 @@ void display_show_error(const char *message)
     if (screen_unchanged(screen_id)) return;
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(scr, THEME_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
