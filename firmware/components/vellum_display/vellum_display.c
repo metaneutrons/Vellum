@@ -136,6 +136,13 @@ static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t
 
 /* ── Init ─────────────────────────────────────────────────────── */
 
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+static void lcd_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+{
+    lv_display_flush_ready(disp);
+}
+#endif
+
 esp_err_t display_init(void)
 {
     /* Deselect SD card to avoid SPI bus conflict */
@@ -164,8 +171,7 @@ esp_err_t display_init(void)
     /* For E1003, we don't use the epd_handle — set to NULL */
     s_epd = NULL;
 #elif defined(CONFIG_VELLUM_PANEL_D1001)
-    /* D1001 LCD — MIPI-DSI + JD9365 */
-    ESP_ERROR_CHECK(d1001_board_init());
+    /* D1001 LCD — MIPI-DSI + JD9365 (board already initialized in main) */
     lcd_jd9365_config_t lcd_cfg = {
         .lane_num = D1001_DSI_LANE_NUM,
         .lane_mbps = D1001_DSI_LANE_MBPS,
@@ -225,6 +231,17 @@ esp_err_t display_init(void)
         lv_display_set_buffers(s_lvgl_disp, lvgl_buf, NULL, lvgl_buf_size, LV_DISPLAY_RENDER_MODE_FULL);
         lv_display_set_flush_cb(s_lvgl_disp, it8951_lvgl_flush);
         ESP_LOGI(TAG, "LVGL display initialized for IT8951 (%zu bytes)", lvgl_buf_size);
+    }
+#elif defined(CONFIG_VELLUM_PANEL_D1001)
+    /* D1001: Direct DPI framebuffers */
+    {
+        void *buf1 = NULL, *buf2 = NULL;
+        esp_lcd_dpi_panel_get_frame_buffer(s_lcd_panel, 2, &buf1, &buf2);
+        s_lvgl_disp = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
+        lv_display_set_buffers(s_lvgl_disp, buf1, buf2, PANEL_WIDTH * PANEL_HEIGHT * 2, LV_DISPLAY_RENDER_MODE_DIRECT);
+        lv_display_set_flush_cb(s_lvgl_disp, lcd_flush_cb);
+        d1001_backlight_on();
+        ESP_LOGI(TAG, "LVGL display initialized for D1001 LCD");
     }
 #else
     epd_lvgl_config_t lvgl_cfg = EPD_LVGL_CONFIG_DEFAULT();

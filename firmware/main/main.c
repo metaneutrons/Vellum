@@ -722,10 +722,16 @@ void app_main(void)
 
     /* 1. Initialize core subsystems */
     ESP_ERROR_CHECK(nvs_manager_init());
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    /* D1001: board init first (power rails, I2C, IO-expander) */
+    extern esp_err_t d1001_board_init(void);
+    ESP_ERROR_CHECK(d1001_board_init());
+#else
     init_battery_adc();
     led_init();
     buzzer_init();
     sht4x_init();
+#endif
     display_init();
     vellum_serial_init();
 
