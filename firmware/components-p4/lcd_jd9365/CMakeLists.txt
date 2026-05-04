@@ -1,3 +1,8 @@
+if(NOT "${IDF_TARGET}" STREQUAL "esp32p4")
+    idf_component_register()
+    return()
+endif()
+
 idf_component_register(
     SRCS "lcd_jd9365.c"
     INCLUDE_DIRS "include"

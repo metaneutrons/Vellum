@@ -283,8 +283,8 @@ wifi_result_t wifi_manager_connect_station(void)
         IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &inst_got_ip));
 
     wifi_config_t wifi_config = {0};
-    strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char *)wifi_config.sta.password, pass, sizeof(wifi_config.sta.password) - 1);
+    strlcpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
+    strlcpy((char *)wifi_config.sta.password, pass, sizeof(wifi_config.sta.password));
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -330,7 +330,7 @@ void wifi_manager_start_softap(void)
             .authmode = WIFI_AUTH_OPEN,
         },
     };
-    strncpy((char *)ap_config.ap.ssid, ap_ssid, sizeof(ap_config.ap.ssid) - 1);
+    strlcpy((char *)ap_config.ap.ssid, ap_ssid, sizeof(ap_config.ap.ssid));
     ap_config.ap.ssid_len = strlen(ap_ssid);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));

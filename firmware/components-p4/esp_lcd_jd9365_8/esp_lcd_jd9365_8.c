@@ -1,3 +1,9 @@
+#ifndef ESP_LCD_JD9365_8_VER_MAJOR
+#define ESP_LCD_JD9365_8_VER_MAJOR 1
+#define ESP_LCD_JD9365_8_VER_MINOR 0
+#define ESP_LCD_JD9365_8_VER_PATCH 0
+#endif
+
 /*
  * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
  *

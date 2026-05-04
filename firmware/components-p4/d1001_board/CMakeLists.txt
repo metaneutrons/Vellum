@@ -1,3 +1,8 @@
+if(NOT "${IDF_TARGET}" STREQUAL "esp32p4")
+    idf_component_register()
+    return()
+endif()
+
 idf_component_register(
     SRCS "d1001_board.c"
     INCLUDE_DIRS "include"

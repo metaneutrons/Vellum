@@ -29,6 +29,8 @@
 #endif
 
 #include <string.h>
+
+#include <string.h>
 #include <stdlib.h>
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -521,7 +523,7 @@ esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
     if (!s_rgb_buf) return ESP_ERR_NO_MEM;
 
     esp_jpeg_image_cfg_t jpeg_cfg = {
-        .indata = buffer, .indata_size = len,
+        .indata = (uint8_t *)buffer, .indata_size = len,
         .outbuf = s_rgb_buf, .outbuf_size = PANEL_WIDTH * PANEL_HEIGHT * 2,
         .out_format = JPEG_IMAGE_FORMAT_RGB565,
         .out_scale = JPEG_IMAGE_SCALE_0,
