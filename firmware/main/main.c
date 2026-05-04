@@ -725,7 +725,9 @@ void app_main(void)
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001: board init first (power rails, I2C, IO-expander) */
     extern esp_err_t d1001_board_init(void);
+    extern esp_err_t d1001_backlight_on(void);
     ESP_ERROR_CHECK(d1001_board_init());
+    d1001_backlight_on();
 #else
     init_battery_adc();
     led_init();

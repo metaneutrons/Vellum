@@ -10,6 +10,8 @@
  */
 
 #include "vellum_display.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "epaper.h"
 #include "epaper_lvgl.h"
 #include "lvgl.h"
@@ -141,6 +143,15 @@ static void lcd_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_
 {
     lv_display_flush_ready(disp);
 }
+
+static void lvgl_handler_task(void *arg)
+{
+    (void)arg;
+    while (1) {
+        lv_timer_handler();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
 #endif
 
 esp_err_t display_init(void)
@@ -243,6 +254,8 @@ esp_err_t display_init(void)
         d1001_backlight_on();
         ESP_LOGI(TAG, "LVGL display initialized for D1001 LCD");
     }
+    /* Start background LVGL handler task for continuous LCD rendering */
+    xTaskCreate(lvgl_handler_task, "lvgl", 4096, NULL, 5, NULL);
 #else
     epd_lvgl_config_t lvgl_cfg = EPD_LVGL_CONFIG_DEFAULT();
     lvgl_cfg.epd = s_epd;
