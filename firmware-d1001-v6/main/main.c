@@ -77,21 +77,31 @@ static lv_color_t *s_logo_buf = NULL;
 
 static void draw_logo(lv_obj_t *parent)
 {
-    if (!s_logo_buf)
-        s_logo_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    if (!s_logo_buf) return;
-    lv_obj_t *canvas = lv_canvas_create(parent);
-    lv_canvas_set_buffer(canvas, s_logo_buf, VELLUM_LOGO_W, VELLUM_LOGO_H, LV_COLOR_FORMAT_NATIVE);
-    lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
-    for (int y = 0; y < VELLUM_LOGO_H; y++) {
-        for (int x = 0; x < VELLUM_LOGO_W; x++) {
-            int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
-            int bit_idx = 7 - (x % 8);
-            if (vellum_logo_bits[byte_idx] & (1 << bit_idx))
-                lv_canvas_set_px(canvas, x, y, lv_color_black(), LV_OPA_COVER);
+    /* Pre-render logo to RGB565 buffer once */
+    if (!s_logo_buf) {
+        s_logo_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * 2, MALLOC_CAP_SPIRAM);
+        if (!s_logo_buf) return;
+        uint16_t *px = (uint16_t *)s_logo_buf;
+        for (int y = 0; y < VELLUM_LOGO_H; y++) {
+            for (int x = 0; x < VELLUM_LOGO_W; x++) {
+                int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
+                int bit_idx = 7 - (x % 8);
+                px[y * VELLUM_LOGO_W + x] = (vellum_logo_bits[byte_idx] & (1 << bit_idx)) ? 0x0000 : 0xFFFF;
+            }
         }
     }
-    lv_obj_align(canvas, LV_ALIGN_TOP_MID, 0, (LCD_HEIGHT / 2) - VELLUM_LOGO_H - 40);
+
+    static lv_image_dsc_t logo_dsc;
+    memset(&logo_dsc, 0, sizeof(logo_dsc));
+    logo_dsc.header.w = VELLUM_LOGO_W;
+    logo_dsc.header.h = VELLUM_LOGO_H;
+    logo_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
+    logo_dsc.data_size = VELLUM_LOGO_W * VELLUM_LOGO_H * 2;
+    logo_dsc.data = (const uint8_t *)s_logo_buf;
+
+    lv_obj_t *img = lv_image_create(parent);
+    lv_image_set_src(img, &logo_dsc);
+    lv_obj_align(img, LV_ALIGN_CENTER, 0, -60);
 }
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
