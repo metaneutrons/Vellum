@@ -331,11 +331,20 @@ static void ensure_logo_rendered(void)
 
 static lv_obj_t *add_logo(lv_obj_t *parent)
 {
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    /* LCD: Use text label (lv_image from PSRAM doesn't work with DPI direct mode) */
+    lv_obj_t *lbl = lv_label_create(parent);
+    lv_label_set_text(lbl, "Vellum");
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(lbl, lv_color_black(), 0);
+    return lbl;
+#else
     ensure_logo_rendered();
     if (!s_logo_rgb) return NULL;
     lv_obj_t *img = lv_image_create(parent);
     lv_image_set_src(img, &s_logo_dsc);
     return img;
+#endif
 }
 
 void display_show_boot(const char *version)
