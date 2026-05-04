@@ -43,6 +43,10 @@ menu "Vellum Configuration"
         config VELLUM_BUTTON_KEY2_GPIO
             int "KEY2 GPIO (Left — SoftAP hold)"
             default 5
+        config VELLUM_BUTTON_ACTIVE_HIGH
+            bool "Button active HIGH (D1001)"
+            default y if VELLUM_PANEL_D1001
+            default n
         config VELLUM_LED_GPIO
             int "Status LED GPIO (inverted)"
             default 6

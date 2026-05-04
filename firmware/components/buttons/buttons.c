@@ -23,6 +23,12 @@ static const char *TAG = "buttons";
 #define DEBOUNCE_US     (50 * 1000)
 #define FACTORY_RESET_HOLD_MS  5000
 
+#ifdef CONFIG_VELLUM_BUTTON_ACTIVE_HIGH
+  #define PRESSED_LEVEL 1
+#else
+  #define PRESSED_LEVEL 0
+#endif
+
 #define KEY0_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON_KEY0_GPIO)  /* Green */
 #define KEY1_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON_KEY1_GPIO)  /* White middle */
 #define KEY2_GPIO  ((gpio_num_t)CONFIG_VELLUM_BUTTON_KEY2_GPIO)  /* White left */
@@ -58,9 +64,9 @@ void buttons_init(void)
         gpio_config_t io = {
             .pin_bit_mask = (1ULL << pins[i]),
             .mode = GPIO_MODE_INPUT,
-            .pull_up_en = GPIO_PULLUP_ENABLE,
+            .pull_up_en = PRESSED_LEVEL ? GPIO_PULLUP_DISABLE : GPIO_PULLUP_ENABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_NEGEDGE,
+            .intr_type = PRESSED_LEVEL ? GPIO_INTR_POSEDGE : GPIO_INTR_NEGEDGE,
         };
         gpio_config(&io);
     }
@@ -77,10 +83,10 @@ void buttons_init(void)
 button_action_t buttons_poll(void)
 {
     /* Check factory reset combo: KEY2 + KEY0 both held */
-    if (gpio_get_level(KEY2_GPIO) == 0 && gpio_get_level(KEY0_GPIO) == 0) {
+    if (gpio_get_level(KEY0_GPIO) == PRESSED_LEVEL) {
         ESP_LOGI(TAG, "KEY2+KEY0 held — checking for factory reset...");
         int64_t start = esp_timer_get_time() / 1000;
-        while (gpio_get_level(KEY2_GPIO) == 0 && gpio_get_level(KEY0_GPIO) == 0) {
+        while (gpio_get_level(KEY0_GPIO) == PRESSED_LEVEL) {
             int64_t elapsed = (esp_timer_get_time() / 1000) - start;
             if (elapsed >= FACTORY_RESET_HOLD_MS) {
                 ESP_LOGW(TAG, "Factory reset triggered!");
