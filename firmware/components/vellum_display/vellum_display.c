@@ -401,7 +401,7 @@ static void qr_display_cb(esp_qrcode_handle_t qrcode, void *user_data)
     int scale = s_qr_canvas_size / qr_size;
     if (scale < 1) scale = 1;
 
-    lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
+    lv_canvas_fill_bg(canvas, THEME_BG, LV_OPA_COVER);
 
     for (int y = 0; y < qr_size; y++) {
         for (int x = 0; x < qr_size; x++) {
@@ -409,7 +409,7 @@ static void qr_display_cb(esp_qrcode_handle_t qrcode, void *user_data)
                 for (int sy = 0; sy < scale; sy++) {
                     for (int sx = 0; sx < scale; sx++) {
                         lv_canvas_set_px(canvas, x * scale + sx, y * scale + sy,
-                                         lv_color_black(), LV_OPA_COVER);
+                                         THEME_FG, LV_OPA_COVER);
                     }
                 }
             }
