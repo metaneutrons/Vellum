@@ -392,12 +392,13 @@ void display_show_boot(const char *version)
     /* LVGL task will render this */
 }
 
+static int s_qr_canvas_size = 200;
+
 static void qr_display_cb(esp_qrcode_handle_t qrcode, void *user_data)
 {
     lv_obj_t *canvas = (lv_obj_t *)user_data;
     int qr_size = esp_qrcode_get_size(qrcode);
-    int canvas_w = lv_obj_get_width(canvas);
-    int scale = canvas_w / qr_size;
+    int scale = s_qr_canvas_size / qr_size;
     if (scale < 1) scale = 1;
 
     lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
@@ -445,6 +446,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
             .qrcode_ecc_level = ESP_QRCODE_ECC_MED,
             .user_data = canvas,
         };
+        s_qr_canvas_size = qr_size;
         esp_qrcode_generate(&qr_cfg, url);
     }
 
