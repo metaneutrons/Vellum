@@ -353,12 +353,25 @@ static void ensure_logo_rendered(void)
 static lv_obj_t *add_logo(lv_obj_t *parent)
 {
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: Use text label (lv_image from PSRAM doesn't work with DPI direct mode) */
-    lv_obj_t *lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "Vellum");
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(lbl, THEME_FG, 0);
-    return lbl;
+    /* LCD: Render logo as canvas (lv_image from PSRAM doesn't work with DPI direct mode) */
+    static lv_color_t *logo_canvas_buf = NULL;
+    if (!logo_canvas_buf)
+        logo_canvas_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    if (!logo_canvas_buf) return NULL;
+
+    lv_obj_t *canvas = lv_canvas_create(parent);
+    lv_canvas_set_buffer(canvas, logo_canvas_buf, VELLUM_LOGO_W, VELLUM_LOGO_H, LV_COLOR_FORMAT_NATIVE);
+    lv_canvas_fill_bg(canvas, THEME_BG, LV_OPA_COVER);
+    for (int y = 0; y < VELLUM_LOGO_H; y++) {
+        for (int x = 0; x < VELLUM_LOGO_W; x++) {
+            int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
+            int bit_idx = 7 - (x % 8);
+            if (vellum_logo_bits[byte_idx] & (1 << bit_idx)) {
+                lv_canvas_set_px(canvas, x, y, THEME_FG, LV_OPA_COVER);
+            }
+        }
+    }
+    return canvas;
 #else
     ensure_logo_rendered();
     if (!s_logo_rgb) return NULL;
