@@ -17,6 +17,8 @@ menu "Vellum Configuration"
             bool "E1002 — GDEP073E01 (7.3\" 6-Color, 800x480)"
         config VELLUM_PANEL_E1003
             bool "E1003 — 10.3\" 16-Gray, 1404x1872"
+        config VELLUM_PANEL_D1001
+            bool "D1001 — 8\" LCD MIPI-DSI, 800x1280"
     endchoice
 
     config VELLUM_DISPLAY_MODEL
@@ -24,6 +26,12 @@ menu "Vellum Configuration"
         default "e1001" if VELLUM_PANEL_GDEY075T7
         default "e1002" if VELLUM_PANEL_GDEP073E01
         default "e1003" if VELLUM_PANEL_E1003
+        default "d1001" if VELLUM_PANEL_D1001
+
+    config VELLUM_DISPLAY_IS_LCD
+        bool
+        default y if VELLUM_PANEL_D1001
+        default n
 
     menu "Hardware Pins (reTerminal E Series)"
         config VELLUM_BUTTON_KEY0_GPIO
