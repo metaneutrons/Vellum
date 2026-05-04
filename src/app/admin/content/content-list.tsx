@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { createContentInstance, updateContentInstance, deleteContentInstance, testContentInstance } from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
@@ -194,6 +194,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
 export function ContentList({ instances, types, providers, knownDisplays, initialEditId }: Props) {
   const { toast } = useToast();
   const tc = useTranslations("contentTypes");
+  const uiLocale = useLocale();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(initialEditId ?? null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -207,7 +208,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
 
   function startNew() {
     setEditing("new"); setTypeSlug("room-booking"); setName("");
-    setConfig({ timezone: "Europe/Berlin", policy: "Show All" });
+    setConfig({ timezone: "Europe/Berlin", policy: "Show All", locale: uiLocale });
   }
 
   function startEdit(inst: ContentInstance) {
