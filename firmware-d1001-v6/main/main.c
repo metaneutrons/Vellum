@@ -20,7 +20,7 @@
 #include "esp_timer.h"
 #include "cJSON.h"
 #include "lvgl.h"
-#include "esp_lvgl_port.h"
+#include "esp_lcd_mipi_dsi.h"
 #include "jpeg_decoder.h"
 #include "d1001_board.h"
 #include "lcd_jd9365.h"
@@ -94,6 +94,21 @@ static void draw_logo(lv_obj_t *parent)
     lv_obj_align(canvas, LV_ALIGN_TOP_MID, 0, (LCD_HEIGHT / 2) - VELLUM_LOGO_H - 40);
 }
 
+static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+{
+    lv_display_flush_ready(disp);
+}
+
+static void lvgl_tick_task(void *arg)
+{
+    (void)arg;
+    while (1) {
+        lv_tick_inc(10);
+        lv_timer_handler();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
 static void display_show_status(const char *text);
 
 static void display_init(void)
@@ -115,45 +130,40 @@ static void display_init(void)
     esp_lcd_panel_io_handle_t io = NULL;
     ESP_ERROR_CHECK(lcd_jd9365_init(&lcd_cfg, &panel, &io));
 
-    /* LVGL port */
-    const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    ESP_ERROR_CHECK(lvgl_port_init(&lvgl_cfg));
+    /* LVGL init — use DPI panel framebuffers directly */
+    lv_init();
 
-    const lvgl_port_display_cfg_t disp_cfg = {
-        .io_handle = io,
-        .panel_handle = panel,
-        .buffer_size = LCD_WIDTH * LCD_HEIGHT,
-        .double_buffer = true,
-        .hres = LCD_WIDTH,
-        .vres = LCD_HEIGHT,
-        .flags = { .buff_spiram = true },
-    };
-    const lvgl_port_display_dsi_cfg_t dsi_cfg = {
-        .flags = { .avoid_tearing = 0 },
-    };
-    s_display = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
+    void *buf1 = NULL, *buf2 = NULL;
+    ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(panel, 2, &buf1, &buf2));
+
+    s_display = lv_display_create(LCD_WIDTH, LCD_HEIGHT);
+    lv_display_set_buffers(s_display, buf1, buf2, LCD_WIDTH * LCD_HEIGHT * 2, LV_DISPLAY_RENDER_MODE_DIRECT);
+    lv_display_set_flush_cb(s_display, flush_cb);
 
     vTaskDelay(pdMS_TO_TICKS(100));
     d1001_backlight_on();
     display_show_status("v1.0.0 | D1001");
+    lv_refr_now(s_display);
     ESP_LOGI(TAG, "Display initialized: %dx%d", LCD_WIDTH, LCD_HEIGHT);
+
+    /* LVGL tick + timer task */
+    xTaskCreate(lvgl_tick_task, "lvgl", 8192, NULL, 5, NULL);
 }
 
 static void display_show_status(const char *text)
 {
-    lvgl_port_lock(0);
+    
     lv_obj_t *scr = lv_display_get_screen_active(s_display);
     lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(scr, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    draw_logo(scr);
+
     lv_obj_t *label = lv_label_create(scr);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(label, lv_color_make(80, 80, 80), 0);
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, VELLUM_LOGO_H / 2);
-    lvgl_port_unlock();
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_center(label);
+    
 }
 
 /* ─── HTTP ─────────────────────────────────────────────────────────────── */
@@ -256,7 +266,7 @@ static bool fetch_and_display(const char *mac_str)
     }
 
     /* Display */
-    lvgl_port_lock(0);
+    
     lv_obj_t *scr = lv_display_get_screen_active(s_display);
     lv_obj_clean(scr);
     lv_obj_t *img = lv_image_create(scr);
@@ -269,7 +279,7 @@ static bool fetch_and_display(const char *mac_str)
     img_dsc.data = rgb_buf;
     lv_image_set_src(img, &img_dsc);
     lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
-    lvgl_port_unlock();
+    
     return true;
 }
 

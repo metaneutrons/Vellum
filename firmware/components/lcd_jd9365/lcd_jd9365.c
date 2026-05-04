@@ -45,19 +45,19 @@ esp_err_t lcd_jd9365_init(const lcd_jd9365_config_t *config, esp_lcd_panel_handl
     esp_lcd_dpi_panel_config_t dpi_cfg = {
         .virtual_channel = 0,
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-        .dpi_clock_freq_mhz = 52,
+        .dpi_clock_freq_mhz = 60,
         .in_color_format = LCD_COLOR_FMT_RGB565,
         .out_color_format = LCD_COLOR_FMT_RGB565,
         .num_fbs = config->num_fb,
         .video_timing = {
             .h_size = config->h_res,
             .v_size = config->v_res,
-            .hsync_back_porch = config->hbp,
-            .hsync_front_porch = config->hfp,
-            .hsync_pulse_width = config->hsync,
-            .vsync_back_porch = config->vbp,
-            .vsync_front_porch = config->vfp,
-            .vsync_pulse_width = config->vsync,
+            .hsync_back_porch = 20,
+            .hsync_front_porch = 40,
+            .hsync_pulse_width = 20,
+            .vsync_back_porch = 30,
+            .vsync_front_porch = 30,
+            .vsync_pulse_width = 4,
         },
     };
 
