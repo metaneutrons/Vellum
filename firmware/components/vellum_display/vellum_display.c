@@ -163,6 +163,7 @@ static void lvgl_handler_task(void *arg)
 {
     (void)arg;
     while (1) {
+        lv_tick_inc(10);
         lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -281,7 +282,8 @@ esp_err_t display_init(void)
     if (!s_lvgl_disp) {
         ESP_LOGW(TAG, "LVGL display init failed — local screens unavailable");
     } else {
-        /* LVGL needs a tick source — use esp_timer (ISR-safe, no PM conflict) */
+#if !defined(CONFIG_VELLUM_PANEL_D1001)
+        /* E-Paper: LVGL tick via esp_timer (no background handler task) */
         const esp_timer_create_args_t tick_args = {
             .callback = lvgl_tick_cb,
             .name = "lvgl_tick",
@@ -289,6 +291,7 @@ esp_err_t display_init(void)
         esp_timer_handle_t tick_timer;
         esp_timer_create(&tick_args, &tick_timer);
         esp_timer_start_periodic(tick_timer, 5000); /* 5 ms */
+#endif
     }
 
     return ESP_OK;
@@ -310,7 +313,10 @@ esp_err_t display_get_info(display_info_t *info)
 static void lvgl_refresh(void)
 {
     if (!s_lvgl_disp) return;
-#if defined(CONFIG_VELLUM_PANEL_E1003)
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    /* LCD: handler task renders continuously, just invalidate */
+    lv_obj_invalidate(lv_screen_active());
+#elif defined(CONFIG_VELLUM_PANEL_E1003)
     lv_obj_invalidate(lv_screen_active());
     lv_tick_inc(100);
     lv_timer_handler();
