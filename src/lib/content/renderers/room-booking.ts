@@ -213,6 +213,48 @@ function isBusy(events: DisplayEvent[], now: Date): boolean {
 }
 
 /** Render room-booking day view to canvas. Exported for testing. */
+/* ── Shared Header ─────────────────────────────────────────────── */
+
+interface HeaderCtx {
+  ctx: SKRSContext2D;
+  tc: TextCtx;
+  width: number;
+  headerH: number;
+  scale: number;
+  T: Theme;
+  roomName: string;
+  timezone: string;
+  now: Date;
+  locale: string;
+  dateFormat: string;
+  events: DisplayEvent[];
+}
+
+function renderHeader(h: HeaderCtx): void {
+  const { ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events } = h;
+
+  ctx.fillStyle = T.headerBg;
+  ctx.fillRect(0, 0, width, headerH);
+
+  const busy = isBusy(events, now);
+  const badge = BADGE_TEXT[locale] ?? BADGE_TEXT.en;
+  const badgeText = busy ? badge.busy : badge.free;
+
+  const bw = textWidth(tc, badgeText, "md-bold");
+  const badgeX = width - bw - Math.round(32 * scale);
+  ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
+  ctx.fillRect(badgeX, Math.round(20 * scale), bw + Math.round(16 * scale), Math.round(34 * scale));
+  text(tc, badgeX + Math.round(8 * scale), Math.round(46 * scale), badgeText, "md-bold", T.badgeText);
+
+  const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
+  const dateStr = format(new TZDate(now, timezone), dateFormat, { locale: dfLocale });
+  const dateW = textWidth(tc, dateStr, "md");
+  const dateX = badgeX - dateW - Math.round(20 * scale);
+  text(tc, dateX, Math.round(46 * scale), dateStr, "md", T.headerText);
+
+  text(tc, Math.round(16 * scale), Math.round(48 * scale), roomName, "lg-bold", T.headerText, "left", dateX - Math.round(28 * scale));
+}
+
 export function renderToCanvas(
   events: DisplayEvent[],
   roomName: string,
@@ -256,32 +298,13 @@ export function renderToCanvas(
   ctx.fillStyle = T.background;
   ctx.fillRect(0, 0, width, height);
 
-  // Header
-  ctx.fillStyle = T.headerBg;
-  ctx.fillRect(0, 0, width, headerH);
-
-  // Badge (measure first to know available space)
+  // Header (shared with stacked layout)
   const busy = isBusy(events, new Date(roundedNowMs));
-  const badge = BADGE_TEXT[locale] ?? BADGE_TEXT.en;
-  const badgeText = busy ? badge.busy : badge.free;
   const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
+  renderHeader({ ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events });
 
-  // Badge
-  const bw = textWidth(tc, badgeText, "md-bold");
-  const badgeX = width - bw - Math.round(32 * scale);
-  ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
-  ctx.fillRect(badgeX, Math.round(20 * scale), bw + Math.round(16 * scale), Math.round(34 * scale));
-  text(tc, badgeX + Math.round(8 * scale), Math.round(46 * scale), badgeText, "md-bold", T.badgeText);
-
-  // Date (right-aligned before badge)
+  // Date locale for midnight separator
   const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
-  const dateStr = format(new TZDate(now, timezone), dateFormat, { locale: dfLocale });
-  const dateW = textWidth(tc, dateStr, "md");
-  const dateX = badgeX - dateW - Math.round(20 * scale);
-  text(tc, dateX, Math.round(46 * scale), dateStr, "md", T.headerText);
-
-  // Room name (left, clipped before date)
-  text(tc, Math.round(16 * scale), Math.round(48 * scale), roomName, "lg-bold", T.headerText, "left", dateX - Math.round(28 * scale));
 
   // Hour grid
   // Hour grid — iterate over each hour in the window
@@ -459,53 +482,29 @@ function renderStacked(
   ctx.fillStyle = T.background;
   ctx.fillRect(0, 0, width, height);
 
-  // Header
-  ctx.fillStyle = T.headerBg;
-  ctx.fillRect(0, 0, width, headerH);
+  // Shared header (same as timeline)
+  const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
+  renderHeader({ ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events });
 
-  // Room name
-  ctx.fillStyle = T.headerText;
-  ctx.font = `bold ${Math.round(32 * scale)}px ${ff}`;
-  ctx.fillText(roomName, padding, Math.round(48 * scale));
-
-  // Date
-  const dateStr = format(new TZDate(now, timezone), dateFormat, { locale: dfLocale });
-  ctx.font = `${Math.round(20 * scale)}px ${ff}`;
-  ctx.textAlign = "right";
-  ctx.fillText(dateStr, width - padding, Math.round(48 * scale));
-  ctx.textAlign = "left";
-
-  // Badge
-  const busy = events.some(e => e.startTime.getTime() <= now.getTime() && e.endTime.getTime() > now.getTime());
-  const badge = BADGE_TEXT[locale] ?? BADGE_TEXT.en;
-  const badgeText = busy ? badge.busy : badge.free;
-  ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
-  const bw = ctx.measureText(badgeText).width + Math.round(16 * scale);
-  const badgeX = width - bw - padding;
-  ctx.fillRect(badgeX, Math.round(8 * scale), bw, Math.round(30 * scale));
-  ctx.fillStyle = T.badgeText;
-  ctx.font = `bold ${Math.round(18 * scale)}px ${ff}`;
-  ctx.fillText(badgeText, badgeX + Math.round(8 * scale), Math.round(28 * scale));
-
-  // Filter upcoming events (from now onwards, max 24h)
+  // Filter upcoming events
   const upcoming = events
     .filter(e => e.endTime.getTime() > now.getTime())
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
-  let y = headerH + padding;
+  let y = headerH + Math.round(24 * scale);
   let lastDateStr = "";
 
   for (const evt of upcoming) {
-    if (y + cardH > height - padding) break;
+    if (y + cardH > height - Math.round(40 * scale)) break;
 
     // Day separator
     const evtDate = format(new TZDate(evt.startTime, timezone), "yyyy-MM-dd");
     if (evtDate !== lastDateStr && lastDateStr !== "") {
       const dayLabel = format(new TZDate(evt.startTime, timezone), "EEEE, d. MMM", { locale: dfLocale });
       ctx.fillStyle = T.slotSecondary;
-      ctx.font = `${Math.round(14 * scale)}px ${ff}`;
-      ctx.fillText(dayLabel, padding, y + sepH / 2 + Math.round(5 * scale));
-      ctx.fillRect(padding + ctx.measureText(dayLabel).width + Math.round(8 * scale), y + sepH / 2, width - 2 * padding - ctx.measureText(dayLabel).width - Math.round(8 * scale), 1);
+      const labelW = textWidth(tc, dayLabel, "sm");
+      text(tc, padding, y + Math.round(12 * scale), dayLabel, "sm", T.slotSecondary);
+      ctx.fillRect(padding + labelW + Math.round(8 * scale), y + Math.round(8 * scale), width - 2 * padding - labelW - Math.round(8 * scale), 1);
       y += sepH;
     }
     lastDateStr = evtDate;
@@ -517,27 +516,19 @@ function renderStacked(
 
     // Time
     const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
-    ctx.fillStyle = isNow ? T.badgeText : T.slotText;
-    ctx.font = `bold ${Math.round(18 * scale)}px ${ff}`;
-    ctx.fillText(timeStr, padding + Math.round(12 * scale), y + Math.round(28 * scale));
+    text(tc, padding + Math.round(12 * scale), y + Math.round(26 * scale), timeStr, "md-bold", isNow ? T.badgeText : T.slotText);
 
     // Subject
-    ctx.fillStyle = isNow ? T.badgeText : T.slotSecondary;
-    ctx.font = `${Math.round(16 * scale)}px ${ff}`;
     const maxSubW = width - 2 * padding - Math.round(24 * scale);
-    ctx.fillText(evt.displaySubject, padding + Math.round(12 * scale), y + Math.round(52 * scale), maxSubW);
+    text(tc, padding + Math.round(12 * scale), y + Math.round(52 * scale), evt.displaySubject, "sm", isNow ? T.badgeText : T.slotSecondary, "left", maxSubW);
 
     y += cardH + cardGap;
   }
 
   // Footer
   const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
-  const timeStr = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
-  ctx.fillStyle = T.footerText;
-  ctx.font = `${Math.round(14 * scale)}px ${ff}`;
-  ctx.textAlign = "right";
-  ctx.fillText(`${updatedLabel}: ${timeStr}`, width - padding, height - Math.round(10 * scale));
-  ctx.textAlign = "left";
+  const footerTime = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
+  text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${footerTime}`, "sm", T.footerText, "right");
 
   return canvas;
 }
