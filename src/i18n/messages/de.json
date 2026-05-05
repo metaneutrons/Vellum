@@ -181,5 +181,12 @@
   "contentTypes": {
     "room-booking": "Raumbelegung",
     "door-sign": "Türschild"
+  },
+  "error": {
+    "dbUnavailable": "Datenbank nicht erreichbar",
+    "dbHint": "Verbindung zur Datenbank fehlgeschlagen. Bitte prüfen Sie, ob PostgreSQL läuft.",
+    "somethingWrong": "Etwas ist schiefgelaufen",
+    "unexpected": "Ein unerwarteter Fehler ist aufgetreten.",
+    "retry": "Erneut versuchen"
   }
 }

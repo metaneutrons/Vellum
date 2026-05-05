@@ -181,5 +181,12 @@
   "contentTypes": {
     "room-booking": "Prenotazione sala",
     "door-sign": "Targhetta"
+  },
+  "error": {
+    "dbUnavailable": "Database non disponibile",
+    "dbHint": "Impossibile connettersi al database. Verificare che PostgreSQL sia in esecuzione.",
+    "somethingWrong": "Qualcosa è andato storto",
+    "unexpected": "Si è verificato un errore imprevisto.",
+    "retry": "Riprova"
   }
 }

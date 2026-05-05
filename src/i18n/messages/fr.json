@@ -181,5 +181,12 @@
   "contentTypes": {
     "room-booking": "Réservation de salle",
     "door-sign": "Plaque de porte"
+  },
+  "error": {
+    "dbUnavailable": "Base de données indisponible",
+    "dbHint": "Impossible de se connecter à la base de données. Vérifiez que PostgreSQL est en cours d exécution.",
+    "somethingWrong": "Une erreur est survenue",
+    "unexpected": "Une erreur inattendue s est produite.",
+    "retry": "Réessayer"
   }
 }

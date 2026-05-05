@@ -181,5 +181,12 @@
   "contentTypes": {
     "room-booking": "Room Booking",
     "door-sign": "Door Sign"
+  },
+  "error": {
+    "dbUnavailable": "Database Unavailable",
+    "dbHint": "Cannot connect to the database. Please check that PostgreSQL is running.",
+    "somethingWrong": "Something went wrong",
+    "unexpected": "An unexpected error occurred.",
+    "retry": "Retry"
   }
 }

@@ -181,5 +181,12 @@
   "contentTypes": {
     "room-booking": "Reserva de sala",
     "door-sign": "Letrero de puerta"
+  },
+  "error": {
+    "dbUnavailable": "Base de datos no disponible",
+    "dbHint": "No se puede conectar a la base de datos. Verifique que PostgreSQL esté en ejecución.",
+    "somethingWrong": "Algo salió mal",
+    "unexpected": "Ocurrió un error inesperado.",
+    "retry": "Reintentar"
   }
 }
