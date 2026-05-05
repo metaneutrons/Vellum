@@ -151,6 +151,7 @@ export const roomBookingConfigSchema = z.object({
   timezone: z.string().default("UTC"),
   locale: z.string().default("en"),
   dateFormat: z.enum(["PPPP", "PPP", "PP", "P"]).default("PPPP"),
+  layout: z.enum(["timeline", "stacked"]).default("timeline"),
   policy: z.enum(ROOM_POLICIES).default("Show All"),
   cacheTtlS: z.number().int().min(0).default(120),
   timelineShiftH: z.number().int().min(1).max(8).default(2),
@@ -424,6 +425,123 @@ export function renderOffline(roomName: string, now: Date, T: Theme, width: numb
 
 /* ── Exported renderer ────────────────────────────────────────── */
 
+/* ── Stacked Layout ────────────────────────────────────────────── */
+
+function renderStacked(
+  events: DisplayEvent[],
+  roomName: string,
+  timezone: string,
+  now: Date,
+  T: Theme,
+  width: number,
+  height: number,
+  colorCount: number,
+  colorMode: string = "indexed",
+  locale: string = "en",
+  dateFormat: string = "PPPP"
+): Canvas {
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = colorMode !== "indexed";
+
+  const shortSide = Math.min(width, height);
+  const scale = shortSide / 480;
+  const ff = fontFamily(colorCount);
+  const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
+
+  const headerH = Math.round(75 * scale);
+  const padding = Math.round(16 * scale);
+  const cardH = Math.round(70 * scale);
+  const cardGap = Math.round(10 * scale);
+  const sepH = Math.round(30 * scale);
+
+  // Background
+  ctx.fillStyle = T.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Header
+  ctx.fillStyle = T.headerBg;
+  ctx.fillRect(0, 0, width, headerH);
+
+  // Room name
+  ctx.fillStyle = T.headerText;
+  ctx.font = `bold ${Math.round(32 * scale)}px ${ff}`;
+  ctx.fillText(roomName, padding, Math.round(48 * scale));
+
+  // Date
+  const dateStr = format(new TZDate(now, timezone), dateFormat, { locale: dfLocale });
+  ctx.font = `${Math.round(20 * scale)}px ${ff}`;
+  ctx.textAlign = "right";
+  ctx.fillText(dateStr, width - padding, Math.round(48 * scale));
+  ctx.textAlign = "left";
+
+  // Badge
+  const busy = events.some(e => e.startTime.getTime() <= now.getTime() && e.endTime.getTime() > now.getTime());
+  const badge = BADGE_TEXT[locale] ?? BADGE_TEXT.en;
+  const badgeText = busy ? badge.busy : badge.free;
+  ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
+  const bw = ctx.measureText(badgeText).width + Math.round(16 * scale);
+  const badgeX = width - bw - padding;
+  ctx.fillRect(badgeX, Math.round(8 * scale), bw, Math.round(30 * scale));
+  ctx.fillStyle = T.badgeText;
+  ctx.font = `bold ${Math.round(18 * scale)}px ${ff}`;
+  ctx.fillText(badgeText, badgeX + Math.round(8 * scale), Math.round(28 * scale));
+
+  // Filter upcoming events (from now onwards, max 24h)
+  const upcoming = events
+    .filter(e => e.endTime.getTime() > now.getTime())
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+  let y = headerH + padding;
+  let lastDateStr = "";
+
+  for (const evt of upcoming) {
+    if (y + cardH > height - padding) break;
+
+    // Day separator
+    const evtDate = format(new TZDate(evt.startTime, timezone), "yyyy-MM-dd");
+    if (evtDate !== lastDateStr && lastDateStr !== "") {
+      const dayLabel = format(new TZDate(evt.startTime, timezone), "EEEE, d. MMM", { locale: dfLocale });
+      ctx.fillStyle = T.slotSecondary;
+      ctx.font = `${Math.round(14 * scale)}px ${ff}`;
+      ctx.fillText(dayLabel, padding, y + sepH / 2 + Math.round(5 * scale));
+      ctx.fillRect(padding + ctx.measureText(dayLabel).width + Math.round(8 * scale), y + sepH / 2, width - 2 * padding - ctx.measureText(dayLabel).width - Math.round(8 * scale), 1);
+      y += sepH;
+    }
+    lastDateStr = evtDate;
+
+    // Event card
+    const isNow = evt.startTime.getTime() <= now.getTime() && evt.endTime.getTime() > now.getTime();
+    ctx.fillStyle = isNow ? T.busyBadge : T.eventBg;
+    ctx.fillRect(padding, y, width - 2 * padding, cardH);
+
+    // Time
+    const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
+    ctx.fillStyle = isNow ? T.badgeText : T.slotText;
+    ctx.font = `bold ${Math.round(18 * scale)}px ${ff}`;
+    ctx.fillText(timeStr, padding + Math.round(12 * scale), y + Math.round(28 * scale));
+
+    // Subject
+    ctx.fillStyle = isNow ? T.badgeText : T.slotSecondary;
+    ctx.font = `${Math.round(16 * scale)}px ${ff}`;
+    const maxSubW = width - 2 * padding - Math.round(24 * scale);
+    ctx.fillText(evt.displaySubject, padding + Math.round(12 * scale), y + Math.round(52 * scale), maxSubW);
+
+    y += cardH + cardGap;
+  }
+
+  // Footer
+  const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
+  const timeStr = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
+  ctx.fillStyle = T.footerText;
+  ctx.font = `${Math.round(14 * scale)}px ${ff}`;
+  ctx.textAlign = "right";
+  ctx.fillText(`${updatedLabel}: ${timeStr}`, width - padding, height - Math.round(10 * scale));
+  ctx.textAlign = "left";
+
+  return canvas;
+}
+
 export const roomBookingRenderer: ContentRenderer = {
   slug: "room-booking",
   name: "Room Booking",
@@ -442,6 +560,9 @@ export const roomBookingRenderer: ContentRenderer = {
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy, cfg.locale);
+    if (cfg.layout === "stacked") {
+      return { canvas: renderStacked(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.locale, cfg.dateFormat) };
+    }
     return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.timelineShiftH, cfg.locale, cfg.dateFormat) };
   },
 };

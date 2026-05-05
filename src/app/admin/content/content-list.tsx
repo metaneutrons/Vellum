@@ -176,6 +176,13 @@ function RoomBookingEditor({ config, onChange, providers }: {
         <option value="P">03.05.26</option>
       </select>
 
+      <label className="block text-sm font-medium mb-1">Layout</label>
+      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.layout as string) ?? "timeline"}
+        onChange={(e) => onChange({ ...config, layout: e.target.value })}>
+        <option value="timeline">Zeitleiste (Timeline)</option>
+        <option value="stacked">Gestapelt (Stacked)</option>
+      </select>
+
       <label className="block text-sm font-medium mb-1">Privacy Policy</label>
       <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>
