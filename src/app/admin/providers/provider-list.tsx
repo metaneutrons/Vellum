@@ -85,9 +85,9 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
       try {
         if (editing === "new") await createProvider(type, name, creds);
         else if (editing) await updateProvider(editing, name, creds);
-        toast("success", editing === "new" ? "Provider created" : "Provider updated");
+        toast("success", editing === "new" ? t("created") : t("updated"));
         setEditing(null);
-      } catch { toast("error", "Failed to save provider"); }
+      } catch { toast("error", t("failedSave")); }
     });
   }
 
@@ -96,8 +96,8 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
     const id = deleting;
     setDeleting(null);
     startTransition(async () => {
-      try { await deleteProvider(id); toast("success", "Provider deleted"); }
-      catch { toast("error", "Failed to delete provider"); }
+      try { await deleteProvider(id); toast("success", t("deleted")); }
+      catch { toast("error", t("failedDelete")); }
     });
   }
 
@@ -137,7 +137,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
       <Modal
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
-        title={editing === "new" ? "Add Data Provider" : "Edit Provider"}
+        title={editing === "new" ? t("addTitle") : t("editTitle")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
@@ -194,7 +194,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
       </Modal>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-        title="Delete Provider" message="Delete this provider? Content instances using it will stop working." confirmLabel="Delete" destructive />
+        title={t("deleteTitle")} message={t("deleteMsg")} confirmLabel="Delete" destructive />
     </div>
   );
 }

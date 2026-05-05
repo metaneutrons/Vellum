@@ -7,7 +7,9 @@
     "themes": "Temas",
     "profiles": "Perfiles de actualización",
     "firmware": "Firmware",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "lightMode": "Modo claro",
+    "darkMode": "Modo oscuro"
   },
   "devices": {
     "title": "Dispositivos",
@@ -37,11 +39,20 @@
     "failed": "Error",
     "approved": "Aprobado",
     "deleted": "Eliminado",
+    "orientation": "Orientación",
+    "orientationAuto": "Automático",
+    "orientationLandscape": "Horizontal",
+    "orientationPortrait": "Vertical",
     "warnings": {
       "lowBattery": "Batería baja",
       "weakSignal": "Señal débil",
       "offline": "Sin conexión >1h"
-    }
+    },
+    "auto": "Auto",
+    "landscape": "Horizontal",
+    "portrait": "Vertical",
+    "deleteTitle": "Eliminar dispositivo",
+    "deleteMsg": "¿Eliminar este dispositivo? Deberá ser re-aprobado."
   },
   "content": {
     "title": "Contenidos",
@@ -91,10 +102,23 @@
       "bold": "Negrita",
       "deleteTextBox": "Eliminar cuadro de texto",
       "previewAllSizes": "Previsualizar todos los tamaños"
-    }
+    },
+    "created": "Contenido creado",
+    "updated": "Contenido actualizado",
+    "deleted": "Contenido eliminado",
+    "failedSave": "Error al guardar",
+    "failedDelete": "Error al eliminar",
+    "newTitle": "Nuevo contenido",
+    "editTitle": "Editar contenido",
+    "deleteTitle": "Eliminar contenido",
+    "deleteMsg": "¿Eliminar este contenido? Los dispositivos asociados no mostrarán nada.",
+    "previewTitle": "Vista previa",
+    "emptyTitle": "Sin contenidos",
+    "emptyDesc": "Cree un contenido y asígnelo a un dispositivo.",
+    "noMatch": "Ningún contenido encontrado"
   },
   "providers": {
-    "title": "Fuentes de datos",
+    "title": "Proveedores",
     "description": "Configurar fuentes de calendario y reservas",
     "add": "Añadir proveedor",
     "edit": "Editar",
@@ -110,7 +134,19 @@
       "google": "Google — Calendario",
       "ical": "Feed iCal — Calendario",
       "anny": "anny.co — Reserva de salas y puestos"
-    }
+    },
+    "created": "Proveedor creado",
+    "updated": "Proveedor actualizado",
+    "deleted": "Proveedor eliminado",
+    "failedSave": "Error al guardar",
+    "failedDelete": "Error al eliminar",
+    "addTitle": "Agregar proveedor",
+    "editTitle": "Editar proveedor",
+    "deleteTitle": "Eliminar proveedor",
+    "deleteMsg": "¿Eliminar este proveedor? Los contenidos asociados dejarán de funcionar.",
+    "emptyTitle": "Sin proveedores",
+    "emptyDesc": "Agregue un proveedor para conectar fuentes de datos.",
+    "noMatch": "Ningún proveedor encontrado"
   },
   "themes": {
     "title": "Temas",
@@ -141,7 +177,19 @@
     "backgroundPolling": "Verificación en segundo plano",
     "interval": "Intervalo",
     "autoUpdateOn": "El servidor verifica automáticamente GitHub para nuevas versiones",
-    "autoUpdateOff": "Solo verifica al abrir la página de admin o por solicitud del dispositivo"
+    "autoUpdateOff": "Solo verifica al abrir la página de admin o por solicitud del dispositivo",
+    "updated": "Actualizado",
+    "failedToUpdate": "Error al actualizar",
+    "device": "Dispositivo",
+    "model": "Modelo",
+    "channel": "Canal",
+    "pinVersion": "Fijar versión",
+    "latestVersion": "— última —",
+    "flashTitle": "Flashear Firmware",
+    "flashDesc": "Flashear firmware directamente via USB",
+    "failedUpdate": "Error al actualizar",
+    "autoPollDesc": "El servidor verifica GitHub automáticamente",
+    "manualPollDesc": "Solo verifica al abrir la página admin"
   },
   "flash": {
     "title": "Flashear firmware",
@@ -175,8 +223,13 @@
     "delete": "Eliminar",
     "edit": "Editar",
     "close": "Cerrar",
-    "search": "Buscar...",
-    "noResults": "Sin resultados"
+    "search": "Buscar",
+    "noResults": "Sin resultados",
+    "updated": "Actualizado",
+    "failed": "Fallido",
+    "create": "Crear",
+    "retry": "Reintentar",
+    "confirmDelete": "¿Está seguro?"
   },
   "contentTypes": {
     "room-booking": "Reserva de sala",

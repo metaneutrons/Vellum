@@ -194,6 +194,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
 export function ContentList({ instances, types, providers, knownDisplays, initialEditId }: Props) {
   const { toast } = useToast();
   const tc = useTranslations("contentTypes");
+  const t = useTranslations("content");
   const uiLocale = useLocale();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(initialEditId ?? null);
@@ -229,9 +230,9 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
       try {
         if (editing === "new") await createContentInstance(typeSlug, name, config);
         else if (editing) await updateContentInstance(editing, name, config);
-        toast("success", editing === "new" ? "Content created" : "Content updated");
+        toast("success", editing === "new" ? t("created") : t("updated"));
         setEditing(null);
-      } catch { toast("error", "Failed to save content"); }
+      } catch { toast("error", t("failedSave")); }
     });
   }
 
@@ -240,8 +241,8 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
     const id = deleting;
     setDeleting(null);
     startTransition(async () => {
-      try { await deleteContentInstance(id); toast("success", "Content deleted"); }
-      catch { toast("error", "Failed to delete content"); }
+      try { await deleteContentInstance(id); toast("success", t("deleted")); }
+      catch { toast("error", t("failedDelete")); }
     });
   }
 
@@ -281,7 +282,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
       <Modal
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
-        title={editing === "new" ? "New Content Instance" : "Edit Content"}
+        title={editing === "new" ? t("newTitle") : t("editTitle")}
         wide={typeSlug === "door-sign"}
         footer={
           <>
@@ -313,9 +314,9 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
       </Modal>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-        title="Delete Content" message="Delete this content instance? Devices using it will show no content." confirmLabel="Delete" destructive />
+        title={t("deleteTitle")} message={t("deleteMsg")} confirmLabel="Delete" destructive />
 
-      <Modal open={!!previewing} onClose={() => setPreviewing(null)} title="Content Preview">
+      <Modal open={!!previewing} onClose={() => setPreviewing(null)} title={t("previewTitle")}>
         {previewing && (
           <img
             src={`/api/v1/admin/preview?instanceId=${previewing}&t=${Date.now()}`}

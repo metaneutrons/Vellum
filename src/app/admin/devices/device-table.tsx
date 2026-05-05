@@ -186,12 +186,12 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                   </label>
                   <span className="text-gray-400">|</span>
                   <label className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    Orientation
+                    {t("orientation")}
                     <select className="border rounded px-1 py-0.5 text-xs" value={d.orientation_override ?? ""}
                       aria-label="Orientation" onChange={(e) => update(d.mac, { orientationOverride: e.target.value || null })}>
-                      <option value="">Auto</option>
-                      <option value="landscape">Landscape</option>
-                      <option value="portrait">Portrait</option>
+                      <option value="">{t("auto")}</option>
+                      <option value="landscape">{t("landscape")}</option>
+                      <option value="portrait">{t("portrait")}</option>
                     </select>
                   </label>
                   <span className="text-gray-400">|</span>

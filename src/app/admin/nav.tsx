@@ -77,7 +77,7 @@ export function AdminNav() {
           </select>
           <div style={{ flex: 1 }} />
           {/* Theme toggle */}
-          <button onClick={toggleTheme} title={dark ? "Light mode" : "Dark mode"}
+          <button onClick={toggleTheme} title={dark ? t("lightMode") : t("darkMode")}
             style={{ fontSize: 14, padding: "4px 6px", borderRadius: 4, border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer" }}>
             {dark ? "☀️" : "🌙"}
           </button>
