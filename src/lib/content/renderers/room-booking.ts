@@ -394,7 +394,7 @@ export function renderToCanvas(
 /* ── Offline fallback ─────────────────────────────────────────── */
 
 /** Render offline fallback. Exported for testing. */
-export function renderOffline(roomName: string, now: Date, T: Theme, width: number, height: number): Canvas {
+export function renderOffline(roomName: string, now: Date, T: Theme, width: number, height: number, locale: string = "en"): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
@@ -409,11 +409,11 @@ export function renderOffline(roomName: string, now: Date, T: Theme, width: numb
 
   ctx.fillStyle = T.busyBadge;
   ctx.font = `bold 32px sans-serif`;
-  const msg = "System Offline";
+  const msg = { en: "System Offline", de: "System Offline", fr: "Système hors ligne", it: "Sistema offline", es: "Sistema fuera de línea" }[locale] ?? "System Offline";
   ctx.fillText(msg, (width - ctx.measureText(msg).width) / 2, height / 2);
   ctx.fillStyle = T.slotSecondary;
   ctx.font = `24px sans-serif`;
-  const sub = "Calendar data unavailable";
+  const sub = { en: "Calendar data unavailable", de: "Kalenderdaten nicht verfügbar", fr: "Données calendrier indisponibles", it: "Dati calendario non disponibili", es: "Datos del calendario no disponibles" }[locale] ?? "Calendar data unavailable";
   ctx.fillText(sub, (width - ctx.measureText(sub).width) / 2, height / 2 + 36);
 
   ctx.fillStyle = T.footerText;
@@ -426,7 +426,7 @@ export function renderOffline(roomName: string, now: Date, T: Theme, width: numb
 
 export const roomBookingRenderer: ContentRenderer = {
   slug: "room-booking",
-  name: "Raumbelegung",
+  name: "Room Booking",
   configSchema: roomBookingConfigSchema,
 
   async render({ config, theme, display, now }: RenderParams): Promise<RenderResult> {
@@ -438,7 +438,7 @@ export const roomBookingRenderer: ContentRenderer = {
       events = await fetchEvents(cfg);
     } catch (err) {
       log.warn("Room-booking fetch failed", { error: String(err) });
-      return { canvas: renderOffline(cfg.roomName, now, theme, width, height) };
+      return { canvas: renderOffline(cfg.roomName, now, theme, width, height, cfg.locale) };
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy, cfg.locale);
