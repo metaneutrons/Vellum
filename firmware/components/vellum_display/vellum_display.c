@@ -565,7 +565,7 @@ void display_show_error(const char *message)
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *icon = lv_label_create(scr);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
@@ -574,7 +574,7 @@ void display_show_error(const char *message)
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text(lbl, message);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl, PANEL_WIDTH * 3 / 4);
 

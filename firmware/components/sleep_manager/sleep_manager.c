@@ -54,8 +54,9 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: never deep sleep — delay and restart */
-    ESP_LOGI(TAG, "LCD mode: delaying %lu seconds then restart", (unsigned long)seconds);
-    vTaskDelay(pdMS_TO_TICKS(seconds * 1000));
+    uint32_t delay = (seconds > 30) ? 30 : seconds; /* Max 30s retry for LCD */
+    ESP_LOGI(TAG, "LCD mode: retrying in %lu seconds", (unsigned long)delay);
+    vTaskDelay(pdMS_TO_TICKS(delay * 1000));
     esp_restart();
 #else
     ESP_LOGI(TAG, "Entering deep sleep for %lu seconds", (unsigned long)seconds);
