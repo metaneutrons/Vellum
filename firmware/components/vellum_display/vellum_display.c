@@ -406,7 +406,7 @@ void display_show_boot(const char *version)
     lv_obj_set_style_text_color(ver, THEME_MUTED, 0);
 
     /* Force full redraw to clear any framebuffer artifacts */
-    /* LVGL task will render this */
+    lvgl_refresh();
 }
 
 static int s_qr_canvas_size = 200;
