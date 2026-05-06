@@ -760,10 +760,8 @@ static void d1001_button_task(void *arg)
             if (held >= 5000) {
                 /* Released between 5-10s: reboot */
                 esp_restart();
-            } else if (held >= 100) {
-                /* Short press: restart for fresh render */
-                esp_restart();
             }
+            /* Short press (<5s): ignore */
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
