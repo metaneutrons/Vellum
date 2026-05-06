@@ -28,6 +28,7 @@
 #include "lcd_jd9365.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "jpeg_decoder.h"
+#include "vellum_logo_rgb565.h"
 #endif
 
 #include <string.h>
@@ -353,29 +354,10 @@ static void ensure_logo_rendered(void)
 static lv_obj_t *add_logo(lv_obj_t *parent)
 {
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: Pre-render logo into buffer once, then just assign to canvas */
-    static lv_color_t *logo_canvas_buf = NULL;
-    static bool logo_rendered = false;
-    if (!logo_canvas_buf)
-        logo_canvas_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    if (!logo_canvas_buf) return NULL;
-
-    if (!logo_rendered) {
-        /* Render once — fill with theme colors */
-        lv_color_t fg = THEME_FG;
-        lv_color_t bg = THEME_BG;
-        for (int y = 0; y < VELLUM_LOGO_H; y++) {
-            for (int x = 0; x < VELLUM_LOGO_W; x++) {
-                int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
-                int bit_idx = 7 - (x % 8);
-                logo_canvas_buf[y * VELLUM_LOGO_W + x] = (vellum_logo_bits[byte_idx] & (1 << bit_idx)) ? fg : bg;
-            }
-        }
-        logo_rendered = true;
-    }
-
+    /* LCD: Use pre-compiled RGB565 logo as canvas buffer (no runtime rendering) */
     lv_obj_t *canvas = lv_canvas_create(parent);
-    lv_canvas_set_buffer(canvas, logo_canvas_buf, VELLUM_LOGO_W, VELLUM_LOGO_H, LV_COLOR_FORMAT_NATIVE);
+    lv_canvas_set_buffer(canvas, (void *)vellum_logo_rgb565, VELLUM_LOGO_RGB565_W, VELLUM_LOGO_RGB565_H, LV_COLOR_FORMAT_RGB565);
+    return canvas;
     return canvas;
 #else
     ensure_logo_rendered();
