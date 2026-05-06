@@ -428,8 +428,8 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     /* Flex container — vertical, centered */
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, 20, 0);
-    lv_obj_set_style_pad_top(scr, 40, 0);
+    lv_obj_set_style_pad_row(scr, 40, 0);
+    lv_obj_set_style_pad_top(scr, 60, 0);
 
     /* Logo */
     add_logo(scr);
