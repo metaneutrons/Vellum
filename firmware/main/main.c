@@ -790,6 +790,9 @@ void app_main(void)
 #endif
     display_init();
     vellum_serial_init();
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    xTaskCreate(d1001_button_task, "d1001_btn", 4096, NULL, 5, NULL);
+#endif
 
     wake_reason_t wake = sleep_manager_get_wake_reason();
 
@@ -929,7 +932,6 @@ void app_main(void)
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: start button monitor + poll loop */
-    xTaskCreate(d1001_button_task, "d1001_btn", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(sleep_duration * 1000));
