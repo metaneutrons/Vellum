@@ -428,8 +428,8 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     /* Flex container — vertical, centered */
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, 40, 0);
-    lv_obj_set_style_pad_top(scr, 60, 0);
+    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 50 : 30, 0);
+    lv_obj_set_style_pad_top(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 80 : 40, 0);
 
     /* Logo */
     add_logo(scr);
@@ -453,11 +453,13 @@ void display_show_wifi_setup(const char *ssid, const char *url)
         esp_qrcode_generate(&qr_cfg, url);
     }
 
-    /* WiFi SSID */
+    /* WiFi SSID — close to QR, large font */
     lv_obj_t *lbl_ssid = lv_label_create(scr);
     lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
-    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(lbl_ssid, THEME_FG, 0);
     lv_obj_set_style_text_align(lbl_ssid, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_pad_top(lbl_ssid, 5, 0);
 
     /* Instructions */
     lv_obj_t *lbl_hint = lv_label_create(scr);
