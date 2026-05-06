@@ -117,6 +117,8 @@ static void buzzer_beep(uint32_t freq, uint32_t ms)
 /* ── SHT4x Temperature/Humidity Sensor (I2C) ──────────────────── */
 
 #include "driver/i2c_master.h"
+#include "esp_timer.h"
+#include "nvs_flash.h"
 
 #define SHT4X_ADDR       0x44
 #define SHT4X_CMD_MEASURE 0xFD
@@ -716,6 +718,58 @@ static void check_ota_update(void)
     http_client_free_response(&resp);
 }
 
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+#ifdef CONFIG_VELLUM_BUTTON_ACTIVE_HIGH
+  #define PRESSED_LEVEL 1
+#else
+  #define PRESSED_LEVEL 0
+#endif
+static void d1001_button_task(void *arg)
+{
+    (void)arg;
+    gpio_num_t btn = (gpio_num_t)CONFIG_VELLUM_BUTTON_KEY0_GPIO;
+    /* Wait for button release after boot */
+    while (gpio_get_level(btn) == PRESSED_LEVEL) vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    while (1) {
+        if (gpio_get_level(btn) == PRESSED_LEVEL) {
+            int64_t start = esp_timer_get_time();
+            int last_cd = -1;
+            while (gpio_get_level(btn) == PRESSED_LEVEL) {
+                int64_t held = (esp_timer_get_time() - start) / 1000;
+                if (held >= 5000) {
+                    int rem = (int)((10000 - held) / 1000);
+                    if (rem < 0) rem = 0;
+                    if (rem != last_cd) {
+                        char msg[48];
+                        snprintf(msg, sizeof(msg), "Factory Reset in %d", rem);
+                        display_show_error(msg);
+                        last_cd = rem;
+                    }
+                }
+                if (held >= 10000) {
+                    display_show_error("Factory Reset...");
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    nvs_flash_erase();
+                    esp_restart();
+                }
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+            int64_t held = (esp_timer_get_time() - start) / 1000;
+            if (held >= 5000) {
+                /* Released between 5-10s: reboot */
+                esp_restart();
+            } else if (held >= 100) {
+                /* Short press: restart for fresh render */
+                esp_restart();
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+#endif
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "===== Vellum Firmware v%s =====", CONFIG_VELLUM_FIRMWARE_VERSION);
@@ -874,7 +928,8 @@ void app_main(void)
     led_off();
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: poll loop instead of deep sleep */
+    /* LCD: start button monitor + poll loop */
+    xTaskCreate(d1001_button_task, "d1001_btn", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(sleep_duration * 1000));
