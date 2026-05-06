@@ -428,7 +428,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     /* Flex container — vertical, centered */
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 50 : 30, 0);
+    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 80 : 30, 0);
     lv_obj_set_style_pad_top(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 30 : 40, 0);
 
     /* Logo */
@@ -466,7 +466,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_label_set_text(lbl_hint,
         "Scan QR code to configure WiFi\n"
         "or use Vellum Console via USB.");
-    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_32, 0);
     lv_obj_set_style_text_color(lbl_hint, THEME_MUTED, 0);
     lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_hint, PANEL_WIDTH * 3 / 4);
