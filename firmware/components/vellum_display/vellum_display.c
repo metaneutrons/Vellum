@@ -501,8 +501,27 @@ void display_show_wifi_setup(const char *ssid, const char *url)
 
 void display_show_connecting(const char *ssid)
 {
-    /* No-op — avoid unnecessary display refresh for transient states */
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    if (!s_lvgl_disp) return;
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, THEME_BG, 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, 20, 0);
+
+    add_logo(scr);
+
+    lv_obj_t *lbl = lv_label_create(scr);
+    lv_label_set_text_fmt(lbl, "Connecting to %s...", ssid);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(lbl, THEME_MUTED, 0);
+
+    lvgl_refresh();
+#else
     (void)ssid;
+#endif
 }
 
 void display_show_ota_progress(uint8_t percent)
