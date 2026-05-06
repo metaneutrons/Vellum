@@ -330,8 +330,7 @@ static void lvgl_refresh(void)
 {
     if (!s_lvgl_disp) return;
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: clear both framebuffers then invalidate to force full redraw */
-    lcd_clear_framebuffers();
+    /* LCD: invalidate full screen to force redraw */
     lv_obj_invalidate(lv_screen_active());
 #elif defined(CONFIG_VELLUM_PANEL_E1003)
     lv_obj_invalidate(lv_screen_active());

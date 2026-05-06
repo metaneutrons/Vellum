@@ -718,12 +718,13 @@ static void check_ota_update(void)
     http_client_free_response(&resp);
 }
 
-#if defined(CONFIG_VELLUM_PANEL_D1001)
 #ifdef CONFIG_VELLUM_BUTTON_ACTIVE_HIGH
   #define PRESSED_LEVEL 1
 #else
   #define PRESSED_LEVEL 0
 #endif
+
+#if defined(CONFIG_VELLUM_PANEL_D1001)
 static void d1001_button_task(void *arg)
 {
     (void)arg;
@@ -929,7 +930,7 @@ void app_main(void)
     led_off();
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: start button monitor + poll loop */
+    /* LCD: poll loop instead of deep sleep */
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(sleep_duration * 1000));
