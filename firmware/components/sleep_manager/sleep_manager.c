@@ -53,7 +53,7 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
     }
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: never deep sleep — delay in small chunks (feeds watchdog) then restart */
+    /* LCD: delay then restart (error screen stays visible during wait) */
     uint32_t delay = (seconds > 30) ? 30 : seconds;
     ESP_LOGI(TAG, "LCD mode: retrying in %lu seconds", (unsigned long)delay);
     for (uint32_t i = 0; i < delay; i++) {
