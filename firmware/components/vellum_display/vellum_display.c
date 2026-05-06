@@ -449,6 +449,9 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_set_style_pad_row(scr, 20, 0);
     lv_obj_set_style_pad_top(scr, 40, 0);
 
+    /* Logo */
+    add_logo(scr);
+
     /* QR code */
     int qr_size = (PANEL_WIDTH < PANEL_HEIGHT) ? PANEL_WIDTH / 3 : PANEL_HEIGHT / 3;
     if (qr_size > 250) qr_size = 250;
