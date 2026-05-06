@@ -155,6 +155,8 @@ static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t
 /* ── Init ─────────────────────────────────────────────────────── */
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
+static void *s_dpi_buf1 = NULL, *s_dpi_buf2 = NULL;
+
 static void lcd_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
     lv_display_flush_ready(disp);
@@ -265,7 +267,13 @@ esp_err_t display_init(void)
     {
         void *buf1 = NULL, *buf2 = NULL;
         esp_lcd_dpi_panel_get_frame_buffer(s_lcd_panel, 2, &buf1, &buf2);
+        /* Clear framebuffers to black (prevents garbage on first frame) */
+        memset(buf1, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
+        memset(buf2, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
+        s_dpi_buf1 = buf1;
+        s_dpi_buf2 = buf2;
         s_lvgl_disp = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
+        /* Double buffer — DPI reads one while LVGL writes the other */
         lv_display_set_buffers(s_lvgl_disp, buf1, buf2, PANEL_WIDTH * PANEL_HEIGHT * 2, LV_DISPLAY_RENDER_MODE_DIRECT);
         lv_display_set_flush_cb(s_lvgl_disp, lcd_flush_cb);
         d1001_backlight_on();
@@ -354,10 +362,9 @@ static void ensure_logo_rendered(void)
 static lv_obj_t *add_logo(lv_obj_t *parent)
 {
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: Use pre-compiled RGB565 logo as canvas buffer (no runtime rendering) */
+    /* LCD: Use pre-compiled RGB565 logo as canvas buffer */
     lv_obj_t *canvas = lv_canvas_create(parent);
     lv_canvas_set_buffer(canvas, (void *)vellum_logo_rgb565, VELLUM_LOGO_RGB565_W, VELLUM_LOGO_RGB565_H, LV_COLOR_FORMAT_RGB565);
-    return canvas;
     return canvas;
 #else
     ensure_logo_rendered();
@@ -376,9 +383,10 @@ void display_show_boot(const char *version)
     lv_obj_set_style_bg_color(scr, THEME_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
-    /* Flex column, centered */
+    /* Flex column, centered horizontally and vertically */
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, 20, 0);
 
     add_logo(scr);
 
@@ -389,6 +397,8 @@ void display_show_boot(const char *version)
     lv_obj_set_style_text_font(ver, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(ver, THEME_MUTED, 0);
 
+    /* Force full redraw to clear any framebuffer artifacts */
+    lv_obj_invalidate(scr);
     /* LVGL task will render this */
 }
 
@@ -427,17 +437,18 @@ void display_show_wifi_setup(const char *ssid, const char *url)
 
     /* Flex container — vertical, centered */
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 80 : 30, 0);
-    lv_obj_set_style_pad_top(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 30 : 40, 0);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 15 : 15, 0);
+    lv_obj_set_style_pad_top(scr, 0, 0);
 
     /* Logo */
-    add_logo(scr);
+    lv_obj_t *logo = add_logo(scr);
+    if (logo) lv_obj_set_style_pad_bottom(logo, 350, 0);
 
     /* QR code */
-    int qr_size = (PANEL_WIDTH < PANEL_HEIGHT) ? PANEL_WIDTH / 3 : PANEL_HEIGHT / 3;
-    if (qr_size > 250) qr_size = 250;
-    if (qr_size < 120) qr_size = 120;
+    int qr_size = VELLUM_LOGO_RGB565_W;
+    
+    
     static lv_color_t *qr_buf = NULL;
     if (!qr_buf) qr_buf = heap_caps_malloc(qr_size * qr_size * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     if (qr_buf) {
@@ -456,7 +467,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     /* WiFi SSID — close to QR, large font */
     lv_obj_t *lbl_ssid = lv_label_create(scr);
     lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
-    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(lbl_ssid, THEME_FG, 0);
     lv_obj_set_style_text_align(lbl_ssid, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_pad_top(lbl_ssid, 5, 0);
@@ -466,7 +477,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_label_set_text(lbl_hint,
         "Scan QR code to configure WiFi\n"
         "or use Vellum Console via USB.");
-    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(lbl_hint, THEME_MUTED, 0);
     lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_hint, PANEL_WIDTH * 3 / 4);
@@ -554,7 +565,7 @@ void display_show_error(const char *message)
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *icon = lv_label_create(scr);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);

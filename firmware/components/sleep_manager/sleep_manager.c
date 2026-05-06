@@ -9,6 +9,9 @@
 
 #include "esp_log.h"
 #include "esp_sleep.h"
+#include "esp_system.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "sleep_mgr";
@@ -49,6 +52,12 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
         seconds = CONFIG_VELLUM_FALLBACK_SLEEP_SEC;
     }
 
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    /* LCD: never deep sleep — delay and restart */
+    ESP_LOGI(TAG, "LCD mode: delaying %lu seconds then restart", (unsigned long)seconds);
+    vTaskDelay(pdMS_TO_TICKS(seconds * 1000));
+    esp_restart();
+#else
     ESP_LOGI(TAG, "Entering deep sleep for %lu seconds", (unsigned long)seconds);
 
     esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
@@ -59,10 +68,15 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
 
     esp_deep_sleep_start();
     /* does not return */
+#endif
 }
 
 void sleep_manager_enter_permanent(uint64_t button_wake_mask)
 {
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    ESP_LOGI(TAG, "LCD mode: waiting for button then restart");
+    while (1) vTaskDelay(pdMS_TO_TICKS(1000));
+#else
     ESP_LOGI(TAG, "Entering permanent deep sleep (no timer)");
 
     if (button_wake_mask != 0) {
@@ -71,4 +85,5 @@ void sleep_manager_enter_permanent(uint64_t button_wake_mask)
 
     esp_deep_sleep_start();
     /* does not return */
+#endif
 }

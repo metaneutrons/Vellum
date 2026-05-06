@@ -873,9 +873,19 @@ void app_main(void)
     check_ota_update();
     led_off();
 
-    /* 9. Enter deep sleep */
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    /* LCD: poll loop instead of deep sleep */
+    ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(sleep_duration * 1000));
+        sleep_duration = perform_render();
+        check_ota_update();
+    }
+#else
+    /* 9. Enter deep sleep (E-Paper) */
     ESP_LOGI(TAG, "Sleeping for %lu seconds", (unsigned long)sleep_duration);
     display_sleep();
     sleep_manager_enter(sleep_duration, buttons_get_wake_mask());
     /* does not return */
+#endif
 }
