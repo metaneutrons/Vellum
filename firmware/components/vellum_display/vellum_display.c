@@ -162,6 +162,13 @@ static void lcd_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_
     lv_display_flush_ready(disp);
 }
 
+/* Clear both DPI framebuffers (prevents ghost content from previous screen) */
+static void lcd_clear_framebuffers(void)
+{
+    if (s_dpi_buf1) memset(s_dpi_buf1, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
+    if (s_dpi_buf2) memset(s_dpi_buf2, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
+}
+
 static void lvgl_handler_task(void *arg)
 {
     (void)arg;
@@ -323,7 +330,8 @@ static void lvgl_refresh(void)
 {
     if (!s_lvgl_disp) return;
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: handler task renders continuously, just invalidate */
+    /* LCD: clear both framebuffers then invalidate to force full redraw */
+    lcd_clear_framebuffers();
     lv_obj_invalidate(lv_screen_active());
 #elif defined(CONFIG_VELLUM_PANEL_E1003)
     lv_obj_invalidate(lv_screen_active());
@@ -398,7 +406,6 @@ void display_show_boot(const char *version)
     lv_obj_set_style_text_color(ver, THEME_MUTED, 0);
 
     /* Force full redraw to clear any framebuffer artifacts */
-    lv_obj_invalidate(scr);
     /* LVGL task will render this */
 }
 
