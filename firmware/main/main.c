@@ -852,8 +852,8 @@ void app_main(void)
         http_client_set_token(token);
     } else {
         if (!perform_hello()) {
-            ESP_LOGW(TAG, "No token after hello — device may be pending");
-            display_show_error("Unauthorized");
+            ESP_LOGW(TAG, "No token after hello — device may be pending or server unreachable");
+            display_show_error("No Server");
             display_sleep();
             sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
             /* does not return */
