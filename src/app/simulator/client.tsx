@@ -59,6 +59,7 @@ interface SimConfig {
   serverUrl: string;
   mac: string;
   displayModel: string;
+  orientation: "portrait" | "landscape";
   batteryLevel: number;
   batteryVoltage: number;
   powerSource: "usb" | "battery";
@@ -69,6 +70,7 @@ const DEFAULT_CONFIG: SimConfig = {
   serverUrl: "",
   mac: "DEADBEEFCAFE",
   displayModel: "d1001",
+  orientation: "portrait",
   batteryLevel: 85,
   batteryVoltage: 3.85,
   powerSource: "battery",
@@ -242,6 +244,8 @@ export function SimulatorClient() {
           format: dm.format,
           colorMode: dm.colorMode,
           palette: dm.palette,
+          orientation: config.orientation,
+          orientations: ["portrait", "landscape"],
         },
       }),
       signal,
@@ -504,23 +508,39 @@ export function SimulatorClient() {
             </div>
 
             {/* Canvas */}
-            <canvas
-              ref={canvasRef}
-              width={(DISPLAY_MODELS[config.displayModel]?.width ?? 800)}
-              height={(DISPLAY_MODELS[config.displayModel]?.height ?? 480)}
-              style={{
-                display: "block",
-                width: (DISPLAY_MODELS[config.displayModel]?.width ?? 800) >= (DISPLAY_MODELS[config.displayModel]?.height ?? 480) ? 600 : Math.round(400 * (DISPLAY_MODELS[config.displayModel]?.width ?? 800) / (DISPLAY_MODELS[config.displayModel]?.height ?? 480)),
-                height: (DISPLAY_MODELS[config.displayModel]?.width ?? 800) >= (DISPLAY_MODELS[config.displayModel]?.height ?? 480) ? Math.round(600 * (DISPLAY_MODELS[config.displayModel]?.height ?? 480) / (DISPLAY_MODELS[config.displayModel]?.width ?? 800)) : 400,
-                borderRadius: 4,
-                imageRendering: "pixelated",
-                filter: state === "off" ? "brightness(0.3)" : "none",
-              }}
-            />
+            {(() => {
+              const dm = DISPLAY_MODELS[config.displayModel] ?? DISPLAY_MODELS.e1001;
+              const isLandscape = config.orientation === "landscape";
+              const cw = isLandscape ? Math.max(dm.width, dm.height) : Math.min(dm.width, dm.height);
+              const ch = isLandscape ? Math.min(dm.width, dm.height) : Math.max(dm.width, dm.height);
+              const maxDim = 500;
+              const scale = Math.min(maxDim / cw, maxDim / ch);
+              return (
+                <canvas
+                  ref={canvasRef}
+                  width={cw}
+                  height={ch}
+                  style={{
+                    display: "block",
+                    width: Math.round(cw * scale),
+                    height: Math.round(ch * scale),
+                    borderRadius: 4,
+                    imageRendering: "pixelated",
+                    filter: state === "off" ? "brightness(0.3)" : "none",
+                  }}
+                />
+              );
+            })()}
           </div>
 
           <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>
-            {(DISPLAY_MODELS[config.displayModel]?.width ?? 800)} × {(DISPLAY_MODELS[config.displayModel]?.height ?? 480)} · {DISPLAY_MODELS[config.displayModel]?.name ?? config.displayModel} · ESP32-S3
+            {(() => {
+              const dm = DISPLAY_MODELS[config.displayModel] ?? DISPLAY_MODELS.e1001;
+              const isLandscape = config.orientation === "landscape";
+              const w = isLandscape ? Math.max(dm.width, dm.height) : Math.min(dm.width, dm.height);
+              const h = isLandscape ? Math.min(dm.width, dm.height) : Math.max(dm.width, dm.height);
+              return `${w} × ${h} · ${dm.name} · ${config.orientation}`;
+            })()}
           </div>
         </div>
 
@@ -551,6 +571,12 @@ export function SimulatorClient() {
                 {Object.entries(DISPLAY_MODELS).map(([id, m]) => (
                   <option key={id} value={id}>{m.name}</option>
                 ))}
+              </select>
+              <label>Orientation</label>
+              <select value={config.orientation} onChange={(e) => setConfig((c) => ({ ...c, orientation: e.target.value as "portrait" | "landscape" }))}
+                style={inputStyle}>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
               </select>
             </div>
           </div>
