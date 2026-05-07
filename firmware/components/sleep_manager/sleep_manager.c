@@ -54,10 +54,16 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: delay then return to caller (no restart, no deep sleep) */
+    extern volatile bool s_button_pressed;
     uint32_t delay = (seconds > 30) ? 30 : seconds;
     ESP_LOGI(TAG, "LCD mode: retrying in %lu seconds", (unsigned long)delay);
     for (uint32_t i = 0; i < delay; i++) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        if (s_button_pressed) {
+            s_button_pressed = false;
+            ESP_LOGI(TAG, "Button pressed — retrying now");
+            break;
+        }
     }
     return;
 #else

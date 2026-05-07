@@ -724,6 +724,8 @@ static void check_ota_update(void)
   #define PRESSED_LEVEL 0
 #endif
 
+volatile bool s_button_pressed = false;
+
 #if defined(CONFIG_VELLUM_PANEL_D1001)
 static void d1001_button_task(void *arg)
 {
@@ -762,7 +764,8 @@ static void d1001_button_task(void *arg)
                 /* Released between 5-10s: reboot */
                 esp_restart();
             }
-            /* Short press (<5s): ignore */
+            /* Short press (<5s): trigger immediate refresh/retry */
+            s_button_pressed = true;
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -934,7 +937,13 @@ void app_main(void)
     /* LCD: poll loop instead of deep sleep */
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(sleep_duration * 1000));
+        for (uint32_t i = 0; i < sleep_duration && !s_button_pressed; i++) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        if (s_button_pressed) {
+            s_button_pressed = false;
+            ESP_LOGI(TAG, "Button → immediate refresh");
+        }
         sleep_duration = perform_render();
         check_ota_update();
     }
