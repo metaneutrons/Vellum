@@ -254,7 +254,8 @@
   },
   "contentTypes": {
     "room-booking": "Réservation de salle",
-    "door-sign": "Plaque de porte"
+    "door-sign": "Plaque de porte",
+    "door-sign-multi": "Plaque de porte (Multi)"
   },
   "error": {
     "dbUnavailable": "Base de données indisponible",

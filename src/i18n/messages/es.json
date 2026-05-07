@@ -233,7 +233,8 @@
   },
   "contentTypes": {
     "room-booking": "Reserva de sala",
-    "door-sign": "Letrero de puerta"
+    "door-sign": "Letrero de puerta",
+    "door-sign-multi": "Letrero de puerta (Multi)"
   },
   "error": {
     "dbUnavailable": "Base de datos no disponible",

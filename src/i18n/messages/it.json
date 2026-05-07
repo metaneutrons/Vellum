@@ -254,7 +254,8 @@
   },
   "contentTypes": {
     "room-booking": "Prenotazione sala",
-    "door-sign": "Targhetta"
+    "door-sign": "Targhetta",
+    "door-sign-multi": "Targhetta (Multi)"
   },
   "error": {
     "dbUnavailable": "Database non disponibile",

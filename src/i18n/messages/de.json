@@ -254,7 +254,8 @@
   },
   "contentTypes": {
     "room-booking": "Raumbelegung",
-    "door-sign": "Türschild"
+    "door-sign": "Türschild",
+    "door-sign-multi": "Türschild (Multi)"
   },
   "error": {
     "dbUnavailable": "Datenbank nicht erreichbar",

@@ -254,7 +254,8 @@
   },
   "contentTypes": {
     "room-booking": "Room Booking",
-    "door-sign": "Door Sign"
+    "door-sign": "Door Sign",
+    "door-sign-multi": "Door Sign (Multi)"
   },
   "error": {
     "dbUnavailable": "Database Unavailable",

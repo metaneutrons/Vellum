@@ -22,8 +22,31 @@ interface Props { instances: ContentInstance[]; types: ContentType[]; providers:
 
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
+import { DoorSignMultiEditor } from "@/components/door-sign-multi-editor";
 import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
+import { doorSignMultiConfigSchema } from "@/lib/content/renderers/door-sign-multi-types";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
+
+
+function DoorSignMultiConfigEditor({ config, onChange, providers, knownDisplays }: {
+  config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
+}) {
+  const parsed = doorSignMultiConfigSchema.safeParse(config);
+  const multiConfig = parsed.success ? parsed.data : {
+    resources: [], locale: "de", timezone: "Europe/Berlin", cachedProperties: {},
+    design: { backgroundAssetId: null, textBoxes: [], freeTextBoxes: [], backgroundColor: "#FFFFFF" },
+    designOverrides: {}, headerHeight: 0.25,
+    rowTemplate: { height: 0.12, textBoxes: [], freeTextBoxes: [] },
+  };
+  return (
+    <DoorSignMultiEditor
+      config={multiConfig}
+      onChange={(c) => onChange(c as unknown as Record<string, unknown>)}
+      providers={providers}
+      knownDisplays={knownDisplays}
+    />
+  );
+}
 
 function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
   config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
@@ -263,7 +286,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
             <div className="flex items-center gap-2">
               <span className="font-medium">{inst.name}</span>
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                {tc(inst.typeSlug as "room-booking" | "door-sign")}
+                {tc(inst.typeSlug as string)}
               </span>
             </div>
             <div className="flex gap-2">
@@ -290,7 +313,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
         title={editing === "new" ? t("newTitle") : t("editTitle")}
-        wide={typeSlug === "door-sign"}
+        wide={typeSlug === "door-sign" || typeSlug === "door-sign-multi"}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
@@ -303,7 +326,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
             <label className="block text-sm font-medium mb-1">Content Type</label>
             <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={typeSlug}
               onChange={(e) => setTypeSlug(e.target.value)}>
-              {types.map((t) => <option key={t.slug} value={t.slug}>{tc(t.slug as "room-booking" | "door-sign")}</option>)}
+              {types.map((t) => <option key={t.slug} value={t.slug}>{tc(t.slug as string)}</option>)}
             </select>
           </>
         )}
@@ -317,6 +340,9 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         )}
         {typeSlug === "door-sign" && (
           <DoorSignConfigEditor config={config} onChange={setConfig} providers={providers} knownDisplays={knownDisplays} />
+        )}
+        {typeSlug === "door-sign-multi" && (
+          <DoorSignMultiConfigEditor config={config} onChange={setConfig} providers={providers} knownDisplays={knownDisplays} />
         )}
       </Modal>
 
