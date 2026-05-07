@@ -334,12 +334,21 @@ export async function updateSetting(key: string, value: unknown) {
 }
 
 export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
-  const { DEFAULT_DISPLAY } = await import("@/lib/content/renderers/door-sign-types");
+  const { KNOWN_DISPLAYS } = await import("@/lib/content/renderers/door-sign-types");
   const rows = await db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
     .where(sql`${devices.displayCaps} IS NOT NULL`);
   const seen = new Set<string>();
   const sizes: { label: string; width: number; height: number }[] = [];
 
+  // Start with all registry displays
+  for (const d of KNOWN_DISPLAYS) {
+    const key = `${d.width}x${d.height}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sizes.push(d);
+  }
+
+  // Add any DB-known sizes not in the registry
   for (const row of rows) {
     if (!row.displayCaps || typeof row.displayCaps !== "object") continue;
     const caps = row.displayCaps as { model?: string; width?: number; height?: number };
@@ -350,6 +359,5 @@ export async function getKnownDisplaySizes(): Promise<{ label: string; width: nu
     sizes.push({ label: `${caps.model ?? "Unknown"} (${key})`, width: caps.width, height: caps.height });
   }
 
-  if (sizes.length === 0) sizes.push(DEFAULT_DISPLAY);
   return sizes;
 }

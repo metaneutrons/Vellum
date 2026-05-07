@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { DISPLAY_REGISTRY } from "@/lib/display";
 
 /* ── Display sizes ────────────────────────────────────────────── */
 
@@ -14,7 +15,17 @@ export interface DisplaySize {
   height: number;
 }
 
-export const DEFAULT_DISPLAY: DisplaySize = { label: "E1002 (800×480)", width: 800, height: 480 };
+/** All known display sizes (including orientation variants) derived from DISPLAY_REGISTRY */
+export const KNOWN_DISPLAYS: DisplaySize[] = Object.entries(DISPLAY_REGISTRY).flatMap(([id, d]) =>
+  d.orientations.map(o => {
+    const isLandscape = o === "landscape";
+    const w = isLandscape ? Math.max(d.width, d.height) : Math.min(d.width, d.height);
+    const h = isLandscape ? Math.min(d.width, d.height) : Math.max(d.width, d.height);
+    return { label: `${id.toUpperCase()} ${w}×${h}`, width: w, height: h };
+  })
+).filter((d, i, arr) => arr.findIndex(x => x.width === d.width && x.height === d.height) === i);
+
+export const DEFAULT_DISPLAY: DisplaySize = KNOWN_DISPLAYS[0];
 
 /* ── Template variables available in door-sign context ─────────── */
 
