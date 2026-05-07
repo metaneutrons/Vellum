@@ -444,15 +444,17 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     /* Flex container — vertical, centered */
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 15 : 15, 0);
+    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 15 : 10, 0);
     lv_obj_set_style_pad_top(scr, 0, 0);
 
     /* Logo */
     lv_obj_t *logo = add_logo(scr);
-    if (logo) lv_obj_set_style_pad_bottom(logo, 350, 0);
+    if (logo) lv_obj_set_style_pad_bottom(logo, PANEL_HEIGHT / 8, 0);
 
     /* QR code */
-    int qr_size = VELLUM_LOGO_RGB565_W;
+    int qr_size = (PANEL_WIDTH < PANEL_HEIGHT ? PANEL_WIDTH : PANEL_HEIGHT) / 3;
+    if (qr_size > 300) qr_size = 300;
+    if (qr_size < 100) qr_size = 100;
     
     
     static lv_color_t *qr_buf = NULL;
@@ -528,30 +530,34 @@ void display_show_ota_progress(uint8_t percent)
     if (!s_lvgl_disp) return;
 
 #if PANEL_FAST_REFRESH
-    /* Fast display: show progress bar with percentage */
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, THEME_BG, 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, 20, 0);
+
+    add_logo(scr);
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Updating firmware...");
     lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -50);
+    lv_obj_set_style_text_color(title, THEME_FG, 0);
 
     lv_obj_t *bar = lv_bar_create(scr);
     lv_obj_set_size(bar, PANEL_WIDTH / 2, 30);
     lv_bar_set_value(bar, percent, LV_ANIM_OFF);
-    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_t *pct = lv_label_create(scr);
     lv_label_set_text_fmt(pct, "%d%%", percent);
-    lv_obj_set_style_text_font(pct, &lv_font_montserrat_18, 0);
-    lv_obj_align(pct, LV_ALIGN_CENTER, 0, 35);
+    lv_obj_set_style_text_font(pct, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(pct, THEME_FG, 0);
 
     lv_obj_t *warn = lv_label_create(scr);
     lv_label_set_text(warn, "Do not power off");
+    lv_obj_set_style_text_font(warn, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(warn, THEME_MUTED, 0);
-    lv_obj_align(warn, LV_ALIGN_CENTER, 0, 70);
 
     lvgl_refresh();
 #else
@@ -562,17 +568,22 @@ void display_show_ota_progress(uint8_t percent)
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, THEME_BG, 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, 20, 0);
+
+    add_logo(scr);
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Updating firmware...");
     lv_obj_set_style_text_font(title, &lv_font_montserrat_48, 0);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_set_style_text_color(title, THEME_FG, 0);
 
     lv_obj_t *warn = lv_label_create(scr);
     lv_label_set_text(warn, "Do not power off");
     lv_obj_set_style_text_font(warn, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(warn, THEME_MUTED, 0);
-    lv_obj_align(warn, LV_ALIGN_CENTER, 0, 30);
 
     lvgl_refresh();
 #endif
@@ -591,6 +602,9 @@ void display_show_error(const char *message)
 
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, 20, 0);
+
+    add_logo(scr);
 
     lv_obj_t *icon = lv_label_create(scr);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
