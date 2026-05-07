@@ -841,11 +841,12 @@ void app_main(void)
     }
 
     if (wifi_result == WIFI_RESULT_FAILED) {
-        ESP_LOGW(TAG, "Wi-Fi connection failed — showing No Signal icon");
+        ESP_LOGW(TAG, "Wi-Fi connection failed");
         display_show_error("No WiFi Signal");
         display_sleep();
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
-        /* does not return */
+        /* On E-Paper: does not return. On D1001: returns, then restart to re-init WiFi */
+        esp_restart();
     }
 
     /* 4. Wi-Fi connected — initialize HTTP client */
@@ -907,12 +908,12 @@ void app_main(void)
     if (nvs_manager_get_token(token, sizeof(token)) == ESP_OK && strlen(token) > 0) {
         http_client_set_token(token);
     } else {
-        if (!perform_hello()) {
+        while (!perform_hello()) {
             ESP_LOGW(TAG, "No token after hello — device may be pending or server unreachable");
             display_show_error("No Server");
             display_sleep();
             sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
-            /* does not return */
+            /* On D1001 this returns after delay; on E-Paper it does not return */
         }
     }
 
