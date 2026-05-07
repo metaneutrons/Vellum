@@ -6,14 +6,15 @@ import { db } from "@/db";
 import { contentInstances, devices, themes } from "@/db/schema";
 import { getContentRenderer } from "@/lib/content";
 import { resolveTheme, parseTheme } from "@/lib/theme";
-import { resolveDisplayCaps, type ResolvedDisplay } from "@/lib/display";
+import { resolveDisplayCaps, DISPLAY_REGISTRY, type ResolvedDisplay } from "@/lib/display";
 
+const _defaultModel = DISPLAY_REGISTRY.e1002;
 const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
-  width: 800, height: 480,
-  palette: [[0,0,0],[255,255,255],[0,128,0],[0,0,255],[255,0,0],[255,255,0],[255,128,0]],
-  format: "raw",
-  colorMode: "fullcolor",
-  colorCount: 7,
+  width: _defaultModel.width, height: _defaultModel.height,
+  palette: _defaultModel.palette,
+  format: _defaultModel.format,
+  colorMode: _defaultModel.colorMode,
+  colorCount: _defaultModel.palette.length,
   orientation: "landscape",
 };
 

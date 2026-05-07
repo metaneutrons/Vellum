@@ -62,6 +62,52 @@ const DEFAULT_CAPS: DisplayCaps = {
   orientations: [],
 };
 
+/**
+ * SSOT display registry — all known display models.
+ * Add new displays here; all other code imports from this registry.
+ */
+export const DISPLAY_REGISTRY: Record<string, {
+  name: string;
+  width: number;
+  height: number;
+  format: OutputFormat;
+  colorMode: ColorMode;
+  palette: [number, number, number][];
+  orientations: ("portrait" | "landscape")[];
+}> = {
+  e1001: {
+    name: "E1001 (7.5\" BW)",
+    width: 800, height: 480,
+    format: "raw", colorMode: "mono",
+    palette: [[0, 0, 0], [255, 255, 255]],
+    orientations: ["landscape"],
+  },
+  e1002: {
+    name: "E1002 (7.3\" 6-Color)",
+    width: 800, height: 480,
+    format: "raw", colorMode: "indexed",
+    palette: [[0, 0, 0], [255, 255, 255], [0, 128, 0], [0, 0, 255], [255, 0, 0], [255, 255, 0], [255, 128, 0]],
+    orientations: ["landscape"],
+  },
+  e1003: {
+    name: "E1003 (10.3\" 16-Gray)",
+    width: 1872, height: 1404,
+    format: "raw", colorMode: "grayscale",
+    palette: Array.from({ length: 16 }, (_, i) => {
+      const v = Math.round(i / 15 * 255);
+      return [v, v, v] as [number, number, number];
+    }),
+    orientations: ["portrait", "landscape"],
+  },
+  d1001: {
+    name: "D1001 (8\" LCD Color)",
+    width: 800, height: 1280,
+    format: "jpeg", colorMode: "fullcolor",
+    palette: [[0, 0, 0], [255, 255, 255], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 128, 0]],
+    orientations: ["portrait", "landscape"],
+  },
+};
+
 /** Migrate legacy quantize field to format + colorMode */
 function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: ColorMode } {
   if (caps.format && caps.colorMode) {

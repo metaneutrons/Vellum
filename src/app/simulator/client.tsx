@@ -3,44 +3,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DISPLAY_REGISTRY } from "@/lib/display";
 
 /* ── Constants matching real hardware ─────────────────────────────── */
 
 /* ── Constants ────────────────────────────────────────────────── */
 
-const DISPLAY_MODELS: Record<string, {
-  name: string;
-  width: number;
-  height: number;
-  format: "raw" | "jpeg";
-  colorMode: string;
-  palette: [number, number, number][];
-}> = {
-  e1001: {
-    name: "E1001 (7.5\" BW)",
-    width: 800, height: 480,
-    format: "raw", colorMode: "mono",
-    palette: [[0,0,0],[255,255,255]],
-  },
-  e1002: {
-    name: "E1002 (7.3\" 6-Color)",
-    width: 800, height: 480,
-    format: "raw", colorMode: "indexed",
-    palette: [[0,0,0],[255,255,255],[0,128,0],[0,0,255],[255,0,0],[255,255,0],[255,128,0]],
-  },
-  e1003: {
-    name: "E1003 (10.3\" 16-Gray)",
-    width: 1872, height: 1404,
-    format: "raw", colorMode: "grayscale",
-    palette: Array.from({length:16},(_,i)=>{const v=Math.round(i/15*255);return[v,v,v] as [number,number,number]}),
-  },
-  d1001: {
-    name: "D1001 (8\" LCD Color)",
-    width: 800, height: 1280,
-    format: "jpeg", colorMode: "fullcolor",
-    palette: [[0,0,0],[255,255,255],[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,128,0]],
-  },
-};
+const DISPLAY_MODELS = DISPLAY_REGISTRY;
 const FIRMWARE_VER = "sim-1.0.0";
 
 /* ── Types ────────────────────────────────────────────────────────── */

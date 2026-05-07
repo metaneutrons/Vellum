@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
+import { DISPLAY_REGISTRY } from "@/lib/display";
 
 export function FlashTool() {
   const [model, setModel] = useState("e1002");
@@ -32,9 +33,9 @@ export function FlashTool() {
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow p-6 max-w-lg">
         <label className="block text-sm font-medium mb-1">Display Model</label>
         <select className="w-full border rounded px-3 py-2 mb-4 text-sm" value={model} onChange={(e) => setModel(e.target.value)} aria-label="Display model">
-          <option value="e1001">E1001 (7.5&quot; B&amp;W)</option>
-          <option value="e1002">E1002 (7.3&quot; Color)</option>
-          <option value="e1003">E1003 (10.3&quot; Mono)</option>
+          {Object.entries(DISPLAY_REGISTRY).map(([id, m]) => (
+            <option key={id} value={id}>{m.name}</option>
+          ))}
         </select>
 
         <label className="block text-sm font-medium mb-1">Channel</label>
