@@ -70,7 +70,7 @@ static bool screen_unchanged(const char *screen_id)
         ESP_LOGI(TAG, "Screen unchanged (%s) — skipping refresh", screen_id);
         return true;
     }
-    strncpy(s_last_screen, screen_id, sizeof(s_last_screen) - 1);
+    strlcpy(s_last_screen, screen_id, sizeof(s_last_screen));
     nvs_manager_set_str("last_scr", screen_id);
     return false;
 }
@@ -107,7 +107,7 @@ static bool screen_unchanged(const char *screen_id)
   #define PANEL_HEIGHT 1280
   #define PANEL_BPP    16
   #define PANEL_COLORS "fullcolor"
-  #define PANEL_FAST_REFRESH 0
+  #define PANEL_FAST_REFRESH 1
   #define PANEL_IS_LCD 1
 #else
   #error "No display panel selected in Kconfig"
@@ -500,7 +500,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
 
 void display_show_connecting(const char *ssid)
 {
-#if defined(CONFIG_VELLUM_PANEL_D1001)
+#if PANEL_FAST_REFRESH
     if (!s_lvgl_disp) return;
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
