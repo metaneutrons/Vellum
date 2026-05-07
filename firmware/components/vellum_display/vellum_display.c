@@ -280,8 +280,8 @@ esp_err_t display_init(void)
         s_dpi_buf1 = buf1;
         s_dpi_buf2 = buf2;
         s_lvgl_disp = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
-        /* Double buffer — DPI reads one while LVGL writes the other */
-        lv_display_set_buffers(s_lvgl_disp, buf1, buf2, PANEL_WIDTH * PANEL_HEIGHT * 2, LV_DISPLAY_RENDER_MODE_DIRECT);
+        /* Double buffer — full mode ensures no ghost content between screens */
+        lv_display_set_buffers(s_lvgl_disp, buf1, buf2, PANEL_WIDTH * PANEL_HEIGHT * 2, LV_DISPLAY_RENDER_MODE_FULL);
         lv_display_set_flush_cb(s_lvgl_disp, lcd_flush_cb);
         d1001_backlight_on();
         ESP_LOGI(TAG, "LVGL display initialized for D1001 LCD");
