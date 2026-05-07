@@ -12,26 +12,33 @@ const DISPLAY_MODELS: Record<string, {
   name: string;
   width: number;
   height: number;
+  format: "raw" | "jpeg";
+  colorMode: string;
   palette: [number, number, number][];
-  quantize: string;
 }> = {
   e1001: {
-    name: "E1001 (7.5\" 4-Gray)",
+    name: "E1001 (7.5\" BW)",
     width: 800, height: 480,
-    palette: [[0,0,0],[85,85,85],[170,170,170],[255,255,255]],
-    quantize: "grayscale",
+    format: "raw", colorMode: "mono",
+    palette: [[0,0,0],[255,255,255]],
   },
   e1002: {
-    name: "E1002 (7.3\" Full Color)",
+    name: "E1002 (7.3\" 6-Color)",
     width: 800, height: 480,
+    format: "raw", colorMode: "indexed",
     palette: [[0,0,0],[255,255,255],[0,128,0],[0,0,255],[255,0,0],[255,255,0],[255,128,0]],
-    quantize: "color",
   },
   e1003: {
     name: "E1003 (10.3\" 16-Gray)",
-    width: 1404, height: 1872,
+    width: 1872, height: 1404,
+    format: "raw", colorMode: "grayscale",
     palette: Array.from({length:16},(_,i)=>{const v=Math.round(i/15*255);return[v,v,v] as [number,number,number]}),
-    quantize: "grayscale",
+  },
+  d1001: {
+    name: "D1001 (8\" LCD Color)",
+    width: 800, height: 1280,
+    format: "jpeg", colorMode: "fullcolor",
+    palette: [[0,0,0],[255,255,255],[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,128,0]],
   },
 };
 const FIRMWARE_VER = "sim-1.0.0";
@@ -61,7 +68,7 @@ interface SimConfig {
 const DEFAULT_CONFIG: SimConfig = {
   serverUrl: "",
   mac: "DEADBEEFCAFE",
-  displayModel: "e1002",
+  displayModel: "d1001",
   batteryLevel: 85,
   batteryVoltage: 3.85,
   powerSource: "battery",
@@ -136,6 +143,22 @@ export function SimulatorClient() {
     }
     ctx.putImageData(img, 0, 0);
   }, [config.displayModel]);
+
+  const drawJpeg = useCallback((buffer: Uint8Array) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const blob = new Blob([buffer as unknown as BlobPart], { type: "image/jpeg" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, []);
 
   const drawText = useCallback((text: string, sub?: string) => {
     const canvas = canvasRef.current;
@@ -216,8 +239,9 @@ export function SimulatorClient() {
           model: config.displayModel,
           width: dm.width,
           height: dm.height,
+          format: dm.format,
+          colorMode: dm.colorMode,
           palette: dm.palette,
-          quantize: dm.quantize,
         },
       }),
       signal,
@@ -265,9 +289,14 @@ export function SimulatorClient() {
     appendLog(`  → ${res.status}, sleep=${sleep}s`);
 
     if (res.status === 200) {
+      const contentType = res.headers.get("Content-Type") ?? "";
       const buf = new Uint8Array(await res.arrayBuffer());
-      appendLog(`  → ${buf.length} bytes pixel buffer`);
-      drawPixelBuffer(buf);
+      appendLog(`  → ${buf.length} bytes (${contentType})`);
+      if (contentType.includes("jpeg") || contentType.includes("jpg")) {
+        drawJpeg(buf);
+      } else {
+        drawPixelBuffer(buf);
+      }
     } else if (res.status === 204) {
       appendLog("  → 204 No Content — device not configured");
       drawText("Not Configured", "Assign content in the Vellum Console");
@@ -286,7 +315,7 @@ export function SimulatorClient() {
       drawText("Error", msg);
     }
     return sleep;
-  }, [baseUrl, config.mac, telemetryHeaders, appendLog, drawPixelBuffer, drawText]);
+  }, [baseUrl, config.mac, telemetryHeaders, appendLog, drawPixelBuffer, drawJpeg, drawText]);
 
   const runCycle = useCallback(async () => {
     if (sleepTimerRef.current) {
@@ -434,7 +463,7 @@ export function SimulatorClient() {
   return (
     <div style={{ background: "#1a1a2e", minHeight: "100vh", padding: 24, fontFamily: "system-ui, sans-serif", color: "#e0e0e0" }}>
       <h1 style={{ margin: "0 0 16px", fontSize: 20, color: "#888" }}>
-        reTerminal E1002 Simulator
+        Vellum Device Simulator
         <span style={{ fontSize: 12, marginLeft: 12, color: "#555" }}>DEV ONLY</span>
       </h1>
 
@@ -481,8 +510,8 @@ export function SimulatorClient() {
               height={(DISPLAY_MODELS[config.displayModel]?.height ?? 480)}
               style={{
                 display: "block",
-                width: 600,
-                height: Math.round(600 * (DISPLAY_MODELS[config.displayModel]?.height ?? 480) / (DISPLAY_MODELS[config.displayModel]?.width ?? 800)),
+                width: (DISPLAY_MODELS[config.displayModel]?.width ?? 800) >= (DISPLAY_MODELS[config.displayModel]?.height ?? 480) ? 600 : Math.round(400 * (DISPLAY_MODELS[config.displayModel]?.width ?? 800) / (DISPLAY_MODELS[config.displayModel]?.height ?? 480)),
+                height: (DISPLAY_MODELS[config.displayModel]?.width ?? 800) >= (DISPLAY_MODELS[config.displayModel]?.height ?? 480) ? Math.round(600 * (DISPLAY_MODELS[config.displayModel]?.height ?? 480) / (DISPLAY_MODELS[config.displayModel]?.width ?? 800)) : 400,
                 borderRadius: 4,
                 imageRendering: "pixelated",
                 filter: state === "off" ? "brightness(0.3)" : "none",
