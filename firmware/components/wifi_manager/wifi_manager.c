@@ -231,7 +231,7 @@ static void ensure_netif_init(void)
 void wifi_manager_get_mac(char *buf, size_t buf_len)
 {
     uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
     snprintf(buf, buf_len, "%02X%02X%02X%02X%02X%02X",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
@@ -239,7 +239,7 @@ void wifi_manager_get_mac(char *buf, size_t buf_len)
 void wifi_manager_get_softap_ssid(char *buf, size_t buf_len)
 {
     uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
     snprintf(buf, buf_len, "Vellum-%02X%02X", mac[4], mac[5]);
 }
 
