@@ -5,9 +5,18 @@ dependencies:
     version: ">=1.0.0"
   espressif/esp_wifi_remote:
     version: "1.*"
+    rules:
+      - if: "idf_version >=5.0"
+        target: esp32p4
   espressif/esp_hosted:
     version: "2.*"
+    rules:
+      - if: "idf_version >=5.0"
+        target: esp32p4
   espressif/esp_jpeg:
     version: "*"
   espressif/esp_io_expander:
     version: "^1"
+    rules:
+      - if: "idf_version >=5.0"
+        target: esp32p4

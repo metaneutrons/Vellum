@@ -246,6 +246,15 @@ esp_err_t it8951_init(const it8951_config_t *config)
     ESP_LOGI(TAG, "IT8951 initialized: %dx%d, buf=0x%08lx", s_info.width, s_info.height, (unsigned long)s_img_buf_addr);
     ESP_LOGI(TAG, "FW: %.16s, LUT: %.16s", s_info.fw_version, s_info.lut_version);
 
+    /* Fallback: if GET_DEV_INFO returned zeros, use known defaults for E1003 */
+    if (s_info.width == 0 || s_info.height == 0 || s_img_buf_addr == 0) {
+        ESP_LOGW(TAG, "GET_DEV_INFO returned zeros — using hardcoded E1003 defaults");
+        s_info.width = 1872;
+        s_info.height = 1404;
+        s_img_buf_addr = 0x00119600; /* typical IT8951 image buffer base for 10.3" */
+        s_info.img_buf_addr = s_img_buf_addr;
+    }
+
     /* Enable packed write mode */
     write_reg(IT8951_REG_I80CPCR, 0x0001);
 
