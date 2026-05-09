@@ -77,10 +77,15 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
         esp_sleep_enable_ext1_wakeup(button_wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
         for (int p = 0; p < 22; p++) {
             if (button_wake_mask & (1ULL << p)) {
+                rtc_gpio_init(p);
+                rtc_gpio_set_direction(p, RTC_GPIO_MODE_INPUT_ONLY);
                 rtc_gpio_pullup_en(p);
                 rtc_gpio_pulldown_dis(p);
             }
         }
+        /* Keep RTC IO domain powered so pull-ups and ext1 work */
+        esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+        ESP_LOGI(TAG, "EXT1 wake configured: mask=0x%llx, GPIO3 level=%d", button_wake_mask, gpio_get_level(3));
     }
 
     esp_deep_sleep_start();
@@ -100,10 +105,13 @@ void sleep_manager_enter_permanent(uint64_t button_wake_mask)
         esp_sleep_enable_ext1_wakeup(button_wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
         for (int p = 0; p < 22; p++) {
             if (button_wake_mask & (1ULL << p)) {
+                rtc_gpio_init(p);
+                rtc_gpio_set_direction(p, RTC_GPIO_MODE_INPUT_ONLY);
                 rtc_gpio_pullup_en(p);
                 rtc_gpio_pulldown_dis(p);
             }
         }
+        esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
     }
 
     esp_deep_sleep_start();

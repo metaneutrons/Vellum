@@ -814,6 +814,34 @@ void app_main(void)
     buttons_init();
     sleep_manager_init();
 
+    /* Factory reset: if KEY0 held at boot on fast-refresh displays */
+#if !defined(CONFIG_VELLUM_PANEL_D1001)
+    if (wake == WAKE_REASON_BUTTON && gpio_get_level(CONFIG_VELLUM_BUTTON_KEY0_GPIO) == PRESSED_LEVEL) {
+        ESP_LOGI(TAG, "KEY0 held at boot — checking for factory reset");
+        int held_ms = 0;
+        while (gpio_get_level(CONFIG_VELLUM_BUTTON_KEY0_GPIO) == PRESSED_LEVEL && held_ms < 10000) {
+            if (held_ms >= 3000) {
+                int rem = (10000 - held_ms) / 1000;
+                char msg[32];
+                snprintf(msg, sizeof(msg), "Factory Reset in %d", rem);
+                display_show_error(msg);
+            }
+            vTaskDelay(pdMS_TO_TICKS(200));
+            held_ms += 200;
+        }
+        if (held_ms >= 10000) {
+            display_show_error("Factory Reset...");
+            vTaskDelay(pdMS_TO_TICKS(500));
+            nvs_flash_erase();
+            esp_restart();
+        } else if (held_ms >= 3000) {
+            /* Released between 3-10s: just reboot */
+            esp_restart();
+        }
+        /* Released before 3s: normal boot */
+    }
+#endif
+
     ESP_LOGI(TAG, "Wake reason: %s",
              wake == WAKE_REASON_TIMER  ? "TIMER" :
              wake == WAKE_REASON_BUTTON ? "BUTTON" : "POWER_ON");
