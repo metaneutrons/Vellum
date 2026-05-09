@@ -10,6 +10,8 @@
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_system.h"
+#include "driver/gpio.h"
+#include "driver/rtc_io.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
@@ -73,6 +75,12 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
 
     if (button_wake_mask != 0) {
         esp_sleep_enable_ext1_wakeup(button_wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
+        for (int p = 0; p < 22; p++) {
+            if (button_wake_mask & (1ULL << p)) {
+                rtc_gpio_pullup_en(p);
+                rtc_gpio_pulldown_dis(p);
+            }
+        }
     }
 
     esp_deep_sleep_start();
@@ -90,6 +98,12 @@ void sleep_manager_enter_permanent(uint64_t button_wake_mask)
 
     if (button_wake_mask != 0) {
         esp_sleep_enable_ext1_wakeup(button_wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
+        for (int p = 0; p < 22; p++) {
+            if (button_wake_mask & (1ULL << p)) {
+                rtc_gpio_pullup_en(p);
+                rtc_gpio_pulldown_dis(p);
+            }
+        }
     }
 
     esp_deep_sleep_start();

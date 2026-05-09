@@ -1,0 +1,10 @@
+menu "Vellum WiFi Manager"
+
+    config VELLUM_PORTAL_IP
+        string "Captive portal IP address"
+        default "10.0.0.1"
+        help
+            IP address for the SoftAP captive portal.
+            The device will use this as its AP gateway and HTTP server address.
+
+endmenu

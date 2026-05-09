@@ -838,7 +838,9 @@ void app_main(void)
         ESP_LOGI(TAG, "No Wi-Fi credentials — entering SoftAP");
         char ssid[32];
         wifi_manager_get_softap_ssid(ssid, sizeof(ssid));
-        display_show_wifi_setup(ssid, "http://192.168.4.1");
+        char qr_payload[64];
+        snprintf(qr_payload, sizeof(qr_payload), "WIFI:T:nopass;S:%s;;", ssid);
+        display_show_wifi_setup(ssid, qr_payload);
         wifi_manager_start_softap();
         /* does not return — restarts after provisioning */
     }

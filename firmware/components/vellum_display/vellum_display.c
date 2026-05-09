@@ -16,7 +16,6 @@
 #include "epaper_lvgl.h"
 #include "lvgl.h"
 #include "qrcode.h"
-#include "vellum_logo_img.h"
 #include "nvs_manager.h"
 
 #if defined(CONFIG_VELLUM_PANEL_E1003)
@@ -28,7 +27,6 @@
 #include "lcd_jd9365.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "jpeg_decoder.h"
-#include "vellum_logo_rgb565.h"
 #endif
 
 #include <string.h>
@@ -38,6 +36,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
+#include "esp_app_desc.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 
@@ -128,25 +127,44 @@ static bool screen_unchanged(const char *screen_id)
   #define THEME_BG_OPA    LV_OPA_COVER
 #endif
 
+/* ── Scaled fonts (based on shorter panel dimension) ──────────── */
+#define PANEL_SHORT_SIDE ((PANEL_WIDTH < PANEL_HEIGHT) ? PANEL_WIDTH : PANEL_HEIGHT)
+#if PANEL_SHORT_SIDE > 1000
+  /* High-res (E1003: 1404px short side) */
+  #define FONT_LG   (&lv_font_montserrat_48)
+  #define FONT_MD   (&lv_font_montserrat_48)
+  #define FONT_SM   (&lv_font_montserrat_48)
+  #define FONT_XS   (&lv_font_montserrat_24)
+#else
+  /* Standard (D1001: 800px, E1001/E1002: 480px) */
+  #define FONT_LG   (&lv_font_montserrat_48)
+  #define FONT_MD   (&lv_font_montserrat_24)
+  #define FONT_SM   (&lv_font_montserrat_18)
+  #define FONT_XS   (&lv_font_montserrat_14)
+#endif
+
 /* ── IT8951 LVGL flush ────────────────────────────────────────── */
 #if defined(CONFIG_VELLUM_PANEL_E1003)
 static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
-    /* Convert 1bpp (I1) to 4bpp for IT8951 */
-    size_t buf_size = (size_t)PANEL_WIDTH * PANEL_HEIGHT / 2;
+    /* Convert L8 (8bpp grayscale) to 4bpp for IT8951 */
+    int32_t w = area->x2 - area->x1 + 1;
+    int32_t h = area->y2 - area->y1 + 1;
+    size_t buf_size = (size_t)w * h / 2;
     uint8_t *buf = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
     if (buf) {
-        uint32_t total_pixels = (uint32_t)PANEL_WIDTH * PANEL_HEIGHT;
-        for (uint32_t i = 0; i < total_pixels; i += 2) {
-            uint8_t byte = px_map[i / 8];
-            uint8_t bit1 = (byte >> (7 - (i % 8))) & 1;
-            uint8_t bit2 = (byte >> (7 - ((i + 1) % 8))) & 1;
-            /* 1=white(0xF), 0=black(0x0) */
-            buf[i / 2] = (bit1 ? 0xF0 : 0x00) | (bit2 ? 0x0F : 0x00);
+        for (int32_t y = 0; y < h; y++) {
+            for (int32_t x = 0; x < w; x += 2) {
+                uint8_t p1 = px_map[y * w + x] >> 4;       /* 8bpp → 4bpp */
+                uint8_t p2 = (x + 1 < w) ? (px_map[y * w + x + 1] >> 4) : 0xF;
+                buf[(y * w + x) / 2] = (p1 << 4) | p2;
+            }
         }
-        it8951_load_image_4bpp(buf, 0, 0, PANEL_WIDTH, PANEL_HEIGHT);
-        it8951_display_area(0, 0, PANEL_WIDTH, PANEL_HEIGHT, 2);
+        it8951_load_image_4bpp(buf, area->x1, area->y1, w, h);
         heap_caps_free(buf);
+    }
+    if (lv_display_flush_is_last(disp)) {
+        it8951_display_area(0, 0, PANEL_WIDTH, PANEL_HEIGHT, 2);
     }
     lv_display_flush_ready(disp);
 }
@@ -259,15 +277,15 @@ esp_err_t display_init(void)
     /* Initialize LVGL for local screens */
     lv_init();
 #if defined(CONFIG_VELLUM_PANEL_E1003)
-    /* E1003: Full framebuffer in PSRAM, 1-bit (same as other ePaper panels) */
-    size_t lvgl_buf_size = (size_t)PANEL_WIDTH * PANEL_HEIGHT / 8; /* 1bpp */
+    /* E1003: 8bpp grayscale (L8), partial render in PSRAM */
+    size_t lvgl_buf_size = (size_t)PANEL_WIDTH * 100; /* 100 rows at 8bpp */
     uint8_t *lvgl_buf = heap_caps_calloc(1, lvgl_buf_size, MALLOC_CAP_SPIRAM);
     if (lvgl_buf) {
         s_lvgl_disp = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
-        lv_display_set_color_format(s_lvgl_disp, LV_COLOR_FORMAT_I1);
-        lv_display_set_buffers(s_lvgl_disp, lvgl_buf, NULL, lvgl_buf_size, LV_DISPLAY_RENDER_MODE_FULL);
+        lv_display_set_color_format(s_lvgl_disp, LV_COLOR_FORMAT_L8);
+        lv_display_set_buffers(s_lvgl_disp, lvgl_buf, NULL, lvgl_buf_size, LV_DISPLAY_RENDER_MODE_PARTIAL);
         lv_display_set_flush_cb(s_lvgl_disp, it8951_lvgl_flush);
-        ESP_LOGI(TAG, "LVGL display initialized for IT8951 (%zu bytes)", lvgl_buf_size);
+        ESP_LOGI(TAG, "LVGL display initialized for IT8951 L8 (%zu bytes)", lvgl_buf_size);
     }
 #elif defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001: Direct DPI framebuffers */
@@ -341,45 +359,23 @@ static void lvgl_refresh(void)
 #endif
 }
 
-/* Pre-rendered logo buffer (shared across screens) */
-static uint8_t *s_logo_rgb = NULL;
-static lv_image_dsc_t s_logo_dsc;
-
-static void ensure_logo_rendered(void)
-{
-    if (s_logo_rgb) return;
-    s_logo_rgb = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * 2, MALLOC_CAP_SPIRAM);
-    if (!s_logo_rgb) return;
-    uint16_t *px = (uint16_t *)s_logo_rgb;
-    for (int y = 0; y < VELLUM_LOGO_H; y++) {
-        for (int x = 0; x < VELLUM_LOGO_W; x++) {
-            int byte_idx = y * VELLUM_LOGO_STRIDE + (x / 8);
-            int bit_idx = 7 - (x % 8);
-            px[y * VELLUM_LOGO_W + x] = (vellum_logo_bits[byte_idx] & (1 << bit_idx)) ? 0x0000 : 0xFFFF;
-        }
-    }
-    memset(&s_logo_dsc, 0, sizeof(s_logo_dsc));
-    s_logo_dsc.header.w = VELLUM_LOGO_W;
-    s_logo_dsc.header.h = VELLUM_LOGO_H;
-    s_logo_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
-    s_logo_dsc.data_size = VELLUM_LOGO_W * VELLUM_LOGO_H * 2;
-    s_logo_dsc.data = s_logo_rgb;
-}
+/* ── Pre-generated logo (selected at compile time) ────────────── */
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+extern const lv_img_dsc_t vellum_logo_color_300px;
+#define LOGO_DSC (&vellum_logo_color_300px)
+#elif defined(CONFIG_VELLUM_PANEL_E1003)
+extern const lv_img_dsc_t vellum_logo_16grey_600px;
+#define LOGO_DSC (&vellum_logo_16grey_600px)
+#else
+extern const lv_img_dsc_t vellum_logo_mono_300px;
+#define LOGO_DSC (&vellum_logo_mono_300px)
+#endif
 
 static lv_obj_t *add_logo(lv_obj_t *parent)
 {
-#if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: Use pre-compiled RGB565 logo as canvas buffer */
-    lv_obj_t *canvas = lv_canvas_create(parent);
-    lv_canvas_set_buffer(canvas, (void *)vellum_logo_rgb565, VELLUM_LOGO_RGB565_W, VELLUM_LOGO_RGB565_H, LV_COLOR_FORMAT_RGB565);
-    return canvas;
-#else
-    ensure_logo_rendered();
-    if (!s_logo_rgb) return NULL;
     lv_obj_t *img = lv_image_create(parent);
-    lv_image_set_src(img, &s_logo_dsc);
+    lv_image_set_src(img, LOGO_DSC);
     return img;
-#endif
 }
 
 void display_show_boot(const char *version)
@@ -390,19 +386,19 @@ void display_show_boot(const char *version)
     lv_obj_set_style_bg_color(scr, THEME_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
-    /* Flex column, centered horizontally and vertically */
+    /* Flex column, fully centered */
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(scr, 20, 0);
-    lv_obj_set_style_pad_top(scr, PANEL_HEIGHT / 12, 0);
 
     add_logo(scr);
 
     lv_obj_t *ver = lv_label_create(scr);
-    char ver_str[64];
-    snprintf(ver_str, sizeof(ver_str), "v%s | %s", version, PANEL_MODEL);
+    const esp_app_desc_t *app = esp_app_get_description();
+    char ver_str[80];
+    snprintf(ver_str, sizeof(ver_str), "%s | %s", app->version, PANEL_MODEL);
     lv_label_set_text(ver, ver_str);
-    lv_obj_set_style_text_font(ver, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(ver, FONT_XS, 0);
     lv_obj_set_style_text_color(ver, THEME_MUTED, 0);
 
     /* Force full redraw to clear any framebuffer artifacts */
@@ -442,63 +438,83 @@ void display_show_wifi_setup(const char *ssid, const char *url)
     lv_obj_set_style_bg_color(scr, THEME_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
-    /* Flex container — vertical, centered */
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, (PANEL_HEIGHT > PANEL_WIDTH) ? 15 : 10, 0);
-    lv_obj_set_style_pad_top(scr, 0, 0);
+    int qr_size = PANEL_SHORT_SIDE * 43 / 100;
+    if (qr_size > 600) qr_size = 600;
+    if (qr_size < 150) qr_size = 150;
 
-    /* Logo */
-    lv_obj_t *logo = add_logo(scr);
-    if (logo) lv_obj_set_style_pad_bottom(logo, PANEL_HEIGHT / 8, 0);
-
-    /* QR code */
-    int qr_size = (PANEL_WIDTH < PANEL_HEIGHT ? PANEL_WIDTH : PANEL_HEIGHT) / 3;
-    if (qr_size > 300) qr_size = 300;
-    if (qr_size < 100) qr_size = 100;
-    
-    
     static lv_color_t *qr_buf = NULL;
     if (!qr_buf) qr_buf = heap_caps_malloc(qr_size * qr_size * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+
+#if (PANEL_WIDTH > PANEL_HEIGHT)
+    /* ── Landscape: Logo left, QR+text right ──────────────────── */
+    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    /* Left half: logo centered */
+    lv_obj_t *left = lv_obj_create(scr);
+    lv_obj_remove_style_all(left);
+    lv_obj_set_size(left, PANEL_WIDTH / 2, PANEL_HEIGHT);
+    lv_obj_set_flex_flow(left, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(left, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    add_logo(left);
+
+    /* Right half: QR + text */
+    lv_obj_t *right = lv_obj_create(scr);
+    lv_obj_remove_style_all(right);
+    lv_obj_set_size(right, PANEL_WIDTH / 2, PANEL_HEIGHT);
+    lv_obj_set_flex_flow(right, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(right, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(right, 15, 0);
+
     if (qr_buf) {
-        lv_obj_t *canvas = lv_canvas_create(scr);
+        lv_obj_t *canvas = lv_canvas_create(right);
         lv_canvas_set_buffer(canvas, qr_buf, qr_size, qr_size, LV_COLOR_FORMAT_NATIVE);
-        esp_qrcode_config_t qr_cfg = {
-            .display_func_with_cb = qr_display_cb,
-            .max_qrcode_version = 10,
-            .qrcode_ecc_level = ESP_QRCODE_ECC_MED,
-            .user_data = canvas,
-        };
+        esp_qrcode_config_t qr_cfg = { .display_func_with_cb = qr_display_cb, .max_qrcode_version = 10, .qrcode_ecc_level = ESP_QRCODE_ECC_MED, .user_data = canvas };
         s_qr_canvas_size = qr_size;
         esp_qrcode_generate(&qr_cfg, url);
     }
 
-    /* WiFi SSID — close to QR, large font */
+    lv_obj_t *lbl_ssid = lv_label_create(right);
+    lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
+    lv_obj_set_style_text_font(lbl_ssid, FONT_MD, 0);
+    lv_obj_set_style_text_color(lbl_ssid, THEME_FG, 0);
+
+    lv_obj_t *lbl_hint = lv_label_create(right);
+    lv_label_set_text(lbl_hint, "Scan QR to configure WiFi");
+    lv_obj_set_style_text_font(lbl_hint, FONT_SM, 0);
+    lv_obj_set_style_text_color(lbl_hint, THEME_MUTED, 0);
+#else
+    /* ── Portrait: vertical stack ─────────────────────────────── */
+    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, 20, 0);
+    lv_obj_set_style_pad_top(scr, PANEL_HEIGHT / 12, 0);
+
+    add_logo(scr);
+
+    if (qr_buf) {
+        lv_obj_t *canvas = lv_canvas_create(scr);
+        lv_canvas_set_buffer(canvas, qr_buf, qr_size, qr_size, LV_COLOR_FORMAT_NATIVE);
+        esp_qrcode_config_t qr_cfg = { .display_func_with_cb = qr_display_cb, .max_qrcode_version = 10, .qrcode_ecc_level = ESP_QRCODE_ECC_MED, .user_data = canvas };
+        s_qr_canvas_size = qr_size;
+        esp_qrcode_generate(&qr_cfg, url);
+    }
+
     lv_obj_t *lbl_ssid = lv_label_create(scr);
     lv_label_set_text_fmt(lbl_ssid, "WiFi: %s", ssid);
-    lv_obj_set_style_text_font(lbl_ssid, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(lbl_ssid, FONT_MD, 0);
     lv_obj_set_style_text_color(lbl_ssid, THEME_FG, 0);
     lv_obj_set_style_text_align(lbl_ssid, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_pad_top(lbl_ssid, 5, 0);
 
-    /* Instructions */
     lv_obj_t *lbl_hint = lv_label_create(scr);
-    lv_label_set_text(lbl_hint,
-        "Scan QR code to configure WiFi\n"
-        "or use Vellum Console via USB.");
-    lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_24, 0);
+    lv_label_set_text(lbl_hint, "Scan QR code to configure WiFi\nor use Vellum Console via USB.");
+    lv_obj_set_style_text_font(lbl_hint, FONT_SM, 0);
     lv_obj_set_style_text_color(lbl_hint, THEME_MUTED, 0);
     lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_hint, PANEL_WIDTH * 3 / 4);
-
-    /* Version */
-    lv_obj_t *lbl_ver = lv_label_create(scr);
-    lv_label_set_text(lbl_ver, "v" CONFIG_VELLUM_FIRMWARE_VERSION " | " PANEL_MODEL);
-    lv_obj_set_style_text_font(lbl_ver, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_ver, THEME_DIM, 0);
+#endif
 
     lvgl_refresh();
-    ESP_LOGI(TAG, "WiFi setup screen shown");
 }
 
 void display_show_connecting(const char *ssid)
@@ -517,7 +533,7 @@ void display_show_connecting(const char *ssid)
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text_fmt(lbl, "Connecting to %s...", ssid);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(lbl, FONT_MD, 0);
     lv_obj_set_style_text_color(lbl, THEME_MUTED, 0);
 
     lvgl_refresh();
@@ -543,7 +559,7 @@ void display_show_ota_progress(uint8_t percent)
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Updating firmware...");
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(title, FONT_MD, 0);
     lv_obj_set_style_text_color(title, THEME_FG, 0);
 
     lv_obj_t *bar = lv_bar_create(scr);
@@ -552,12 +568,12 @@ void display_show_ota_progress(uint8_t percent)
 
     lv_obj_t *pct = lv_label_create(scr);
     lv_label_set_text_fmt(pct, "%d%%", percent);
-    lv_obj_set_style_text_font(pct, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(pct, FONT_MD, 0);
     lv_obj_set_style_text_color(pct, THEME_FG, 0);
 
     lv_obj_t *warn = lv_label_create(scr);
     lv_label_set_text(warn, "Do not power off");
-    lv_obj_set_style_text_font(warn, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(warn, FONT_XS, 0);
     lv_obj_set_style_text_color(warn, THEME_MUTED, 0);
 
     lvgl_refresh();
@@ -578,12 +594,12 @@ void display_show_ota_progress(uint8_t percent)
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Updating firmware...");
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(title, FONT_LG, 0);
     lv_obj_set_style_text_color(title, THEME_FG, 0);
 
     lv_obj_t *warn = lv_label_create(scr);
     lv_label_set_text(warn, "Do not power off");
-    lv_obj_set_style_text_font(warn, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(warn, FONT_SM, 0);
     lv_obj_set_style_text_color(warn, THEME_MUTED, 0);
 
     lvgl_refresh();
@@ -604,17 +620,19 @@ void display_show_error(const char *message)
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(scr, 20, 0);
+    lv_obj_set_style_pad_top(scr, 50, 0);
 
-    add_logo(scr);
+    lv_obj_t *logo = add_logo(scr);
+    if (logo) lv_obj_set_style_pad_bottom(logo, 100, 0);
 
     lv_obj_t *icon = lv_label_create(scr);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
-    lv_obj_set_style_text_font(icon, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(icon, FONT_LG, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text(lbl, message);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(lbl, FONT_LG, 0);
     lv_obj_set_style_text_color(lbl, THEME_FG, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl, PANEL_WIDTH * 3 / 4);
