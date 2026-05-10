@@ -1,5 +1,5 @@
 if(CONFIG_VELLUM_DISPLAY_IS_LCD)
-    set(SRCS "vellum_display_lcd.c" "logos/vellum_logo_color_300px.c")
+    set(SRCS "vellum_display_lcd.c")
 else()
     set(SRCS "vellum_display.c")
     if(CONFIG_VELLUM_PANEL_E1003)
