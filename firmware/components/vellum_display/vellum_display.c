@@ -734,3 +734,41 @@ esp_err_t display_wake(void)
     if (!s_epd) return ESP_ERR_INVALID_STATE;
     return epd_wake(s_epd);
 }
+
+/* ── Unified API ──────────────────────────────────────────────── */
+
+esp_err_t vellum_display_init(void)
+{
+    return display_init();
+}
+
+esp_err_t vellum_display_show_image(const uint8_t *data, size_t len, const char *format)
+{
+    (void)format; /* E-Paper path uses raw buffer directly */
+    return display_update_raw(data, len);
+}
+
+esp_err_t vellum_display_show_status(const char *text)
+{
+    display_show_boot(text);
+    return ESP_OK;
+}
+
+void vellum_display_off(void)
+{
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    d1001_backlight_off();
+#else
+    if (s_epd) epd_sleep(s_epd);
+#endif
+}
+
+int vellum_display_width(void)
+{
+    return PANEL_WIDTH;
+}
+
+int vellum_display_height(void)
+{
+    return PANEL_HEIGHT;
+}
