@@ -34,8 +34,8 @@ function add_version_selector() {
  * Fires when user selects a documentation version from version dropdown.
  *---------------------------------------------------------------------*/
 function ver_sel() {
-  var x = document.getElementById("version_dropdown").value;
-  var new_url = window.location.protocol + "//" + window.location.host + "/" + x + "/";
+  const x = document.getElementById("version_dropdown").value;
+  const new_url = window.location.protocol + "//" + window.location.host + "/" + x + "/";
 
   if (new_url.startsWith("http")) {
     window.location.href = new_url;
@@ -48,7 +48,7 @@ function ver_sel() {
  *---------------------------------------------------------------------*/
 document.addEventListener("DOMContentLoaded", (event) => {
   add_version_selector().then(() => {
-    var value = window.location.pathname.split("/")[1];
+    const value = window.location.pathname.split("/")[1];
     document.getElementById("version_dropdown").value = value;
   });
 });
@@ -65,16 +65,16 @@ document.addEventListener("DOMContentLoaded", (event) => {
 document.addEventListener("DOMContentLoaded", (event) => {
   function onIntersection(entries) {
     entries.forEach((entry) => {
-      let currentlyLoaded = entry.target.getAttribute("data-is-loaded") == "true";
-      let shouldBeLoaded = entry.intersectionRatio > 0;
+      const currentlyLoaded = entry.target.getAttribute("data-is-loaded") == "true";
+      const shouldBeLoaded = entry.intersectionRatio > 0;
       if (currentlyLoaded != shouldBeLoaded) {
         entry.target.setAttribute("data-is-loaded", shouldBeLoaded);
         if (shouldBeLoaded) {
-          let iframe = document.createElement("iframe");
+          const iframe = document.createElement("iframe");
           iframe.src = entry.target.getAttribute("data-real-src");
           entry.target.appendChild(iframe);
         } else {
-          let iframe = entry.target.querySelector("iframe");
+          const iframe = entry.target.querySelector("iframe");
           iframe.parentNode.removeChild(iframe);
         }
       }
@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
     rootMargin: "600px 0px",
     threshold: 0.01,
   };
-  let observer = new IntersectionObserver(onIntersection, config);
+  const observer = new IntersectionObserver(onIntersection, config);
   document.querySelectorAll(".lv-example").forEach((iframe) => {
     observer.observe(iframe);
   });
@@ -122,8 +122,8 @@ document.addEventListener("DOMContentLoaded", (event) => {
    *---------------------------------------------------------------------*/
   document.querySelectorAll("dl.cpp").forEach((cppListing) => {
     const dt = cppListing.querySelector("dt");
-    let exClass = "expanded";
-    let unExClass = "unexpanded";
+    const exClass = "expanded";
+    const unExClass = "unexpanded";
     let shouldBeExpanded = false;
     if (dt.id == document.location.hash.substring(1)) shouldBeExpanded = true;
     if (shouldBeExpanded) {
@@ -131,7 +131,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
 
       /* If `dt.id` is for an enumerator, also expand its parent
        * <dl class="cpp enum unexpanded"> element. */
-      let parentDlNode = cppListing.parentNode.parentNode;
+      const parentDlNode = cppListing.parentNode.parentNode;
       if (
            parentDlNode != null
         && parentDlNode.classList.contains("cpp")
@@ -178,21 +178,21 @@ document.addEventListener("DOMContentLoaded", (event) => {
   <div class="page">
     ...page content...
    *---------------------------------------------------------------------*/
-  let bannerJsonUrl = "https://lvgl.io/data/banner.json";
-  let bannerContainerClass = "lv-custom-banner-list";
-  let bannerClass = "lv-custom-banner";
+  const bannerJsonUrl = "https://lvgl.io/data/banner.json";
+  const bannerContainerClass = "lv-custom-banner-list";
+  const bannerClass = "lv-custom-banner";
   /* Note:  banner priority property can have only one of these values:
    * ("highest" | "high" | "normal" | "low" | "lowest").
    * If not present, the default is "normal-priority".  This controls banner styling. */
-  let priorityPropVals = ["highest", "high", "normal", "low", "lowest"];
-  let defaultPrioPropVal = priorityPropVals[2];
-  let priorityClassSuffix = "-priority";
+  const priorityPropVals = ["highest", "high", "normal", "low", "lowest"];
+  const defaultPrioPropVal = priorityPropVals[2];
+  const priorityClassSuffix = "-priority";
 
   /* Sorting json banners in priority order.
    * `a` and `b` are BANNER objects from incoming `banner.json`. */
   function prio_compare(a, b) {
-    let aPrioPropStr = a.hasOwnProperty("priority") ? a.priority : defaultPrioPropVal;
-    let bPrioPropStr = b.hasOwnProperty("priority") ? b.priority : defaultPrioPropVal;
+    const aPrioPropStr = a.hasOwnProperty("priority") ? a.priority : defaultPrioPropVal;
+    const bPrioPropStr = b.hasOwnProperty("priority") ? b.priority : defaultPrioPropVal;
     let aPrio = 0;
     let bPrio = 0;
 
@@ -263,8 +263,8 @@ document.addEventListener("DOMContentLoaded", (event) => {
            */
           json.sort(prio_compare);
 
-          for (var i = 0; i < json.length; i++) {
-            let banner = json[i];
+          for (let i = 0; i < json.length; i++) {
+            const banner = json[i];
 
             if (banner.hasOwnProperty("label")) {
               bannerCount++;
@@ -308,7 +308,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
              * element in `furo.css`, which is:  calc(100% - var(--header-height)).
              * It additionally subtracts height of banner list.
              * */
-            let height = newDiv.offsetHeight;
+            const height = newDiv.offsetHeight;
             page.style["min-height"] = `calc(100% - var(--header-height) - ${height}px)`;
           }
         }
@@ -331,7 +331,7 @@ document.addEventListener("DOMContentLoaded", function () {
         child.style.display = "none";
       }
     });
-    var header = toggle.querySelector(".header");
+    const header = toggle.querySelector(".header");
     if (header) {
       header.addEventListener("click", function (e) {
         const toggle = e.target.closest(".toggle");

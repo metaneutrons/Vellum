@@ -29,6 +29,15 @@ function logout() {
   window.location.href = "/login";
 }
 
+/**
+ * Main navigation sidebar for the admin dashboard.
+ *
+ * Implements a responsive, glassmorphism-styled navigation menu.
+ * On mobile, it acts as a slide-out drawer with a hamburger toggle.
+ * It also includes controls for locale selection and dark/light mode toggling.
+ *
+ * @returns {JSX.Element} The rendered navigation component.
+ */
 export function AdminNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -38,8 +47,12 @@ export function AdminNav() {
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
-    if (stored === "light") { setDark(false); document.documentElement.classList.remove("dark"); }
-    else { document.documentElement.classList.add("dark"); }
+    if (stored === "light") {
+      setDark(false);
+      document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
+    }
   }, []);
 
   function toggleTheme() {
@@ -56,34 +69,106 @@ export function AdminNav() {
 
   return (
     <>
-      <button onClick={() => setOpen(!open)} style={{ display: "none" }} className="mobile-hamburger" id="hamburger" aria-label="Toggle menu">
+      <button
+        onClick={() => setOpen(!open)}
+        className="md:hidden fixed top-4 left-4 z-50 bg-gray-900 text-white px-3 py-2 rounded-lg border-none text-lg cursor-pointer shadow-md"
+        aria-label="Toggle menu"
+      >
         {open ? "✕" : "☰"}
       </button>
-      {open && <div className="sidebar-overlay" onClick={() => setOpen(false)} />}
-      <nav className={`sidebar ${open ? "sidebar-open" : ""}`}>
+      {open && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
+          onClick={() => setOpen(false)}
+        />
+      )}
+      <nav
+        className={`flex flex-col shrink-0 w-56 min-h-screen bg-[#0a0c14]/90 backdrop-blur-xl border-r border-[#1e2030] max-md:fixed max-md:top-0 max-md:left-0 max-md:bottom-0 max-md:z-40 max-md:transition-transform max-md:duration-200 ${open ? "max-md:translate-x-0" : "max-md:-translate-x-full"}`}
+      >
         {/* Logo */}
-        <div style={{ padding: "16px 16px 12px", fontSize: 18, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/vellum-icon.svg" alt="" width={40} height={40} style={{ filter: "brightness(0) invert(1)" }} />
+        <div
+          style={{
+            padding: "16px 16px 12px",
+            fontSize: 18,
+            fontWeight: 700,
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <img
+            src="/vellum-icon.svg"
+            alt=""
+            width={40}
+            height={40}
+            style={{ filter: "brightness(0) invert(1)" }}
+          />
           {t("title")}
         </div>
 
         {/* Controls: language, theme, logout */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 12px 12px", borderBottom: "1px solid #374151" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "4px 12px 12px",
+            borderBottom: "1px solid #374151",
+          }}
+        >
           {/* Language dropdown with flags */}
-          <select value={currentLocale} onChange={(e) => setLocale(e.target.value)}
+          <select
+            value={currentLocale}
+            onChange={(e) => setLocale(e.target.value)}
             aria-label="Language"
-            style={{ background: "#1f2937", color: "#fff", border: "1px solid #374151", borderRadius: 4, padding: "4px 6px", fontSize: 14, cursor: "pointer" }}>
-            {LOCALES.map((l) => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
+            style={{
+              background: "#1f2937",
+              color: "#fff",
+              border: "1px solid #374151",
+              borderRadius: 4,
+              padding: "4px 6px",
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            {LOCALES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.flag} {l.label}
+              </option>
+            ))}
           </select>
           <div style={{ flex: 1 }} />
           {/* Theme toggle */}
-          <button onClick={toggleTheme} title={dark ? t("lightMode") : t("darkMode")}
-            style={{ fontSize: 14, padding: "4px 6px", borderRadius: 4, border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer" }}>
+          <button
+            onClick={toggleTheme}
+            title={dark ? t("lightMode") : t("darkMode")}
+            style={{
+              fontSize: 14,
+              padding: "4px 6px",
+              borderRadius: 4,
+              border: "none",
+              background: "transparent",
+              color: "#9ca3af",
+              cursor: "pointer",
+            }}
+          >
             {dark ? "☀️" : "🌙"}
           </button>
           {/* Logout */}
-          <button onClick={logout} title={t("logout")}
-            style={{ fontSize: 14, padding: "4px 6px", borderRadius: 4, border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer" }}>
+          <button
+            onClick={logout}
+            title={t("logout")}
+            style={{
+              fontSize: 14,
+              padding: "4px 6px",
+              borderRadius: 4,
+              border: "none",
+              background: "transparent",
+              color: "#9ca3af",
+              cursor: "pointer",
+            }}
+          >
             ⏻
           </button>
         </div>
@@ -91,24 +176,29 @@ export function AdminNav() {
         {/* Navigation links */}
         <div style={{ flex: 1, paddingTop: 4 }}>
           {linkKeys.map((l) => (
-            <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
-              style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", fontSize: 14, color: pathname.startsWith(l.href) ? "#fff" : "#9ca3af", background: pathname.startsWith(l.href) ? "#1f2937" : "transparent", textDecoration: "none" }}>
+            <Link
+              key={l.href}
+              href={l.href}
+              onClick={() => setOpen(false)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "12px 16px",
+                fontSize: 14,
+                color: pathname.startsWith(l.href) ? "#fff" : "#9ca3af",
+                background: pathname.startsWith(l.href)
+                  ? "#1f2937"
+                  : "transparent",
+                textDecoration: "none",
+              }}
+            >
               <span style={{ fontSize: 16 }}>{l.icon}</span>
               {t(l.key)}
             </Link>
           ))}
         </div>
       </nav>
-      <style>{`
-        .sidebar { width: 224px; min-height: 100vh; background: #0a0c14; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid #1e2030; }
-        .sidebar-overlay { display: none; }
-        @media (max-width: 767px) {
-          .sidebar { position: fixed; top: 0; left: 0; bottom: 0; z-index: 40; transform: translateX(-100%); transition: transform 0.2s; }
-          .sidebar.sidebar-open { transform: translateX(0); }
-          .sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 39; }
-          #hamburger { display: block !important; position: fixed; top: 16px; left: 16px; z-index: 50; background: #111827; color: #fff; padding: 8px 12px; border-radius: 8px; border: none; font-size: 18px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-        }
-      `}</style>
     </>
   );
 }
