@@ -116,7 +116,7 @@ export function DeviceTable({
     return (
       d.mac.toLowerCase().includes(q) ||
       (d.firmware_version ?? "").toLowerCase().includes(q) ||
-      ((d.display_caps as { model?: string })?.model ?? "").includes(q)
+      ((d.display_caps as { model?: string })?.model ?? "").toLowerCase().includes(q)
     );
   });
 

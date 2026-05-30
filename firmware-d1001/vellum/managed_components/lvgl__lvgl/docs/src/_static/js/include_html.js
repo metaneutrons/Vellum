@@ -1,7 +1,7 @@
 
 /*https://www.w3schools.com/howto/howto_html_include.asp*/
 function includeHTML() {
-  let z, i, elmnt, file, xhttp;
+  var z, i, elmnt, file, xhttp;
   /*loop through a collection of all HTML elements:*/
   z = document.getElementsByTagName("*");
   for (i = 0; i < z.length; i++) {

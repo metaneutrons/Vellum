@@ -4,9 +4,9 @@ const CONSTANT = {
     POST_LOGIN_URL: `${baseurl}/login`,
 }
 
-const Ajax = {
+var Ajax = {
     post: function(url, data, callback){
-        const xhr=new XMLHttpRequest();
+        var xhr=new XMLHttpRequest();
         xhr.open('POST', url,true);
         // 添加http头，发送信息至服务器时内容编码类型
         xhr.setRequestHeader('Content-Type','application/json');
@@ -25,15 +25,15 @@ const Ajax = {
 }
 
 function login() {
-    const wlanName = document.getElementById('wlanName')
+    var wlanName = document.getElementById('wlanName')
     console.log('wlan 名称：', wlanName.value)
-    const model = document.getElementById('model')
+    var model = document.getElementById('model')
     console.log('安全模式：', model.value)
-    const password = document.getElementById('password')
+    var password = document.getElementById('password')
     console.log('密码：', password.value)
-    const select = document.getElementById('select')
+    var select = document.getElementById('select')
     console.log('wlan 隐身：', select.checked)
-    let isSelect = 'false'
+    var isSelect = 'false'
     if (select.checked) {
         isSelect = 'true'
     }
