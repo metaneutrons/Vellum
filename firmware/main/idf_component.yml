@@ -20,3 +20,14 @@ dependencies:
     rules:
       - if: "idf_version >=5.0"
         target: esp32p4
+  espressif/esp_io_expander_pca9535:
+    version: "^1.0.0"
+    rules:
+      - if: "idf_version >=5.0"
+        target: esp32p4
+  espressif/esp_lcd_jd9365_8:
+    version: "^1.0.0"
+    rules:
+      - if: "idf_version >=5.0"
+        target: esp32p4
+
