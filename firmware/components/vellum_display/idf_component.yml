@@ -5,9 +5,7 @@ dependencies:
     version: "^2.0.0"
     rules:
       - if: "target == esp32s3"
-  # Pinned: 0.2.0 exposes the display_func_with_cb + user_data callback API
-  # used in vellum_display.c. Newer releases dropped those fields.
-  espressif/qrcode:
-    version: "==0.2.0"
-    rules:
-      - if: "target == esp32s3"
+  # Used by the shared screen layer (Wi-Fi setup QR) on every target.
+  # Pinned: 0.2.0 exposes the display_func_with_cb + user_data callback API;
+  # newer releases dropped those fields.
+  espressif/qrcode: "==0.2.0"
