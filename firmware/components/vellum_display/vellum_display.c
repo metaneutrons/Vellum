@@ -22,14 +22,9 @@
 #include "epaper_it8951.h"
 #endif
 
-#if defined(CONFIG_VELLUM_PANEL_D1001)
-#include "d1001_board.h"
-#include "lcd_jd9365.h"
-#include "esp_lcd_mipi_dsi.h"
-#include "jpeg_decoder.h"
-#endif
-
-#include <string.h>
+/* Note: the LCD/D1001 panel is handled by vellum_display_lcd.c, which the
+ * component CMakeLists selects via CONFIG_VELLUM_DISPLAY_IS_LCD. This file is
+ * compiled only for E-Paper targets, so no D1001 code path lives here. */
 
 #include <string.h>
 #include <stdlib.h>
@@ -100,32 +95,16 @@ static bool screen_unchanged(const char *screen_id)
   #define PANEL_BPP    4
   #define PANEL_COLORS "grayscale"
   #define PANEL_FAST_REFRESH 1
-#elif defined(CONFIG_VELLUM_PANEL_D1001)
-  #define PANEL_MODEL  "d1001"
-  #define PANEL_WIDTH  800
-  #define PANEL_HEIGHT 1280
-  #define PANEL_BPP    16
-  #define PANEL_COLORS "fullcolor"
-  #define PANEL_FAST_REFRESH 1
-  #define PANEL_IS_LCD 1
 #else
-  #error "No display panel selected in Kconfig"
+  #error "No E-Paper display panel selected in Kconfig"
 #endif
 
-/* ── Theme colors (dark mode for LCD, light for E-Paper) ──────── */
-#ifdef PANEL_IS_LCD
-  #define THEME_BG        lv_color_black()
-  #define THEME_FG        lv_color_white()
-  #define THEME_MUTED     lv_color_hex(0x999999)
-  #define THEME_DIM       lv_color_hex(0x666666)
-  #define THEME_BG_OPA    LV_OPA_COVER
-#else
-  #define THEME_BG        lv_color_white()
-  #define THEME_FG        lv_color_black()
-  #define THEME_MUTED     lv_color_hex(0x808080)
-  #define THEME_DIM       lv_color_hex(0xAAAAAA)
-  #define THEME_BG_OPA    LV_OPA_COVER
-#endif
+/* ── Theme colors (light for E-Paper) ─────────────────────────── */
+#define THEME_BG        lv_color_white()
+#define THEME_FG        lv_color_black()
+#define THEME_MUTED     lv_color_hex(0x808080)
+#define THEME_DIM       lv_color_hex(0xAAAAAA)
+#define THEME_BG_OPA    LV_OPA_COVER
 
 /* ── Scaled fonts (based on shorter panel dimension) ──────────── */
 #define PANEL_SHORT_SIDE ((PANEL_WIDTH < PANEL_HEIGHT) ? PANEL_WIDTH : PANEL_HEIGHT)
@@ -136,7 +115,7 @@ static bool screen_unchanged(const char *screen_id)
   #define FONT_SM   (&lv_font_montserrat_48)
   #define FONT_XS   (&lv_font_montserrat_24)
 #else
-  /* Standard (D1001: 800px, E1001/E1002: 480px) */
+  /* Standard (E1001/E1002: 480px short side) */
   #define FONT_LG   (&lv_font_montserrat_48)
   #define FONT_MD   (&lv_font_montserrat_24)
   #define FONT_SM   (&lv_font_montserrat_18)
@@ -172,32 +151,6 @@ static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t
 
 /* ── Init ─────────────────────────────────────────────────────── */
 
-#if defined(CONFIG_VELLUM_PANEL_D1001)
-static void *s_dpi_buf1 = NULL, *s_dpi_buf2 = NULL;
-
-static void lcd_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
-{
-    lv_display_flush_ready(disp);
-}
-
-/* Clear both DPI framebuffers (prevents ghost content from previous screen) */
-static void lcd_clear_framebuffers(void)
-{
-    if (s_dpi_buf1) memset(s_dpi_buf1, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
-    if (s_dpi_buf2) memset(s_dpi_buf2, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
-}
-
-static void lvgl_handler_task(void *arg)
-{
-    (void)arg;
-    while (1) {
-        lv_tick_inc(10);
-        lv_timer_handler();
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
-#endif
-
 esp_err_t display_init(void)
 {
     /* Deselect SD card to avoid SPI bus conflict */
@@ -224,26 +177,6 @@ esp_err_t display_init(void)
         return ret;
     }
     /* For E1003, we don't use the epd_handle — set to NULL */
-    s_epd = NULL;
-#elif defined(CONFIG_VELLUM_PANEL_D1001)
-    /* D1001 LCD — MIPI-DSI + JD9365 (board already initialized in main) */
-    lcd_jd9365_config_t lcd_cfg = {
-        .lane_num = D1001_DSI_LANE_NUM,
-        .lane_mbps = D1001_DSI_LANE_MBPS,
-        .phy_ldo_chan = D1001_DSI_PHY_LDO_CHAN,
-        .phy_ldo_mv = D1001_DSI_PHY_LDO_MV,
-        .h_res = PANEL_WIDTH, .v_res = PANEL_HEIGHT,
-        .num_fb = 2,
-        .io_expander = d1001_io_expander(),
-        .rst_mask = D1001_EXP_LCD_RST,
-    };
-    static esp_lcd_panel_handle_t s_lcd_panel = NULL;
-    static esp_lcd_panel_io_handle_t s_lcd_io = NULL;
-    esp_err_t ret = lcd_jd9365_init(&lcd_cfg, &s_lcd_panel, &s_lcd_io);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "lcd_jd9365_init failed: %s", esp_err_to_name(ret));
-        return ret;
-    }
     s_epd = NULL;
 #else
     epd_config_t cfg = {
@@ -287,25 +220,6 @@ esp_err_t display_init(void)
         lv_display_set_flush_cb(s_lvgl_disp, it8951_lvgl_flush);
         ESP_LOGI(TAG, "LVGL display initialized for IT8951 L8 (%zu bytes)", lvgl_buf_size);
     }
-#elif defined(CONFIG_VELLUM_PANEL_D1001)
-    /* D1001: Direct DPI framebuffers */
-    {
-        void *buf1 = NULL, *buf2 = NULL;
-        esp_lcd_dpi_panel_get_frame_buffer(s_lcd_panel, 2, &buf1, &buf2);
-        /* Clear framebuffers to black (prevents garbage on first frame) */
-        memset(buf1, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
-        memset(buf2, 0, PANEL_WIDTH * PANEL_HEIGHT * 2);
-        s_dpi_buf1 = buf1;
-        s_dpi_buf2 = buf2;
-        s_lvgl_disp = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
-        /* Double buffer — full mode ensures no ghost content between screens */
-        lv_display_set_buffers(s_lvgl_disp, buf1, buf2, PANEL_WIDTH * PANEL_HEIGHT * 2, LV_DISPLAY_RENDER_MODE_FULL);
-        lv_display_set_flush_cb(s_lvgl_disp, lcd_flush_cb);
-        d1001_backlight_on();
-        ESP_LOGI(TAG, "LVGL display initialized for D1001 LCD");
-    }
-    /* Start background LVGL handler task for continuous LCD rendering */
-    xTaskCreate(lvgl_handler_task, "lvgl", 4096, NULL, 5, NULL);
 #else
     epd_lvgl_config_t lvgl_cfg = EPD_LVGL_CONFIG_DEFAULT();
     lvgl_cfg.epd = s_epd;
@@ -316,7 +230,6 @@ esp_err_t display_init(void)
     if (!s_lvgl_disp) {
         ESP_LOGW(TAG, "LVGL display init failed — local screens unavailable");
     } else {
-#if !defined(CONFIG_VELLUM_PANEL_D1001)
         /* E-Paper: LVGL tick via esp_timer (no background handler task) */
         const esp_timer_create_args_t tick_args = {
             .callback = lvgl_tick_cb,
@@ -325,7 +238,6 @@ esp_err_t display_init(void)
         esp_timer_handle_t tick_timer;
         esp_timer_create(&tick_args, &tick_timer);
         esp_timer_start_periodic(tick_timer, 5000); /* 5 ms */
-#endif
     }
 
     return ESP_OK;
@@ -347,10 +259,7 @@ esp_err_t display_get_info(display_info_t *info)
 static void lvgl_refresh(void)
 {
     if (!s_lvgl_disp) return;
-#if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: invalidate full screen to force redraw */
-    lv_obj_invalidate(lv_screen_active());
-#elif defined(CONFIG_VELLUM_PANEL_E1003)
+#if defined(CONFIG_VELLUM_PANEL_E1003)
     lv_obj_invalidate(lv_screen_active());
     lv_tick_inc(100);
     lv_timer_handler();
@@ -360,10 +269,7 @@ static void lvgl_refresh(void)
 }
 
 /* ── Pre-generated logo (selected at compile time) ────────────── */
-#if defined(CONFIG_VELLUM_PANEL_D1001)
-extern const lv_img_dsc_t vellum_logo_color_300px;
-#define LOGO_DSC (&vellum_logo_color_300px)
-#elif defined(CONFIG_VELLUM_PANEL_E1003)
+#if defined(CONFIG_VELLUM_PANEL_E1003)
 extern const lv_img_dsc_t vellum_logo_16grey_600px;
 #define LOGO_DSC (&vellum_logo_16grey_600px)
 #else
@@ -665,56 +571,6 @@ esp_err_t display_update_raw(const uint8_t *buffer, size_t len)
     esp_err_t ret = it8951_load_image_4bpp(buffer, 0, 0, PANEL_WIDTH, PANEL_HEIGHT);
     if (ret != ESP_OK) return ret;
     return it8951_display_area(0, 0, PANEL_WIDTH, PANEL_HEIGHT, 2); /* GC16 mode */
-#elif defined(CONFIG_VELLUM_PANEL_D1001)
-    /* Decode JPEG to RGB565 and display via LVGL */
-    static uint8_t *s_rgb_buf = NULL;
-    if (!s_rgb_buf)
-        s_rgb_buf = heap_caps_malloc(PANEL_WIDTH * PANEL_HEIGHT * 2, MALLOC_CAP_SPIRAM);
-    if (!s_rgb_buf) return ESP_ERR_NO_MEM;
-
-    esp_jpeg_image_cfg_t jpeg_cfg = {
-        .indata = (uint8_t *)buffer, .indata_size = len,
-        .outbuf = s_rgb_buf, .outbuf_size = PANEL_WIDTH * PANEL_HEIGHT * 2,
-        .out_format = JPEG_IMAGE_FORMAT_RGB565,
-        .out_scale = JPEG_IMAGE_SCALE_0,
-    };
-    esp_jpeg_image_output_t out;
-    esp_err_t ret = esp_jpeg_decode(&jpeg_cfg, &out);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "JPEG decode failed: %s", esp_err_to_name(ret));
-        return ret;
-    }
-
-    /* Rotate if landscape image on portrait panel */
-    uint16_t disp_w = out.width, disp_h = out.height;
-    if (out.width > out.height && PANEL_HEIGHT > PANEL_WIDTH) {
-        uint16_t *src = (uint16_t *)s_rgb_buf;
-        uint16_t *dst = heap_caps_malloc(out.width * out.height * 2, MALLOC_CAP_SPIRAM);
-        if (dst) {
-            for (int y = 0; y < out.height; y++)
-                for (int x = 0; x < out.width; x++)
-                    dst[x * out.height + (out.height - 1 - y)] = src[y * out.width + x];
-            memcpy(s_rgb_buf, dst, out.width * out.height * 2);
-            free(dst);
-            disp_w = out.height; disp_h = out.width;
-        }
-    }
-
-    /* Display via LVGL image */
-    lv_obj_t *scr = lv_display_get_screen_active(s_lvgl_disp);
-    lv_obj_clean(scr);
-    lv_obj_t *img = lv_image_create(scr);
-    static lv_image_dsc_t img_dsc;
-    memset(&img_dsc, 0, sizeof(img_dsc));
-    img_dsc.header.w = disp_w;
-    img_dsc.header.h = disp_h;
-    img_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
-    img_dsc.data_size = disp_w * disp_h * 2;
-    img_dsc.data = s_rgb_buf;
-    lv_image_set_src(img, &img_dsc);
-    lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
-    /* LVGL task will render this */
-    return ESP_OK;
 #else
     if (!s_epd) return ESP_ERR_INVALID_STATE;
     return epd_update(s_epd, buffer, EPD_UPDATE_FULL);
@@ -756,11 +612,7 @@ esp_err_t vellum_display_show_status(const char *text)
 
 void vellum_display_off(void)
 {
-#if defined(CONFIG_VELLUM_PANEL_D1001)
-    d1001_backlight_off();
-#else
     if (s_epd) epd_sleep(s_epd);
-#endif
 }
 
 int vellum_display_width(void)

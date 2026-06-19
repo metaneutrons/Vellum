@@ -1,3 +1,13 @@
 dependencies:
-  tuanpmt/esp_epaper: "^2.0.0"
-  espressif/qrcode: ">=0.1.0"
+  # E-Paper-only dependencies: gated to the S3 targets. The P4/LCD build
+  # (vellum_display_lcd.c) uses neither, and esp_epaper has no esp32p4 build.
+  tuanpmt/esp_epaper:
+    version: "^2.0.0"
+    rules:
+      - if: "target == esp32s3"
+  # Pinned: 0.2.0 exposes the display_func_with_cb + user_data callback API
+  # used in vellum_display.c. Newer releases dropped those fields.
+  espressif/qrcode:
+    version: "==0.2.0"
+    rules:
+      - if: "target == esp32s3"

@@ -4,15 +4,15 @@
  * @file vellum_display_lcd.c
  * @brief LCD/LVGL display implementation for D1001 (ESP32-P4 + JD9365).
  *
- * Ported 1:1 from the working firmware-d1001-v6/main/main.c display code.
- * Compiled only when CONFIG_VELLUM_DISPLAY_IS_LCD is set.
+ * Matches the standalone D1001 firmware approach: LVGL tick task runs
+ * independently, display_show_* calls manipulate LVGL objects directly
+ * from the main task (same as standalone firmware that works).
  */
 
 #include "vellum_display.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "lvgl.h"
@@ -27,10 +27,8 @@ static const char *TAG = "display_lcd";
 #define LCD_HEIGHT 1280
 
 static lv_display_t *s_display = NULL;
-static bool s_tick_task_running = false;
-static SemaphoreHandle_t s_lvgl_mutex = NULL;
 
-/* ── Logo (1-bit bitmap, same as working D1001 firmware) ──────── */
+/* ── Logo ─────────────────────────────────────────────────────── */
 #include "vellum_logo_rgb565.h"
 #define VELLUM_LOGO_W VELLUM_LOGO_RGB565_W
 #define VELLUM_LOGO_H VELLUM_LOGO_RGB565_H
@@ -58,26 +56,12 @@ static void draw_logo(lv_obj_t *parent)
     lv_obj_align(img, LV_ALIGN_CENTER, 0, -60);
 }
 
-/* ── LVGL flush & tick ────────────────────────────────────────── */
+/* ── LVGL flush (DPI panel uses direct framebuffer) ───────────── */
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
     (void)area; (void)px_map;
     lv_display_flush_ready(disp);
-}
-
-static void lvgl_tick_task(void *arg)
-{
-    (void)arg;
-    s_tick_task_running = true;
-    while (1) {
-        lv_tick_inc(10);
-        if (xSemaphoreTake(s_lvgl_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-            lv_timer_handler();
-            xSemaphoreGive(s_lvgl_mutex);
-        }
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
 }
 
 /* ── Unified API ──────────────────────────────────────────────── */
@@ -112,17 +96,7 @@ esp_err_t vellum_display_init(void)
 
     vTaskDelay(pdMS_TO_TICKS(100));
     d1001_backlight_on();
-
-    /* Create LVGL mutex before any rendering */
-    s_lvgl_mutex = xSemaphoreCreateMutex();
-
-    /* Initial render — must happen before tick task starts */
     vellum_display_show_status("Booting...");
-    lv_refr_now(s_display);
-
-    /* LVGL tick + timer task */
-    xTaskCreate(lvgl_tick_task, "lvgl", 8192, NULL, 5, NULL);
-
     ESP_LOGI(TAG, "LCD initialized: %dx%d", LCD_WIDTH, LCD_HEIGHT);
 
     return ESP_OK;
@@ -131,8 +105,6 @@ esp_err_t vellum_display_init(void)
 esp_err_t vellum_display_show_status(const char *text)
 {
     if (!s_display) return ESP_ERR_INVALID_STATE;
-
-    if (s_lvgl_mutex) xSemaphoreTake(s_lvgl_mutex, portMAX_DELAY);
 
     lv_obj_t *scr = lv_display_get_screen_active(s_display);
     lv_obj_clean(scr);
@@ -148,10 +120,9 @@ esp_err_t vellum_display_show_status(const char *text)
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, VELLUM_LOGO_H / 2 + 60);
 
-    if (s_lvgl_mutex) xSemaphoreGive(s_lvgl_mutex);
-
-    /* Give tick task time to render before caller overwrites */
-    if (s_tick_task_running) vTaskDelay(pdMS_TO_TICKS(20));
+    /* Force immediate render */
+    lv_tick_inc(10);
+    lv_timer_handler();
 
     return ESP_OK;
 }
@@ -179,7 +150,6 @@ esp_err_t vellum_display_show_image(const uint8_t *data, size_t len, const char 
             return ret;
         }
 
-        /* Rotate landscape → portrait if needed */
         uint16_t disp_w = out.width, disp_h = out.height;
         if (out.width > out.height && LCD_HEIGHT > LCD_WIDTH) {
             uint16_t *src = (uint16_t *)s_rgb_buf;
@@ -206,6 +176,7 @@ esp_err_t vellum_display_show_image(const uint8_t *data, size_t len, const char 
         img_dsc.data = s_rgb_buf;
         lv_image_set_src(img, &img_dsc);
         lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
+        lv_refr_now(s_display);
     }
 
     return ESP_OK;
@@ -241,5 +212,5 @@ void display_show_ota_progress(uint8_t percent)   { (void)percent; vellum_displa
 void display_show_error(const char *message)      { vellum_display_show_status(message); }
 void display_show_low_battery(void)               { vellum_display_show_status("Low Battery"); }
 esp_err_t display_update_raw(const uint8_t *buf, size_t len) { return vellum_display_show_image(buf, len, "jpeg"); }
-esp_err_t display_sleep(void)  { vellum_display_off(); return ESP_OK; }
+esp_err_t display_sleep(void)  { ESP_LOGW(TAG, "display_sleep called!"); vellum_display_off(); return ESP_OK; }
 esp_err_t display_wake(void)   { d1001_backlight_on(); return ESP_OK; }

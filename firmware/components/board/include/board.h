@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Fabian Schmieder. All rights reserved.
+/**
+ * @file board.h
+ * @brief reTerminal E-Series board peripherals: battery, status LED, buzzer.
+ *
+ * The D1001 (ESP32-P4) board has its own driver (d1001_board); this component
+ * covers the E-Series (ESP32-S3) hardware used by the E-Paper panels.
+ */
+#pragma once
+
+#include <stdbool.h>
+#include <stdint.h>
+
+/** Initialize battery ADC, status LED, and buzzer. */
+void board_init(void);
+
+/** Battery voltage in volts (enables the divider, samples ADC1 channel 0). */
+float board_battery_voltage(void);
+
+/** Battery charge level, clamped to 0-100%. */
+int board_battery_level(void);
+
+/** True when running on USB power (voltage above the battery maximum). */
+bool board_is_usb_powered(void);
+
+/** Status LED (active-low). */
+void board_led_on(void);
+void board_led_off(void);
+
+/** Drive the buzzer at @p freq Hz for @p ms milliseconds (blocking). */
+void board_buzzer_beep(uint32_t freq, uint32_t ms);

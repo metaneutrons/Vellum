@@ -6,28 +6,21 @@ dependencies:
   espressif/esp_wifi_remote:
     version: "1.*"
     rules:
-      - if: "idf_version >=5.0"
-        target: esp32p4
+      - if: "target == esp32p4"
   espressif/esp_hosted:
     version: "2.*"
     rules:
-      - if: "idf_version >=5.0"
-        target: esp32p4
+      - if: "target == esp32p4"
   espressif/esp_jpeg:
     version: "*"
   espressif/esp_io_expander:
     version: "^1"
     rules:
-      - if: "idf_version >=5.0"
-        target: esp32p4
-  espressif/esp_io_expander_pca9535:
-    version: "^1.0.0"
+      - if: "target == esp32p4"
+  # PCA9535 expander is vendored in components-lcd/ — the registry version
+  # (wngfra 1.0.1) omits esp_driver_i2c from its requires and fails on IDF 6.0.
+  waveshare/esp_lcd_jd9365_8:
+    version: "^2.0.0"
     rules:
-      - if: "idf_version >=5.0"
-        target: esp32p4
-  espressif/esp_lcd_jd9365_8:
-    version: "^1.0.0"
-    rules:
-      - if: "idf_version >=5.0"
-        target: esp32p4
+      - if: "target == esp32p4"
 

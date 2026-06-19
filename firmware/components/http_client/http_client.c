@@ -17,8 +17,9 @@
 
 static const char *TAG = "http_cli";
 
-/** Maximum response body size (256 KB) to prevent OOM on malicious responses */
-#define MAX_RESPONSE_SIZE (2 * 1024 * 1024)  /* 2MB — E1003 needs 1.3MB for 4bpp */
+/** Maximum response body size to prevent OOM on malicious responses.
+ *  2 MB ceiling — the largest panel (E1003) needs ~1.3 MB for a 4bpp frame. */
+#define MAX_RESPONSE_SIZE (2 * 1024 * 1024)
 
 static char s_base_url[NVS_MAX_URL_LEN];
 static char s_mac[13];
