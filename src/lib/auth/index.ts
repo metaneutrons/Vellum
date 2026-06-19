@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import { devices } from "@/db/schema";
 import { encryptForDevice } from "@/lib/crypto";
 import { constantTimeEqual } from "@/lib/constant-time";
@@ -36,7 +36,7 @@ export interface DeviceRepository {
 
 export const drizzleDeviceRepo: DeviceRepository = {
   async findByMac(mac) {
-    const rows = await db
+    const rows = await withDb(() => db
       .select({
         mac: devices.mac,
         status: devices.status,
@@ -45,26 +45,26 @@ export const drizzleDeviceRepo: DeviceRepository = {
       })
       .from(devices)
       .where(eq(devices.mac, mac))
-      .limit(1);
+      .limit(1), "auth-find-device-by-mac");
     return rows[0] ?? null;
   },
   async insertPending(mac, publicKey) {
-    await db.insert(devices).values({ mac, status: "pending", publicKey });
+    await withDb(() => db.insert(devices).values({ mac, status: "pending", publicKey }), "auth-insert-pending-device");
   },
   async updatePublicKey(mac, publicKey) {
-    await db.update(devices).set({ publicKey }).where(eq(devices.mac, mac));
+    await withDb(() => db.update(devices).set({ publicKey }).where(eq(devices.mac, mac)), "auth-update-public-key");
   },
   async updateDisplayCaps(mac, caps) {
-    await db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, mac));
+    await withDb(() => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, mac)), "auth-update-display-caps");
   },
   async updateApproved(mac, token) {
-    await db
+    await withDb(() => db
       .update(devices)
       .set({ status: "approved", token, approvedAt: new Date() })
-      .where(eq(devices.mac, mac));
+      .where(eq(devices.mac, mac)), "auth-update-approved");
   },
   async updateLastSeen(mac) {
-    await db.update(devices).set({ lastSeen: new Date() }).where(eq(devices.mac, mac));
+    await withDb(() => db.update(devices).set({ lastSeen: new Date() }).where(eq(devices.mac, mac)), "auth-update-last-seen");
   },
 };
 

@@ -6,6 +6,7 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["@napi-rs/canvas"],
+  allowedDevOrigins: ["192.168.16.5", "192.168.18.1"],
   async headers() {
     return [
       {

@@ -263,5 +263,9 @@
     "somethingWrong": "Etwas ist schiefgelaufen",
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten.",
     "retry": "Erneut versuchen"
+  },
+  "wizard": {
+    "progress": "Einrichtungsfortschritt",
+    "stepOf": "Schritt {current} von {total}"
   }
 }

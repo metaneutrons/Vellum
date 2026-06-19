@@ -242,5 +242,9 @@
     "somethingWrong": "Algo salió mal",
     "unexpected": "Ocurrió un error inesperado.",
     "retry": "Reintentar"
+  },
+  "wizard": {
+    "progress": "Progreso",
+    "stepOf": "Paso {current} de {total}"
   }
 }

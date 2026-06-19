@@ -263,5 +263,9 @@
     "somethingWrong": "Une erreur est survenue",
     "unexpected": "Une erreur inattendue s est produite.",
     "retry": "Réessayer"
+  },
+  "wizard": {
+    "progress": "Progression",
+    "stepOf": "Étape {current} sur {total}"
   }
 }
