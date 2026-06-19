@@ -49,3 +49,6 @@ next-env.d.ts
 # ── Misc ──────────────────────────────────────────────────────
 .vercel
 .kiro/
+
+# Runtime serial-device artifacts written by dev tooling
+data/
