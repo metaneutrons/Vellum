@@ -260,8 +260,8 @@ function compareSemver(a: string, b: string): number {
   if (!preA && !preB) return 0;
 
   // Compare pre-release: beta.3 vs beta.5
-  const partsA = preA!.split(".");
-  const partsB = preB!.split(".");
+  const partsA = (preA ?? "").split(".");
+  const partsB = (preB ?? "").split(".");
   for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
     const segA = partsA[i] ?? "";
     const segB = partsB[i] ?? "";

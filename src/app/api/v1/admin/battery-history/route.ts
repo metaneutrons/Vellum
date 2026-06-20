@@ -3,8 +3,7 @@
 import { NextRequest } from "next/server";
 import { db, withDb } from "@/db";
 import { telemetry } from "@/db/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
-import { UUID_RE } from "@/lib/validation";
+import { eq, and, gte } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   const mac = request.nextUrl.searchParams.get("mac");
