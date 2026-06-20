@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import { devices, contentInstances, themes, refreshProfiles } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, errorResponse } from "@/lib/api-response";
@@ -41,11 +41,11 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch device with content instance and theme
-  const [device] = await db
+  const [device] = await withDb(() => db
     .select()
     .from(devices)
     .where(eq(devices.mac, validation.data.mac))
-    .limit(1);
+    .limit(1), "render-get-device");
 
   if (!device) {
     return Response.json(errorResponse("Device not found"), { status: 404 });
@@ -56,11 +56,12 @@ export async function GET(request: NextRequest) {
   }
 
   // Load content instance
-  const [instance] = await db
+  const contentInstanceId = device.contentInstanceId;
+  const [instance] = await withDb(() => db
     .select()
     .from(contentInstances)
-    .where(eq(contentInstances.id, device.contentInstanceId))
-    .limit(1);
+    .where(eq(contentInstances.id, contentInstanceId))
+    .limit(1), "render-get-content-instance");
 
   if (!instance) {
     return Response.json(errorResponse("Content instance not found"), { status: 404 });
@@ -78,19 +79,20 @@ export async function GET(request: NextRequest) {
   // Resolve theme: device-specific → DB default → hardcoded fallback
   let theme: Theme = resolveTheme(display.colorCount);
   if (device.themeId) {
-    const [dbTheme] = await db
+    const themeId = device.themeId;
+    const [dbTheme] = await withDb(() => db
       .select()
       .from(themes)
-      .where(eq(themes.id, device.themeId))
-      .limit(1);
+      .where(eq(themes.id, themeId))
+      .limit(1), "render-get-device-theme");
     const parsed = parseTheme(dbTheme?.config);
     if (parsed) theme = parsed;
   } else {
-    const [defaultTheme] = await db
+    const [defaultTheme] = await withDb(() => db
       .select()
       .from(themes)
       .where(eq(themes.isDefault, true))
-      .limit(1);
+      .limit(1), "render-get-default-theme");
     const parsed = parseTheme(defaultTheme?.config);
     if (parsed) theme = parsed;
   }
@@ -124,8 +126,9 @@ export async function GET(request: NextRequest) {
   // Load refresh profile if assigned
   let profile = null;
   if (device.refreshProfileId) {
-    const [rp] = await db.select().from(refreshProfiles)
-      .where(eq(refreshProfiles.id, device.refreshProfileId)).limit(1);
+    const refreshProfileId = device.refreshProfileId;
+    const [rp] = await withDb(() => db.select().from(refreshProfiles)
+      .where(eq(refreshProfiles.id, refreshProfileId)).limit(1), "render-get-refresh-profile");
     if (rp) profile = parseRefreshProfile(rp.config);
   }
 

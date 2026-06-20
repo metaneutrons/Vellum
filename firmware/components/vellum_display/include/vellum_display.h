@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 /**
  * @file vellum_display.h
- * @brief Display abstraction — two modes: local (LVGL) and server (raw buffer).
+ * @brief Unified display abstraction for E-Paper and LCD targets.
  */
 #pragma once
 
@@ -11,30 +11,41 @@
 #include <stddef.h>
 
 typedef struct {
-    const char *model;      /* "e1001" or "e1002" */
+    const char *model;      /* "e1001", "e1002", "e1003", or "d1001" */
     uint16_t width;
     uint16_t height;
-    uint8_t bpp;            /* 1 (BW) or 4 (6-color) */
-    const char *color_mode; /* "bw" or "color" */
+    uint8_t bpp;            /* 1 (BW), 4 (grayscale/color), or 16 (fullcolor) */
+    const char *color_mode; /* "bw", "color", "grayscale", or "fullcolor" */
 } display_info_t;
 
-/* Initialize display hardware + LVGL */
+/** Initialize the display hardware (E-Paper or LCD based on Kconfig). */
+esp_err_t vellum_display_init(void);
+
+/** Show a JPEG or raw image on the display. */
+esp_err_t vellum_display_show_image(const uint8_t *data, size_t len, const char *format);
+
+/** Show status text with the Vellum logo. */
+esp_err_t vellum_display_show_status(const char *text);
+
+/** Turn off display / backlight. */
+void vellum_display_off(void);
+
+/** Get display width in pixels. */
+int vellum_display_width(void);
+
+/** Get display height in pixels. */
+int vellum_display_height(void);
+
+/* ── Extended API (kept for backward compatibility) ─────────── */
+
 esp_err_t display_init(void);
-
-/* Get display info (for /hello capability report) */
 esp_err_t display_get_info(display_info_t *info);
-
-/* --- Local mode (LVGL screens) --- */
 void display_show_boot(const char *version);
 void display_show_wifi_setup(const char *ssid, const char *url);
 void display_show_connecting(const char *ssid);
 void display_show_ota_progress(uint8_t percent);
 void display_show_error(const char *message);
 void display_show_low_battery(void);
-
-/* --- Server mode (raw pixel buffer) --- */
 esp_err_t display_update_raw(const uint8_t *buffer, size_t len);
-
-/* --- Power management --- */
 esp_err_t display_sleep(void);
 esp_err_t display_wake(void);

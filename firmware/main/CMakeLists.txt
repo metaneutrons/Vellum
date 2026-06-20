@@ -9,11 +9,8 @@ idf_component_register(
         buttons
         sleep_manager
         vellum_serial
-        mbedtls
-        esp_https_ota
-        esp_adc
-        esp_driver_ledc
-        esp_driver_i2c
+        board
+        secure_channel
+        ota_manager
         esp_driver_gpio
-        app_update
 )

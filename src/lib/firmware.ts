@@ -238,11 +238,41 @@ export async function resolveOta(
 /* ── Semver comparison ────────────────────────────────────────── */
 
 function compareSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
-  const pb = b.replace(/^v/, "").split(/[-.]/).map((s) => parseInt(s) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+  // Strip build metadata (+sha)
+  const cleanA = a.replace(/^v/, "").split("+")[0];
+  const cleanB = b.replace(/^v/, "").split("+")[0];
+
+  // Split into version and pre-release
+  const [verA, preA] = cleanA.split("-", 2);
+  const [verB, preB] = cleanB.split("-", 2);
+
+  // Compare major.minor.patch
+  const pa = verA.split(".").map(Number);
+  const pb = verB.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
     const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
     if (diff !== 0) return diff;
+  }
+
+  // No pre-release > pre-release (1.1.0 > 1.1.0-beta.3)
+  if (!preA && preB) return 1;
+  if (preA && !preB) return -1;
+  if (!preA && !preB) return 0;
+
+  // Compare pre-release: beta.3 vs beta.5
+  const partsA = (preA ?? "").split(".");
+  const partsB = (preB ?? "").split(".");
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const segA = partsA[i] ?? "";
+    const segB = partsB[i] ?? "";
+    const numA = parseInt(segA);
+    const numB = parseInt(segB);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      if (numA !== numB) return numA - numB;
+    } else {
+      if (segA < segB) return -1;
+      if (segA > segB) return 1;
+    }
   }
   return 0;
 }

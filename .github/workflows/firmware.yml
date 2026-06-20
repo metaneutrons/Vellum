@@ -14,7 +14,45 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc.outputs.version }}
+      channel: ${{ steps.calc.outputs.channel }}
+      tag: ${{ steps.calc.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: calc
+        run: |
+          # Base version from Kconfig (SSOT: release-please)
+          BASE=$(grep 'default "' firmware/main/Kconfig.projbuild | head -1 | grep -oP '\d+\.\d+\.\d+')
+
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "version=${BASE}" >> $GITHUB_OUTPUT
+            echo "channel=stable" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            # Beta: count commits since last release tag
+            LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "")
+            if [ -n "$LAST_TAG" ]; then
+              BETA_NUM=$(git rev-list ${LAST_TAG}..HEAD --count)
+            else
+              BETA_NUM=$(git rev-list HEAD --count)
+            fi
+            SHORT_SHA=$(git rev-parse --short=7 HEAD)
+            VERSION="${BASE}-beta.${BETA_NUM}+${SHORT_SHA}"
+            TAG="v${VERSION}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "channel=beta" >> $GITHUB_OUTPUT
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          fi
+
   build:
+    needs: version
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.0
@@ -32,11 +70,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Configure for ${{ matrix.model }}
+      - name: Inject version and configure
         run: |
           . $IDF_PATH/export.sh
-          idf.py set-target esp32s3
+          VERSION="${{ needs.version.outputs.version }}"
+          sed -i "s/CONFIG_VELLUM_FIRMWARE_VERSION=.*/CONFIG_VELLUM_FIRMWARE_VERSION=\"${VERSION}\"/" sdkconfig.defaults 2>/dev/null || true
+          echo "CONFIG_VELLUM_FIRMWARE_VERSION=\"${VERSION}\"" >> sdkconfig.defaults
           echo "${{ matrix.kconfig }}" >> sdkconfig.defaults
+          idf.py set-target esp32s3
 
       - name: Build
         run: |
@@ -44,11 +85,9 @@ jobs:
           idf.py build
 
       - name: Extract binary
-        id: extract
         run: |
           . $IDF_PATH/export.sh
-          VERSION=$(grep 'CONFIG_VELLUM_FIRMWARE_VERSION' sdkconfig | cut -d'"' -f2)
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          VERSION="${{ needs.version.outputs.version }}"
           cd build && esptool --chip esp32s3 merge-bin --output ../vellum-${{ matrix.model }}-v${VERSION}.bin @flash_args
           cd .. && ls -lh vellum-${{ matrix.model }}-v${VERSION}.bin
 
@@ -58,30 +97,13 @@ jobs:
           path: firmware/vellum-${{ matrix.model }}-*.bin
 
   sign-and-release:
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
         with:
           path: binaries
           merge-multiple: true
-
-      - name: Determine version
-        id: version
-        run: |
-          # Extract version from binary filename
-          BIN=$(ls binaries/*.bin | head -1)
-          VERSION=$(echo "$BIN" | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+')
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "channel=stable" >> $GITHUB_OUTPUT
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          else
-            SHA=$(echo ${{ github.sha }} | cut -c1-7)
-            echo "channel=beta" >> $GITHUB_OUTPUT
-            echo "tag=firmware-beta" >> $GITHUB_OUTPUT
-          fi
 
       - name: Generate SHA256 checksums
         run: |
@@ -108,9 +130,9 @@ jobs:
       - name: Generate manifest
         run: |
           cd binaries
-          VERSION="${{ steps.version.outputs.version }}"
-          CHANNEL="${{ steps.version.outputs.channel }}"
-          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ needs.version.outputs.version }}"
+          CHANNEL="${{ needs.version.outputs.channel }}"
+          TAG="${{ needs.version.outputs.tag }}"
           node -e "
           const fs = require('fs');
           const manifest = {
@@ -147,8 +169,8 @@ jobs:
         if: github.event_name != 'release'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: Firmware Beta
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: "Firmware ${{ needs.version.outputs.version }}"
           prerelease: true
           make_latest: false
           files: |

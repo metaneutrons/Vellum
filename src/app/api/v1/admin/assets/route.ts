@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import { assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { UUID_RE } from "@/lib/validation";
@@ -14,14 +14,14 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "") || DEFAULT_LIMIT, 200);
   const offset = parseInt(request.nextUrl.searchParams.get("offset") ?? "") || 0;
 
-  const rows = await db.select({
+  const rows = await withDb(() => db.select({
     id: assets.id,
     name: assets.name,
     mimeType: assets.mimeType,
     width: assets.width,
     height: assets.height,
     createdAt: assets.createdAt,
-  }).from(assets).orderBy(assets.createdAt).limit(limit).offset(offset);
+  }).from(assets).orderBy(assets.createdAt).limit(limit).offset(offset), "list-assets");
 
   return Response.json(rows);
 }
@@ -64,8 +64,8 @@ export async function POST(request: Request) {
     }
   }
 
-  const [row] = await db.insert(assets).values({ name, mimeType: file.type, width, height, data: buffer })
-    .returning({ id: assets.id });
+  const [row] = await withDb(() => db.insert(assets).values({ name, mimeType: file.type, width, height, data: buffer })
+    .returning({ id: assets.id }), "insert-asset");
 
   return Response.json({ id: row.id, name, mimeType: file.type, width, height }, { status: 201 });
 }
@@ -75,6 +75,6 @@ export async function DELETE(request: Request) {
   const id = searchParams.get("id");
   if (!id || !UUID_RE.test(id)) return Response.json({ error: "Invalid or missing id" }, { status: 400 });
 
-  await db.delete(assets).where(eq(assets.id, id));
+  await withDb(() => db.delete(assets).where(eq(assets.id, id)), "delete-asset");
   return new Response(null, { status: 204 });
 }

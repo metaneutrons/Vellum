@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import { reports } from "@/db/schema";
 import { reportRequestSchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
@@ -33,11 +33,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await db.insert(reports).values({
+    await withDb(() => db.insert(reports).values({
       mac: validation.data.mac,
       issue: validation.data.issue,
       timestamp: new Date(),
-    });
+    }), "insert-report");
 
     const t = extractTelemetry(request.headers);
     if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch(() => {});

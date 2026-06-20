@@ -4,7 +4,7 @@
 
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import {
   devices,
   themes,
@@ -35,7 +35,7 @@ export async function updateDevice(
   data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null; firmwareChannel?: string | null; firmwarePinVersion?: string | null; orientationOverride?: string | null }
 ) {
   try {
-    await db.update(devices).set(data).where(eq(devices.mac, mac));
+    await withDb(() => db.update(devices).set(data).where(eq(devices.mac, mac)), "update-device");
     revalidatePath("/admin/devices");
   } catch (err) {
     log.error("Failed to update device", { mac, error: String(err) });
@@ -45,9 +45,9 @@ export async function updateDevice(
 
 export async function deleteDevice(mac: string) {
   try {
-    await db.delete(telemetry).where(eq(telemetry.mac, mac));
-    await db.delete(reports).where(eq(reports.mac, mac));
-    await db.delete(devices).where(eq(devices.mac, mac));
+    await withDb(() => db.delete(telemetry).where(eq(telemetry.mac, mac)), "delete-device-telemetry");
+    await withDb(() => db.delete(reports).where(eq(reports.mac, mac)), "delete-device-reports");
+    await withDb(() => db.delete(devices).where(eq(devices.mac, mac)), "delete-device");
     revalidatePath("/admin/devices");
   } catch (err) {
     log.error("Failed to delete device", { mac, error: String(err) });
@@ -58,17 +58,17 @@ export async function deleteDevice(mac: string) {
 /* ── Themes ───────────────────────────────────────────────────── */
 
 export async function createTheme(name: string, config: Record<string, string>) {
-  await db.insert(themes).values({ name, config });
+  await withDb(() => db.insert(themes).values({ name, config }), "create-theme");
   revalidatePath("/admin/themes");
 }
 
 export async function updateTheme(id: string, name: string, config: Record<string, string>) {
-  await db.update(themes).set({ name, config, updatedAt: new Date() }).where(eq(themes.id, id));
+  await withDb(() => db.update(themes).set({ name, config, updatedAt: new Date() }).where(eq(themes.id, id)), "update-theme");
   revalidatePath("/admin/themes");
 }
 
 export async function deleteTheme(id: string) {
-  await db.delete(themes).where(eq(themes.id, id));
+  await withDb(() => db.delete(themes).where(eq(themes.id, id)), "delete-theme");
   revalidatePath("/admin/themes");
 }
 
@@ -81,7 +81,7 @@ export async function createProvider(
 ) {
   try {
     const encrypted = encryptCredentials(credentials);
-    await db.insert(dataProviders).values({ type, name, encryptedCredentials: encrypted });
+    await withDb(() => db.insert(dataProviders).values({ type, name, encryptedCredentials: encrypted }), "create-provider");
     revalidatePath("/admin/providers");
   } catch (err) {
     log.error("Failed to create provider", { error: String(err) });
@@ -99,7 +99,7 @@ export async function updateProvider(
     if (credentials && Object.keys(credentials).length > 0) {
       data.encryptedCredentials = encryptCredentials(credentials);
     }
-    await db.update(dataProviders).set(data).where(eq(dataProviders.id, id));
+    await withDb(() => db.update(dataProviders).set(data).where(eq(dataProviders.id, id)), "update-provider");
     revalidatePath("/admin/providers");
   } catch (err) {
     log.error("Failed to update provider", { id, error: String(err) });
@@ -108,7 +108,7 @@ export async function updateProvider(
 }
 
 export async function deleteProvider(id: string) {
-  await db.delete(dataProviders).where(eq(dataProviders.id, id));
+  await withDb(() => db.delete(dataProviders).where(eq(dataProviders.id, id)), "delete-provider");
   revalidatePath("/admin/providers");
 }
 
@@ -119,7 +119,7 @@ export async function createContentInstance(
   name: string,
   config: Record<string, unknown>
 ) {
-  await db.insert(contentInstances).values({ typeSlug, name, config });
+  await withDb(() => db.insert(contentInstances).values({ typeSlug, name, config }), "create-content-instance");
   revalidatePath("/admin/content");
 }
 
@@ -128,46 +128,40 @@ export async function updateContentInstance(
   name: string,
   config: Record<string, unknown>
 ) {
-  await db
-    .update(contentInstances)
-    .set({ name, config, updatedAt: new Date() })
-    .where(eq(contentInstances.id, id));
+  await withDb(() => db.update(contentInstances).set({ name, config, updatedAt: new Date() }).where(eq(contentInstances.id, id)), "update-content-instance");
   revalidatePath("/admin/content");
 }
 
 export async function deleteContentInstance(id: string) {
-  await db.delete(contentInstances).where(eq(contentInstances.id, id));
+  await withDb(() => db.delete(contentInstances).where(eq(contentInstances.id, id)), "delete-content-instance");
   revalidatePath("/admin/content");
 }
 
 /* ── Lookups ──────────────────────────────────────────────────── */
 
 export async function getAllDevices() {
-  return db.select().from(devices).orderBy(devices.createdAt);
+  return withDb(() => db.select().from(devices).orderBy(devices.createdAt), "get-all-devices");
 }
 
 export async function getAllThemes() {
-  return db.select().from(themes).orderBy(themes.name);
+  return withDb(() => db.select().from(themes).orderBy(themes.name), "get-all-themes");
 }
 
 export async function getAllProviders() {
-  return db
-    .select({
-      id: dataProviders.id,
-      type: dataProviders.type,
-      name: dataProviders.name,
-      createdAt: dataProviders.createdAt,
-    })
-    .from(dataProviders)
-    .orderBy(dataProviders.name);
+  return withDb(() => db.select({
+    id: dataProviders.id,
+    type: dataProviders.type,
+    name: dataProviders.name,
+    createdAt: dataProviders.createdAt,
+  }).from(dataProviders).orderBy(dataProviders.name), "get-all-providers");
 }
 
 export async function getProviderCredentials(id: string): Promise<Record<string, string>> {
-  const [provider] = await db
+  const [provider] = await withDb(() => db
     .select({ encrypted: dataProviders.encryptedCredentials })
     .from(dataProviders)
     .where(eq(dataProviders.id, id))
-    .limit(1);
+    .limit(1), "get-provider-credentials");
   if (!provider) return {};
   try {
     return decryptCredentials(provider.encrypted) as Record<string, string>;
@@ -177,7 +171,7 @@ export async function getProviderCredentials(id: string): Promise<Record<string,
 }
 
 export async function getAllContentInstances() {
-  return db.select().from(contentInstances).orderBy(contentInstances.name);
+  return withDb(() => db.select().from(contentInstances).orderBy(contentInstances.name), "get-all-content-instances");
 }
 
 export async function getAllContentTypes() {
@@ -187,7 +181,7 @@ export async function getAllContentTypes() {
 
 
 export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string }> {
-  const [provider] = await db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1);
+  const [provider] = await withDb(() => db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1), "test-provider-get");
   if (!provider) return { ok: false, message: "Provider not found" };
 
   try {
@@ -240,7 +234,7 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
 }
 
 export async function testContentInstance(id: string): Promise<{ ok: boolean; message: string }> {
-  const [instance] = await db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1);
+  const [instance] = await withDb(() => db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1), "test-content-instance-get");
   if (!instance) return { ok: false, message: "Content instance not found" };
 
   try {
@@ -282,12 +276,12 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
 /* ── Refresh Profiles ─────────────────────────────────────────── */
 
 export async function getAllRefreshProfiles() {
-  return db.select().from(refreshProfiles).orderBy(refreshProfiles.name);
+  return withDb(() => db.select().from(refreshProfiles).orderBy(refreshProfiles.name), "get-all-refresh-profiles");
 }
 
 export async function createRefreshProfile(name: string, config: Record<string, unknown>) {
   try {
-    await db.insert(refreshProfiles).values({ name, config });
+    await withDb(() => db.insert(refreshProfiles).values({ name, config }), "create-refresh-profile");
     revalidatePath("/admin/profiles");
   } catch (err) {
     log.error("Failed to create refresh profile", { error: String(err) });
@@ -297,7 +291,7 @@ export async function createRefreshProfile(name: string, config: Record<string, 
 
 export async function updateRefreshProfile(id: string, name: string, config: Record<string, unknown>) {
   try {
-    await db.update(refreshProfiles).set({ name, config, updatedAt: new Date() }).where(eq(refreshProfiles.id, id));
+    await withDb(() => db.update(refreshProfiles).set({ name, config, updatedAt: new Date() }).where(eq(refreshProfiles.id, id)), "update-refresh-profile");
     revalidatePath("/admin/profiles");
   } catch (err) {
     log.error("Failed to update refresh profile", { id, error: String(err) });
@@ -307,7 +301,7 @@ export async function updateRefreshProfile(id: string, name: string, config: Rec
 
 export async function deleteRefreshProfile(id: string) {
   try {
-    await db.delete(refreshProfiles).where(eq(refreshProfiles.id, id));
+    await withDb(() => db.delete(refreshProfiles).where(eq(refreshProfiles.id, id)), "delete-refresh-profile");
     revalidatePath("/admin/profiles");
   } catch (err) {
     log.error("Failed to delete refresh profile", { id, error: String(err) });
@@ -335,8 +329,8 @@ export async function updateSetting(key: string, value: unknown) {
 
 export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
   const { KNOWN_DISPLAYS } = await import("@/lib/content/renderers/door-sign-types");
-  const rows = await db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
-    .where(sql`${devices.displayCaps} IS NOT NULL`);
+  const rows = await withDb(() => db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
+    .where(sql`${devices.displayCaps} IS NOT NULL`), "get-known-display-sizes");
   const seen = new Set<string>();
   const sizes: { label: string; width: number; height: number }[] = [];
 

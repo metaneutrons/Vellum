@@ -5,7 +5,7 @@
  */
 
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import { dataProviders } from "@/db/schema";
 import { decryptCredentials } from "@/lib/encryption";
 
@@ -21,8 +21,8 @@ export interface ResolvedProvider {
  * Throws if not found.
  */
 export async function getProviderWithCredentials(id: string): Promise<ResolvedProvider> {
-  const [provider] = await db.select().from(dataProviders)
-    .where(eq(dataProviders.id, id)).limit(1);
+  const [provider] = await withDb(() => db.select().from(dataProviders)
+    .where(eq(dataProviders.id, id)).limit(1), "get-provider-with-credentials");
   if (!provider) throw new Error(`Provider ${id} not found`);
 
   return {

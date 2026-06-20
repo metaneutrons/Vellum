@@ -21,7 +21,25 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
+#if CONFIG_VELLUM_DISPLAY_IS_LCD
+extern uint8_t is_transport_tx_ready(void);
+#endif
+
 static const char *TAG = "wifi_mgr";
+
+/* Wait for ESP-Hosted transport on P4 (no-op on S3) */
+static void wait_for_wifi_transport(void)
+{
+#if CONFIG_VELLUM_DISPLAY_IS_LCD
+    ESP_LOGI(TAG, "Waiting for ESP-Hosted transport...");
+    for (int i = 0; i < 100 && !is_transport_tx_ready(); i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    if (!is_transport_tx_ready()) {
+        ESP_LOGE(TAG, "ESP-Hosted transport not ready after 10s");
+    }
+#endif
+}
 
 /* Event group bits */
 #define WIFI_CONNECTED_BIT  BIT0
@@ -331,6 +349,8 @@ wifi_result_t wifi_manager_connect_station(void)
         return WIFI_RESULT_NO_CREDENTIALS;
     }
 
+    wait_for_wifi_transport();
+
     char ssid[NVS_MAX_SSID_LEN];
     char pass[NVS_MAX_PASS_LEN];
     if (nvs_manager_get_wifi_ssid(ssid, sizeof(ssid)) != ESP_OK ||
@@ -429,10 +449,6 @@ static void captive_dns_task(void *arg)
 
 void wifi_manager_start_softap(void)
 {
-    char ap_ssid[32];
-    wifi_manager_get_softap_ssid(ap_ssid, sizeof(ap_ssid));
-    ESP_LOGI(TAG, "Starting SoftAP: %s", ap_ssid);
-
     ensure_netif_init();
     esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
 
@@ -447,6 +463,13 @@ void wifi_manager_start_softap(void)
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    /* On P4: wait for ESP-Hosted transport after wifi_init triggers it */
+    wait_for_wifi_transport();
+
+    char ap_ssid[32];
+    wifi_manager_get_softap_ssid(ap_ssid, sizeof(ap_ssid));
+    ESP_LOGI(TAG, "Starting SoftAP: %s", ap_ssid);
 
     wifi_config_t ap_config = {
         .ap = {

@@ -5,26 +5,49 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
+import { dbResilience, DbUnavailableError } from "@/lib/db-resilience";
 
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
   max: 20,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
+  connectionTimeoutMillis: 3_000,
 });
 
 pool.on("error", (err) => {
-  log.error("Unexpected database pool error", { error: String(err) });
+  log.error("Database pool error", { error: String(err) });
 });
 
-/** Check database connectivity. Throws on failure. */
-export async function checkDbHealth(): Promise<void> {
+/** Raw health check (used by resilience layer probe) */
+async function rawHealthCheck(): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("SELECT 1");
   } finally {
     client.release();
   }
+}
+
+// Register with resilience manager and start monitoring
+dbResilience.registerHealthCheck(rawHealthCheck);
+dbResilience.startMonitoring();
+
+/** Check database connectivity (resilience-aware). */
+export async function checkDbHealth(): Promise<boolean> {
+  try {
+    await rawHealthCheck();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Get database health state for API/WebUI. */
+export { dbResilience, DbUnavailableError };
+
+/** Execute a database operation with retry + circuit breaker. */
+export async function withDb<T>(operation: () => Promise<T>, label?: string): Promise<T> {
+  return dbResilience.execute(operation, label);
 }
 
 export const db = drizzle(pool, { schema });

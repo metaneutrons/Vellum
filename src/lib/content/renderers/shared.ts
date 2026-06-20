@@ -6,7 +6,7 @@
 
 import { loadImage, type SKRSContext2D } from "@napi-rs/canvas";
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import { assets } from "@/db/schema";
 import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
@@ -34,8 +34,8 @@ export async function loadBackgroundAsset(assetId: string): Promise<Buffer | nul
   const cached = assetCache.get(assetId);
   if (cached) return cached;
 
-  const [asset] = await db.select({ data: assets.data }).from(assets)
-    .where(eq(assets.id, assetId)).limit(1);
+  const [asset] = await withDb(() => db.select({ data: assets.data }).from(assets)
+    .where(eq(assets.id, assetId)).limit(1), "load-background-asset");
   if (!asset) return null;
 
   assetCache.set(assetId, asset.data);
