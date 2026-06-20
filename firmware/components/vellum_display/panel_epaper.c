@@ -208,9 +208,25 @@ static esp_err_t ep_draw_raw(const uint8_t *buffer, size_t len)
 #endif
 }
 
-static void ep_sleep(void) { if (s_epd) epd_sleep(s_epd); }
-static void ep_wake(void)  { if (s_epd) epd_wake(s_epd); }
-static void ep_off(void)   { if (s_epd) epd_sleep(s_epd); }
+static void ep_sleep(void)
+{
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+    it8951_sleep();   /* put the IT8951 TCON into low-power sleep */
+#else
+    if (s_epd) epd_sleep(s_epd);
+#endif
+}
+
+static void ep_wake(void)
+{
+#if defined(CONFIG_VELLUM_PANEL_E1003)
+    it8951_wake();
+#else
+    if (s_epd) epd_wake(s_epd);
+#endif
+}
+
+static void ep_off(void) { ep_sleep(); }
 
 /* ── Panel descriptor ─────────────────────────────────────────── */
 
