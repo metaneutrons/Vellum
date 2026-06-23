@@ -8,6 +8,7 @@ idf_component_register(
         mbedtls
         esp_https_ota
         app_update
+        esp_app_format
         esp-tls
         espressif__cjson
 )

@@ -57,13 +57,25 @@ jobs:
     container:
       image: espressif/idf:v6.0
     strategy:
+      fail-fast: false
       matrix:
-        model: [e1001, e1002]
         include:
           - model: e1001
-            kconfig: CONFIG_VELLUM_DRIVER_E1001=y
+            target: esp32s3
+            base: sdkconfig.defaults.s3
+            panel: CONFIG_VELLUM_PANEL_GDEY075T7=y
           - model: e1002
-            kconfig: CONFIG_VELLUM_DRIVER_E1002=y
+            target: esp32s3
+            base: sdkconfig.defaults.s3
+            panel: CONFIG_VELLUM_PANEL_GDEP073E01=y
+          - model: e1003
+            target: esp32s3
+            base: sdkconfig.defaults.s3
+            panel: CONFIG_VELLUM_PANEL_E1003=y
+          - model: d1001
+            target: esp32p4
+            base: sdkconfig.defaults.p4
+            panel: CONFIG_VELLUM_PANEL_D1001=y
     defaults:
       run:
         working-directory: firmware
@@ -74,10 +86,10 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           VERSION="${{ needs.version.outputs.version }}"
-          sed -i "s/CONFIG_VELLUM_FIRMWARE_VERSION=.*/CONFIG_VELLUM_FIRMWARE_VERSION=\"${VERSION}\"/" sdkconfig.defaults 2>/dev/null || true
+          cp ${{ matrix.base }} sdkconfig.defaults
           echo "CONFIG_VELLUM_FIRMWARE_VERSION=\"${VERSION}\"" >> sdkconfig.defaults
-          echo "${{ matrix.kconfig }}" >> sdkconfig.defaults
-          idf.py set-target esp32s3
+          echo "${{ matrix.panel }}" >> sdkconfig.defaults
+          idf.py set-target ${{ matrix.target }}
 
       - name: Build
         run: |
@@ -88,7 +100,7 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           VERSION="${{ needs.version.outputs.version }}"
-          cd build && esptool --chip esp32s3 merge-bin --output ../vellum-${{ matrix.model }}-v${VERSION}.bin @flash_args
+          cd build && esptool --chip ${{ matrix.target }} merge-bin --output ../vellum-${{ matrix.model }}-v${VERSION}.bin @flash_args
           cd .. && ls -lh vellum-${{ matrix.model }}-v${VERSION}.bin
 
       - uses: actions/upload-artifact@v7

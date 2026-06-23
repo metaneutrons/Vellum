@@ -475,6 +475,11 @@ void app_main(void)
     /* 7. Request render and draw to display */
     uint32_t sleep_duration = perform_render();
 
+    /* Reaching a successful render confirms WiFi + server + token + display all
+     * work — a good-enough signal to confirm a freshly-OTA'd image and cancel
+     * the bootloader rollback (no-op unless this image is PENDING_VERIFY). */
+    ota_manager_mark_valid();
+
     /* 7b. If green button pressed during render, beep + re-render */
     while (buttons_key0_pressed()) {
         board_buzzer_beep(1000, 100);
