@@ -1,8 +1,173 @@
 @import "tailwindcss";
 
-/* ── Modern Admin Theme ──────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   Aurora — Apple-HIG design system (global)
+   Semantic, adaptive tokens. Light by default; .dark flips them.
+   Legacy admin skin is scoped under .legacy-skin (bottom) during the
+   incremental migration, so un-migrated screens are unaffected.
+   ════════════════════════════════════════════════════════════════ */
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f2f2f7;
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f2f2f7;
+  --color-surface-hover: #f5f5f7;
+
+  --color-label: rgb(0 0 0 / 0.92);
+  --color-label-secondary: rgb(60 60 67 / 0.60);
+  --color-label-tertiary: rgb(60 60 67 / 0.30);
+
+  --color-separator: rgb(60 60 67 / 0.16);
+  --color-fill: rgb(120 120 128 / 0.20);
+  --color-fill-secondary: rgb(120 120 128 / 0.16);
+  --color-fill-tertiary: rgb(118 118 128 / 0.12);
+
+  --color-accent: #007aff;
+  --color-accent-hover: #0a6fe0;
+  --color-accent-pressed: #0062cc;
+  --color-accent-soft: rgb(0 122 255 / 0.12);
+  --color-on-accent: #ffffff;
+
+  --color-green: #34c759;
+  --color-red: #ff3b30;
+  --color-orange: #ff9500;
+  --color-ring: rgb(0 122 255 / 0.55);
+
+  --material-bar: rgb(255 255 255 / 0.72);
+  --material-sidebar: rgb(246 246 248 / 0.80);
+  --material-sheet: rgb(255 255 255 / 0.86);
+  --material-overlay: rgb(0 0 0 / 0.28);
+
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.04);
+  --shadow-e2: 0 4px 12px rgb(0 0 0 / 0.08), 0 2px 4px rgb(0 0 0 / 0.04);
+  --shadow-e3: 0 12px 32px rgb(0 0 0 / 0.14), 0 4px 8px rgb(0 0 0 / 0.06);
+
+  color-scheme: light;
+}
+
+.dark {
+  --color-bg: #000000;
+  --color-bg-secondary: #1c1c1e;
+  --color-surface: #1c1c1e;
+  --color-surface-secondary: #2c2c2e;
+  --color-surface-hover: #2c2c2e;
+
+  --color-label: rgb(255 255 255 / 0.96);
+  --color-label-secondary: rgb(235 235 245 / 0.60);
+  --color-label-tertiary: rgb(235 235 245 / 0.30);
+
+  --color-separator: rgb(84 84 88 / 0.55);
+  --color-fill: rgb(120 120 128 / 0.36);
+  --color-fill-secondary: rgb(120 120 128 / 0.32);
+  --color-fill-tertiary: rgb(118 118 128 / 0.24);
+
+  --color-accent: #0a84ff;
+  --color-accent-hover: #3d9bff;
+  --color-accent-pressed: #0974e0;
+  --color-accent-soft: rgb(10 132 255 / 0.20);
+  --color-on-accent: #ffffff;
+
+  --color-green: #30d158;
+  --color-red: #ff453a;
+  --color-orange: #ff9f0a;
+  --color-ring: rgb(10 132 255 / 0.65);
+
+  --material-bar: rgb(30 30 32 / 0.70);
+  --material-sidebar: rgb(20 20 22 / 0.78);
+  --material-sheet: rgb(40 40 42 / 0.80);
+  --material-overlay: rgb(0 0 0 / 0.48);
+
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.40);
+  --shadow-e2: 0 4px 14px rgb(0 0 0 / 0.50);
+  --shadow-e3: 0 12px 36px rgb(0 0 0 / 0.60);
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
+               "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --color-bg: var(--color-bg);
+  --color-bg-secondary: var(--color-bg-secondary);
+  --color-surface: var(--color-surface);
+  --color-surface-secondary: var(--color-surface-secondary);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-label: var(--color-label);
+  --color-label-secondary: var(--color-label-secondary);
+  --color-label-tertiary: var(--color-label-tertiary);
+  --color-separator: var(--color-separator);
+  --color-fill: var(--color-fill);
+  --color-fill-secondary: var(--color-fill-secondary);
+  --color-fill-tertiary: var(--color-fill-tertiary);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-pressed: var(--color-accent-pressed);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-on-accent: var(--color-on-accent);
+  --color-green: var(--color-green);
+  --color-red: var(--color-red);
+  --color-orange: var(--color-orange);
+  --color-ring: var(--color-ring);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  --shadow-e1: var(--shadow-e1);
+  --shadow-e2: var(--shadow-e2);
+  --shadow-e3: var(--shadow-e3);
+}
+
+@utility material-bar {
+  background-color: var(--material-bar);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+@utility material-sidebar {
+  background-color: var(--material-sidebar);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+}
+@utility material-overlay {
+  background-color: var(--material-overlay);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-ring);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--color-bg);
+  color: var(--color-label);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LEGACY admin skin — scoped under .legacy-skin (applied by the admin
+   layout). Removed screen-by-screen as Aurora migration proceeds.
+   ════════════════════════════════════════════════════════════════ */
+
+.legacy-skin {
   --bg-primary: #0f1117;
   --bg-secondary: #161922;
   --bg-card: #1c1f2e;
@@ -18,97 +183,65 @@
   --success: #22c55e;
   --danger: #ef4444;
   --warning: #f59e0b;
-}
-
-body {
   background: var(--bg-primary);
   color: var(--text-primary);
 }
 
-/* Override Tailwind defaults for dark admin */
-.bg-gray-50 { background: var(--bg-primary) !important; }
-.bg-white { background: var(--bg-card) !important; }
-.bg-gray-100 { background: var(--bg-secondary) !important; }
-.bg-gray-900 { background: #0a0c14 !important; }
-
-.text-gray-400, .text-gray-500 { color: var(--text-muted) !important; }
-.text-gray-600 { color: var(--text-secondary) !important; }
-
-.border, .border-b, .border-t { border-color: var(--border) !important; }
-.divide-y > * + * { border-color: var(--border) !important; }
-
-/* Cards */
-.shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px var(--border) !important; }
-.shadow-lg { box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px var(--border) !important; }
-.shadow-xl { box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px var(--border) !important; }
-.rounded-lg { border-radius: 12px; }
-
-/* Inputs */
-input, select, textarea {
+.legacy-skin .bg-gray-50 { background: var(--bg-primary) !important; }
+.legacy-skin .bg-white { background: var(--bg-card) !important; }
+.legacy-skin .bg-gray-100 { background: var(--bg-secondary) !important; }
+.legacy-skin .bg-gray-900 { background: #0a0c14 !important; }
+.legacy-skin .text-gray-400, .legacy-skin .text-gray-500 { color: var(--text-muted) !important; }
+.legacy-skin .text-gray-600 { color: var(--text-secondary) !important; }
+.legacy-skin .border, .legacy-skin .border-b, .legacy-skin .border-t { border-color: var(--border) !important; }
+.legacy-skin .divide-y > * + * { border-color: var(--border) !important; }
+.legacy-skin .shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px var(--border) !important; }
+.legacy-skin .shadow-lg { box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px var(--border) !important; }
+.legacy-skin .shadow-xl { box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px var(--border) !important; }
+.legacy-skin .rounded-lg { border-radius: 12px; }
+.legacy-skin :is(input, select, textarea) {
   background: var(--bg-input) !important;
   border-color: var(--border) !important;
   color: var(--text-primary) !important;
   border-radius: 8px !important;
 }
-input:focus, select:focus, textarea:focus {
+.legacy-skin :is(input, select, textarea):focus {
   border-color: var(--border-focus) !important;
   outline: none;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
 }
-input::placeholder { color: var(--text-muted) !important; }
+.legacy-skin :is(input, select, textarea)::placeholder { color: var(--text-muted) !important; }
+.legacy-skin .bg-blue-600 { background: var(--accent) !important; }
+.legacy-skin .bg-blue-600:hover, .legacy-skin .hover\:bg-blue-700:hover { background: var(--accent-hover) !important; }
+.legacy-skin .bg-green-600 { background: var(--success) !important; }
+.legacy-skin .bg-green-600:hover, .legacy-skin .hover\:bg-green-700:hover { background: #16a34a !important; }
+.legacy-skin .bg-red-600 { background: var(--danger) !important; }
+.legacy-skin table { border-collapse: separate; border-spacing: 0; }
+.legacy-skin thead { background: var(--bg-secondary) !important; }
+.legacy-skin th { color: var(--text-secondary) !important; font-weight: 500; letter-spacing: 0.025em; }
+.legacy-skin tbody tr { transition: background 0.15s; }
+.legacy-skin .hover\:bg-gray-50:hover { background: var(--bg-card-hover) !important; }
+.legacy-skin .bg-green-100 { background: rgba(34, 197, 94, 0.15) !important; }
+.legacy-skin .text-green-800 { color: #4ade80 !important; }
+.legacy-skin .bg-yellow-100 { background: rgba(245, 158, 11, 0.15) !important; }
+.legacy-skin .text-yellow-800 { color: #fbbf24 !important; }
+.legacy-skin .bg-red-100 { background: rgba(239, 68, 68, 0.15) !important; }
+.legacy-skin .text-red-800 { color: #f87171 !important; }
+.legacy-skin .bg-blue-100 { background: rgba(59, 130, 246, 0.15) !important; }
+.legacy-skin .text-blue-700 { color: #60a5fa !important; }
+.legacy-skin .bg-blue-50 { background: rgba(59, 130, 246, 0.1) !important; }
+.legacy-skin .bg-gray-100.text-gray-600 { background: rgba(100, 116, 139, 0.15) !important; color: #94a3b8 !important; }
+.legacy-skin .rounded-full { border-color: var(--border) !important; color: var(--text-secondary) !important; }
+.legacy-skin .rounded-full:hover { background: var(--bg-card-hover) !important; }
+.legacy-skin .bg-gray-900.text-white.border-gray-900 { background: var(--accent) !important; border-color: var(--accent) !important; }
+.legacy-skin .bg-black\/50 { background: rgba(0, 0, 0, 0.7) !important; backdrop-filter: blur(4px); }
+.legacy-skin .bg-red-50 { background: rgba(239, 68, 68, 0.08) !important; }
+.legacy-skin .border-red-200 { border-color: rgba(239, 68, 68, 0.3) !important; }
+.legacy-skin .text-red-700 { color: #f87171 !important; }
+.legacy-skin .text-red-600 { color: #f87171 !important; }
+.legacy-skin .text-blue-600 { color: #60a5fa !important; }
+.legacy-skin .text-blue-600:hover { color: #93bbfd !important; }
+.legacy-skin h1 { letter-spacing: -0.025em; }
 
-/* Buttons */
-.bg-blue-600 { background: var(--accent) !important; }
-.bg-blue-600:hover, .hover\:bg-blue-700:hover { background: var(--accent-hover) !important; }
-.bg-green-600 { background: var(--success) !important; }
-.bg-green-600:hover, .hover\:bg-green-700:hover { background: #16a34a !important; }
-.bg-red-600 { background: var(--danger) !important; }
-
-/* Table */
-table { border-collapse: separate; border-spacing: 0; }
-thead { background: var(--bg-secondary) !important; }
-th { color: var(--text-secondary) !important; font-weight: 500; letter-spacing: 0.025em; }
-tbody tr { transition: background 0.15s; }
-.hover\:bg-gray-50:hover { background: var(--bg-card-hover) !important; }
-
-/* Badges */
-.bg-green-100 { background: rgba(34, 197, 94, 0.15) !important; }
-.text-green-800 { color: #4ade80 !important; }
-.bg-yellow-100 { background: rgba(245, 158, 11, 0.15) !important; }
-.text-yellow-800 { color: #fbbf24 !important; }
-.bg-red-100 { background: rgba(239, 68, 68, 0.15) !important; }
-.text-red-800 { color: #f87171 !important; }
-.bg-blue-100 { background: rgba(59, 130, 246, 0.15) !important; }
-.text-blue-700 { color: #60a5fa !important; }
-.bg-blue-50 { background: rgba(59, 130, 246, 0.1) !important; }
-.bg-gray-100.text-gray-600 { background: rgba(100, 116, 139, 0.15) !important; color: #94a3b8 !important; }
-
-/* Status filter pills */
-.rounded-full { border-color: var(--border) !important; color: var(--text-secondary) !important; }
-.rounded-full:hover { background: var(--bg-card-hover) !important; }
-.bg-gray-900.text-white.border-gray-900 {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-}
-
-/* Modal overlay */
-.bg-black\/50 { background: rgba(0, 0, 0, 0.7) !important; backdrop-filter: blur(4px); }
-
-/* Warning panel */
-.bg-red-50 { background: rgba(239, 68, 68, 0.08) !important; }
-.border-red-200 { border-color: rgba(239, 68, 68, 0.3) !important; }
-.text-red-700 { color: #f87171 !important; }
-.text-red-800 { color: #fca5a5 !important; }
-.text-red-600 { color: #f87171 !important; }
-
-/* Links */
-.text-blue-600 { color: #60a5fa !important; }
-.text-blue-600:hover { color: #93bbfd !important; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* Headings */
-h1 { letter-spacing: -0.025em; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: var(--color-fill); border-radius: 4px; }
