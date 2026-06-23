@@ -45,7 +45,9 @@ jobs:
             fi
             SHORT_SHA=$(git rev-parse --short=7 HEAD)
             VERSION="${BASE}-beta.${BETA_NUM}+${SHORT_SHA}"
-            TAG="v${VERSION}"
+            # '+' (SemVer build metadata) is illegal in a git ref — keep it in
+            # VERSION (manifest/firmware string) but make the tag git-safe.
+            TAG="v${VERSION//+/-}"
             echo "version=${VERSION}" >> $GITHUB_OUTPUT
             echo "channel=beta" >> $GITHUB_OUTPUT
             echo "tag=${TAG}" >> $GITHUB_OUTPUT
