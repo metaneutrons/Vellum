@@ -60,6 +60,9 @@ export class RateLimiter {
 /** Rate limiter for unauthenticated endpoints (hello) — stricter */
 export const helloLimiter = new RateLimiter({ maxRequests: 10, windowMs: 60_000 });
 
+/** Admin login — very strict to blunt password brute-forcing (per IP). */
+export const loginLimiter = new RateLimiter({ maxRequests: 5, windowMs: 15 * 60_000 });
+
 /** Rate limiter for authenticated endpoints — more generous */
 export const apiLimiter = new RateLimiter({ maxRequests: 60, windowMs: 60_000 });
 

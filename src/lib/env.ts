@@ -12,6 +12,7 @@ import { z } from "zod";
 const envSchema = z.object({
   DATABASE_URL: z.string().url("DATABASE_URL must be a valid URL"),
   ENCRYPTION_KEY: z.string().min(32, "ENCRYPTION_KEY must be at least 32 characters"),
+  SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
   ADMIN_API_KEY: z.string().min(32, "ADMIN_API_KEY must be at least 32 characters"),
   ADMIN_USER: z.string().min(1, "ADMIN_USER is required"),
   ADMIN_PASS: z.string().min(8, "ADMIN_PASS must be at least 8 characters"),
@@ -31,6 +32,7 @@ function loadEnv(): Env {
       return {
         DATABASE_URL: "postgresql://test:test@localhost:5432/test",
         ENCRYPTION_KEY: "test-encryption-key-at-least-32-chars-long",
+        SESSION_SECRET: "test-session-secret-at-least-32-chars-long",
         ADMIN_API_KEY: "test-admin-api-key-that-is-at-least-32-chars",
         ADMIN_USER: "admin",
         ADMIN_PASS: "testpassword",

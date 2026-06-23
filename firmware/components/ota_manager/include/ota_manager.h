@@ -12,3 +12,11 @@
  * it — restarting the device on success. No-op when no update is offered.
  */
 void ota_manager_check_and_apply(void);
+
+/**
+ * Confirm the running image is good, cancelling bootloader rollback.
+ * Call once early after a successful server round-trip (hello + render). If the
+ * running image is PENDING_VERIFY and this is never called, the bootloader
+ * rolls back to the previous image on the next boot.
+ */
+void ota_manager_mark_valid(void);

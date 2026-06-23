@@ -3,10 +3,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { approveDevice, updateDevice, deleteDevice, updateContentInstance } from "../actions";
+import { approveDevice, updateDevice, deleteDevice } from "../actions";
 import { useToast } from "@/components/toast";
 import { ConfirmDialog } from "@/components/confirm";
-import { Modal } from "@/components/modal";
 import { Button } from "@/components/button";
 import { SearchInput } from "@/components/search-input";
 import { PageHeader } from "@/components/page-header";
@@ -242,7 +241,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
           message={t("deleteMessage", { mac: deleting ?? "" })}
           confirmLabel="Delete"
           destructive
-          onConfirm={() => { act(() => deleteDevice(deleting!), t("deleted"), t("failed")); setDeleting(null); }}
+          onConfirm={() => { const mac = deleting; if (mac) act(() => deleteDevice(mac), t("deleted"), t("failed")); setDeleting(null); }}
           onClose={() => setDeleting(null)}
         />
       )}

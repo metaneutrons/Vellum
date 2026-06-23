@@ -14,7 +14,7 @@ import { getProviderWithCredentials } from "@/lib/providers";
 import { TtlCache } from "@/lib/cache";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
-import { doorSignMultiConfigSchema, type DoorSignMultiConfig, type ResourceEntry } from "./door-sign-multi-types";
+import { doorSignMultiConfigSchema, type ResourceEntry } from "./door-sign-multi-types";
 import { renderTextBoxes, selectDesign, formatTime, drawBackground, type TemplateContext } from "./shared";
 
 /* ── Booking cache ────────────────────────────────────────────── */

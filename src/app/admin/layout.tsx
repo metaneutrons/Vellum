@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminNav } from "./nav";
 import { ToastProvider } from "@/components/toast";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
 export default async function AdminLayout({
   children,
@@ -11,7 +12,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  if (cookieStore.get("admin_session")?.value !== "authenticated") {
+  if (!(await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value))) {
     redirect("/login");
   }
 
