@@ -9,6 +9,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
   ENCRYPTION_KEY: ci-encryption-key-that-is-at-least-32-characters
+  SESSION_SECRET: ci-session-secret-that-is-at-least-32-characters
   ADMIN_API_KEY: ci-admin-api-key-that-is-at-least-32-chars-long
   ADMIN_USER: admin
   ADMIN_PASS: ci-password-at-least-8

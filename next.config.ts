@@ -10,7 +10,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/api/:path*",
+        // Permissive CORS only for the device-facing API (ESP32 clients send
+        // no Origin). Admin + health stay same-origin — no
+        // Access-Control-Allow-Origin, so browsers block cross-site calls.
+        source: "/api/v1/ink/:path*",
         headers: [
           { key: "Access-Control-Allow-Origin", value: "*" },
           { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
