@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const manifests = await getManifestsByChannel(channel);
 
-  let target = version
+  const target = version
     ? manifests.find((m) => m.version === version)
     : manifests[0];
 

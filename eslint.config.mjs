@@ -1,15 +1,27 @@
 import tseslint from "typescript-eslint";
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
   { ignores: [".next/", "node_modules/", "drizzle/", "firmware/", "public/"] },
   ...tseslint.configs.strict,
   {
+    plugins: { "react-hooks": reactHooks },
     rules: {
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
       "no-console": ["warn", { allow: ["error"] }],
-      eqeqeq: ["error", "always"],
+      // Allow the `x != null` idiom (null-or-undefined); require strict elsewhere.
+      eqeqeq: ["error", "always", { null: "ignore" }],
       "no-var": "error",
       "prefer-const": "error",
     },

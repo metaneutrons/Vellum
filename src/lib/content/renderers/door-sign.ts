@@ -12,7 +12,7 @@ import { TtlCache } from "@/lib/cache";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
 import { doorSignConfigSchema, type DoorSignConfig } from "./door-sign-types";
-import { resolveTemplate, renderTextBoxes, selectDesign, formatTime, drawBackground, type TemplateContext } from "./shared";
+import { renderTextBoxes, selectDesign, formatTime, drawBackground, type TemplateContext } from "./shared";
 
 /* ── Booking cache ────────────────────────────────────────────── */
 
