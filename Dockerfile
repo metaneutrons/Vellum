@@ -16,6 +16,7 @@ ENV NODE_ENV=production
 # Dummy env vars for build (validated at runtime)
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 ENV ENCRYPTION_KEY=build-time-placeholder-at-least-32-chars
+ENV SESSION_SECRET=build-time-placeholder-at-least-32-chars
 ENV ADMIN_API_KEY=build-time-placeholder-at-least-32-chars
 ENV ADMIN_USER=build
 ENV ADMIN_PASS=build-placeholder
