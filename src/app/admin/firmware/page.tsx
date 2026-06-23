@@ -10,5 +10,6 @@ export default async function Page() {
     getAvailableVersions(),
     getAllSettings(),
   ]);
-  return <FirmwarePage devices={deviceList} versions={versions} settings={settings} />;
+  // TODO(aurora): migrate this screen off legacy-skin.
+  return <div className="legacy-skin"><FirmwarePage devices={deviceList} versions={versions} settings={settings} /></div>;
 }

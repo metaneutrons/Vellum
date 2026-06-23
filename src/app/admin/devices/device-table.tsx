@@ -6,13 +6,17 @@ import { useState, useTransition } from "react";
 import { approveDevice, updateDevice, deleteDevice } from "../actions";
 import { useToast } from "@/components/toast";
 import { ConfirmDialog } from "@/components/confirm";
-import { Button } from "@/components/button";
-import { SearchInput } from "@/components/search-input";
-import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
 import { useTranslations } from "next-intl";
 import { ContentEditModal } from "./content-edit-modal";
 import { BatteryChartModal } from "./battery-chart-modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/misc";
+import {
+  AlertTriangle, Battery, BatteryLow, Wifi, Trash2, Search,
+  ImageOff, MonitorSmartphone,
+} from "lucide-react";
 
 interface Device {
   mac: string;
@@ -46,6 +50,9 @@ interface Props {
   providers: { id: string; type: string; name: string }[];
   knownDisplays: { label: string; width: number; height: number }[];
 }
+
+const selectCls =
+  "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
 export function DeviceTable({ devices: rawDevices, themes, contentInstances, refreshProfiles, firmwareVersions, providers, knownDisplays }: Props) {
   const devices = rawDevices as unknown as Device[];
@@ -81,9 +88,18 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
   const betaVersions = firmwareVersions.filter((v) => v.channel === "beta");
 
   return (
-    <div className={pending ? "opacity-60 pointer-events-none" : ""}>
-      <PageHeader title={t("title")} description={t("description")}
-        actions={<SearchInput value={search} onChange={setSearch} placeholder={t("search")} />} />
+    <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
+      {/* Header */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("search")} className="pl-9" aria-label={t("search")} />
+        </div>
+      </div>
 
       <div className="space-y-3">
         {filtered.map((d) => {
@@ -98,22 +114,23 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
           const channelVersions = channel === "beta" ? [...stableVersions, ...betaVersions] : stableVersions;
           const hasContent = d.content_instance_id && d.status === "approved";
           const contentName = contentInstances.find((c) => c.id === d.content_instance_id)?.name;
+          const statusTone = d.status === "approved" ? "green" : d.status === "pending" ? "orange" : "red";
 
           return (
-            <div key={d.mac} className="bg-white rounded-lg shadow">
+            <div key={d.mac} className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden">
               <div className="flex gap-4 p-4">
                 {/* Preview thumbnail */}
                 <div className="shrink-0">
                   {hasContent ? (
                     <button onClick={() => { setPreviewId(d.content_instance_id); setPreviewMac(d.mac); }}
-                      className="block w-24 h-14 rounded border border-gray-200 hover:border-blue-400 overflow-hidden cursor-pointer transition-colors"
+                      className="block w-24 h-14 rounded-lg border border-separator hover:border-accent overflow-hidden cursor-pointer transition-colors focus-ring"
                       title={t("preview")}>
                       <img src={`/api/v1/admin/preview?instanceId=${d.content_instance_id}&mac=${d.mac}&w=192&h=112`}
                         alt="" className="w-full h-full object-cover" loading="lazy" />
                     </button>
                   ) : (
-                    <div className="w-24 h-14 rounded border border-dashed border-gray-300 flex items-center justify-center text-gray-300 text-xs">
-                      No content
+                    <div className="w-24 h-14 rounded-lg border border-dashed border-separator grid place-items-center text-label-tertiary">
+                      <ImageOff size={18} aria-hidden="true" />
                     </div>
                   )}
                 </div>
@@ -121,91 +138,86 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                 {/* Device info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {hasWarning && <span className="text-sm" title={[bWarn && t("warnings.lowBattery"), rWarn && t("warnings.weakSignal"), oWarn && t("warnings.offline")].filter(Boolean).join(", ")}>⚠️</span>}
-                    <span className="font-mono text-sm font-semibold tracking-tight">{d.mac}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${d.status === "approved" ? "bg-green-100 text-green-700" : d.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{d.status}</span>
-                    <span className="text-xs text-gray-500">{model}</span>
-                    {caps?.width && <span className="text-xs text-gray-400">{caps.width}×{caps.height}</span>}
-                    {contentName && <button onClick={() => setEditingContent(d.content_instance_id)} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">→ {contentName}</button>}
+                    {hasWarning && (
+                      <AlertTriangle size={15} className="text-orange" aria-label={[bWarn && t("warnings.lowBattery"), rWarn && t("warnings.weakSignal"), oWarn && t("warnings.offline")].filter(Boolean).join(", ")} />
+                    )}
+                    <span className="font-mono text-sm font-semibold tracking-tight text-label">{d.mac}</span>
+                    <StatusPill tone={statusTone} dot>{d.status}</StatusPill>
+                    <span className="text-xs text-label-secondary">{model}</span>
+                    {caps?.width && <span className="text-xs text-label-tertiary">{caps.width}×{caps.height}</span>}
+                    {contentName && (
+                      <button onClick={() => setEditingContent(d.content_instance_id)} className="text-xs text-accent hover:underline focus-ring rounded">→ {contentName}</button>
+                    )}
                   </div>
 
                   {/* Telemetry row */}
-                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+                  <div className="flex items-center gap-3 mt-2 text-xs text-label-secondary tabular-nums">
                     {d.battery_level !== null && (
-                      <button onClick={() => setBatteryMac(d.mac)} className={`hover:underline ${bWarn ? "text-amber-600 font-medium" : ""}`}>
-                        🔋 {d.battery_level}%
-                        <span className="text-gray-400 ml-0.5">({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>
+                      <button onClick={() => setBatteryMac(d.mac)} className={`inline-flex items-center gap-1 hover:underline focus-ring rounded ${bWarn ? "text-orange font-medium" : ""}`}>
+                        {bWarn ? <BatteryLow size={15} aria-hidden="true" /> : <Battery size={15} aria-hidden="true" />}
+                        {d.battery_level}%
+                        <span className="text-label-tertiary">({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>
                       </button>
                     )}
                     {d.wifi_rssi !== null && (
-                      <span className={rWarn ? "text-amber-600 font-medium" : ""}>📶 {d.wifi_rssi}dBm</span>
+                      <span className={`inline-flex items-center gap-1 ${rWarn ? "text-orange font-medium" : ""}`}>
+                        <Wifi size={15} aria-hidden="true" />{d.wifi_rssi}dBm
+                      </span>
                     )}
                     {d.firmware_version && <span>v{d.firmware_version}</span>}
                     {lastSeen && (
-                      <span className={oWarn ? "text-amber-600" : ""}>
-                        {lastSeen.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      <span className={oWarn ? "text-orange" : ""}>
+                        {lastSeen.toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     )}
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-start gap-1 shrink-0">
+                <div className="flex items-start gap-1.5 shrink-0">
                   {d.status === "pending" && <Button size="sm" onClick={() => act(() => approveDevice(d.mac), t("approved"), t("failed"))}>{t("approve")}</Button>}
-                  <Button size="sm" variant="danger" onClick={() => setDeleting(d.mac)}>×</Button>
+                  <Button size="sm" variant="plain" aria-label="Delete" onClick={() => setDeleting(d.mac)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
                 </div>
               </div>
 
               {/* Assignments row — only for approved devices */}
               {d.status === "approved" && (
-                <div className="flex items-center gap-3 px-4 py-2 border-t border-gray-100 bg-gray-50 dark:bg-zinc-800/50 text-xs flex-wrap">
-                  <label className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    Content
-                    <select className="border rounded px-1 py-0.5 text-xs" value={d.content_instance_id ?? ""}
-                      aria-label="Content" onChange={(e) => update(d.mac, { contentInstanceId: e.target.value || null })}>
+                <div className="flex items-center gap-3 px-4 py-2.5 border-t border-separator bg-surface-secondary text-[13px] text-label-secondary flex-wrap">
+                  <label className="flex items-center gap-1.5">Content
+                    <select className={selectCls} value={d.content_instance_id ?? ""} aria-label="Content" onChange={(e) => update(d.mac, { contentInstanceId: e.target.value || null })}>
                       <option value="">—</option>
                       {contentInstances.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    Theme
-                    <select className="border rounded px-1 py-0.5 text-xs" value={d.theme_id ?? ""}
-                      aria-label="Theme" onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
+                  <label className="flex items-center gap-1.5">Theme
+                    <select className={selectCls} value={d.theme_id ?? ""} aria-label="Theme" onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
                       <option value="">{t("default")}</option>
-                      {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {themes.map((th) => <option key={th.id} value={th.id}>{th.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    Profile
-                    <select className="border rounded px-1 py-0.5 text-xs" value={d.refresh_profile_id ?? ""}
-                      aria-label="Refresh profile" onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
+                  <label className="flex items-center gap-1.5">Profile
+                    <select className={selectCls} value={d.refresh_profile_id ?? ""} aria-label="Refresh profile" onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
                       <option value="">{t("default")}</option>
                       {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </label>
-                  <span className="text-gray-400">|</span>
-                  <label className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    {t("orientation")}
-                    <select className="border rounded px-1 py-0.5 text-xs" value={d.orientation_override ?? ""}
-                      aria-label="Orientation" onChange={(e) => update(d.mac, { orientationOverride: e.target.value || null })}>
+                  <span className="text-separator">|</span>
+                  <label className="flex items-center gap-1.5">{t("orientation")}
+                    <select className={selectCls} value={d.orientation_override ?? ""} aria-label="Orientation" onChange={(e) => update(d.mac, { orientationOverride: e.target.value || null })}>
                       <option value="">{t("auto")}</option>
                       <option value="landscape">{t("landscape")}</option>
                       <option value="portrait">{t("portrait")}</option>
                     </select>
                   </label>
-                  <span className="text-gray-400">|</span>
-                  <label className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    FW
-                    <select className="border rounded px-1 py-0.5 text-xs" value={channel}
-                      aria-label="Firmware channel" onChange={(e) => update(d.mac, { firmwareChannel: e.target.value })}>
+                  <span className="text-separator">|</span>
+                  <label className="flex items-center gap-1.5">FW
+                    <select className={selectCls} value={channel} aria-label="Firmware channel" onChange={(e) => update(d.mac, { firmwareChannel: e.target.value })}>
                       <option value="stable">stable</option>
                       <option value="beta">beta</option>
                     </select>
                   </label>
-                  <label className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    Pin
-                    <select className="border rounded px-1 py-0.5 text-xs" value={d.firmware_pin_version ?? ""}
-                      aria-label="Pin version" onChange={(e) => update(d.mac, { firmwarePinVersion: e.target.value || null })}>
+                  <label className="flex items-center gap-1.5">Pin
+                    <select className={selectCls} value={d.firmware_pin_version ?? ""} aria-label="Pin version" onChange={(e) => update(d.mac, { firmwarePinVersion: e.target.value || null })}>
                       <option value="">{t("latest")}</option>
                       {channelVersions.map((v) => <option key={v.tag} value={v.version}>v{v.version}</option>)}
                     </select>
@@ -217,46 +229,49 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
         })}
 
         {filtered.length === 0 && (
-          <EmptyState icon="◻" title={devices.length === 0 ? t("noDevices") : t("noMatch")} description={t("noDevicesHint")} />
+          <EmptyState
+            icon={<MonitorSmartphone size={24} aria-hidden="true" />}
+            title={devices.length === 0 ? t("noDevices") : t("noMatch")}
+            description={t("noDevicesHint")}
+          />
         )}
       </div>
 
-      {/* Full-size preview modal */}
+      {/* Full-size preview overlay (Aurora) */}
       {previewId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-8 cursor-pointer"
+        <div className="fixed inset-0 z-50 material-overlay flex items-center justify-center p-8 cursor-pointer"
           onClick={() => setPreviewId(null)}
           onKeyDown={(e) => e.key === "Escape" && setPreviewId(null)}
-          tabIndex={0}
-          role="button"
-          aria-label="Close preview">
+          tabIndex={0} role="button" aria-label="Close preview">
           <img src={`/api/v1/admin/preview?instanceId=${previewId}&mac=${previewMac}`} alt="Preview"
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-e3" />
         </div>
       )}
 
-      {deleting && (
-        <ConfirmDialog
-          open={!!deleting}
-          title={t("deleteConfirm")}
-          message={t("deleteMessage", { mac: deleting ?? "" })}
-          confirmLabel="Delete"
-          destructive
-          onConfirm={() => { const mac = deleting; if (mac) act(() => deleteDevice(mac), t("deleted"), t("failed")); setDeleting(null); }}
-          onClose={() => setDeleting(null)}
-        />
-      )}
-
-      {editingContent && (
-        <ContentEditModal
-          instanceId={editingContent}
-          contentInstances={contentInstances}
-          providers={providers}
-          knownDisplays={knownDisplays}
-          onClose={() => setEditingContent(null)}
-        />
-      )}
-
-      <BatteryChartModal mac={batteryMac ?? ""} open={!!batteryMac} onClose={() => setBatteryMac(null)} />
+      {/* Modals not yet migrated — keep the legacy skin until their turn. */}
+      <div className="legacy-skin">
+        {deleting && (
+          <ConfirmDialog
+            open={!!deleting}
+            title={t("deleteConfirm")}
+            message={t("deleteMessage", { mac: deleting ?? "" })}
+            confirmLabel="Delete"
+            destructive
+            onConfirm={() => { const mac = deleting; if (mac) act(() => deleteDevice(mac), t("deleted"), t("failed")); setDeleting(null); }}
+            onClose={() => setDeleting(null)}
+          />
+        )}
+        {editingContent && (
+          <ContentEditModal
+            instanceId={editingContent}
+            contentInstances={contentInstances}
+            providers={providers}
+            knownDisplays={knownDisplays}
+            onClose={() => setEditingContent(null)}
+          />
+        )}
+        <BatteryChartModal mac={batteryMac ?? ""} open={!!batteryMac} onClose={() => setBatteryMac(null)} />
+      </div>
     </div>
   );
 }
