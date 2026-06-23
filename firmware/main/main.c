@@ -176,8 +176,12 @@ static uint32_t perform_render(void)
 
     if (resp.status_code == 200) {
         if (resp.binary_body && resp.binary_len > 0) {
-            /* Re-assert BUSY pin as input (WiFi/sleep may have reconfigured it) */
+#if !defined(CONFIG_VELLUM_PANEL_D1001)
+            /* Re-assert the E-Paper BUSY pin (GPIO13) as input — WiFi/sleep may
+             * have reconfigured it. NOT on D1001: there GPIO13 is the ESP32-C6
+             * Wi-Fi reset line, and this runs on every render. */
             gpio_set_direction(GPIO_NUM_13, GPIO_MODE_INPUT);
+#endif
             if (display_update_raw(resp.binary_body, resp.binary_len) != ESP_OK) {
                 ESP_LOGW(TAG, "Malformed pixel buffer (%zu bytes)", resp.binary_len);
                 display_show_error("Error");
