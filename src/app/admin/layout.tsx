@@ -17,7 +17,7 @@ export default async function AdminLayout({
 
   return (
     <ToastProvider>
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="legacy-skin flex min-h-screen bg-gray-50">
         <AdminNav />
         <main className="flex-1 p-4 md:p-8 pl-14 md:pl-8">{children}</main>
       </div>

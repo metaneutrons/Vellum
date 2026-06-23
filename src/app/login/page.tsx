@@ -1,63 +1,49 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
-import { useTranslations } from "next-intl";
-
 import { useActionState } from "react";
 import { loginAction } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input, Field } from "@/components/ui/field";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, null);
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "#0f1117" }}>
-      <form action={formAction} className="w-full max-w-sm" style={{ padding: 32 }}>
-        <div className="flex justify-center mb-8">
-          <img src="/vellum-logo.svg" alt="Vellum" width={200} height={200} style={{ filter: "brightness(0) invert(1)" }} />
+    <div className="relative min-h-screen flex items-center justify-center bg-bg-secondary px-4">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-[400px]">
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <img src="/vellum-logo.svg" alt="Vellum" width={160} height={160} className="dark:invert" />
+          <p className="text-[15px] text-label-secondary">E-Ink display management</p>
         </div>
 
-        {state?.error && (
-          <div className="mb-4 p-3 rounded-lg text-sm text-center" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
-            {state.error}
-          </div>
-        )}
+        <form action={formAction} className="bg-surface rounded-2xl shadow-e2 border border-separator/60 p-7 flex flex-col gap-4">
+          {state?.error && (
+            <div role="alert" className="rounded-md bg-red/10 px-3.5 py-2.5 text-sm text-red text-center">
+              {state.error}
+            </div>
+          )}
 
-        <div className="rounded-xl overflow-hidden" style={{ background: "#1c1f2e", border: "1px solid #2a2d3e" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #2a2d3e" }}>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: "#64748b" }}>Username</label>
-            <input
-              name="user"
-              type="text"
-              required
-              autoFocus
-              className="w-full bg-transparent text-sm outline-none"
-              style={{ color: "#e2e8f0" }}
-            />
-          </div>
-          <div style={{ padding: "16px 20px" }}>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: "#64748b" }}>Password</label>
-            <input
-              name="pass"
-              type="password"
-              required
-              className="w-full bg-transparent text-sm outline-none"
-              style={{ color: "#e2e8f0" }}
-            />
-          </div>
-        </div>
+          <Field label="Username" htmlFor="user">
+            <Input id="user" name="user" type="text" required autoFocus autoComplete="username" />
+          </Field>
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full mt-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium transition-colors"
-        >
-          {pending ? "Signing in..." : "Sign in"}
-        </button>
+          <Field label="Password" htmlFor="pass">
+            <Input id="pass" name="pass" type="password" required autoComplete="current-password" />
+          </Field>
 
-        <p className="text-center mt-6 text-xs" style={{ color: "#374151" }}>
-          E-Ink Display Management
-        </p>
-      </form>
+          <Button type="submit" loading={pending} size="lg" className="w-full mt-1">
+            {pending ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
+
+        <p className="text-center mt-6 text-[13px] text-label-tertiary">Vellum</p>
+      </div>
     </div>
   );
 }
