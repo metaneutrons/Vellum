@@ -18,9 +18,11 @@ export default async function AdminLayout({
 
   return (
     <ToastProvider>
-      <div className="legacy-skin flex min-h-screen bg-gray-50">
+      {/* Aurora shell; page content keeps the legacy skin until each screen is
+          migrated (strangler). */}
+      <div className="flex min-h-dvh bg-bg-secondary text-label">
         <AdminNav />
-        <main className="flex-1 p-4 md:p-8 pl-14 md:pl-8">{children}</main>
+        <main className="legacy-skin flex-1 min-w-0 p-4 md:p-8 pt-16 md:pt-8">{children}</main>
       </div>
     </ToastProvider>
   );
