@@ -5,5 +5,6 @@ import { ProfileList } from "./profile-list";
 
 export default async function ProfilesPage() {
   const profiles = await getAllRefreshProfiles();
-  return <ProfileList profiles={profiles} />;
+  // TODO(aurora): migrate this screen off legacy-skin.
+  return <div className="legacy-skin"><ProfileList profiles={profiles} /></div>;
 }

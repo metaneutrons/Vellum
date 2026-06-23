@@ -18,11 +18,11 @@ export default async function AdminLayout({
 
   return (
     <ToastProvider>
-      {/* Aurora shell; page content keeps the legacy skin until each screen is
-          migrated (strangler). */}
+      {/* Aurora shell + neutral content canvas. Un-migrated pages opt into the
+          legacy skin themselves (strangler); migrated pages render clean Aurora. */}
       <div className="flex min-h-dvh bg-bg-secondary text-label">
         <AdminNav />
-        <main className="legacy-skin flex-1 min-w-0 p-4 md:p-8 pt-16 md:pt-8">{children}</main>
+        <main className="flex-1 min-w-0 p-4 md:p-8 pt-16 md:pt-8">{children}</main>
       </div>
     </ToastProvider>
   );

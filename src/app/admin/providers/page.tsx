@@ -5,5 +5,6 @@ import { ProviderList } from "./provider-list";
 
 export default async function ProvidersPage() {
   const providers = await getAllProviders();
-  return <ProviderList providers={providers} />;
+  // TODO(aurora): migrate this screen off legacy-skin.
+  return <div className="legacy-skin"><ProviderList providers={providers} /></div>;
 }
