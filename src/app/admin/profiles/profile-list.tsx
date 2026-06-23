@@ -7,10 +7,13 @@ import { createRefreshProfile, updateRefreshProfile, deleteRefreshProfile } from
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
-import { Button } from "@/components/button";
-import { SearchInput } from "@/components/search-input";
-import { PageHeader } from "@/components/page-header";
+import { Button as LegacyButton } from "@/components/button";
 import { ScheduleTimeline } from "@/components/schedule-timeline";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/misc";
+import { Search, Plus, Pencil, Trash2, CalendarClock, Clock } from "lucide-react";
 
 interface Profile { id: string; name: string; config: unknown; }
 interface ScheduleRule { name: string; days: number[]; startHour: number; endHour: number; intervalS: number; }
@@ -168,42 +171,69 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   const filtered = profiles.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div>
-      <PageHeader title="Refresh Profiles" description="Control how often devices refresh their display" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search..." />
-          <Button onClick={startNew}>New Profile</Button></div>} />
+    <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
+      {/* Header */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">Refresh Profiles</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">Control how often devices refresh their display</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="pl-9" aria-label="Search..." />
+        </div>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Profile</Button>
+      </div>
 
-      <div className="bg-white rounded-lg shadow divide-y">
+      <div className="space-y-3">
         {filtered.map((p) => {
           const c = p.config as Record<string, unknown>;
           const rules = (c.schedule ?? []) as ScheduleRule[];
           return (
-            <div key={p.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <span className="font-medium">{p.name}</span>
-                <span className="ml-3 text-xs text-gray-500">
-                  USB {fmtInterval(c.usbIntervalS as number)} · Battery {fmtInterval(c.batteryIntervalS as number)}
-                  {rules.length > 0 ? ` · ${rules.length} rule${rules.length > 1 ? "s" : ""}` : ""}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => startEdit(p)}>Edit</Button>
-                <Button size="sm" variant="danger" onClick={() => setDeleting(p.id)}>Delete</Button>
+            <div key={p.id} className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden">
+              <div className="flex items-center gap-4 p-4">
+                <div className="shrink-0 size-10 rounded-xl bg-surface-secondary border border-separator grid place-items-center text-label-secondary">
+                  <CalendarClock size={18} aria-hidden="true" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold tracking-tight text-label">{p.name}</span>
+                    {rules.length > 0 && (
+                      <StatusPill tone="accent">{rules.length} rule{rules.length > 1 ? "s" : ""}</StatusPill>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-label-secondary tabular-nums">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock size={14} aria-hidden="true" />USB {fmtInterval(c.usbIntervalS as number)}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock size={14} aria-hidden="true" />Battery {fmtInterval(c.batteryIntervalS as number)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button size="sm" variant="gray" onClick={() => startEdit(p)} leading={<Pencil size={15} aria-hidden="true" />}>Edit</Button>
+                  <Button size="sm" variant="plain" aria-label="Delete" onClick={() => setDeleting(p.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
+                </div>
               </div>
             </div>
           );
         })}
         {filtered.length === 0 && (
-          <div className="px-4 py-12 text-center text-gray-400">
-            <p className="mb-1">No refresh profiles.</p>
-            <p className="text-xs">Create profiles to control how often devices refresh.</p>
-          </div>
+          <EmptyState
+            icon={<CalendarClock size={24} aria-hidden="true" />}
+            title={profiles.length === 0 ? "No refresh profiles." : "No matching profiles."}
+            description="Create profiles to control how often devices refresh."
+          />
         )}
       </div>
 
+      {/* Create/edit profile editor — out of scope this pass; keep the legacy skin. */}
+      <div className="legacy-skin">
       <Modal open={!!editing} onClose={() => setEditing(null)}
         title={editing === "new" ? "New Refresh Profile" : "Edit Profile"}
         onSubmit={name ? save : undefined}
-        footer={<><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button onClick={save} disabled={!name} pending={pending}>Save</Button></>}>
+        footer={<><LegacyButton variant="ghost" onClick={() => setEditing(null)}>Cancel</LegacyButton><LegacyButton onClick={save} disabled={!name} pending={pending}>Save</LegacyButton></>}>
 
         <label className="block text-sm font-medium mb-1">Name</label>
         <input className="w-full border rounded px-3 py-2 mb-4 text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Office Standard" />
@@ -310,6 +340,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
         title="Delete Profile" message="Delete this refresh profile? Devices using it will fall back to defaults."
         confirmLabel="Delete" destructive />
+      </div>
     </div>
   );
 }

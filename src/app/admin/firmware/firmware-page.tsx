@@ -6,7 +6,9 @@ import { useTransition } from "react";
 import { updateDevice, updateSetting } from "../actions";
 import { useToast } from "@/components/toast";
 import { useTranslations } from "next-intl";
-import { PageHeader } from "@/components/page-header";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/misc";
+import { Cpu, Download, Package } from "lucide-react";
 
 interface FirmwareVersion {
   version: string;
@@ -27,6 +29,9 @@ interface Props {
   versions: FirmwareVersion[];
   settings: Record<string, unknown>;
 }
+
+const selectCls =
+  "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
 export function FirmwarePage({ devices, versions, settings }: Props) {
   const { toast } = useToast();
@@ -68,21 +73,32 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
   const betaVersions = versions.filter((v) => v.channel === "beta");
 
   return (
-    <div className={pending ? "opacity-60 pointer-events-none" : ""}>
-      <PageHeader title={t("title")} description={t("description")} actions={<a href="/admin/firmware/flash" className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">{t("flash")}</a>} />
+    <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
+      {/* Header */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
+        </div>
+        <a href="/admin/firmware/flash"
+          className="inline-flex items-center justify-center gap-2 font-semibold rounded-md select-none whitespace-nowrap focus-ring transition active:scale-[0.97] min-h-11 px-4 text-[15px] bg-accent text-on-accent shadow-e1 hover:bg-accent-hover active:bg-accent-pressed">
+          <Download size={16} aria-hidden="true" />
+          {t("flash")}
+        </a>
+      </div>
 
       {/* Auto-poll settings */}
-      <h2 className="text-lg font-semibold mb-3">{t("autoUpdate")}</h2>
-      <div className="bg-white rounded-lg shadow px-4 py-4 mb-8 flex items-center gap-6">
+      <h2 className="text-lg font-semibold text-label mb-3">{t("autoUpdate")}</h2>
+      <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 px-4 py-4 mb-8 flex items-center gap-6 flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={autoPoll} onChange={toggleAutoPoll}
-            className="w-4 h-4 rounded" aria-label="Enable auto-poll" />
-          <span className="text-sm">{t("backgroundPolling")}</span>
+            className="size-4 rounded accent-accent focus-ring" aria-label="Enable auto-poll" />
+          <span className="text-sm text-label">{t("backgroundPolling")}</span>
         </label>
         {autoPoll && (
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm text-label-secondary">
             Interval:
-            <select className="border rounded px-2 py-1 text-xs" value={pollIntervalS}
+            <select className={selectCls} value={pollIntervalS}
               aria-label="Poll interval"
               onChange={(e) => setPollInterval(Number(e.target.value))}>
               <option value={300}>5 min</option>
@@ -92,74 +108,73 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
             </select>
           </label>
         )}
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-label-tertiary">
           {autoPoll ? "Server checks GitHub for new releases automatically" : "Only checks when admin page is opened or device requests /config"}
         </span>
       </div>
 
       {/* Available versions */}
-      <h2 className="text-lg font-semibold mb-3">{t("versions")}</h2>
-      <div className="bg-white rounded-lg shadow divide-y mb-8">
+      <h2 className="text-lg font-semibold text-label mb-3">{t("versions")}</h2>
+      <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden mb-8">
         {versions.length === 0 && (
-          <div className="px-4 py-8 text-center text-gray-500">{t("noVersions")}</div>
+          <EmptyState
+            icon={<Package size={24} aria-hidden="true" />}
+            title={t("noVersions")}
+          />
         )}
-        {versions.map((v) => (
-          <div key={v.tag} className="px-4 py-3 flex items-center gap-3">
-            <span className="font-mono text-sm font-semibold">v{v.version}</span>
-            <span className={`text-xs px-2 py-0.5 rounded ${v.channel === "stable" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+        {versions.map((v, i) => (
+          <div key={v.tag} className={`px-4 py-3 flex items-center gap-3 ${i > 0 ? "border-t border-separator" : ""}`}>
+            <span className="font-mono text-sm font-semibold text-label">v{v.version}</span>
+            <StatusPill tone={v.channel === "stable" ? "green" : "orange"}>
               {v.channel}
-            </span>
-            <span className="text-xs text-gray-500">{new Date(v.date).toLocaleDateString("de-DE")}</span>
+            </StatusPill>
+            <span className="text-xs text-label-tertiary tabular-nums">{new Date(v.date).toLocaleDateString("de-DE")}</span>
           </div>
         ))}
       </div>
 
       {/* Device assignments */}
-      <h2 className="text-lg font-semibold mb-3">{t("deviceFirmware")}</h2>
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-100 text-left">
-            <tr>
-              <th className="px-4 py-3 font-medium">Device</th>
-              <th className="px-4 py-3 font-medium">Model</th>
-              <th className="px-4 py-3 font-medium">Channel</th>
-              <th className="px-4 py-3 font-medium">Pin Version</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {devices.map((d) => {
-              const caps = d.displayCaps as { model?: string } | null;
-              const channel = d.firmwareChannel ?? "stable";
-              const channelVersions = channel === "beta" ? [...stableVersions, ...betaVersions] : stableVersions;
-              return (
-                <tr key={d.mac} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs"><a href={`/admin/devices/${d.mac}`} className="text-blue-600 hover:underline">{d.mac}</a></td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{caps?.model ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <select className="text-xs border rounded px-2 py-1" aria-label="Firmware channel"
-                      value={channel}
-                      onChange={(e) => setChannel(d.mac, e.target.value)}>
-                      <option value="stable">stable</option>
-                      <option value="beta">beta</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <select className="text-xs border rounded px-2 py-1" aria-label="Pin version"
-                      value={d.firmwarePinVersion ?? ""}
-                      onChange={(e) => pinVersion(d.mac, e.target.value || null)}>
-                      <option value="">— latest —</option>
-                      {channelVersions.map((v) => (
-                        <option key={v.version} value={v.version}>
-                          v{v.version} ({v.channel})
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <h2 className="text-lg font-semibold text-label mb-3">{t("deviceFirmware")}</h2>
+      <div className="space-y-3">
+        {devices.length === 0 && (
+          <EmptyState
+            icon={<Cpu size={24} aria-hidden="true" />}
+            title="No devices"
+          />
+        )}
+        {devices.map((d) => {
+          const caps = d.displayCaps as { model?: string } | null;
+          const channel = d.firmwareChannel ?? "stable";
+          const channelVersions = channel === "beta" ? [...stableVersions, ...betaVersions] : stableVersions;
+          return (
+            <div key={d.mac} className="bg-surface rounded-2xl border border-separator/60 shadow-e1 p-4 flex items-center gap-4 flex-wrap">
+              <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+                <a href={`/admin/devices/${d.mac}`} className="font-mono text-sm font-semibold text-accent hover:underline focus-ring rounded">{d.mac}</a>
+                <span className="text-xs text-label-secondary">{caps?.model ?? "—"}</span>
+              </div>
+              <label className="flex items-center gap-1.5 text-[13px] text-label-secondary">Channel
+                <select className={selectCls} aria-label="Firmware channel"
+                  value={channel}
+                  onChange={(e) => setChannel(d.mac, e.target.value)}>
+                  <option value="stable">stable</option>
+                  <option value="beta">beta</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 text-[13px] text-label-secondary">Pin Version
+                <select className={selectCls} aria-label="Pin version"
+                  value={d.firmwarePinVersion ?? ""}
+                  onChange={(e) => pinVersion(d.mac, e.target.value || null)}>
+                  <option value="">— latest —</option>
+                  {channelVersions.map((v) => (
+                    <option key={v.version} value={v.version}>
+                      v{v.version} ({v.channel})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

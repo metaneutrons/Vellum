@@ -11,9 +11,11 @@ import { ConfirmDialog } from "@/components/confirm";
 import { LocalePicker } from "@/components/locale-picker";
 import { TimezonePicker } from "@/components/timezone-picker";
 import { Button } from "@/components/button";
-import { SearchInput } from "@/components/search-input";
-import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
+import { Button as AuroraButton } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/misc";
+import { Plus, Search, FileText, Check, X } from "lucide-react";
 
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
 interface ContentType { slug: string; name: string; description?: string | null; }
@@ -277,38 +279,53 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
   }
 
   return (
-    <div>
-      <PageHeader title="Content Instances" description="Configure what each display shows" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search content..." /><Button onClick={startNew}>New Content</Button></div>} />
+    <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
+      {/* Header */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">Content Instances</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">Configure what each display shows</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search content..." className="pl-9" aria-label="Search content" />
+        </div>
+        <AuroraButton onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Content</AuroraButton>
+      </div>
 
-      <div className="bg-white rounded-lg shadow divide-y">
+      <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
         {filteredInstances.map((inst) => (
-          <div key={inst.id} className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{inst.name}</span>
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                {tc(inst.typeSlug as string)}
-              </span>
+          <div key={inst.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-medium text-label truncate">{inst.name}</span>
+              <StatusPill tone="neutral">{tc(inst.typeSlug as string)}</StatusPill>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {(() => {
                 const r = testResults[inst.id];
-                if (r === "loading") return <span className="text-xs text-gray-400 animate-pulse">Testing…</span>;
-                if (r && r.ok) return <span className="text-xs text-green-600">✓ {r.message}</span>;
-                if (r && !r.ok) return <span className="text-xs text-red-600 max-w-48 truncate" title={r.message}>✗ {r.message}</span>;
+                if (r === "loading") return <span className="text-xs text-label-tertiary animate-pulse">Testing…</span>;
+                if (r && r.ok) return <span className="inline-flex items-center gap-1 text-xs text-green"><Check size={13} aria-hidden="true" />{r.message}</span>;
+                if (r && !r.ok) return <span className="inline-flex items-center gap-1 text-xs text-red max-w-48 truncate" title={r.message}><X size={13} aria-hidden="true" className="shrink-0" />{r.message}</span>;
                 return null;
               })()}
-              <Button size="sm" variant="ghost" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</Button>
-              <Button size="sm" variant="ghost" onClick={() => setPreviewing(inst.id)}>Preview</Button>
-              <Button size="sm" variant="ghost" onClick={() => startEdit(inst)}>Edit</Button>
-              <Button size="sm" variant="danger" onClick={() => setDeleting(inst.id)}>Delete</Button>
+              <AuroraButton size="sm" variant="plain" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</AuroraButton>
+              <AuroraButton size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>Preview</AuroraButton>
+              <AuroraButton size="sm" variant="gray" onClick={() => startEdit(inst)}>Edit</AuroraButton>
+              <AuroraButton size="sm" variant="plain" className="text-red" onClick={() => setDeleting(inst.id)}>Delete</AuroraButton>
             </div>
           </div>
         ))}
         {filteredInstances.length === 0 && (
-          <EmptyState icon={instances.length === 0 ? "▤" : "🔍"} title={instances.length === 0 ? "No content instances" : "No content matches your search"} description={instances.length === 0 ? "Create one and assign it to a device to display content." : undefined} />
+          <EmptyState
+            icon={instances.length === 0 ? <FileText size={24} aria-hidden="true" /> : <Search size={24} aria-hidden="true" />}
+            title={instances.length === 0 ? "No content instances" : "No content matches your search"}
+            description={instances.length === 0 ? "Create one and assign it to a device to display content." : undefined}
+          />
         )}
       </div>
 
+      {/* Editor / preview modals not yet migrated — keep the legacy skin until their turn. */}
+      <div className="legacy-skin">
       <Modal
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
@@ -358,6 +375,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
           />
         )}
       </Modal>
+      </div>
     </div>
   );
 }

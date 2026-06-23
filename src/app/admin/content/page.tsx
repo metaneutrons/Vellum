@@ -17,16 +17,13 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
     getKnownDisplaySizes(),
   ]);
 
-  // TODO(aurora): migrate this screen off legacy-skin.
   return (
-    <div className="legacy-skin">
-      <ContentList
-        instances={instances}
-        types={types}
-        providers={providers}
-        knownDisplays={knownDisplays}
-        initialEditId={edit}
-      />
-    </div>
+    <ContentList
+      instances={instances}
+      types={types}
+      providers={providers}
+      knownDisplays={knownDisplays}
+      initialEditId={edit}
+    />
   );
 }
