@@ -11,6 +11,7 @@ import {
   uuid,
   boolean,
   customType,
+  index,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -36,14 +37,18 @@ export const dataProviders = pgTable("data_providers", {
 
 /* ── Themes ───────────────────────────────────────────────────── */
 
-export const themes = pgTable("themes", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  config: jsonb("config").notNull(),
-  isDefault: boolean("is_default").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const themes = pgTable(
+  "themes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    config: jsonb("config").notNull(),
+    isDefault: boolean("is_default").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("themes_is_default_idx").on(t.isDefault)],
+);
 
 /* ── Content Instances ────────────────────────────────────────── */
 
@@ -119,15 +124,24 @@ export const assets = pgTable("assets", {
 
 /* ── Telemetry ────────────────────────────────────────────────── */
 
-export const telemetry = pgTable("telemetry", {
-  id: serial("id").primaryKey(),
-  mac: text("mac").notNull().references(() => devices.mac),
-  batteryVoltage: real("battery_voltage"),
-  batteryLevel: integer("battery_level"),
-  wifiRssi: integer("wifi_rssi"),
-  firmwareVersion: text("firmware_version"),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-});
+export const telemetry = pgTable(
+  "telemetry",
+  {
+    id: serial("id").primaryKey(),
+    mac: text("mac").notNull().references(() => devices.mac),
+    batteryVoltage: real("battery_voltage"),
+    batteryLevel: integer("battery_level"),
+    wifiRssi: integer("wifi_rssi"),
+    firmwareVersion: text("firmware_version"),
+    timestamp: timestamp("timestamp").defaultNow().notNull(),
+  },
+  (t) => [
+    // battery-history queries filter by mac and order by timestamp
+    index("telemetry_mac_timestamp_idx").on(t.mac, t.timestamp),
+    // telemetry-cleanup deletes by timestamp across all devices
+    index("telemetry_timestamp_idx").on(t.timestamp),
+  ],
+);
 
 /* ── Reports ──────────────────────────────────────────────────── */
 

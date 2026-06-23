@@ -42,9 +42,6 @@ import type { ContentRenderer, RenderParams, RenderResult } from "../types";
 import type { Theme } from "@/lib/theme";
 import type { DisplayEvent, RoomPolicy } from "@/lib/types";
 
-const WINDOW_BEFORE_H = 1;
-const WINDOW_AFTER_H = 7;  /* 8h total: 1h past + 7h future */
-
 /* ── Bitmap font registration for color e-paper ──────────────── */
 
 const FONT_DIR = path.join(process.cwd(), "assets/fonts");
@@ -299,7 +296,6 @@ export function renderToCanvas(
   ctx.fillRect(0, 0, width, height);
 
   // Header (shared with stacked layout)
-  const busy = isBusy(events, new Date(roundedNowMs));
   const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
   renderHeader({ ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events });
 

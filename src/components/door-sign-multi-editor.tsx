@@ -7,10 +7,9 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
-import { useTranslations } from "next-intl";
 import { TextBoxCanvas } from "@/components/text-box-canvas";
-import { KNOWN_DISPLAYS, type DisplaySize, type TextBox, type Design } from "@/lib/content/renderers/door-sign-types";
-import { MULTI_TEMPLATE_VARS, type DoorSignMultiConfig, type ResourceEntry, type RowTemplate } from "@/lib/content/renderers/door-sign-multi-types";
+import { KNOWN_DISPLAYS, type DisplaySize, type Design } from "@/lib/content/renderers/door-sign-types";
+import { MULTI_TEMPLATE_VARS, type DoorSignMultiConfig, type RowTemplate } from "@/lib/content/renderers/door-sign-multi-types";
 
 interface Provider { id: string; name: string; type: string; }
 
@@ -22,7 +21,6 @@ interface Props {
 }
 
 export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays }: Props) {
-  const t = useTranslations("content.doorSign");
   const [activeDisplay, setActiveDisplay] = useState<string>("default");
   const [availableResources, setAvailableResources] = useState<{ id: string; name: string }[]>([]);
   const [selectedProvider, setSelectedProvider] = useState(config.resources[0]?.providerId ?? providers[0]?.id ?? "");

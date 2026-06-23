@@ -30,14 +30,12 @@ export async function GET(request: NextRequest) {
     return Response.json(errorResponse("Unauthorized"), { status: 401 });
   }
 
-  // Telemetry (best-effort)
+  // Telemetry (best-effort, fire-and-forget — keep it off the render hot path)
   const telemetryData = extractTelemetry(request.headers);
   if (telemetryData) {
-    try {
-      await logTelemetry({ ...telemetryData, mac: validation.data.mac, timestamp: new Date() });
-    } catch (err) {
-      log.warn("Telemetry logging failed", { mac: validation.data.mac, error: String(err) });
-    }
+    void logTelemetry({ ...telemetryData, mac: validation.data.mac, timestamp: new Date() }).catch(
+      (err) => log.warn("Telemetry logging failed", { mac: validation.data.mac, error: String(err) }),
+    );
   }
 
   // Fetch device with content instance and theme
