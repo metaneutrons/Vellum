@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { getManifestsByChannel, type FirmwareChannel } from "@/lib/firmware";
+import { safeFetch } from "@/lib/safe-fetch";
 
 /**
  * Proxy endpoint for firmware binaries.
@@ -32,10 +33,10 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: `No binary for model ${model}` }, { status: 404 });
   }
 
-  // Fetch from GitHub
-  const res = await fetch(binary.url, {
+  // Fetch from GitHub (SSRF-guarded — the URL ultimately comes from a manifest)
+  const res = await safeFetch(binary.url, {
     headers: { "User-Agent": "Vellum-Server" },
-    signal: AbortSignal.timeout(60_000),
+    timeoutMs: 60_000,
   });
 
   if (!res.ok || !res.body) {

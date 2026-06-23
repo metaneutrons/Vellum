@@ -9,6 +9,7 @@
 
 import { z } from "zod";
 import type { CalendarProvider, CalendarEvent } from "../types";
+import { safeFetch } from "@/lib/safe-fetch";
 
 export const icalCredentialSchema = z.object({
   url: z.string().url(),
@@ -69,9 +70,8 @@ export const icalProvider: CalendarProvider = {
 
   async fetchEvents({ credentials, windowStart, windowEnd }) {
     const creds = icalCredentialSchema.parse(credentials);
-    const res = await fetch(creds.url, {
+    const res = await safeFetch(creds.url, {
       headers: { Accept: "text/calendar" },
-      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) throw new Error(`iCal fetch failed: ${res.status}`);
     const ics = await res.text();
