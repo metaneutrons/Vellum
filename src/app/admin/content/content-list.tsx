@@ -29,6 +29,9 @@ import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-type
 import { doorSignMultiConfigSchema } from "@/lib/content/renderers/door-sign-multi-types";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
 
+const selectCls =
+  "w-full min-h-9 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
+
 
 function DoorSignMultiConfigEditor({ config, onChange, providers, knownDisplays }: {
   config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
@@ -60,8 +63,8 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
   return (
     <>
-      <label className="block text-sm font-medium mb-1">{t("provider")}</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
+      <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
         <option value="">— select —</option>
         {providers.filter(p => p.type === "anny").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -69,7 +72,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
       {config.providerId && (
         <>
-          <label className="block text-sm font-medium mb-1">{td("resource")}</label>
+          <label className="block text-sm font-medium text-label-secondary mb-1">{td("resource")}</label>
           <div className="mb-3">
             <AnnyResourcePicker
               providerId={config.providerId as string}
@@ -93,36 +96,36 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
       </div>
 
       {/* Custom Properties — manual key-value pairs for template variables */}
-      <div className="border-t pt-3 mt-3">
-        <label className="block text-sm font-semibold mb-1">{td("customProperties")}</label>
-        <p className="text-xs text-gray-500 mb-2">{td("customPropertiesHint")}</p>
+      <div className="border-t border-separator pt-3 mt-3">
+        <label className="block text-sm font-semibold text-label mb-1">{td("customProperties")}</label>
+        <p className="text-xs text-label-tertiary mb-2">{td("customPropertiesHint")}</p>
         {Object.entries((config.cachedProperties as Record<string, string>) ?? {}).map(([key, val]) => (
           <div key={key} className="flex gap-2 mb-1">
-            <input className="flex-1 border rounded px-2 py-1 text-sm" value={key} readOnly />
-            <input className="flex-1 border rounded px-2 py-1 text-sm" value={val}
+            <Input className="flex-1 min-h-9 text-[13px]" value={key} readOnly />
+            <Input className="flex-1 min-h-9 text-[13px]" value={val}
               onChange={(e) => onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [key]: e.target.value } })} />
-            <button className="text-red-500 text-sm px-1" onClick={() => {
+            <AuroraButton size="sm" variant="plain" className="text-red px-2" aria-label="Remove property" onClick={() => {
               const { [key]: _, ...rest } = (config.cachedProperties as Record<string, string>) ?? {};
               onChange({ ...config, cachedProperties: rest });
-            }}>×</button>
+            }}><X size={16} aria-hidden="true" /></AuroraButton>
           </div>
         ))}
         <div className="flex gap-2 mt-1">
-          <input id="newPropKey" className="flex-1 border rounded px-2 py-1 text-sm" placeholder="prop.Raumnummer" />
-          <input id="newPropVal" className="flex-1 border rounded px-2 py-1 text-sm" placeholder="1J.2.02" />
-          <button className="text-blue-600 text-sm font-medium px-2" onClick={() => {
+          <Input id="newPropKey" className="flex-1 min-h-9 text-[13px]" placeholder="prop.Raumnummer" />
+          <Input id="newPropVal" className="flex-1 min-h-9 text-[13px]" placeholder="1J.2.02" />
+          <AuroraButton size="sm" variant="plain" leading={<Plus size={16} aria-hidden="true" />} onClick={() => {
             const keyEl = document.getElementById("newPropKey") as HTMLInputElement;
             const valEl = document.getElementById("newPropVal") as HTMLInputElement;
             if (keyEl.value && valEl.value) {
               onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [keyEl.value]: valEl.value } });
               keyEl.value = ""; valEl.value = "";
             }
-          }}>+ Add</button>
+          }}>Add</AuroraButton>
         </div>
       </div>
 
-      <div className="border-t pt-3 mt-3">
-        <label className="block text-sm font-semibold mb-2">{td("visualLayout")}</label>
+      <div className="border-t border-separator pt-3 mt-3">
+        <label className="block text-sm font-semibold text-label mb-2">{td("visualLayout")}</label>
         <DoorSignEditor
           design={design}
           designOverrides={designOverrides}
@@ -155,18 +158,18 @@ function RoomBookingEditor({ config, onChange, providers }: {
 
   return (
     <>
-      <label className="block text-sm font-medium mb-1">{t("provider")}</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
+      <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
         <option value="">— select —</option>
         {providers.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
       </select>
 
-      <label className="block text-sm font-medium mb-1">Room Display Name</label>
-      <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. Besprechungsraum EG"
+      <label className="block text-sm font-medium text-label-secondary mb-1">Room Display Name</label>
+      <Input className="mb-3" placeholder="e.g. Besprechungsraum EG"
         value={(config.roomName as string) ?? ""} onChange={(e) => onChange({ ...config, roomName: e.target.value })} />
 
-      <label className="block text-sm font-medium mb-1">{fieldConfig?.label ?? ""}</label>
+      <label className="block text-sm font-medium text-label-secondary mb-1">{fieldConfig?.label ?? ""}</label>
       {isAnny && config.providerId ? (
         <div className="mb-3">
           <AnnyResourcePicker
@@ -181,7 +184,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
           />
         </div>
       ) : fieldConfig ? (
-        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder={fieldConfig.placeholder}
+        <Input className="mb-3" placeholder={fieldConfig.placeholder}
           value={roomConfig[fieldConfig.key] ?? ""}
           onChange={(e) => onChange({ ...config, roomConfig: { [fieldConfig.key]: e.target.value } })} />
       ) : <div className="mb-3" /> }
@@ -192,8 +195,8 @@ function RoomBookingEditor({ config, onChange, providers }: {
       <LocalePicker label="Display Language" className="mb-3" value={(config.locale as string) ?? "en"}
         onChange={(v) => onChange({ ...config, locale: v })} />
 
-      <label className="block text-sm font-medium mb-1">Date Format</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.dateFormat as string) ?? "PPPP"}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Date Format</label>
+      <select className={`${selectCls} mb-3`} value={(config.dateFormat as string) ?? "PPPP"}
         onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}>
         <option value="PPPP">Sonntag, 3. Mai 2026</option>
         <option value="PPP">3. Mai 2026</option>
@@ -201,21 +204,21 @@ function RoomBookingEditor({ config, onChange, providers }: {
         <option value="P">03.05.26</option>
       </select>
 
-      <label className="block text-sm font-medium mb-1">Layout</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.layout as string) ?? "timeline"}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Layout</label>
+      <select className={`${selectCls} mb-3`} value={(config.layout as string) ?? "timeline"}
         onChange={(e) => onChange({ ...config, layout: e.target.value })}>
         <option value="timeline">Zeitleiste (Timeline)</option>
         <option value="stacked">Gestapelt (Stacked)</option>
       </select>
 
-      <label className="block text-sm font-medium mb-1">Privacy Policy</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Privacy Policy</label>
+      <select className={`${selectCls} mb-3`} value={(config.policy as string) ?? "Show All"}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>
         {ROOM_POLICIES.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
 
-      <label className="block text-sm font-medium mb-1">Cache TTL (seconds)</label>
-      <input type="number" className="w-full border rounded px-3 py-2 mb-3 text-sm" min={0} step={30}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Cache TTL (seconds)</label>
+      <Input type="number" className="mb-3" min={0} step={30}
         placeholder="120"
         value={(config.cacheTtlS as number) ?? 120}
         onChange={(e) => onChange({ ...config, cacheTtlS: parseInt(e.target.value) || 120 })} />
@@ -324,8 +327,6 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         )}
       </div>
 
-      {/* Editor / preview modals not yet migrated — keep the legacy skin until their turn. */}
-      <div className="legacy-skin">
       <Modal
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
@@ -340,16 +341,16 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
       >
         {editing === "new" && (
           <>
-            <label className="block text-sm font-medium mb-1">Content Type</label>
-            <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={typeSlug}
+            <label className="block text-sm font-medium text-label-secondary mb-1">Content Type</label>
+            <select className={`${selectCls} mb-3`} value={typeSlug}
               onChange={(e) => setTypeSlug(e.target.value)}>
               {types.map((t) => <option key={t.slug} value={t.slug}>{tc(t.slug as string)}</option>)}
             </select>
           </>
         )}
 
-        <label className="block text-sm font-medium mb-1">Name</label>
-        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. Besprechungsraum EG"
+        <label className="block text-sm font-medium text-label-secondary mb-1">Name</label>
+        <Input className="mb-3" placeholder="e.g. Besprechungsraum EG"
           value={name} onChange={(e) => setName(e.target.value)} />
 
         {typeSlug === "room-booking" && (
@@ -371,11 +372,10 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
           <img
             src={`/api/v1/admin/preview?instanceId=${previewing}&t=${Date.now()}`}
             alt="Content preview"
-            className="w-full rounded border"
+            className="w-full rounded-md border border-separator"
           />
         )}
       </Modal>
-      </div>
     </div>
   );
 }

@@ -12,9 +12,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const styles = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700",
-  danger: "text-red-600 border border-red-200 hover:bg-red-50",
-  ghost: "border hover:bg-gray-50",
+  primary: "bg-accent text-on-accent hover:bg-accent-hover",
+  danger: "text-red border border-red/30 hover:bg-red/10",
+  ghost: "border border-separator hover:bg-surface-secondary",
 };
 
 export function Button({

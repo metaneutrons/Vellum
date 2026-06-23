@@ -7,13 +7,15 @@ import { createRefreshProfile, updateRefreshProfile, deleteRefreshProfile } from
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
-import { Button as LegacyButton } from "@/components/button";
 import { ScheduleTimeline } from "@/components/schedule-timeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
-import { Search, Plus, Pencil, Trash2, CalendarClock, Clock } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, CalendarClock, Clock, ChevronUp, ChevronDown, Moon } from "lucide-react";
+
+const selectCls =
+  "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
 interface Profile { id: string; name: string; config: unknown; }
 interface ScheduleRule { name: string; days: number[]; startHour: number; endHour: number; intervalS: number; }
@@ -57,21 +59,20 @@ function IntervalPicker({ value, onChange }: { value: number; onChange: (v: numb
     <div>
       <div className="flex flex-wrap gap-1 mb-1">
         {INTERVAL_PRESETS.map(p => (
-          <button key={p.value} type="button" onClick={() => { onChange(p.value); setCustom(false); }}
-            className={`px-2 py-1 text-xs rounded ${value === p.value && !custom ? "bg-blue-600 text-white" : "border hover:bg-gray-100"}`}>
+          <Button key={p.value} size="sm" variant={value === p.value && !custom ? "filled" : "gray"}
+            onClick={() => { onChange(p.value); setCustom(false); }}>
             {p.label}
-          </button>
+          </Button>
         ))}
-        <button type="button" onClick={() => setCustom(true)}
-          className={`px-2 py-1 text-xs rounded ${custom || !isPreset ? "bg-blue-600 text-white" : "border hover:bg-gray-100"}`}>
+        <Button size="sm" variant={custom || !isPreset ? "filled" : "gray"} onClick={() => setCustom(true)}>
           Custom
-        </button>
+        </Button>
       </div>
       {(custom || !isPreset) && (
         <div className="flex items-center gap-2">
-          <input type="number" min={10} step={10} className="w-24 border rounded px-2 py-1 text-sm"
+          <Input type="number" min={10} step={10} className="w-24 min-h-8"
             value={value} onChange={e => onChange(parseInt(e.target.value) || 60)} />
-          <span className="text-xs text-gray-500">seconds ({fmtInterval(value)})</span>
+          <span className="text-xs text-label-secondary">seconds ({fmtInterval(value)})</span>
         </div>
       )}
     </div>
@@ -89,19 +90,16 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
   return (
     <div>
       <div className="flex gap-1 mb-1">
-        <button type="button" onClick={() => onChange([])}
-          className={`px-2 py-1 text-xs rounded ${isAll ? "bg-blue-600 text-white" : "border hover:bg-gray-100"}`}>All</button>
-        <button type="button" onClick={() => onChange([...WEEKDAYS])}
-          className={`px-2 py-1 text-xs rounded ${isWeekdays ? "bg-blue-600 text-white" : "border hover:bg-gray-100"}`}>Weekdays</button>
-        <button type="button" onClick={() => onChange([...WEEKEND])}
-          className={`px-2 py-1 text-xs rounded ${isWeekend ? "bg-blue-600 text-white" : "border hover:bg-gray-100"}`}>Weekend</button>
+        <Button size="sm" variant={isAll ? "filled" : "gray"} onClick={() => onChange([])}>All</Button>
+        <Button size="sm" variant={isWeekdays ? "filled" : "gray"} onClick={() => onChange([...WEEKDAYS])}>Weekdays</Button>
+        <Button size="sm" variant={isWeekend ? "filled" : "gray"} onClick={() => onChange([...WEEKEND])}>Weekend</Button>
       </div>
       <div className="flex gap-1">
         {DAY_NAMES.map((d, i) => (
-          <button key={i} type="button" onClick={() => toggle(i)}
-            className={`w-9 h-8 text-xs rounded ${days.includes(i) || days.length === 0 ? "bg-blue-600 text-white" : "border hover:bg-gray-100"}`}>
+          <Button key={i} size="sm" variant={days.includes(i) || days.length === 0 ? "filled" : "gray"}
+            onClick={() => toggle(i)} className="w-9 px-0">
             {d}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -228,39 +226,38 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         )}
       </div>
 
-      {/* Create/edit profile editor — out of scope this pass; keep the legacy skin. */}
-      <div className="legacy-skin">
+      {/* Create/edit profile editor */}
       <Modal open={!!editing} onClose={() => setEditing(null)}
         title={editing === "new" ? "New Refresh Profile" : "Edit Profile"}
         onSubmit={name ? save : undefined}
-        footer={<><LegacyButton variant="ghost" onClick={() => setEditing(null)}>Cancel</LegacyButton><LegacyButton onClick={save} disabled={!name} pending={pending}>Save</LegacyButton></>}>
+        footer={<><Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button><Button onClick={save} disabled={!name} loading={pending}>Save</Button></>}>
 
-        <label className="block text-sm font-medium mb-1">Name</label>
-        <input className="w-full border rounded px-3 py-2 mb-4 text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Office Standard" />
+        <label className="block text-sm font-medium text-label mb-1">Name</label>
+        <Input className="mb-4" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Office Standard" />
 
-        <h3 className="text-sm font-semibold mb-3">Default Intervals</h3>
+        <h3 className="text-sm font-semibold text-label mb-3">Default Intervals</h3>
         <div className="space-y-3 mb-6">
           {BASE_FIELDS.map(f => (
             <div key={f.key}>
-              <label className="block text-xs font-medium mb-1">{f.label}</label>
+              <label className="block text-xs font-medium text-label-secondary mb-1">{f.label}</label>
               {f.type === "interval" ? (
                 <IntervalPicker value={(config[f.key] as number) ?? 900}
                   onChange={v => setConfig(c => ({ ...c, [f.key]: v }))} />
               ) : f.type === "slider" ? (
                 <div className="flex items-center gap-3">
                   <input type="range" min={f.min} max={f.max}
-                    className="flex-1"
+                    className="flex-1 accent-accent focus-ring rounded-md"
                     value={(config[f.key] as number) ?? f.min}
                     onChange={e => setConfig(c => ({ ...c, [f.key]: parseInt(e.target.value) }))} />
-                  <span className="text-sm font-medium w-12 text-right">{(config[f.key] as number) ?? f.min}{f.unit}</span>
+                  <span className="text-sm font-medium text-label w-12 text-right">{(config[f.key] as number) ?? f.min}{f.unit}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <input type="number" min={f.min} max={f.max}
-                    className="w-24 border rounded px-2 py-1.5 text-sm"
+                  <Input type="number" min={f.min} max={f.max}
+                    className="w-24 min-h-8"
                     value={(config[f.key] as number) ?? 0}
                     onChange={e => setConfig(c => ({ ...c, [f.key]: parseInt(e.target.value) || 0 }))} />
-                  <span className="text-xs text-gray-500">{f.unit}</span>
+                  <span className="text-xs text-label-secondary">{f.unit}</span>
                 </div>
               )}
             </div>
@@ -268,68 +265,69 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         </div>
 
         <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-semibold">Schedule Rules</h3>
+          <h3 className="text-sm font-semibold text-label">Schedule Rules</h3>
         </div>
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-label-secondary mb-3">
           Override the battery interval for specific days/times. Rules are checked top-to-bottom — first match wins.
         </p>
 
         {/* Templates */}
         <div className="flex flex-wrap gap-1 mb-3">
           {RULE_TEMPLATES.map((tpl, i) => (
-            <button key={i} type="button" onClick={() => addTemplate(tpl.rule)}
-              className="px-2 py-1 text-xs border rounded hover:bg-gray-100">
+            <Button key={i} size="sm" variant="gray" onClick={() => addTemplate(tpl.rule)}>
               {tpl.label}
-            </button>
+            </Button>
           ))}
         </div>
 
         {schedule.map((rule, i) => (
-          <div key={i} className="border rounded-lg p-3 mb-3">
+          <div key={i} className="border border-separator rounded-lg p-3 mb-3 bg-surface-secondary">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => moveRule(i, -1)} disabled={i === 0}
-                  className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-30 hover:bg-gray-100">↑</button>
-                <button type="button" onClick={() => moveRule(i, 1)} disabled={i === schedule.length - 1}
-                  className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-30 hover:bg-gray-100">↓</button>
-                <span className="text-xs text-gray-400 ml-1">
+                <Button size="sm" variant="gray" aria-label="Move up" onClick={() => moveRule(i, -1)} disabled={i === 0} className="px-1.5">
+                  <ChevronUp size={14} aria-hidden="true" />
+                </Button>
+                <Button size="sm" variant="gray" aria-label="Move down" onClick={() => moveRule(i, 1)} disabled={i === schedule.length - 1} className="px-1.5">
+                  <ChevronDown size={14} aria-hidden="true" />
+                </Button>
+                <span className="inline-flex items-center gap-1 text-xs text-label-tertiary ml-1">
                   #{i + 1}
-                  {rule.startHour > rule.endHour && <span className="ml-1" title="Overnight rule (wraps past midnight)">🌙</span>}
+                  {rule.startHour > rule.endHour && <Moon size={13} aria-label="Overnight rule (wraps past midnight)" />}
                 </span>
               </div>
-              <button type="button" onClick={() => removeRule(i)} className="text-xs text-red-500 hover:underline">Remove</button>
+              <Button size="sm" variant="plain" onClick={() => removeRule(i)} className="text-red">Remove</Button>
             </div>
 
-            <input className="w-full border rounded px-2 py-1.5 text-sm mb-2" placeholder="Rule name"
+            <Input className="mb-2 min-h-9" placeholder="Rule name"
               value={rule.name} onChange={e => updateRule(i, { name: e.target.value })} />
 
-            <label className="block text-xs font-medium mb-1">Days</label>
+            <label className="block text-xs font-medium text-label-secondary mb-1">Days</label>
             <DayPicker days={rule.days} onChange={days => updateRule(i, { days })} />
 
             <div className="grid grid-cols-2 gap-2 mt-2 mb-2">
               <div>
-                <label className="block text-xs font-medium mb-1">From</label>
-                <select className="w-full border rounded px-2 py-1.5 text-sm" value={rule.startHour}
+                <label className="block text-xs font-medium text-label-secondary mb-1">From</label>
+                <select className={`${selectCls} w-full`} value={rule.startHour}
                   onChange={e => updateRule(i, { startHour: parseInt(e.target.value) })}>
                   {HOURS.map(h => <option key={h} value={h}>{fmtHour(h)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1">Until</label>
-                <select className="w-full border rounded px-2 py-1.5 text-sm" value={rule.endHour}
+                <label className="block text-xs font-medium text-label-secondary mb-1">Until</label>
+                <select className={`${selectCls} w-full`} value={rule.endHour}
                   onChange={e => updateRule(i, { endHour: parseInt(e.target.value) })}>
                   {HOURS.map(h => <option key={h} value={h}>{fmtHour(h)}</option>)}
                 </select>
               </div>
             </div>
 
-            <label className="block text-xs font-medium mb-1">Refresh Interval</label>
+            <label className="block text-xs font-medium text-label-secondary mb-1">Refresh Interval</label>
             <IntervalPicker value={rule.intervalS} onChange={v => updateRule(i, { intervalS: v })} />
           </div>
         ))}
 
         {schedule.length === 0 && (
-          <div className="text-center py-4 text-xs text-gray-400 border rounded-lg border-dashed">
+          <div className="text-center py-4 text-xs text-label-tertiary border border-separator rounded-lg border-dashed">
             No schedule rules. Add a template above or the default intervals will be used 24/7.
           </div>
         )}
@@ -340,7 +338,6 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
         title="Delete Profile" message="Delete this refresh profile? Devices using it will fall back to defaults."
         confirmLabel="Delete" destructive />
-      </div>
     </div>
   );
 }

@@ -3,8 +3,6 @@
 /* ════════════════════════════════════════════════════════════════
    Aurora — Apple-HIG design system (global)
    Semantic, adaptive tokens. Light by default; .dark flips them.
-   Legacy admin skin is scoped under .legacy-skin (bottom) during the
-   incremental migration, so un-migrated screens are unaffected.
    ════════════════════════════════════════════════════════════════ */
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -161,87 +159,6 @@ body {
     scroll-behavior: auto !important;
   }
 }
-
-/* ════════════════════════════════════════════════════════════════
-   LEGACY admin skin — scoped under .legacy-skin (applied by the admin
-   layout). Removed screen-by-screen as Aurora migration proceeds.
-   ════════════════════════════════════════════════════════════════ */
-
-.legacy-skin {
-  --bg-primary: #0f1117;
-  --bg-secondary: #161922;
-  --bg-card: #1c1f2e;
-  --bg-card-hover: #232738;
-  --bg-input: #1c1f2e;
-  --border: #2a2d3e;
-  --border-focus: #3b82f6;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --success: #22c55e;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-.legacy-skin .bg-gray-50 { background: var(--bg-primary) !important; }
-.legacy-skin .bg-white { background: var(--bg-card) !important; }
-.legacy-skin .bg-gray-100 { background: var(--bg-secondary) !important; }
-.legacy-skin .bg-gray-900 { background: #0a0c14 !important; }
-.legacy-skin .text-gray-400, .legacy-skin .text-gray-500 { color: var(--text-muted) !important; }
-.legacy-skin .text-gray-600 { color: var(--text-secondary) !important; }
-.legacy-skin .border, .legacy-skin .border-b, .legacy-skin .border-t { border-color: var(--border) !important; }
-.legacy-skin .divide-y > * + * { border-color: var(--border) !important; }
-.legacy-skin .shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px var(--border) !important; }
-.legacy-skin .shadow-lg { box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px var(--border) !important; }
-.legacy-skin .shadow-xl { box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px var(--border) !important; }
-.legacy-skin .rounded-lg { border-radius: 12px; }
-.legacy-skin :is(input, select, textarea) {
-  background: var(--bg-input) !important;
-  border-color: var(--border) !important;
-  color: var(--text-primary) !important;
-  border-radius: 8px !important;
-}
-.legacy-skin :is(input, select, textarea):focus {
-  border-color: var(--border-focus) !important;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
-}
-.legacy-skin :is(input, select, textarea)::placeholder { color: var(--text-muted) !important; }
-.legacy-skin .bg-blue-600 { background: var(--accent) !important; }
-.legacy-skin .bg-blue-600:hover, .legacy-skin .hover\:bg-blue-700:hover { background: var(--accent-hover) !important; }
-.legacy-skin .bg-green-600 { background: var(--success) !important; }
-.legacy-skin .bg-green-600:hover, .legacy-skin .hover\:bg-green-700:hover { background: #16a34a !important; }
-.legacy-skin .bg-red-600 { background: var(--danger) !important; }
-.legacy-skin table { border-collapse: separate; border-spacing: 0; }
-.legacy-skin thead { background: var(--bg-secondary) !important; }
-.legacy-skin th { color: var(--text-secondary) !important; font-weight: 500; letter-spacing: 0.025em; }
-.legacy-skin tbody tr { transition: background 0.15s; }
-.legacy-skin .hover\:bg-gray-50:hover { background: var(--bg-card-hover) !important; }
-.legacy-skin .bg-green-100 { background: rgba(34, 197, 94, 0.15) !important; }
-.legacy-skin .text-green-800 { color: #4ade80 !important; }
-.legacy-skin .bg-yellow-100 { background: rgba(245, 158, 11, 0.15) !important; }
-.legacy-skin .text-yellow-800 { color: #fbbf24 !important; }
-.legacy-skin .bg-red-100 { background: rgba(239, 68, 68, 0.15) !important; }
-.legacy-skin .text-red-800 { color: #f87171 !important; }
-.legacy-skin .bg-blue-100 { background: rgba(59, 130, 246, 0.15) !important; }
-.legacy-skin .text-blue-700 { color: #60a5fa !important; }
-.legacy-skin .bg-blue-50 { background: rgba(59, 130, 246, 0.1) !important; }
-.legacy-skin .bg-gray-100.text-gray-600 { background: rgba(100, 116, 139, 0.15) !important; color: #94a3b8 !important; }
-.legacy-skin .rounded-full { border-color: var(--border) !important; color: var(--text-secondary) !important; }
-.legacy-skin .rounded-full:hover { background: var(--bg-card-hover) !important; }
-.legacy-skin .bg-gray-900.text-white.border-gray-900 { background: var(--accent) !important; border-color: var(--accent) !important; }
-.legacy-skin .bg-black\/50 { background: rgba(0, 0, 0, 0.7) !important; backdrop-filter: blur(4px); }
-.legacy-skin .bg-red-50 { background: rgba(239, 68, 68, 0.08) !important; }
-.legacy-skin .border-red-200 { border-color: rgba(239, 68, 68, 0.3) !important; }
-.legacy-skin .text-red-700 { color: #f87171 !important; }
-.legacy-skin .text-red-600 { color: #f87171 !important; }
-.legacy-skin .text-blue-600 { color: #60a5fa !important; }
-.legacy-skin .text-blue-600:hover { color: #93bbfd !important; }
-.legacy-skin h1 { letter-spacing: -0.025em; }
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--color-fill); border-radius: 4px; }

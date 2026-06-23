@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
-import { Plus, Search, X, Check, Loader2, Plug } from "lucide-react";
+import { Plus, Search, X, Check, Loader2, Plug, Eye, EyeOff } from "lucide-react";
 
 const PROVIDER_TYPES = {
   microsoft365: {
@@ -47,6 +47,9 @@ const PROVIDER_TYPES = {
 
 type ProviderType = keyof typeof PROVIDER_TYPES;
 interface Provider { id: string; type: string; name: string; createdAt: Date; }
+
+const selectCls =
+  "w-full min-h-11 px-3.5 rounded-md bg-surface-secondary border border-separator text-[15px] text-label focus-ring focus:border-accent transition";
 
 export function ProviderList({ providers }: { providers: Provider[] }) {
   const { toast } = useToast();
@@ -169,70 +172,69 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
         )}
       </div>
 
-      {/* Add/edit form + delete confirm — keep the legacy skin until their turn. */}
-      <div className="legacy-skin">
-        <Modal
-          open={!!editing} onSubmit={name ? save : undefined}
-          onClose={() => setEditing(null)}
-          title={editing === "new" ? t("addTitle") : t("editTitle")}
-          footer={
-            <>
-              <LegacyButton variant="ghost" onClick={() => setEditing(null)}>Cancel</LegacyButton>
-              <LegacyButton onClick={save} disabled={!name} pending={pending}>Save</LegacyButton>
-            </>
-          }
-        >
-          {loading && <p className="text-sm text-gray-400 mb-4">Loading credentials...</p>}
+      {/* Add/edit form + delete confirm */}
+      <Modal
+        open={!!editing} onSubmit={name ? save : undefined}
+        onClose={() => setEditing(null)}
+        title={editing === "new" ? t("addTitle") : t("editTitle")}
+        footer={
+          <>
+            <LegacyButton variant="ghost" onClick={() => setEditing(null)}>Cancel</LegacyButton>
+            <LegacyButton onClick={save} disabled={!name} pending={pending}>Save</LegacyButton>
+          </>
+        }
+      >
+        {loading && <p className="text-[13px] text-label-tertiary mb-4">Loading credentials...</p>}
 
-          {editing === "new" && (
-            <>
-              <label className="block text-sm font-medium mb-1">Type</label>
-              <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={type}
-                onChange={(e) => { setType(e.target.value as ProviderType); setCreds({}); }}>
-                {Object.entries(PROVIDER_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </>
-          )}
+        {editing === "new" && (
+          <>
+            <label className="block text-sm font-medium text-label-secondary mb-1">Type</label>
+            <select className={`${selectCls} mb-3`} value={type}
+              onChange={(e) => { setType(e.target.value as ProviderType); setCreds({}); }}>
+              {Object.entries(PROVIDER_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </>
+        )}
 
-          <label className="block text-sm font-medium mb-1">Name</label>
-          <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. My M365 Provider"
-            value={name} onChange={(e) => setName(e.target.value)} />
+        <label className="block text-sm font-medium text-label-secondary mb-1">Name</label>
+        <Input className="mb-3" placeholder="e.g. My M365 Provider"
+          value={name} onChange={(e) => setName(e.target.value)} />
 
-          {PROVIDER_TYPES[type].fields.map((f) => (
-            <div key={f.key} className="mb-3">
-              <label className="block text-sm font-medium mb-1">
-                {f.label}
-                {editing !== "new" && <span className="text-gray-400 font-normal"> (leave blank to keep current)</span>}
-              </label>
-              <div className="relative">
-                {f.key === "privateKey" ? (
-                  <textarea className="w-full border rounded px-3 py-2 text-sm font-mono h-32"
-                    value={creds[f.key] ?? ""}
-                    onChange={(e) => setCreds((c) => ({ ...c, [f.key]: e.target.value }))} />
-                ) : (
-                  <input type={f.secret && !visible[f.key] ? "password" : "text"}
-                    className="w-full border rounded px-3 py-2 text-sm pr-10"
-                    value={creds[f.key] ?? ""}
-                    onChange={(e) => setCreds((c) => ({ ...c, [f.key]: e.target.value }))} />
-                )}
-                {f.secret && f.key !== "privateKey" && (
-                  <button type="button" onClick={() => setVisible((v) => ({ ...v, [f.key]: !v[f.key] }))}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
-                    {visible[f.key] ? "🙈" : "👁"}
-                  </button>
-                )}
-              </div>
+        {PROVIDER_TYPES[type].fields.map((f) => (
+          <div key={f.key} className="mb-3">
+            <label className="block text-sm font-medium text-label-secondary mb-1">
+              {f.label}
+              {editing !== "new" && <span className="text-label-tertiary font-normal"> (leave blank to keep current)</span>}
+            </label>
+            <div className="relative">
+              {f.key === "privateKey" ? (
+                <textarea className="w-full px-3.5 py-2.5 rounded-md bg-surface-secondary border border-separator text-[15px] text-label placeholder:text-label-tertiary font-mono h-32 focus-ring focus:border-accent transition"
+                  value={creds[f.key] ?? ""}
+                  onChange={(e) => setCreds((c) => ({ ...c, [f.key]: e.target.value }))} />
+              ) : (
+                <Input type={f.secret && !visible[f.key] ? "password" : "text"}
+                  className="pr-10"
+                  value={creds[f.key] ?? ""}
+                  onChange={(e) => setCreds((c) => ({ ...c, [f.key]: e.target.value }))} />
+              )}
+              {f.secret && f.key !== "privateKey" && (
+                <button type="button" onClick={() => setVisible((v) => ({ ...v, [f.key]: !v[f.key] }))}
+                  aria-label={visible[f.key] ? "Hide value" : "Show value"}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-label-tertiary hover:text-label focus-ring rounded">
+                  {visible[f.key] ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                </button>
+              )}
             </div>
-          ))}
+          </div>
+        ))}
 
-          {type === "ical" && (
-            <p className="text-xs text-gray-500">iCal providers don&apos;t need credentials. The URL is configured per content instance.</p>
-          )}
-        </Modal>
+        {type === "ical" && (
+          <p className="text-xs text-label-tertiary">iCal providers don&apos;t need credentials. The URL is configured per content instance.</p>
+        )}
+      </Modal>
 
-        <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-          title={t("deleteTitle")} message={t("deleteMsg")} confirmLabel="Delete" destructive />
-      </div>
+      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
+        title={t("deleteTitle")} message={t("deleteMsg")} confirmLabel="Delete" destructive />
     </div>
   );
 }

@@ -8,9 +8,8 @@ import { useToast } from "@/components/toast";
 import { ThemePreview } from "@/components/theme-preview";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
-import { Button as LegacyButton } from "@/components/button";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
+import { Input, Field } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { Plus, Pencil, Trash2, Search, Palette } from "lucide-react";
@@ -113,39 +112,41 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
         )}
       </div>
 
-      {/* Theme editor + delete confirm — keep the legacy skin until their turn. */}
-      <div className="legacy-skin">
-        <Modal
-          open={!!editing} onSubmit={name ? save : undefined}
-          onClose={() => setEditing(null)}
-          title={editing === "new" ? "New Theme" : "Edit Theme"}
-          footer={
-            <>
-              <LegacyButton variant="ghost" onClick={() => setEditing(null)}>Cancel</LegacyButton>
-              <LegacyButton onClick={save} disabled={!name} pending={pending}>Save</LegacyButton>
-            </>
-          }
-        >
-          <label className="block text-sm font-medium mb-1">Name</label>
-          <input className="w-full border rounded px-3 py-2 mb-4 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            {THEME_FIELDS.map((f) => (
-              <label key={f.key} className="flex items-center gap-2 text-sm">
-                <input type="color" value={(config as unknown as Record<string, string>)[f.key] ?? "#000000"}
-                  onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))} className="w-8 h-8 rounded border cursor-pointer" />
-                {f.label}
-              </label>
-            ))}
-          </div>
-          <div className="mt-4">
-            <label className="block text-sm font-medium mb-2">Preview</label>
-            <ThemePreview theme={config} />
-          </div>
-        </Modal>
+      {/* Theme editor + delete confirm */}
+      <Modal
+        open={!!editing} onSubmit={name ? save : undefined}
+        onClose={() => setEditing(null)}
+        title={editing === "new" ? "New Theme" : "Edit Theme"}
+        footer={
+          <>
+            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
+          </>
+        }
+      >
+        <div className="mb-4">
+          <Field label="Name" htmlFor="theme-name">
+            <Input id="theme-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {THEME_FIELDS.map((f) => (
+            <label key={f.key} className="flex items-center gap-2.5 rounded-md bg-surface-secondary border border-separator px-3 py-2 text-[13px] text-label">
+              <input type="color" value={(config as unknown as Record<string, string>)[f.key] ?? "#000000"}
+                onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
+                className="size-8 shrink-0 rounded-md border border-separator bg-surface-secondary cursor-pointer focus-ring" />
+              {f.label}
+            </label>
+          ))}
+        </div>
+        <div className="mt-4">
+          <span className="block text-sm font-medium text-label mb-2">Preview</span>
+          <ThemePreview theme={config} />
+        </div>
+      </Modal>
 
-        <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-          title="Delete Theme" message="Delete this theme? Devices using it will fall back to the default." confirmLabel="Delete" destructive />
-      </div>
+      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
+        title="Delete Theme" message="Delete this theme? Devices using it will fall back to the default." confirmLabel="Delete" destructive />
     </div>
   );
 }

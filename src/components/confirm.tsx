@@ -3,6 +3,7 @@
 "use client";
 
 import { Modal } from "./modal";
+import { Button } from "@/components/ui/button";
 
 interface ConfirmProps {
   open: boolean;
@@ -26,22 +27,21 @@ export function ConfirmDialog({
       title={title}
       footer={
         <>
-          <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
+          <Button variant="plain" size="sm" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={destructive ? "destructive" : "filled"}
+            size="sm"
             onClick={onConfirm}
             disabled={pending}
-            className={`px-4 py-2 text-sm text-white rounded disabled:opacity-50 ${
-              destructive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
-            }`}
           >
             {pending ? (confirmLabel + "...") : confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
-      <p className="text-sm text-gray-600">{message}</p>
+      <p className="text-sm text-label-secondary">{message}</p>
     </Modal>
   );
 }

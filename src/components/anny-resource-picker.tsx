@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Pencil } from "lucide-react";
 
 interface Resource { id: string; name: string; description?: string }
 
@@ -63,12 +64,12 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
     <div ref={containerRef} className="relative">
       {resourceId && !open ? (
         <button type="button" onClick={() => { setOpen(true); fetchResources(""); }}
-          className="w-full border rounded px-3 py-2 text-sm text-left bg-white hover:bg-gray-50 flex justify-between items-center">
-          <span>{selectedName || resourceId}</span>
-          <span className="text-gray-400 text-xs">Change</span>
+          className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex justify-between items-center gap-2">
+          <span className="truncate">{selectedName || resourceId}</span>
+          <span className="text-label-tertiary text-xs shrink-0 inline-flex items-center gap-1"><Pencil size={13} aria-hidden="true" />Change</span>
         </button>
       ) : (
-        <input className="w-full border rounded px-3 py-2 text-sm"
+        <input className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label placeholder:text-label-tertiary focus-ring"
           placeholder="Search rooms..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
@@ -76,16 +77,16 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
           aria-label="Search rooms" />
       )}
       {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto">
-          {loading && <div className="px-3 py-2 text-sm text-gray-400">Loading...</div>}
+        <div className="absolute z-50 w-full mt-1 bg-surface border border-separator rounded-lg shadow-e3 max-h-64 overflow-y-auto">
+          {loading && <div className="px-3 py-2 text-sm text-label-tertiary">Loading...</div>}
           {!loading && results.length === 0 && (
-            <div className="px-3 py-2 text-sm text-gray-400">{search ? "No rooms found" : "No resources"}</div>
+            <div className="px-3 py-2 text-sm text-label-tertiary">{search ? "No rooms found" : "No resources"}</div>
           )}
           {results.map((r) => (
             <button key={r.id} type="button" onClick={() => select(r)}
-              className={`w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b last:border-0 ${r.id === resourceId ? "bg-blue-50 font-medium" : ""}`}>
-              <div className="font-medium">{r.name}</div>
-              {r.description && <div className="text-xs text-gray-400 truncate">{r.description}</div>}
+              className={`w-full text-left px-3 py-2 hover:bg-surface-secondary focus-ring text-sm border-b border-separator last:border-0 ${r.id === resourceId ? "bg-accent-soft font-medium" : ""}`}>
+              <div className="font-medium text-label">{r.name}</div>
+              {r.description && <div className="text-xs text-label-tertiary truncate">{r.description}</div>}
             </button>
           ))}
         </div>

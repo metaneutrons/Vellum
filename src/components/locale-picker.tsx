@@ -22,9 +22,9 @@ interface LocalePickerProps {
 export function LocalePicker({ value, onChange, label, className }: LocalePickerProps) {
   return (
     <div className={className}>
-      {label && <label className="block text-sm font-medium mb-1">{label}</label>}
+      {label && <label className="block text-sm font-medium text-label mb-1.5">{label}</label>}
       <select
-        className="w-full border rounded px-3 py-2 text-sm"
+        className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label focus-ring"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
