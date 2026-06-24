@@ -13,14 +13,19 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-# Dummy env vars for build (validated at runtime)
-ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
-ENV ENCRYPTION_KEY=build-time-placeholder-at-least-32-chars
-ENV SESSION_SECRET=build-time-placeholder-at-least-32-chars
-ENV ADMIN_API_KEY=build-time-placeholder-at-least-32-chars
-ENV ADMIN_USER=build
-ENV ADMIN_PASS=build-placeholder
-RUN npm run build
+# Placeholder env for the build step ONLY. These are passed inline to the build
+# command (not as persistent `ENV` layers) so secret-named throwaway values never
+# land in image metadata — silencing BuildKit's SecretsUsedInArgOrEnv warning.
+# All of these are server-only (never inlined into the client bundle); `next build`
+# merely needs them present to pass env validation. Real values are injected at
+# runtime via the container environment.
+RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
+    ENCRYPTION_KEY=build-time-placeholder-at-least-32-chars \
+    SESSION_SECRET=build-time-placeholder-at-least-32-chars \
+    ADMIN_API_KEY=build-time-placeholder-at-least-32-chars \
+    ADMIN_USER=build \
+    ADMIN_PASS=build-placeholder \
+    npm run build
 
 # Production image
 FROM base AS runner
