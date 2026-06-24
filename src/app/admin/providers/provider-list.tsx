@@ -7,11 +7,12 @@ import { createProvider, updateProvider, deleteProvider, getProviderCredentials,
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
-import { Button } from "@/components/button";
-import { SearchInput } from "@/components/search-input";
 import { useTranslations } from "next-intl";
-import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/misc";
+import { Plus, Search, X, Check, Loader2, Plug, Eye, EyeOff } from "lucide-react";
 
 const PROVIDER_TYPES = {
   microsoft365: {
@@ -45,6 +46,9 @@ const PROVIDER_TYPES = {
 
 type ProviderType = keyof typeof PROVIDER_TYPES;
 interface Provider { id: string; type: string; name: string; createdAt: Date; }
+
+const selectCls =
+  "w-full min-h-11 px-3.5 rounded-md bg-surface-secondary border border-separator text-[15px] text-label focus-ring focus:border-accent transition";
 
 export function ProviderList({ providers }: { providers: Provider[] }) {
   const { toast } = useToast();
@@ -102,86 +106,121 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
   }
 
   return (
-    <div>
-      <PageHeader title={t("title")} description="Connect calendar and data sources" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search providers..." /><Button onClick={startNew}>{t("add")}</Button></div>} />
+    <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
+      {/* Header */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">Connect calendar and data sources</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search providers..." className="pl-9 pr-9" aria-label="Search providers..." />
+          {search && (
+            <button onClick={() => setSearch("")} aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-label-tertiary hover:text-label focus-ring rounded">
+              <X size={15} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>{t("add")}</Button>
+      </div>
 
-      <div className="bg-white rounded-lg shadow divide-y">
+      <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
         {filteredProviders.map((p) => (
-          <div key={p.id} className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{p.name}</span>
-              <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+          <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <span className="font-medium text-label truncate">{p.name}</span>
+              <StatusPill tone="accent">
                 {PROVIDER_TYPES[p.type as ProviderType]?.category ?? "data"}
-              </span>
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{p.type}</span>
+              </StatusPill>
+              <StatusPill tone="neutral">{p.type}</StatusPill>
             </div>
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center shrink-0">
               {(() => {
                 const r = testResults[p.id];
-                if (r === "loading") return <span className="text-xs text-gray-400 animate-pulse">Testing…</span>;
-                if (r && r.ok) return <span className="text-xs text-green-600">✓ {r.message}</span>;
-                if (r && !r.ok) return <span className="text-xs text-red-600 max-w-48 truncate" title={r.message}>✗ {r.message}</span>;
+                if (r === "loading") return (
+                  <span className="inline-flex items-center gap-1 text-xs text-label-tertiary">
+                    <Loader2 size={13} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Testing…
+                  </span>
+                );
+                if (r && r.ok) return (
+                  <span className="inline-flex items-center gap-1 text-xs text-green">
+                    <Check size={13} aria-hidden="true" />{r.message}
+                  </span>
+                );
+                if (r && !r.ok) return (
+                  <span className="inline-flex items-center gap-1 text-xs text-red max-w-48 truncate" title={r.message}>
+                    <X size={13} aria-hidden="true" />{r.message}
+                  </span>
+                );
                 return null;
               })()}
-              <Button size="sm" variant="ghost" onClick={() => testProvider(p.id)}>{t("test")}</Button>
-              <Button size="sm" variant="ghost" onClick={() => startEdit(p)}>{t("edit")}</Button>
-              <Button size="sm" variant="danger" onClick={() => setDeleting(p.id)}>Delete</Button>
+              <Button size="sm" variant="plain" onClick={() => testProvider(p.id)}>{t("test")}</Button>
+              <Button size="sm" variant="plain" onClick={() => startEdit(p)}>{t("edit")}</Button>
+              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(p.id)}>Delete</Button>
             </div>
           </div>
         ))}
         {filteredProviders.length === 0 && (
-          <EmptyState icon={providers.length === 0 ? "⚡" : "🔍"} title={providers.length === 0 ? "No data providers" : "No providers match your search"} description={providers.length === 0 ? "Add a provider to connect calendar or other data sources." : undefined} />
+          <EmptyState
+            icon={providers.length === 0 ? <Plug size={24} aria-hidden="true" /> : <Search size={24} aria-hidden="true" />}
+            title={providers.length === 0 ? "No data providers" : "No providers match your search"}
+            description={providers.length === 0 ? "Add a provider to connect calendar or other data sources." : undefined}
+          />
         )}
       </div>
 
+      {/* Add/edit form + delete confirm */}
       <Modal
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
         title={editing === "new" ? t("addTitle") : t("editTitle")}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={!name} pending={pending}>Save</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
           </>
         }
       >
-        {loading && <p className="text-sm text-gray-400 mb-4">Loading credentials...</p>}
+        {loading && <p className="text-[13px] text-label-tertiary mb-4">Loading credentials...</p>}
 
         {editing === "new" && (
           <>
-            <label className="block text-sm font-medium mb-1">Type</label>
-            <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={type}
+            <label className="block text-sm font-medium text-label-secondary mb-1">Type</label>
+            <select className={`${selectCls} mb-3`} value={type}
               onChange={(e) => { setType(e.target.value as ProviderType); setCreds({}); }}>
               {Object.entries(PROVIDER_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
           </>
         )}
 
-        <label className="block text-sm font-medium mb-1">Name</label>
-        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. My M365 Provider"
+        <label className="block text-sm font-medium text-label-secondary mb-1">Name</label>
+        <Input className="mb-3" placeholder="e.g. My M365 Provider"
           value={name} onChange={(e) => setName(e.target.value)} />
 
         {PROVIDER_TYPES[type].fields.map((f) => (
           <div key={f.key} className="mb-3">
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium text-label-secondary mb-1">
               {f.label}
-              {editing !== "new" && <span className="text-gray-400 font-normal"> (leave blank to keep current)</span>}
+              {editing !== "new" && <span className="text-label-tertiary font-normal"> (leave blank to keep current)</span>}
             </label>
             <div className="relative">
               {f.key === "privateKey" ? (
-                <textarea className="w-full border rounded px-3 py-2 text-sm font-mono h-32"
+                <textarea className="w-full px-3.5 py-2.5 rounded-md bg-surface-secondary border border-separator text-[15px] text-label placeholder:text-label-tertiary font-mono h-32 focus-ring focus:border-accent transition"
                   value={creds[f.key] ?? ""}
                   onChange={(e) => setCreds((c) => ({ ...c, [f.key]: e.target.value }))} />
               ) : (
-                <input type={f.secret && !visible[f.key] ? "password" : "text"}
-                  className="w-full border rounded px-3 py-2 text-sm pr-10"
+                <Input type={f.secret && !visible[f.key] ? "password" : "text"}
+                  className="pr-10"
                   value={creds[f.key] ?? ""}
                   onChange={(e) => setCreds((c) => ({ ...c, [f.key]: e.target.value }))} />
               )}
               {f.secret && f.key !== "privateKey" && (
                 <button type="button" onClick={() => setVisible((v) => ({ ...v, [f.key]: !v[f.key] }))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
-                  {visible[f.key] ? "🙈" : "👁"}
+                  aria-label={visible[f.key] ? "Hide value" : "Show value"}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-label-tertiary hover:text-label focus-ring rounded">
+                  {visible[f.key] ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
                 </button>
               )}
             </div>
@@ -189,7 +228,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
         ))}
 
         {type === "ical" && (
-          <p className="text-xs text-gray-500">iCal providers don&apos;t need credentials. The URL is configured per content instance.</p>
+          <p className="text-xs text-label-tertiary">iCal providers don&apos;t need credentials. The URL is configured per content instance.</p>
         )}
       </Modal>
 

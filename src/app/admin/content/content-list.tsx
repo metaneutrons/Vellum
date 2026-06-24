@@ -10,10 +10,11 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { LocalePicker } from "@/components/locale-picker";
 import { TimezonePicker } from "@/components/timezone-picker";
-import { Button } from "@/components/button";
-import { SearchInput } from "@/components/search-input";
-import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/misc";
+import { Plus, Search, FileText, Check, X } from "lucide-react";
 
 interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
 interface ContentType { slug: string; name: string; description?: string | null; }
@@ -26,6 +27,9 @@ import { DoorSignMultiEditor } from "@/components/door-sign-multi-editor";
 import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
 import { doorSignMultiConfigSchema } from "@/lib/content/renderers/door-sign-multi-types";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
+
+const selectCls =
+  "w-full min-h-9 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
 
 function DoorSignMultiConfigEditor({ config, onChange, providers, knownDisplays }: {
@@ -58,8 +62,8 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
   return (
     <>
-      <label className="block text-sm font-medium mb-1">{t("provider")}</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
+      <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
         <option value="">— select —</option>
         {providers.filter(p => p.type === "anny").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -67,7 +71,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
       {config.providerId && (
         <>
-          <label className="block text-sm font-medium mb-1">{td("resource")}</label>
+          <label className="block text-sm font-medium text-label-secondary mb-1">{td("resource")}</label>
           <div className="mb-3">
             <AnnyResourcePicker
               providerId={config.providerId as string}
@@ -91,36 +95,36 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
       </div>
 
       {/* Custom Properties — manual key-value pairs for template variables */}
-      <div className="border-t pt-3 mt-3">
-        <label className="block text-sm font-semibold mb-1">{td("customProperties")}</label>
-        <p className="text-xs text-gray-500 mb-2">{td("customPropertiesHint")}</p>
+      <div className="border-t border-separator pt-3 mt-3">
+        <label className="block text-sm font-semibold text-label mb-1">{td("customProperties")}</label>
+        <p className="text-xs text-label-tertiary mb-2">{td("customPropertiesHint")}</p>
         {Object.entries((config.cachedProperties as Record<string, string>) ?? {}).map(([key, val]) => (
           <div key={key} className="flex gap-2 mb-1">
-            <input className="flex-1 border rounded px-2 py-1 text-sm" value={key} readOnly />
-            <input className="flex-1 border rounded px-2 py-1 text-sm" value={val}
+            <Input className="flex-1 min-h-9 text-[13px]" value={key} readOnly />
+            <Input className="flex-1 min-h-9 text-[13px]" value={val}
               onChange={(e) => onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [key]: e.target.value } })} />
-            <button className="text-red-500 text-sm px-1" onClick={() => {
+            <Button size="sm" variant="plain" className="text-red px-2" aria-label="Remove property" onClick={() => {
               const { [key]: _, ...rest } = (config.cachedProperties as Record<string, string>) ?? {};
               onChange({ ...config, cachedProperties: rest });
-            }}>×</button>
+            }}><X size={16} aria-hidden="true" /></Button>
           </div>
         ))}
         <div className="flex gap-2 mt-1">
-          <input id="newPropKey" className="flex-1 border rounded px-2 py-1 text-sm" placeholder="prop.Raumnummer" />
-          <input id="newPropVal" className="flex-1 border rounded px-2 py-1 text-sm" placeholder="1J.2.02" />
-          <button className="text-blue-600 text-sm font-medium px-2" onClick={() => {
+          <Input id="newPropKey" className="flex-1 min-h-9 text-[13px]" placeholder="prop.Raumnummer" />
+          <Input id="newPropVal" className="flex-1 min-h-9 text-[13px]" placeholder="1J.2.02" />
+          <Button size="sm" variant="plain" leading={<Plus size={16} aria-hidden="true" />} onClick={() => {
             const keyEl = document.getElementById("newPropKey") as HTMLInputElement;
             const valEl = document.getElementById("newPropVal") as HTMLInputElement;
             if (keyEl.value && valEl.value) {
               onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [keyEl.value]: valEl.value } });
               keyEl.value = ""; valEl.value = "";
             }
-          }}>+ Add</button>
+          }}>Add</Button>
         </div>
       </div>
 
-      <div className="border-t pt-3 mt-3">
-        <label className="block text-sm font-semibold mb-2">{td("visualLayout")}</label>
+      <div className="border-t border-separator pt-3 mt-3">
+        <label className="block text-sm font-semibold text-label mb-2">{td("visualLayout")}</label>
         <DoorSignEditor
           design={design}
           designOverrides={designOverrides}
@@ -153,18 +157,18 @@ function RoomBookingEditor({ config, onChange, providers }: {
 
   return (
     <>
-      <label className="block text-sm font-medium mb-1">{t("provider")}</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
+      <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
         <option value="">— select —</option>
         {providers.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
       </select>
 
-      <label className="block text-sm font-medium mb-1">Room Display Name</label>
-      <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. Besprechungsraum EG"
+      <label className="block text-sm font-medium text-label-secondary mb-1">Room Display Name</label>
+      <Input className="mb-3" placeholder="e.g. Besprechungsraum EG"
         value={(config.roomName as string) ?? ""} onChange={(e) => onChange({ ...config, roomName: e.target.value })} />
 
-      <label className="block text-sm font-medium mb-1">{fieldConfig?.label ?? ""}</label>
+      <label className="block text-sm font-medium text-label-secondary mb-1">{fieldConfig?.label ?? ""}</label>
       {isAnny && config.providerId ? (
         <div className="mb-3">
           <AnnyResourcePicker
@@ -179,7 +183,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
           />
         </div>
       ) : fieldConfig ? (
-        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder={fieldConfig.placeholder}
+        <Input className="mb-3" placeholder={fieldConfig.placeholder}
           value={roomConfig[fieldConfig.key] ?? ""}
           onChange={(e) => onChange({ ...config, roomConfig: { [fieldConfig.key]: e.target.value } })} />
       ) : <div className="mb-3" /> }
@@ -190,8 +194,8 @@ function RoomBookingEditor({ config, onChange, providers }: {
       <LocalePicker label="Display Language" className="mb-3" value={(config.locale as string) ?? "en"}
         onChange={(v) => onChange({ ...config, locale: v })} />
 
-      <label className="block text-sm font-medium mb-1">Date Format</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.dateFormat as string) ?? "PPPP"}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Date Format</label>
+      <select className={`${selectCls} mb-3`} value={(config.dateFormat as string) ?? "PPPP"}
         onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}>
         <option value="PPPP">Sonntag, 3. Mai 2026</option>
         <option value="PPP">3. Mai 2026</option>
@@ -199,21 +203,21 @@ function RoomBookingEditor({ config, onChange, providers }: {
         <option value="P">03.05.26</option>
       </select>
 
-      <label className="block text-sm font-medium mb-1">Layout</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.layout as string) ?? "timeline"}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Layout</label>
+      <select className={`${selectCls} mb-3`} value={(config.layout as string) ?? "timeline"}
         onChange={(e) => onChange({ ...config, layout: e.target.value })}>
         <option value="timeline">Zeitleiste (Timeline)</option>
         <option value="stacked">Gestapelt (Stacked)</option>
       </select>
 
-      <label className="block text-sm font-medium mb-1">Privacy Policy</label>
-      <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Privacy Policy</label>
+      <select className={`${selectCls} mb-3`} value={(config.policy as string) ?? "Show All"}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>
         {ROOM_POLICIES.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
 
-      <label className="block text-sm font-medium mb-1">Cache TTL (seconds)</label>
-      <input type="number" className="w-full border rounded px-3 py-2 mb-3 text-sm" min={0} step={30}
+      <label className="block text-sm font-medium text-label-secondary mb-1">Cache TTL (seconds)</label>
+      <Input type="number" className="mb-3" min={0} step={30}
         placeholder="120"
         value={(config.cacheTtlS as number) ?? 120}
         onChange={(e) => onChange({ ...config, cacheTtlS: parseInt(e.target.value) || 120 })} />
@@ -277,35 +281,48 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
   }
 
   return (
-    <div>
-      <PageHeader title="Content Instances" description="Configure what each display shows" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search content..." /><Button onClick={startNew}>New Content</Button></div>} />
+    <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
+      {/* Header */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">Content Instances</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">Configure what each display shows</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search content..." className="pl-9" aria-label="Search content" />
+        </div>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Content</Button>
+      </div>
 
-      <div className="bg-white rounded-lg shadow divide-y">
+      <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
         {filteredInstances.map((inst) => (
-          <div key={inst.id} className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{inst.name}</span>
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                {tc(inst.typeSlug as string)}
-              </span>
+          <div key={inst.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-medium text-label truncate">{inst.name}</span>
+              <StatusPill tone="neutral">{tc(inst.typeSlug as string)}</StatusPill>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {(() => {
                 const r = testResults[inst.id];
-                if (r === "loading") return <span className="text-xs text-gray-400 animate-pulse">Testing…</span>;
-                if (r && r.ok) return <span className="text-xs text-green-600">✓ {r.message}</span>;
-                if (r && !r.ok) return <span className="text-xs text-red-600 max-w-48 truncate" title={r.message}>✗ {r.message}</span>;
+                if (r === "loading") return <span className="text-xs text-label-tertiary animate-pulse">Testing…</span>;
+                if (r && r.ok) return <span className="inline-flex items-center gap-1 text-xs text-green"><Check size={13} aria-hidden="true" />{r.message}</span>;
+                if (r && !r.ok) return <span className="inline-flex items-center gap-1 text-xs text-red max-w-48 truncate" title={r.message}><X size={13} aria-hidden="true" className="shrink-0" />{r.message}</span>;
                 return null;
               })()}
-              <Button size="sm" variant="ghost" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</Button>
-              <Button size="sm" variant="ghost" onClick={() => setPreviewing(inst.id)}>Preview</Button>
-              <Button size="sm" variant="ghost" onClick={() => startEdit(inst)}>Edit</Button>
-              <Button size="sm" variant="danger" onClick={() => setDeleting(inst.id)}>Delete</Button>
+              <Button size="sm" variant="plain" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</Button>
+              <Button size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>Preview</Button>
+              <Button size="sm" variant="gray" onClick={() => startEdit(inst)}>Edit</Button>
+              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(inst.id)}>Delete</Button>
             </div>
           </div>
         ))}
         {filteredInstances.length === 0 && (
-          <EmptyState icon={instances.length === 0 ? "▤" : "🔍"} title={instances.length === 0 ? "No content instances" : "No content matches your search"} description={instances.length === 0 ? "Create one and assign it to a device to display content." : undefined} />
+          <EmptyState
+            icon={instances.length === 0 ? <FileText size={24} aria-hidden="true" /> : <Search size={24} aria-hidden="true" />}
+            title={instances.length === 0 ? "No content instances" : "No content matches your search"}
+            description={instances.length === 0 ? "Create one and assign it to a device to display content." : undefined}
+          />
         )}
       </div>
 
@@ -316,23 +333,23 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         wide={typeSlug === "door-sign" || typeSlug === "door-sign-multi"}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={!name} pending={pending}>Save</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
           </>
         }
       >
         {editing === "new" && (
           <>
-            <label className="block text-sm font-medium mb-1">Content Type</label>
-            <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={typeSlug}
+            <label className="block text-sm font-medium text-label-secondary mb-1">Content Type</label>
+            <select className={`${selectCls} mb-3`} value={typeSlug}
               onChange={(e) => setTypeSlug(e.target.value)}>
               {types.map((t) => <option key={t.slug} value={t.slug}>{tc(t.slug as string)}</option>)}
             </select>
           </>
         )}
 
-        <label className="block text-sm font-medium mb-1">Name</label>
-        <input className="w-full border rounded px-3 py-2 mb-3 text-sm" placeholder="e.g. Besprechungsraum EG"
+        <label className="block text-sm font-medium text-label-secondary mb-1">Name</label>
+        <Input className="mb-3" placeholder="e.g. Besprechungsraum EG"
           value={name} onChange={(e) => setName(e.target.value)} />
 
         {typeSlug === "room-booking" && (
@@ -354,7 +371,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
           <img
             src={`/api/v1/admin/preview?instanceId=${previewing}&t=${Date.now()}`}
             alt="Content preview"
-            className="w-full rounded border"
+            className="w-full rounded-md border border-separator"
           />
         )}
       </Modal>

@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/modal";
+import { TrendingDown } from "lucide-react";
 
 interface DataPoint { voltage: number | null; level: number | null; timestamp: string; }
 
@@ -15,6 +16,9 @@ interface Props {
 
 type Metric = "voltage" | "level";
 type TimeRange = "7" | "14" | "30" | "90";
+
+const selectCls =
+  "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
 export function BatteryChartModal({ mac, open, onClose }: Props) {
   const [data, setData] = useState<DataPoint[]>([]);
@@ -81,47 +85,47 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
   const title = metric === "voltage" ? "Spannung" : "Kapazität";
 
   return (
-    <Modal open={open} onClose={onClose} title={`🔋 ${title} — ${mac}`} wide>
+    <Modal open={open} onClose={onClose} title={`${title} — ${mac}`} wide>
       <div className="flex items-center gap-3 mb-4">
         <select value={metric} onChange={e => setMetric(e.target.value as Metric)}
-          className="border rounded px-2 py-1 text-sm">
+          className={selectCls}>
           <option value="voltage">Spannung (V)</option>
           <option value="level">Kapazität (%)</option>
         </select>
         <select value={range} onChange={e => setRange(e.target.value as TimeRange)}
-          className="border rounded px-2 py-1 text-sm">
+          className={selectCls}>
           <option value="7">7 Tage</option>
           <option value="14">14 Tage</option>
           <option value="30">30 Tage</option>
           <option value="90">90 Tage</option>
         </select>
-        <span className="text-xs text-gray-500">{points.length} Datenpunkte</span>
+        <span className="text-xs text-label-secondary">{points.length} Datenpunkte</span>
       </div>
 
       {loading ? (
-        <div className="h-52 flex items-center justify-center text-gray-400">Laden...</div>
+        <div className="h-52 flex items-center justify-center text-label-tertiary">Laden...</div>
       ) : points.length === 0 ? (
-        <div className="h-52 flex items-center justify-center text-gray-400">Keine Daten</div>
+        <div className="h-52 flex items-center justify-center text-label-tertiary">Keine Daten</div>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full border rounded bg-white dark:bg-gray-950">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full border border-separator rounded bg-surface">
           {/* Grid lines */}
           {yLabels.map((v, i) => (
             <g key={i}>
-              <line x1={PAD} y1={toY(v)} x2={W - PAD} y2={toY(v)} stroke="#e5e7eb" strokeWidth="0.5" />
-              <text x={PAD - 4} y={toY(v) + 3} textAnchor="end" fontSize="9" fill="#9ca3af">
+              <line x1={PAD} y1={toY(v)} x2={W - PAD} y2={toY(v)} stroke="var(--color-separator)" strokeWidth="0.5" />
+              <text x={PAD - 4} y={toY(v) + 3} textAnchor="end" fontSize="9" fill="var(--color-label-tertiary)">
                 {metric === "voltage" ? v.toFixed(1) : Math.round(v)}{unit}
               </text>
             </g>
           ))}
           {/* X-axis labels */}
           {xLabels.map((x, i) => (
-            <text key={i} x={toX(x.t)} y={H - 5} textAnchor="middle" fontSize="9" fill="#9ca3af">{x.label}</text>
+            <text key={i} x={toX(x.t)} y={H - 5} textAnchor="middle" fontSize="9" fill="var(--color-label-tertiary)">{x.label}</text>
           ))}
           {/* Data line */}
-          <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d={pathD} fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinejoin="round" />
           {/* Current value */}
           {points.length > 0 && (
-            <circle cx={toX(points[points.length - 1].t)} cy={toY(points[points.length - 1].v)} r="3" fill="#3b82f6" />
+            <circle cx={toX(points[points.length - 1].t)} cy={toY(points[points.length - 1].v)} r="3" fill="var(--color-accent)" />
           )}
         </svg>
       )}
@@ -143,8 +147,9 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
           const daysLeft = Math.round((stepsToEmpty * avgInterval) / 86400000);
           if (daysLeft > 0 && daysLeft < 365) {
             return (
-              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-950 rounded text-sm">
-                📊 Prognose: ~<strong>{daysLeft} Tage</strong> verbleibend (bei aktuellem Verbrauch)
+              <div className="mt-3 p-2 bg-accent-soft text-label rounded text-sm flex items-center gap-2">
+                <TrendingDown size={16} aria-hidden="true" className="text-accent shrink-0" />
+                <span>Prognose: ~<strong>{daysLeft} Tage</strong> verbleibend (bei aktuellem Verbrauch)</span>
               </div>
             );
           }

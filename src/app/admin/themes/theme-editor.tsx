@@ -8,10 +8,11 @@ import { useToast } from "@/components/toast";
 import { ThemePreview } from "@/components/theme-preview";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
-import { Button } from "@/components/button";
-import { SearchInput } from "@/components/search-input";
-import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Input, Field } from "@/components/ui/field";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/misc";
+import { Plus, Pencil, Trash2, Search, Palette } from "lucide-react";
 import type { Theme } from "@/lib/theme";
 
 const THEME_FIELDS: { key: keyof Theme; label: string }[] = [
@@ -70,56 +71,76 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
   }
 
   return (
-    <div>
-      <PageHeader title="Themes" description="Customize display appearance" actions={<div className="flex gap-3"><SearchInput value={search} onChange={setSearch} placeholder="Search themes..." /><Button onClick={startNew}>New Theme</Button></div>} />
+    <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
+      {/* Header */}
+      <div className="flex flex-wrap items-end gap-4 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">Themes</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">Customize display appearance</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search themes..." className="pl-9" aria-label="Search themes" />
+        </div>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Theme</Button>
+      </div>
 
-      <div className="bg-white rounded-lg shadow divide-y">
+      <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 divide-y divide-separator overflow-hidden">
         {filteredThemes.map((t) => (
-          <div key={t.id} className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3">
-              <span className="font-medium">{t.name}</span>
-              {t.isDefault && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">default</span>}
+          <div key={t.id} className="flex items-center justify-between px-4 py-3 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="font-medium text-label truncate">{t.name}</span>
+              {t.isDefault && <StatusPill tone="accent">default</StatusPill>}
               <div className="flex gap-1">
                 {Object.values(t.config as Record<string, string>)
                   .filter((v) => typeof v === "string" && v.startsWith("#")).slice(0, 6)
-                  .map((color, i) => <div key={i} className="w-4 h-4 rounded border border-gray-300" style={{ backgroundColor: color }} />)}
+                  .map((color, i) => <div key={i} className="size-4 rounded border border-separator" style={{ backgroundColor: color }} />)}
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={() => startEdit(t)}>Edit</Button>
-              <Button size="sm" variant="danger" onClick={() => setDeleting(t.id)}>Delete</Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button size="sm" variant="plain" onClick={() => startEdit(t)} leading={<Pencil size={16} aria-hidden="true" />}>Edit</Button>
+              <Button size="sm" variant="plain" aria-label="Delete" onClick={() => setDeleting(t.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
             </div>
           </div>
         ))}
         {filteredThemes.length === 0 && (
-          <EmptyState icon={themes.length === 0 ? "◑" : "🔍"} title={themes.length === 0 ? "No themes yet" : "No themes match your search"} description={themes.length === 0 ? "Create a theme to customize the display appearance." : undefined} />
+          <EmptyState
+            icon={<Palette size={24} aria-hidden="true" />}
+            title={themes.length === 0 ? "No themes yet" : "No themes match your search"}
+            description={themes.length === 0 ? "Create a theme to customize the display appearance." : undefined}
+          />
         )}
       </div>
 
+      {/* Theme editor + delete confirm */}
       <Modal
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
         title={editing === "new" ? "New Theme" : "Edit Theme"}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={!name} pending={pending}>Save</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
           </>
         }
       >
-        <label className="block text-sm font-medium mb-1">Name</label>
-        <input className="w-full border rounded px-3 py-2 mb-4 text-sm" value={name} onChange={(e) => setName(e.target.value)} />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="mb-4">
+          <Field label="Name" htmlFor="theme-name">
+            <Input id="theme-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
           {THEME_FIELDS.map((f) => (
-            <label key={f.key} className="flex items-center gap-2 text-sm">
+            <label key={f.key} className="flex items-center gap-2.5 rounded-md bg-surface-secondary border border-separator px-3 py-2 text-[13px] text-label">
               <input type="color" value={(config as unknown as Record<string, string>)[f.key] ?? "#000000"}
-                onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))} className="w-8 h-8 rounded border cursor-pointer" />
+                onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
+                className="size-8 shrink-0 rounded-md border border-separator bg-surface-secondary cursor-pointer focus-ring" />
               {f.label}
             </label>
           ))}
         </div>
         <div className="mt-4">
-          <label className="block text-sm font-medium mb-2">Preview</label>
+          <span className="block text-sm font-medium text-label mb-2">Preview</span>
           <ThemePreview theme={config} />
         </div>
       </Modal>

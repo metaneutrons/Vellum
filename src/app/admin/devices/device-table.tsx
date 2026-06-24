@@ -248,30 +248,28 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
         </div>
       )}
 
-      {/* Modals not yet migrated — keep the legacy skin until their turn. */}
-      <div className="legacy-skin">
-        {deleting && (
-          <ConfirmDialog
-            open={!!deleting}
-            title={t("deleteConfirm")}
-            message={t("deleteMessage", { mac: deleting ?? "" })}
-            confirmLabel="Delete"
-            destructive
-            onConfirm={() => { const mac = deleting; if (mac) act(() => deleteDevice(mac), t("deleted"), t("failed")); setDeleting(null); }}
-            onClose={() => setDeleting(null)}
-          />
-        )}
-        {editingContent && (
-          <ContentEditModal
-            instanceId={editingContent}
-            contentInstances={contentInstances}
-            providers={providers}
-            knownDisplays={knownDisplays}
-            onClose={() => setEditingContent(null)}
-          />
-        )}
-        <BatteryChartModal mac={batteryMac ?? ""} open={!!batteryMac} onClose={() => setBatteryMac(null)} />
-      </div>
+      {/* Modals — now self-styled in Aurora. */}
+      {deleting && (
+        <ConfirmDialog
+          open={!!deleting}
+          title={t("deleteConfirm")}
+          message={t("deleteMessage", { mac: deleting ?? "" })}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={() => { const mac = deleting; if (mac) act(() => deleteDevice(mac), t("deleted"), t("failed")); setDeleting(null); }}
+          onClose={() => setDeleting(null)}
+        />
+      )}
+      {editingContent && (
+        <ContentEditModal
+          instanceId={editingContent}
+          contentInstances={contentInstances}
+          providers={providers}
+          knownDisplays={knownDisplays}
+          onClose={() => setEditingContent(null)}
+        />
+      )}
+      <BatteryChartModal mac={batteryMac ?? ""} open={!!batteryMac} onClose={() => setBatteryMac(null)} />
     </div>
   );
 }

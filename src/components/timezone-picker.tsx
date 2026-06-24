@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import { ChevronsUpDown } from "lucide-react";
 
 /** All IANA timezones from the runtime */
 const ALL_TIMEZONES = Intl.supportedValuesOf("timeZone");
@@ -41,21 +42,22 @@ export function TimezonePicker({ value, onChange, label, className }: TimezonePi
   }, []);
 
   return (
-    <div className={className} ref={containerRef}>
-      {label && <label className="block text-sm font-medium mb-1">{label}</label>}
+    <div className={`relative ${className ?? ""}`} ref={containerRef}>
+      {label && <label className="block text-sm font-medium text-label mb-1.5">{label}</label>}
       <button
         type="button"
-        className="w-full border rounded px-3 py-2 text-sm text-left bg-white dark:bg-gray-800 hover:border-gray-400"
+        className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex items-center justify-between gap-2"
         onClick={() => { setOpen(!open); setSearch(""); }}
       >
-        {value || "Select timezone…"}
+        <span className={value ? "" : "text-label-tertiary"}>{value || "Select timezone…"}</span>
+        <ChevronsUpDown size={16} className="text-label-tertiary shrink-0" aria-hidden="true" />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-72 bg-white dark:bg-gray-800 border rounded shadow-lg">
+        <div className="absolute z-50 mt-1 w-72 bg-surface border border-separator rounded-md shadow-e3 overflow-hidden">
           <input
             ref={inputRef}
             type="text"
-            className="w-full border-b px-3 py-2 text-sm outline-none"
+            className="w-full px-3 py-2 text-[15px] bg-surface text-label placeholder:text-label-tertiary border-b border-separator outline-none focus-ring"
             placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -64,14 +66,14 @@ export function TimezonePicker({ value, onChange, label, className }: TimezonePi
             {filtered.slice(0, 100).map((tz) => (
               <li
                 key={tz}
-                className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 ${tz === value ? "bg-blue-100 dark:bg-gray-600 font-medium" : ""}`}
+                className={`px-3 py-1.5 text-[13px] cursor-pointer hover:bg-surface-secondary ${tz === value ? "bg-accent-soft text-accent font-medium" : "text-label"}`}
                 onClick={() => { onChange(tz); setOpen(false); }}
               >
                 {tz.replace(/_/g, " ")}
               </li>
             ))}
             {filtered.length === 0 && (
-              <li className="px-3 py-2 text-sm text-gray-400">No results</li>
+              <li className="px-3 py-2 text-[13px] text-label-tertiary">No results</li>
             )}
           </ul>
         </div>

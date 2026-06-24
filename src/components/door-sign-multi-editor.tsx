@@ -11,6 +11,7 @@ import { TextBoxCanvas } from "@/components/text-box-canvas";
 import { KNOWN_DISPLAYS, type DisplaySize, type Design } from "@/lib/content/renderers/door-sign-types";
 import { MULTI_TEMPLATE_VARS, type DoorSignMultiConfig, type RowTemplate } from "@/lib/content/renderers/door-sign-multi-types";
 
+
 interface Provider { id: string; name: string; type: string; }
 
 interface Props {
@@ -70,40 +71,40 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
   return (
     <div className="space-y-4">
       {/* Resource selection */}
-      <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-3">
-        <label className="block text-sm font-semibold">Resources</label>
+      <div className="p-4 bg-surface-secondary rounded-lg space-y-3">
+        <label className="block text-sm font-semibold text-label">Resources</label>
         <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)}
-          className="w-full border rounded px-3 py-2 text-sm">
+          className="w-full min-h-11 rounded-md bg-surface border border-separator px-3 text-sm text-label focus-ring">
           {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <div className="max-h-48 overflow-y-auto space-y-1">
           {availableResources.map(r => {
             const checked = config.resources.some(cr => cr.resourceId === r.id && cr.providerId === selectedProvider);
             return (
-              <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 px-2 py-1 rounded">
-                <input type="checkbox" checked={checked} onChange={() => toggleResource(r.id, r.name)} />
+              <label key={r.id} className="flex items-center gap-2 text-sm text-label cursor-pointer hover:bg-surface-hover px-2 py-1 rounded">
+                <input type="checkbox" checked={checked} onChange={() => toggleResource(r.id, r.name)} className="accent-accent focus-ring" />
                 {r.name}
               </label>
             );
           })}
-          {availableResources.length === 0 && <span className="text-xs text-gray-500">Loading resources...</span>}
+          {availableResources.length === 0 && <span className="text-xs text-label-tertiary">Loading resources...</span>}
         </div>
         {config.resources.length > 0 && (
-          <div className="text-xs text-gray-500">{config.resources.length} selected</div>
+          <div className="text-xs text-label-tertiary">{config.resources.length} selected</div>
         )}
       </div>
 
       {/* Display selector */}
-      <div className="flex items-center gap-2 border-b pb-2 flex-wrap">
+      <div className="flex items-center gap-2 border-b border-separator pb-2 flex-wrap">
         <button onClick={() => setActiveDisplay("default")}
-          className={`px-3 py-1.5 text-sm rounded-md ${activeDisplay === "default" ? "bg-black text-white dark:bg-white dark:text-black" : "bg-gray-100 dark:bg-gray-800"}`}>
+          className={`px-3 py-1.5 text-sm rounded-md transition focus-ring ${activeDisplay === "default" ? "bg-accent text-on-accent" : "bg-fill-tertiary text-label hover:bg-fill-secondary"}`}>
           Default
         </button>
         {displays.map(d => {
           const key = `${d.width}x${d.height}`;
           return (
             <button key={key} onClick={() => setActiveDisplay(key)}
-              className={`px-3 py-1.5 text-sm rounded-md ${activeDisplay === key ? "bg-black text-white dark:bg-white dark:text-black" : "bg-gray-100 dark:bg-gray-800"}`}>
+              className={`px-3 py-1.5 text-sm rounded-md transition focus-ring ${activeDisplay === key ? "bg-accent text-on-accent" : "bg-fill-tertiary text-label hover:bg-fill-secondary"}`}>
               {d.label}
             </button>
           );
@@ -112,11 +113,11 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
 
       {/* Header height slider */}
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium">Header</label>
+        <label className="text-sm font-medium text-label">Header</label>
         <input type="range" min="0.1" max="0.6" step="0.05" value={config.headerHeight}
           onChange={e => onChange({ ...config, headerHeight: parseFloat(e.target.value) })}
-          className="flex-1" />
-        <span className="text-xs text-gray-500">{Math.round(config.headerHeight * 100)}%</span>
+          className="flex-1 accent-accent focus-ring" />
+        <span className="text-xs text-label-tertiary">{Math.round(config.headerHeight * 100)}%</span>
       </div>
 
       {/* Header TextBox editor */}
@@ -154,24 +155,24 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
       />
 
       {/* Preview */}
-      <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Preview</label>
-        <div className="relative border rounded overflow-hidden"
+      <div className="p-3 bg-surface-secondary rounded-lg">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-label-tertiary mb-2">Preview</label>
+        <div className="relative border border-separator rounded overflow-hidden"
           style={{ width: "100%", maxWidth: 400, aspectRatio: `${currentDisplay.width}/${currentDisplay.height}`, background: activeDesign.backgroundColor }}>
           {bgUrl && <img src={bgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
           {/* Header area indicator */}
-          <div className="absolute left-0 right-0 top-0 border-b border-dashed border-blue-300"
+          <div className="absolute left-0 right-0 top-0 border-b border-dashed border-accent"
             style={{ height: `${config.headerHeight * 100}%` }}>
-            <span className="absolute top-1 left-2 text-[9px] text-blue-400">Header</span>
+            <span className="absolute top-1 left-2 text-[9px] text-accent">Header</span>
           </div>
           {/* Row indicators */}
           {config.resources.map((r, i) => (
-            <div key={r.resourceId} className="absolute left-0 right-0 border-b border-dashed border-gray-300 flex items-center px-2"
+            <div key={r.resourceId} className="absolute left-0 right-0 border-b border-dashed border-separator flex items-center px-2"
               style={{
                 top: `${(config.headerHeight + (1 - config.headerHeight) * i / config.resources.length) * 100}%`,
                 height: `${(1 - config.headerHeight) / config.resources.length * 100}%`,
               }}>
-              <span className="text-[9px] text-gray-400 truncate">{r.resourceName ?? r.resourceId}</span>
+              <span className="text-[9px] text-label-tertiary truncate">{r.resourceName ?? r.resourceId}</span>
             </div>
           ))}
         </div>

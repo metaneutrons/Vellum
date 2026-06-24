@@ -7,7 +7,8 @@ import { useTranslations } from "next-intl";
 import { updateContentInstance } from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
-import { Button } from "@/components/button";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
 import { DoorSignEditor } from "@/components/door-sign-editor";
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
@@ -23,6 +24,9 @@ interface Props {
   knownDisplays: DisplaySize[];
   onClose: () => void;
 }
+
+const selectCls =
+  "w-full min-h-11 px-3.5 rounded-md bg-surface-secondary border border-separator text-[15px] text-label focus-ring focus:border-accent transition";
 
 export function ContentEditModal({ instanceId, contentInstances, providers, knownDisplays, onClose }: Props) {
   const instance = contentInstances.find(i => i.id === instanceId);
@@ -54,18 +58,18 @@ export function ContentEditModal({ instanceId, contentInstances, providers, know
       title={`${tc(instance.typeSlug as "room-booking" | "door-sign")}: ${name}`}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
-          <Button onClick={save} disabled={!name} pending={pending}>{t("save")}</Button>
+          <Button variant="gray" onClick={onClose}>{t("cancel")}</Button>
+          <Button onClick={save} disabled={!name} loading={pending}>{t("save")}</Button>
         </>
       }
     >
-      <label className="block text-sm font-medium mb-1">{t("name")}</label>
-      <input className="w-full border rounded px-3 py-2 mb-3 text-sm" value={name} onChange={e => setName(e.target.value)} />
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("name")}</label>
+      <Input className="mb-3" value={name} onChange={e => setName(e.target.value)} />
 
       {instance.typeSlug === "door-sign" && (
         <>
-          <label className="block text-sm font-medium mb-1">{t("provider")}</label>
-          <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
+          <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
+          <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
             onChange={e => setConfig({ ...config, providerId: e.target.value })}>
             <option value="">{t("selectProvider")}</option>
             {providers.filter(p => p.type === "anny").map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -73,7 +77,7 @@ export function ContentEditModal({ instanceId, contentInstances, providers, know
 
           {config.providerId && (
             <div className="mb-3">
-              <label className="block text-sm font-medium mb-1">{td("resource")}</label>
+              <label className="block text-sm font-medium text-label-secondary mb-1">{td("resource")}</label>
               <AnnyResourcePicker
                 providerId={config.providerId as string}
                 resourceId={(config.resourceId as string) ?? ""}
@@ -83,8 +87,8 @@ export function ContentEditModal({ instanceId, contentInstances, providers, know
             </div>
           )}
 
-          <div className="border-t pt-3 mt-3">
-            <label className="block text-sm font-semibold mb-2">{td("visualLayout")}</label>
+          <div className="border-t border-separator pt-3 mt-3">
+            <label className="block text-sm font-semibold text-label mb-2">{td("visualLayout")}</label>
             <DoorSignEditor
               design={(config.design ?? { backgroundAssetId: null, textBoxes: [], freeTextBoxes: [], backgroundColor: "#FFFFFF" }) as Design}
               designOverrides={(config.designOverrides ?? {}) as Record<string, Design>}
@@ -100,23 +104,23 @@ export function ContentEditModal({ instanceId, contentInstances, providers, know
 
       {instance.typeSlug === "room-booking" && (
         <>
-          <label className="block text-sm font-medium mb-1">{t("provider")}</label>
-          <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.providerId as string) ?? ""}
+          <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
+          <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
             onChange={e => setConfig({ ...config, providerId: e.target.value })}>
             <option value="">{t("selectProvider")}</option>
             {providers.map(p => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
           </select>
 
-          <label className="block text-sm font-medium mb-1">{t("roomName")}</label>
-          <input className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.roomName as string) ?? ""}
+          <label className="block text-sm font-medium text-label-secondary mb-1">{t("roomName")}</label>
+          <Input className="mb-3" value={(config.roomName as string) ?? ""}
             onChange={e => setConfig({ ...config, roomName: e.target.value })} />
 
-          <label className="block text-sm font-medium mb-1">{t("timezone")}</label>
-          <input className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.timezone as string) ?? "Europe/Berlin"}
+          <label className="block text-sm font-medium text-label-secondary mb-1">{t("timezone")}</label>
+          <Input className="mb-3" value={(config.timezone as string) ?? "Europe/Berlin"}
             onChange={e => setConfig({ ...config, timezone: e.target.value })} />
 
-          <label className="block text-sm font-medium mb-1">{t("policy")}</label>
-          <select className="w-full border rounded px-3 py-2 mb-3 text-sm" value={(config.policy as string) ?? "Show All"}
+          <label className="block text-sm font-medium text-label-secondary mb-1">{t("policy")}</label>
+          <select className={`${selectCls} mb-3`} value={(config.policy as string) ?? "Show All"}
             onChange={e => setConfig({ ...config, policy: e.target.value })}>
             {ROOM_POLICIES.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
