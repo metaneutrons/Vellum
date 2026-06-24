@@ -7,7 +7,6 @@ import { createProvider, updateProvider, deleteProvider, getProviderCredentials,
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
-import { Button as LegacyButton } from "@/components/button";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -179,8 +178,8 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
         title={editing === "new" ? t("addTitle") : t("editTitle")}
         footer={
           <>
-            <LegacyButton variant="ghost" onClick={() => setEditing(null)}>Cancel</LegacyButton>
-            <LegacyButton onClick={save} disabled={!name} pending={pending}>Save</LegacyButton>
+            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
           </>
         }
       >

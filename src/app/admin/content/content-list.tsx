@@ -10,8 +10,7 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
 import { LocalePicker } from "@/components/locale-picker";
 import { TimezonePicker } from "@/components/timezone-picker";
-import { Button } from "@/components/button";
-import { Button as AuroraButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
@@ -104,23 +103,23 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
             <Input className="flex-1 min-h-9 text-[13px]" value={key} readOnly />
             <Input className="flex-1 min-h-9 text-[13px]" value={val}
               onChange={(e) => onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [key]: e.target.value } })} />
-            <AuroraButton size="sm" variant="plain" className="text-red px-2" aria-label="Remove property" onClick={() => {
+            <Button size="sm" variant="plain" className="text-red px-2" aria-label="Remove property" onClick={() => {
               const { [key]: _, ...rest } = (config.cachedProperties as Record<string, string>) ?? {};
               onChange({ ...config, cachedProperties: rest });
-            }}><X size={16} aria-hidden="true" /></AuroraButton>
+            }}><X size={16} aria-hidden="true" /></Button>
           </div>
         ))}
         <div className="flex gap-2 mt-1">
           <Input id="newPropKey" className="flex-1 min-h-9 text-[13px]" placeholder="prop.Raumnummer" />
           <Input id="newPropVal" className="flex-1 min-h-9 text-[13px]" placeholder="1J.2.02" />
-          <AuroraButton size="sm" variant="plain" leading={<Plus size={16} aria-hidden="true" />} onClick={() => {
+          <Button size="sm" variant="plain" leading={<Plus size={16} aria-hidden="true" />} onClick={() => {
             const keyEl = document.getElementById("newPropKey") as HTMLInputElement;
             const valEl = document.getElementById("newPropVal") as HTMLInputElement;
             if (keyEl.value && valEl.value) {
               onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [keyEl.value]: valEl.value } });
               keyEl.value = ""; valEl.value = "";
             }
-          }}>Add</AuroraButton>
+          }}>Add</Button>
         </div>
       </div>
 
@@ -293,7 +292,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search content..." className="pl-9" aria-label="Search content" />
         </div>
-        <AuroraButton onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Content</AuroraButton>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Content</Button>
       </div>
 
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
@@ -311,10 +310,10 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
                 if (r && !r.ok) return <span className="inline-flex items-center gap-1 text-xs text-red max-w-48 truncate" title={r.message}><X size={13} aria-hidden="true" className="shrink-0" />{r.message}</span>;
                 return null;
               })()}
-              <AuroraButton size="sm" variant="plain" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</AuroraButton>
-              <AuroraButton size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>Preview</AuroraButton>
-              <AuroraButton size="sm" variant="gray" onClick={() => startEdit(inst)}>Edit</AuroraButton>
-              <AuroraButton size="sm" variant="plain" className="text-red" onClick={() => setDeleting(inst.id)}>Delete</AuroraButton>
+              <Button size="sm" variant="plain" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</Button>
+              <Button size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>Preview</Button>
+              <Button size="sm" variant="gray" onClick={() => startEdit(inst)}>Edit</Button>
+              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(inst.id)}>Delete</Button>
             </div>
           </div>
         ))}
@@ -334,8 +333,8 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         wide={typeSlug === "door-sign" || typeSlug === "door-sign-multi"}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={!name} pending={pending}>Save</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
           </>
         }
       >
