@@ -237,7 +237,8 @@ export async function resolveOta(
 
 /* ── Semver comparison ────────────────────────────────────────── */
 
-function compareSemver(a: string, b: string): number {
+/** Compare two semver strings. Returns >0 if a>b, <0 if a<b, 0 if equal. Exported for dashboard fleet stats. */
+export function compareSemver(a: string, b: string): number {
   // Strip build metadata (+sha)
   const cleanA = a.replace(/^v/, "").split("+")[0];
   const cleanB = b.replace(/^v/, "").split("+")[0];
