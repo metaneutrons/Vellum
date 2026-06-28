@@ -17,7 +17,7 @@
     "@azure/identity": "4.13.1",
     "@date-fns/tz": "1.4.1",
     "@microsoft/microsoft-graph-client": "3.0.7",
-    "@napi-rs/canvas": "0.1.99",
+    "@napi-rs/canvas": "1.0.1",
     "@tailwindcss/postcss": "4.2.4",
     "date-fns": "4.1.0",
     "drizzle-orm": "0.45.2",
