@@ -1,0 +1,4 @@
+# Default code owner for the whole repo.
+# Replaces Dependabot's `reviewers:` key (removed by GitHub in 2025): CODEOWNERS
+# is now the supported way to auto-request review on PRs, including Dependabot's.
+* @metaneutrons
