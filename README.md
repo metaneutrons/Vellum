@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Firmware-ESP32--S3-red" alt="Firmware">
   <img src="https://img.shields.io/badge/TypeScript-6.0-blue" alt="TypeScript">
   <img src="https://img.shields.io/badge/Next.js-16.2-black" alt="Next.js">
-  <img src="https://img.shields.io/badge/ESP--IDF-5.3-red" alt="ESP-IDF">
+  <img src="https://img.shields.io/badge/ESP--IDF-6.0-red" alt="ESP-IDF">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-green.svg" alt="License">
   <img src="https://img.shields.io/badge/Docker-ghcr.io-blue" alt="Docker"></a>
 </p>
@@ -133,7 +133,7 @@ Multi-arch image available for **linux/amd64** and **linux/arm64** (native build
 
 ```bash
 cd firmware
-make setup    # Install ESP-IDF v5.3 + toolchain (one-time)
+make setup    # Install ESP-IDF v6.0 + toolchain (one-time)
 make build    # Compile firmware
 make fm       # Flash + open serial monitor
 ```
@@ -168,7 +168,7 @@ Once flashed, the device:
 ```bash
 npm run dev          # Start Next.js dev server
 npm run dev:mdns     # Start with mDNS announcement
-npm test             # Run tests (53 tests)
+npm test             # Run tests (52 tests)
 npm run lint         # ESLint
 npx tsc --noEmit     # Type check
 ```
@@ -230,7 +230,7 @@ firmware/
 | Server | Next.js 16.2, TypeScript 6, Drizzle ORM |
 | Database | PostgreSQL 15+ |
 | Admin UI | Tailwind CSS 4, React Server Components |
-| Firmware | ESP-IDF 5.3, C, ESP32-S3 |
+| Firmware | ESP-IDF 6.0, C, ESP32-S3 |
 | Rendering | @napi-rs/canvas, Floyd-Steinberg dithering, bitmap font atlas |
 | Crypto | X25519 ECDH, AES-256-GCM, Ed25519, HKDF-SHA256 |
 | CI/CD | GitHub Actions, release-please |
