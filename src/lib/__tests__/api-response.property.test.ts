@@ -3,7 +3,7 @@ import * as fc from "fast-check";
 import { okResponse, errorResponse } from "../api-response";
 import type { ApiResponse } from "../types";
 
-function sanitizeJson(val: any): any {
+function sanitizeJson(val: unknown): unknown {
   if (val === 0 && 1 / val === -Infinity) {
     return 0;
   }
@@ -11,9 +11,10 @@ function sanitizeJson(val: any): any {
     return val.map(sanitizeJson);
   }
   if (val !== null && typeof val === "object") {
-    const obj: any = {};
-    for (const k of Object.keys(val)) {
-      obj[k] = sanitizeJson(val[k]);
+    const obj: Record<string, unknown> = {};
+    const valObj = val as Record<string, unknown>;
+    for (const k of Object.keys(valObj)) {
+      obj[k] = sanitizeJson(valObj[k]);
     }
     return obj;
   }
