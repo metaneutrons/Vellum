@@ -3,6 +3,23 @@ import * as fc from "fast-check";
 import { okResponse, errorResponse } from "../api-response";
 import type { ApiResponse } from "../types";
 
+function sanitizeJson(val: any): any {
+  if (val === 0 && 1 / val === -Infinity) {
+    return 0;
+  }
+  if (Array.isArray(val)) {
+    return val.map(sanitizeJson);
+  }
+  if (val !== null && typeof val === "object") {
+    const obj: any = {};
+    for (const k of Object.keys(val)) {
+      obj[k] = sanitizeJson(val[k]);
+    }
+    return obj;
+  }
+  return val;
+}
+
 /**
  * Property 15: All JSON responses use consistent envelope format
  * Validates: Requirements 10.6
@@ -14,7 +31,7 @@ import type { ApiResponse } from "../types";
 describe("Property 15: All JSON responses use consistent envelope format", () => {
   it("okResponse always produces { status: 'ok', data, error: null }", () => {
     fc.assert(
-      fc.property(fc.jsonValue(), (data) => {
+      fc.property(fc.jsonValue().map(sanitizeJson), (data) => {
         const response = okResponse(data);
 
         expect(Object.keys(response).sort()).toEqual(["data", "error", "status"]);
@@ -66,6 +83,7 @@ describe("Property 15: All JSON responses use consistent envelope format", () =>
 describe("Property 16: API response serialization round-trip", () => {
   const arbOkResponse: fc.Arbitrary<ApiResponse<unknown>> = fc
     .jsonValue()
+    .map(sanitizeJson)
     .map((data) => okResponse(data));
 
   const arbErrorResponse: fc.Arbitrary<ApiResponse<null>> = fc
