@@ -26,7 +26,7 @@ Vellum is an open-source platform for managing (not only) E-Ink/E-Paper displays
 ## Features
 
 - **🖥 Plugin Content System** — Room booking (Outlook-style day view), extensible for weather, dashboards, photos
-- **📅 Calendar Providers** — Microsoft 365, Google Calendar, iCal URL feeds
+- **📅 Calendar & Booking Providers** — Microsoft 365, Google Calendar, anny (room/workspace booking), and iCal URL feeds
 - **🎨 Theme System** — DB-backed branding with live preview, per-device assignment
 - **📡 Display Agnostic** — Mono, 4/16-level grayscale, and 7-color Spectra 6 displays
 - **✏️ Pixel-Perfect Rendering** — Pre-rendered bitmap font atlas for color e-paper, anti-aliased for grayscale
@@ -52,9 +52,9 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 
 ```plain
 ┌──────────────────┐       HTTPS        ┌────────────────────┐       APIs       ┌─────────────┐
-│  ESP32-S3        │ ──────────────────▶│  Vellum Server     │ ────────────────▶│  Microsoft  │
-│  E-Ink Display   │ ◀──────────────────│  (Next.js)         │ ◀────────────────│  365        │
-│                  │    pixel buffer    │                    │                  │  Google     │
+│  ESP32-S3        │ ──────────────────▶│  Vellum Server     │ ────────────────▶│  M365       │
+│  E-Ink Display   │ ◀──────────────────│  (Next.js)         │ ◀────────────────│  Google     │
+│                  │    pixel buffer    │                    │                  │  anny       │
 │  Sleeps 99%      │                    │  Admin Dashboard   │                  │  iCal       │
 │  of the time     │                    │  Device Simulator  │                  └─────────────┘
 └──────────────────┘                    └─────────┬──────────┘
@@ -70,7 +70,7 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 
 - Node.js 22+
 - PostgreSQL 15+
-- A calendar provider (Microsoft 365, Google, or any iCal URL)
+- A calendar provider (Microsoft 365, Google, anny, or any iCal URL)
 
 ### Server Setup
 
@@ -113,7 +113,7 @@ Multi-arch image available for **linux/amd64** and **linux/arm64** (native build
 
 ### First-Time Setup (Admin Dashboard)
 
-1. **Data Providers** → Add your Microsoft 365 / Google / iCal credentials
+1. **Data Providers** → Add your Microsoft 365 / Google / anny / iCal credentials
 2. **Content** → Create a room booking instance (select provider, room email, timezone)
 3. **Themes** → Customize colors or use the default theme
 4. **Devices** → Approve devices as they connect, assign content + theme
@@ -182,7 +182,7 @@ Open **<http://localhost:3000/simulator>** (dev mode only). Simulates the full f
 ```plain
 src/
 ├── app/
-│   ├── admin/            # Dashboard (8 pages: devices, content, providers,
+│   ├── admin/            # Dashboard (9 pages: overview, devices, content, providers,
 │   │                     #   themes, profiles, firmware, flash, telemetry)
 │   ├── api/v1/           # Device + admin API endpoints
 │   ├── login/            # Admin authentication
@@ -191,7 +191,7 @@ src/
 ├── db/                   # Drizzle ORM schema + connection pool
 └── lib/
     ├── auth/             # TOFU device auth + X25519 ECDH
-    ├── calendar/         # Provider registry + M365/Google/iCal implementations
+    ├── calendar/         # Provider registry + M365/Google/anny/iCal implementations
     ├── content/          # Content renderer registry + room-booking renderer
     ├── render/           # Canvas → pixel buffer pipeline + bitmap font atlas
     ├── sleep/            # Refresh profiles + schedule rules engine
