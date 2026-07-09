@@ -15,7 +15,7 @@
 SHELL := /bin/bash
 
 # Auto-detect serial port
-PORT ?= $(shell ls /dev/cu.usbserial-* /dev/cu.usbmodem* 2>/dev/null | head -1)
+PORT ?= $(shell ls /dev/cu.usbserial-* /dev/cu.wchusbserial* /dev/cu.usbmodem* 2>/dev/null | head -1)
 BAUD ?= 460800
 MODEL ?= e1002
 
