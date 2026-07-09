@@ -9,19 +9,16 @@ landed in #28 (see [SECURITY.md](SECURITY.md) for the resulting security model).
       has been compile-verified after the hardening + OTA-release changes. Run the
       P4 build (or the full `firmware.yml` matrix) and confirm the app-image / merged-image
       split behaves on P4.
-- [x] **OTA signing key — configured.** The `FIRMWARE_SIGNING_KEY` CI secret exists
-      and the committed `vellum-firmware-signing.pub` matches the embedded
-      `CONFIG_VELLUM_OTA_SIGNING_PUBKEY`; CI signs both beta and stable builds. Follow-ups:
-    - [ ] Update the `FIRMWARE_SIGNING_KEY` CI secret to the freshly rotated key
-          (`vellum-firmware-signing.key`, gitignored). The CI key-match guard verifies the
-          secret's private half against the embedded pubkey on every signed build and
-          fails loudly on mismatch.
-    - [ ] **Back up the private key offline** (`vellum-firmware-signing.key`) in an
-          HSM/vault per SECURITY.md — the gitignored working-tree copy must not be the
-          only one.
-- [ ] **End-to-end OTA smoke test on hardware.** Cut a beta (or `workflow_dispatch`
-      `firmware.yml`) and confirm a device downloads → verifies (SHA-256 + Ed25519) →
-      applies → confirms, with bootloader rollback on failure.
+- [x] **OTA signing key — rotated, wired & backed up (2026-07-09).** Fresh Ed25519 key;
+      the committed `vellum-firmware-signing.pub` matches the embedded
+      `CONFIG_VELLUM_OTA_SIGNING_PUBKEY`, the `FIRMWARE_SIGNING_KEY` CI secret was updated
+      to it, and a `workflow_dispatch` run passed the CI key-match guard and produced a
+      signed beta release. CI signs both beta and stable builds. Private key backed up in
+      the vault (`~/Documents/infrastructure/keys/vellum/`).
+- [ ] **On-hardware OTA smoke test.** The build → sign → manifest release path is now
+      CI-validated (`workflow_dispatch`, green). Remaining: confirm a real device
+      downloads → verifies (SHA-256 + Ed25519) → applies → confirms, with bootloader
+      rollback on failure.
 
 ## Production hardening (eFuse-burning — manufacturing)
 
