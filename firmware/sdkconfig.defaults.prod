@@ -1,0 +1,59 @@
+# ============================================================================
+# Vellum Firmware — PRODUCTION HARDENING PROFILE
+# ============================================================================
+#
+# Apply this overlay ON TOP OF the base + per-variant defaults, e.g.:
+#
+#   idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.s3;sdkconfig.defaults.prod" build
+#
+# ⚠️  IRREVERSIBLE: enabling Secure Boot v2 and Flash Encryption (Release) causes
+#     the bootloader to BURN eFuses on first boot. After that the board can only
+#     run firmware signed with your Secure Boot key, JTAG/ROM-download are locked,
+#     and flash contents are encrypted with a per-device key. There is NO undo.
+#     Validate the full image + OTA flow on dev boards BEFORE burning production.
+#
+# See ../SECURITY.md for the complete provisioning runbook and key management.
+# ----------------------------------------------------------------------------
+
+# ── Secure Boot v2 (verified boot chain) ───────────────────────────────────
+CONFIG_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_V2_ENABLED=y
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y
+# Path is relative to the firmware/ project dir. Keep this key OFFLINE (HSM/vault).
+CONFIG_SECURE_BOOT_SIGNING_KEY="keys/secure_boot_signing_key.pem"
+# Do not allow JTAG once secure boot is on.
+CONFIG_SECURE_BOOT_ALLOW_JTAG=n
+
+# ── Flash Encryption (Release mode — production) ────────────────────────────
+CONFIG_SECURE_FLASH_ENC_ENABLED=y
+CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y
+# Lock down the UART/ROM download path so an attacker can't read/write flash.
+CONFIG_SECURE_FLASH_UART_BOOTLOADER_ALLOW_ENC=n
+CONFIG_SECURE_FLASH_UART_BOOTLOADER_ALLOW_DEC=n
+CONFIG_SECURE_FLASH_UART_BOOTLOADER_ALLOW_CACHE=n
+CONFIG_SECURE_DISABLE_ROM_DL_MODE=y
+
+# ── NVS Encryption (credentials at rest) ────────────────────────────────────
+# With Flash Encryption enabled, the nvs_key partition (see partitions.csv) is
+# itself protected by flash encryption, so the standard flash-enc key scheme
+# gives real at-rest confidentiality for the WiFi PSK, device token and the
+# X25519 private key.
+CONFIG_NVS_ENCRYPTION=y
+CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC=y
+
+# ── Anti-rollback (block downgrade to older signed images) ──────────────────
+# Complements the app-level OTA signature: a validly-signed but OLDER image is
+# rejected once the secure version has advanced (eFuse-backed counter).
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK=y
+CONFIG_BOOTLOADER_APP_SECURE_VERSION=1
+CONFIG_BOOTLOADER_APP_SEC_VER_SIZE_EFUSE_FIELD=32
+
+# ── OTA image signature required (fail-closed) ──────────────────────────────
+# Redundant with the Kconfig default (now y) but pinned here so a production
+# build can never accidentally ship fail-open.
+CONFIG_VELLUM_OTA_REQUIRE_SIGNATURE=y
+
+# ── Reduce log verbosity / info leakage in the field ────────────────────────
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y

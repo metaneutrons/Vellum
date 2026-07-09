@@ -2,7 +2,12 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 /**
  * @file nvs_manager.h
- * @brief Encrypted NVS storage for Vellum device credentials and configuration.
+ * @brief NVS storage for Vellum device credentials and configuration.
+ *
+ * At-rest confidentiality of these values (WiFi PSK, device token, X25519
+ * private key) depends on NVS encryption, which is rooted in an eFuse key and
+ * is therefore activated by the production hardening profile — see SECURITY.md.
+ * Development builds do NOT encrypt NVS.
  */
 
 #pragma once
