@@ -6,4 +6,6 @@ firmware
 LICENSE
 .env
 .env.*
-firmware-signing.key
+vellum-firmware-signing.key
+*.key
+*.pem

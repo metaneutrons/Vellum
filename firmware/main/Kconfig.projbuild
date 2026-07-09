@@ -86,7 +86,7 @@ menu "Vellum Configuration"
 
     config VELLUM_OTA_SIGNING_PUBKEY
         string "Ed25519 OTA signing public key (raw 32 bytes, base64)"
-        default "eaYOs7D5gLyttPIEJa+1MOyf/5spnrmVMNdcpsfmpNo="
+        default "sdY80/jyxvaEuXOHjs8qb5hyDdf3petsG+JjlSYZJmc="
         help
             Raw 32-byte Ed25519 public key, base64-encoded (NOT DER/PEM).
             The server signs the 32-byte SHA-256 digest of each firmware image

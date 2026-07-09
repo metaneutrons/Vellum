@@ -8,7 +8,8 @@ out/
 # ── Environment & Secrets ─────────────────────────────────────
 .env*
 *.pem
-firmware-signing.key
+*.key
+vellum-firmware-signing.key
 
 # ── Build artifacts ───────────────────────────────────────────
 /build

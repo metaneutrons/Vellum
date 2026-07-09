@@ -10,15 +10,15 @@ landed in #28 (see [SECURITY.md](SECURITY.md) for the resulting security model).
       P4 build (or the full `firmware.yml` matrix) and confirm the app-image / merged-image
       split behaves on P4.
 - [x] **OTA signing key — configured.** The `FIRMWARE_SIGNING_KEY` CI secret exists
-      (since 2026-04-25) and the committed `firmware-signing.pub` matches the embedded
+      and the committed `vellum-firmware-signing.pub` matches the embedded
       `CONFIG_VELLUM_OTA_SIGNING_PUBKEY`; CI signs both beta and stable builds. Follow-ups:
-    - [ ] Confirm the secret's *private* half corresponds to that pubkey — the new CI
-          key-match guard verifies this on every signed build and fails loudly on
-          mismatch (first exercise: the beta build from the #28 merge).
-    - [ ] **Back up the private key offline.** It was NOT found in the usual local stores
-          (repo / `~/.env_vars` / infrastructure vault). If the GitHub secret is the only
-          copy, losing it means no fielded device can be updated without a re-flash —
-          store it in an HSM/vault per SECURITY.md.
+    - [ ] Update the `FIRMWARE_SIGNING_KEY` CI secret to the freshly rotated key
+          (`vellum-firmware-signing.key`, gitignored). The CI key-match guard verifies the
+          secret's private half against the embedded pubkey on every signed build and
+          fails loudly on mismatch.
+    - [ ] **Back up the private key offline** (`vellum-firmware-signing.key`) in an
+          HSM/vault per SECURITY.md — the gitignored working-tree copy must not be the
+          only one.
 - [ ] **End-to-end OTA smoke test on hardware.** Cut a beta (or `workflow_dispatch`
       `firmware.yml`) and confirm a device downloads → verifies (SHA-256 + Ed25519) →
       applies → confirms, with bootloader rollback on failure.
