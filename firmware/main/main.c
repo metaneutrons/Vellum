@@ -419,14 +419,14 @@ void app_main(void)
         esp_err_t mdns_err = mdns_query_ptr("_vellum", "_tcp", 5000, 1, &results);
         if (mdns_err == ESP_OK && results) {
             mdns_result_t *r = results;
-            if (r->addr && r->addr->addr.type == ESP_IPADDR_TYPE_V4 && r->port > 0) {
-                snprintf(server_url, sizeof(server_url), "http://" IPSTR ":%d",
-                         IP2STR(&r->addr->addr.u_addr.ip4), r->port);
-            } else if (r->hostname && r->port > 0) {
-                snprintf(server_url, sizeof(server_url), "http://%s.local:%d",
+            /* Public-CA TLS validates against a hostname (cert CN/SAN), never a
+             * bare IP, so we only accept a discovered hostname and always use
+             * https://. The advertised host must present a valid certificate. */
+            if (r->hostname && r->port > 0) {
+                snprintf(server_url, sizeof(server_url), "https://%s.local:%d",
                          r->hostname, r->port);
             } else {
-                ESP_LOGW(TAG, "mDNS result has no usable address");
+                ESP_LOGW(TAG, "mDNS result unusable for TLS (no hostname) — using default");
                 strncpy(server_url, CONFIG_VELLUM_DEFAULT_SERVER_URL, sizeof(server_url) - 1);
                 server_url[sizeof(server_url) - 1] = '\0';
             }

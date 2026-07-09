@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include "esp_log.h"
 #include "esp_http_client.h"
+#include "esp_crt_bundle.h"
 #include "cJSON.h"
 
 static const char *TAG = "http_cli";
@@ -29,6 +30,11 @@ static char s_last_etag[32] = {0};
 static void load_etag(void);
 static void save_etag(const char *etag);
 static vellum_telemetry_t s_telemetry = {0};
+
+/* True only when the configured server URL uses https://. Enterprise builds
+ * refuse to transmit the device token or fetch content over plaintext HTTP,
+ * so the encrypted-token handshake is never undermined by a cleartext channel. */
+static bool s_base_url_is_https = false;
 
 /* ---- internal helpers -------------------------------------------------- */
 
@@ -113,6 +119,10 @@ void http_client_init(const char *server_base_url, const char *mac)
     if (len > 0 && s_base_url[len - 1] == '/') {
         s_base_url[len - 1] = '\0';
     }
+    s_base_url_is_https = (strncmp(s_base_url, "https://", 8) == 0);
+    if (!s_base_url_is_https) {
+        ESP_LOGE(TAG, "Insecure server URL rejected (https:// required): %s", s_base_url);
+    }
     strncpy(s_mac, mac, sizeof(s_mac) - 1);
     s_token[0] = '\0';
     s_public_key[0] = '\0';
@@ -152,6 +162,11 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
+    if (!s_base_url_is_https) {
+        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
     char url[512];
     snprintf(url, sizeof(url), "%s/api/v1/ink/hello", s_base_url);
 
@@ -161,11 +176,10 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_POST,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
-        .transport_type = HTTP_TRANSPORT_OVER_TCP,
+        .crt_bundle_attach = esp_crt_bundle_attach,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        
-        .disable_auto_redirect = false,
+        .disable_auto_redirect = true,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -300,6 +314,11 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
+    if (!s_base_url_is_https) {
+        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
     char url[512];
     snprintf(url, sizeof(url), "%s/api/v1/ink/render?mac=%s", s_base_url, s_mac);
 
@@ -309,11 +328,10 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_GET,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
-        .transport_type = HTTP_TRANSPORT_OVER_TCP,
+        .crt_bundle_attach = esp_crt_bundle_attach,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        
-        .disable_auto_redirect = false,
+        .disable_auto_redirect = true,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -355,6 +373,8 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
             rb.buf = NULL;
             ESP_LOGI(TAG, "GET /render → 200, %zu bytes", resp->binary_len);
         } else if (resp->status_code == 304) {
+            free(rb.buf);
+            rb.buf = NULL;
             ESP_LOGI(TAG, "GET /render → 304 (unchanged)");
         } else {
             resp->body = rb.buf;
@@ -376,6 +396,11 @@ esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
+    if (!s_base_url_is_https) {
+        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
     char url[512];
     snprintf(url, sizeof(url), "%s/api/v1/ink/report", s_base_url);
 
@@ -385,10 +410,10 @@ esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_POST,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
-        .transport_type = HTTP_TRANSPORT_OVER_TCP,
+        .crt_bundle_attach = esp_crt_bundle_attach,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        
+        .disable_auto_redirect = true,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -432,6 +457,11 @@ esp_err_t http_client_config(vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
+    if (!s_base_url_is_https) {
+        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
     char url[512];
     snprintf(url, sizeof(url), "%s/api/v1/ink/config?mac=%s", s_base_url, s_mac);
 
@@ -441,10 +471,10 @@ esp_err_t http_client_config(vellum_http_response_t *resp)
         .url = url,
         .method = HTTP_METHOD_GET,
         .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
-        .transport_type = HTTP_TRANSPORT_OVER_TCP,
+        .crt_bundle_attach = esp_crt_bundle_attach,
         .event_handler = http_event_handler,
         .user_data = &rb,
-        
+        .disable_auto_redirect = true,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
