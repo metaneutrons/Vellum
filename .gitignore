@@ -20,6 +20,7 @@ firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/dependencies.lock
 firmware/managed_components/
+firmware/version.txt
 
 # ── ESP-IDF Firmware (D1001) ──────────────────────────────────
 firmware-d1001/build/

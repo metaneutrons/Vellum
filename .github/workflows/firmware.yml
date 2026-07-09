@@ -91,6 +91,9 @@ jobs:
           cp ${{ matrix.base }} sdkconfig.defaults
           echo "CONFIG_VELLUM_FIRMWARE_VERSION=\"${VERSION}\"" >> sdkconfig.defaults
           echo "${{ matrix.panel }}" >> sdkconfig.defaults
+          # Make esp_app_get_description()->version match the release version too
+          # (ESP-IDF reads version.txt for PROJECT_VER; APP_PROJECT_VER_FROM_CONFIG=n).
+          echo "${VERSION}" > version.txt
           idf.py set-target ${{ matrix.target }}
 
       - name: Build
@@ -98,12 +101,19 @@ jobs:
           . $IDF_PATH/export.sh
           idf.py build
 
-      - name: Extract binary
+      - name: Extract binaries (app image for OTA + merged image for web flasher)
         run: |
           . $IDF_PATH/export.sh
           VERSION="${{ needs.version.outputs.version }}"
-          cd build && esptool --chip ${{ matrix.target }} merge-bin --output ../vellum-${{ matrix.model }}-v${VERSION}.bin @flash_args
-          cd .. && ls -lh vellum-${{ matrix.model }}-v${VERSION}.bin
+          SAFE="${VERSION//+/-}"           # url/file-safe (drop '+build' metadata separator)
+          MODEL="${{ matrix.model }}"
+          # App-only image → OTA. Its trailing 32 bytes are the digest the device
+          # verifies via esp_partition_get_sha256() after esp_https_ota.
+          cp build/vellum-firmware.bin "vellum-${MODEL}-v${SAFE}.bin"
+          # Merged full-flash image → web flasher (ESP Web Tools writes it at 0x0).
+          cd build && esptool --chip ${{ matrix.target }} merge-bin \
+            --output "../vellum-${MODEL}-v${SAFE}-factory.bin" @flash_args
+          cd .. && ls -lh vellum-${MODEL}-v${SAFE}*.bin
 
       - uses: actions/upload-artifact@v7
         with:
@@ -113,56 +123,85 @@ jobs:
   sign-and-release:
     needs: [version, build]
     runs-on: ubuntu-latest
+    env:
+      # Job-level so step `if:` can read it reliably (step-level env is unreliable in `if`).
+      FIRMWARE_SIGNING_KEY: ${{ secrets.FIRMWARE_SIGNING_KEY }}
     steps:
+      - uses: actions/checkout@v7          # needed for the embedded-pubkey check
+
       - uses: actions/download-artifact@v8
         with:
           path: binaries
           merge-multiple: true
 
-      - name: Generate SHA256 checksums
+      - name: Compute OTA digests (== on-device esp_partition_get_sha256)
         run: |
           cd binaries
-          for f in *.bin; do
-            sha256sum "$f" | awk '{print $1}' > "${f}.sha256"
+          for f in vellum-*-v*.bin; do
+            case "$f" in *-factory.bin) continue;; esac
+            # The app image appends its own SHA-256 as the final 32 bytes; that IS
+            # the value esp_partition_get_sha256() returns (NOT sha256sum of the file).
+            tail -c 32 "$f" | xxd -p -c 64 > "$f.sha256"
           done
 
-      - name: Sign binaries (Ed25519)
+      - name: Require a signing key for stable releases (devices are fail-closed)
+        if: github.event_name == 'release' && env.FIRMWARE_SIGNING_KEY == ''
+        run: |
+          echo "::error::FIRMWARE_SIGNING_KEY secret is not set. Fail-closed devices reject unsigned OTA, so a stable release must be signed."
+          exit 1
+
+      - name: Sign binaries (Ed25519) and verify the key matches the embedded pubkey
         if: env.FIRMWARE_SIGNING_KEY != ''
-        env:
-          FIRMWARE_SIGNING_KEY: ${{ secrets.FIRMWARE_SIGNING_KEY }}
         run: |
           echo "$FIRMWARE_SIGNING_KEY" | base64 -d > signing.key
+          # Guard: the signing key's public half MUST equal CONFIG_VELLUM_OTA_SIGNING_PUBKEY,
+          # otherwise every device would reject every update. Raw Ed25519 pubkey = last
+          # 32 bytes of the DER SubjectPublicKeyInfo.
+          PUB=$(openssl pkey -in signing.key -pubout -outform DER | tail -c 32 | base64 | tr -d '\n')
+          EMB=$(grep -A3 'config VELLUM_OTA_SIGNING_PUBKEY' firmware/main/Kconfig.projbuild \
+                 | grep -oP 'default "\K[^"]+' | head -1)
+          if [ "$PUB" != "$EMB" ]; then
+            echo "::error::Signing key public part ($PUB) != embedded CONFIG_VELLUM_OTA_SIGNING_PUBKEY ($EMB). Devices would reject all updates."
+            rm -f signing.key; exit 1
+          fi
+          echo "Signing key matches embedded pubkey ✓"
           cd binaries
-          for f in *.bin; do
-            sha256sum "$f" | awk '{print $1}' | xxd -r -p > "${f}.hash"
-            openssl pkeyutl -sign -inkey ../signing.key -rawin -in "${f}.hash" -out "${f}.sig"
-            base64 "${f}.sig" > "${f}.sig.b64"
-            rm -f "${f}.hash"
+          for f in vellum-*-v*.bin; do
+            case "$f" in *-factory.bin) continue;; esac
+            tail -c 32 "$f" > "$f.hash"                                  # raw 32-byte digest
+            openssl pkeyutl -sign -inkey ../signing.key -rawin -in "$f.hash" -out "$f.sig"
+            base64 -w0 "$f.sig" > "$f.sig.b64"                           # no line wrapping
+            rm -f "$f.hash"
           done
-          rm -f ../signing.key
+          cd .. && rm -f signing.key
 
       - name: Generate manifest
+        env:
+          MVER: ${{ needs.version.outputs.version }}
+          MCHAN: ${{ needs.version.outputs.channel }}
+          MTAG: ${{ needs.version.outputs.tag }}
+          MREPO: ${{ github.repository }}
         run: |
           cd binaries
-          VERSION="${{ needs.version.outputs.version }}"
-          CHANNEL="${{ needs.version.outputs.channel }}"
-          TAG="${{ needs.version.outputs.tag }}"
           node -e "
           const fs = require('fs');
-          const manifest = {
-            version: '${VERSION}',
-            channel: '${CHANNEL}',
-            date: new Date().toISOString(),
-            binaries: {}
-          };
-          for (const f of fs.readdirSync('.').filter(f => f.endsWith('.bin'))) {
-            const model = f.match(/vellum-(\w+)-/)?.[1];
-            if (!model) continue;
+          const { MVER, MCHAN, MTAG, MREPO } = process.env;
+          const SAFE = MVER.replace(/\+/g, '-');
+          const base = 'https://github.com/' + MREPO + '/releases/download/' + MTAG;
+          const manifest = { version: MVER, channel: MCHAN, date: new Date().toISOString(), binaries: {} };
+          for (const f of fs.readdirSync('.')) {
+            if (!f.endsWith('.bin') || f.endsWith('-factory.bin')) continue;  // OTA app images only
+            const m = f.match(/vellum-(\w+)-v/);
+            if (!m) continue;
+            const model = m[1];
+            const factory = 'vellum-' + model + '-v' + SAFE + '-factory.bin';
             manifest.binaries[model] = {
-              url: 'https://github.com/${{ github.repository }}/releases/download/${TAG}/' + f,
-              sha256: fs.readFileSync(f + '.sha256', 'utf8').trim(),
-              signature: fs.existsSync(f + '.sig.b64') ? fs.readFileSync(f + '.sig.b64', 'utf8').trim() : '',
-              size: fs.statSync(f).size,
+              url: base + '/' + factory,                                   // web flasher (0x0)
+              size: fs.existsSync(factory) ? fs.statSync(factory).size : 0,
+              otaUrl: base + '/' + f,                                      // OTA app image
+              otaSha256: fs.readFileSync(f + '.sha256', 'utf8').trim(),
+              otaSignature: fs.existsSync(f + '.sig.b64') ? fs.readFileSync(f + '.sig.b64', 'utf8').trim() : '',
+              otaSize: fs.statSync(f).size,
             };
           }
           fs.writeFileSync('firmware-manifest.json', JSON.stringify(manifest, null, 2));
