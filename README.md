@@ -215,11 +215,12 @@ firmware/
 
 ## Security
 
+- **Transport**: HTTPS-only to the backend with CA-bundle certificate validation; the device refuses non-`https://` URLs and cleartext-downgrade redirects
 - **Device Authentication**: Trust-On-First-Use with X25519 ECDH encrypted token delivery
-- **Credentials at Rest**: AES-256-GCM encryption with server-side master key
+- **Credentials at Rest** (server): AES-256-GCM encryption with server-side master key
 - **Token Comparison**: SHA-256 hash-then-compare (constant-time, no length leakage)
-- **OTA Firmware**: Ed25519 signed + SHA256 verified before flashing
-- **NVS Storage**: ESP32 encrypted NVS for WiFi credentials and device keys
+- **OTA Firmware**: Ed25519 signed + SHA256 verified against the staged partition before it is made bootable
+- **NVS Storage** (device): WiFi credentials, device token, and X25519 key live in NVS — encrypted at rest under the production hardening profile ([SECURITY.md](SECURITY.md)); **not** encrypted in dev builds
 - **Rate Limiting**: Per-IP rate limits on all API endpoints
 - **Admin Auth**: Timing-safe password comparison, httpOnly session cookies
 
@@ -230,14 +231,14 @@ firmware/
 | Server | Next.js 16.2, TypeScript 6, Drizzle ORM |
 | Database | PostgreSQL 15+ |
 | Admin UI | Tailwind CSS 4, React Server Components |
-| Firmware | ESP-IDF 6.0, C, ESP32-S3 |
+| Firmware | ESP-IDF 6.0, C, ESP32-S3 / ESP32-P4 |
 | Rendering | @napi-rs/canvas, Floyd-Steinberg dithering, bitmap font atlas |
 | Crypto | X25519 ECDH, AES-256-GCM, Ed25519, HKDF-SHA256 |
 | CI/CD | GitHub Actions, release-please |
 
 ## Contributing
 
-Contributions are welcome! Please open an issue first to discuss what you'd like to change.
+Contributions are welcome! Please open an issue first to discuss what you'd like to change. See [ROADMAP.md](ROADMAP.md) for planned work.
 
 ## Acknowledgments
 
