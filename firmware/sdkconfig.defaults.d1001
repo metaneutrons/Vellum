@@ -7,7 +7,9 @@ CONFIG_COMPILER_OPTIMIZATION_PERF=y
 
 # Panel
 CONFIG_VELLUM_PANEL_D1001=y
-CONFIG_VELLUM_DEFAULT_SERVER_URL="http://192.168.16.5:3000"
+# Enterprise: operators must point this at their real HTTPS FQDN (public-CA cert).
+# No plaintext http:// default — the firmware rejects non-https server URLs.
+CONFIG_VELLUM_DEFAULT_SERVER_URL="https://vellum.local"
 
 # Chip revision (D1001 has v1.3)
 CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y

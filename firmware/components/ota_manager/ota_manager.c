@@ -155,6 +155,17 @@ void ota_manager_check_and_apply(void)
         return;
     }
 
+    /* Enterprise transport policy: firmware images are fetched over validated
+     * TLS only. The Ed25519 signature is still the integrity backstop, but https
+     * prevents passive disclosure and redirect-based downgrade of the download. */
+    if (strncmp(ota_url->valuestring, "https://", 8) != 0) {
+        ESP_LOGE(TAG, "Refusing OTA over insecure URL (https:// required): %s",
+                 ota_url->valuestring);
+        cJSON_Delete(root);
+        http_client_free_response(&resp);
+        return;
+    }
+
     /* Version gate: don't re-flash the version we're already running. */
     if (cJSON_IsString(ota_ver) && !version_is_new(ota_ver->valuestring)) {
         cJSON_Delete(root);

@@ -8,6 +8,7 @@
 #include "wifi_manager.h"
 #include "nvs_manager.h"
 
+#include "cJSON.h"
 #include <string.h>
 #include "sdkconfig.h"
 #include "esp_log.h"
@@ -99,8 +100,8 @@ static const char PORTAL_HTML[] =
     "<div class=\"field\"><label>Password</label>"
     "<input type=\"password\" name=\"pass\" maxlength=\"64\" placeholder=\"WiFi password\"></div>"
     "<div class=\"field\"><label>Server URL</label>"
-    "<input type=\"text\" name=\"server\" maxlength=\"200\" placeholder=\"Leave empty for auto-discovery\">"
-    "<div class=\"hint\">Optional. The display will find the server automatically via mDNS.</div></div>"
+    "<input type=\"text\" name=\"server\" maxlength=\"200\" placeholder=\"https://vellum.company.com\">"
+    "<div class=\"hint\">Must be an https:// URL with a valid certificate. Leave empty to auto-discover via mDNS.</div></div>"
     "</div>"
     "<button type=\"submit\">Connect</button>"
     "</form>"
@@ -280,17 +281,27 @@ static esp_err_t portal_scan_handler(httpd_req_t *req)
     }
     esp_wifi_scan_get_ap_records(&count, records);
 
-    /* Build JSON response */
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr_chunk(req, "[");
+    /* Build JSON response with cJSON so SSIDs are escaped — a crafted nearby
+     * SSID (containing quotes/backslashes/control chars) must not be able to
+     * break out of the JSON string or corrupt the network list. */
+    cJSON *arr = cJSON_CreateArray();
     for (int i = 0; i < count; i++) {
-        char entry[128];
-        snprintf(entry, sizeof(entry), "%s{\"ssid\":\"%s\",\"rssi\":%d,\"auth\":%d}",
-                 i > 0 ? "," : "", records[i].ssid, records[i].rssi, records[i].authmode);
-        httpd_resp_sendstr_chunk(req, entry);
+        /* wifi_ap_record_t.ssid is a fixed 33-byte field; force NUL-termination. */
+        char ssid[33];
+        memcpy(ssid, records[i].ssid, 32);
+        ssid[32] = '\0';
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddStringToObject(o, "ssid", ssid);
+        cJSON_AddNumberToObject(o, "rssi", records[i].rssi);
+        cJSON_AddNumberToObject(o, "auth", records[i].authmode);
+        cJSON_AddItemToArray(arr, o);
     }
-    httpd_resp_sendstr_chunk(req, "]");
-    httpd_resp_sendstr_chunk(req, NULL);
+    char *json = cJSON_PrintUnformatted(arr);
+    cJSON_Delete(arr);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json ? json : "[]");
+    if (json) cJSON_free(json);
 
     free(records);
     esp_wifi_set_mode(WIFI_MODE_AP); /* back to AP only */
@@ -426,7 +437,9 @@ static void captive_dns_task(void *arg)
         struct sockaddr_in client;
         socklen_t client_len = sizeof(client);
         int len = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&client, &client_len);
-        if (len < 12) continue;
+        /* Reject undersized queries and any query large enough that copying it
+         * plus the 16-byte answer would overflow resp[] (stack-safety). */
+        if (len < 12 || len > (int)sizeof(buf) - 16) continue;
 
         /* Build minimal DNS response: copy header, set QR+AA flags, append A record pointing to us */
         uint8_t resp[512];

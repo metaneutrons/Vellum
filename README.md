@@ -32,7 +32,7 @@ Vellum is an open-source platform for managing (not only) E-Ink/E-Paper displays
 - **✏️ Pixel-Perfect Rendering** — Pre-rendered bitmap font atlas for color e-paper, anti-aliased for grayscale
 - **⏱ Refresh Profiles** — Schedule rules by weekday/time (night mode, weekends, office hours)
 - **⬆️ OTA Updates** — Signed firmware distribution via GitHub Releases (Ed25519 + SHA256)
-- **🔒 Encrypted Security** — X25519 ECDH token delivery, AES-256-GCM credentials at rest
+- **🔒 Encrypted Security** — validated TLS (HTTPS) to the backend, X25519 ECDH encrypted token delivery, and NVS credential encryption at rest (production hardening profile — see [SECURITY.md](SECURITY.md))
 - **🌐 Zero-Config Setup** — mDNS auto-discovery, branded captive portal for WiFi provisioning
 - **🖱 Web Flasher** — Flash firmware to devices directly from the browser via USB
 - **🧪 Device Simulator** — Web-based E-Paper simulator for development (dev-only)
@@ -208,7 +208,7 @@ firmware/
     │   └── drivers/      # E1001 (UC8179), E1002 (UC8179C), E1003, Stub
     ├── http_client/      # Server communication (cJSON, TLS)
     ├── wifi_manager/     # Station + SoftAP captive portal
-    ├── nvs_manager/      # Encrypted NVS (WiFi, token, X25519 keypair)
+    ├── nvs_manager/      # NVS store (WiFi, token, X25519 keypair; encrypted in prod profile)
     ├── buttons/          # GPIO interrupt handler (3 buttons)
     └── sleep_manager/    # Deep sleep + timer/GPIO wake
 ```

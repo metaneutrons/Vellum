@@ -21,10 +21,18 @@ const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
 export type FirmwareChannel = "stable" | "beta";
 
 export interface FirmwareBinary {
+  /** Merged full-flash image (bootloader+partition-table+ota_data+app) written
+   *  at offset 0x0 — used by the browser web-flasher (ESP Web Tools). */
   url: string;
-  sha256: string;
-  signature: string;
   size: number;
+  /** App-only image for over-the-air updates (esp_https_ota on the device). */
+  otaUrl: string;
+  /** Hex SHA-256 of the app image's *appended* digest — this is exactly what
+   *  esp_partition_get_sha256() returns on-device (NOT sha256sum of the file). */
+  otaSha256: string;
+  /** Base64 Ed25519 signature over the raw 32-byte appended digest. */
+  otaSignature: string;
+  otaSize: number;
 }
 
 export interface FirmwareManifest {
@@ -228,10 +236,10 @@ export async function resolveOta(
   }
 
   return {
-    otaUrl: binary.url,
+    otaUrl: binary.otaUrl,
     otaVersion: target.version,
-    otaSha256: binary.sha256,
-    otaSignature: binary.signature,
+    otaSha256: binary.otaSha256,
+    otaSignature: binary.otaSignature,
   };
 }
 
