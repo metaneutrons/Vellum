@@ -146,10 +146,38 @@ firmware/keys/
 | Physical USB console/Improv grants device control | Accepted; equivalent to physical possession. Locked out by Secure Boot + disabled ROM-DL in prod. |
 | Render content spoofing if the operator uses a non-public-CA endpoint | Mitigated by enforced HTTPS + CA validation; operator must use a valid public cert. |
 | OTA downgrade to an older *signed* image | Mitigated in prod by anti-rollback; in dev only the version-gate applies. |
+| `X-Forwarded-For` is trusted for rate-limit keying | Accepted **behind a trusted proxy** that overwrites XFF; a directly-exposed instance lets a client spoof it and bypass limits (see §7). |
+| CSP is a non-breaking subset (no `script-src` lockdown) | Accepted; clickjacking / `<base>` / plugin / form-hijack are covered. Full nonce-based CSP tracked in ROADMAP. |
 
 ---
 
-## 7. Reporting
+## 7. Server API security & deployment assumptions
+
+The backend API is defended in layers:
+
+- **Device API** (`/api/v1/ink/*`): device-token auth (SHA-256 + constant-time compare),
+  TOFU token issuance delivered encrypted to the device's X25519 key, zod input
+  validation, and per-IP rate limiting (hello 10/min, authenticated 60/min).
+- **Admin API + pages** (`/api/v1/admin/*`, `/admin/*`): gated centrally by `src/proxy.ts`
+  — a valid HMAC-SHA256-signed, 8-hour session cookie, or a valid `x-api-key`. Login is
+  rate-limited (5 / 15 min); the session cookie is `httpOnly` + `secure` (prod) +
+  `sameSite=lax` (which also closes CSRF on the admin API).
+- **Outbound fetches** (iCal / provider APIs / firmware proxy) go through `safeFetch`,
+  which blocks loopback / private / link-local / cloud-metadata ranges and re-validates
+  every redirect hop.
+- **Baseline security headers** (HSTS, `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, and a CSP `frame-ancestors`/`base-uri`/
+  `object-src`/`form-action`) are set in `next.config.ts`.
+
+**Deployment assumption — trusted reverse proxy.** The server must run behind a proxy
+that (a) terminates TLS with a valid certificate and (b) **overwrites** `X-Forwarded-For`.
+Rate limiting keys on that header, so a directly-exposed instance would let a client spoof
+it and bypass all limits. A full CSP `script-src` lockdown (per-request nonces) is a
+roadmap item.
+
+---
+
+## 8. Reporting
 
 Report suspected vulnerabilities privately to the maintainer rather than via a
 public issue.

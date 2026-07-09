@@ -39,3 +39,17 @@ landed in #28 (see [SECURITY.md](SECURITY.md) for the resulting security model).
       `https://<host>.local` URL, which a public CA cannot certify; the reliable path is
       an operator-configured FQDN. Decide whether to keep mDNS as a best-effort fallback
       or gate it behind a private-CA / cert-pinning build.
+
+## Server / API hardening
+
+- [ ] **Tighten the Content-Security-Policy.** `next.config.ts` sets a non-breaking
+      subset today (`frame-ancestors`/`base-uri`/`object-src`/`form-action`) alongside
+      HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and
+      `Permissions-Policy`. Add a real `script-src`/`style-src` lockdown via per-request
+      nonces (prod-only — Next's dev HMR needs `unsafe-eval`).
+- [ ] **Enforce the trusted-proxy assumption for `X-Forwarded-For`.** Rate limiting keys
+      on the first XFF hop; if the app is ever exposed without a proxy that overwrites
+      XFF, limits are trivially bypassed. Require a trusted proxy in the deploy docs, or
+      gate XFF parsing behind an explicit `TRUST_PROXY` setting.
+- [ ] **Move rate limiting to a shared store** (e.g. Redis) so limits hold across
+      multiple server instances — the current limiter is in-memory / per-process.

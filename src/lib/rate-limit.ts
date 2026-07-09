@@ -68,7 +68,13 @@ export const apiLimiter = new RateLimiter({ maxRequests: 60, windowMs: 60_000 })
 
 /**
  * Extract client IP from request headers.
- * Checks X-Forwarded-For first (reverse proxy), falls back to "unknown".
+ *
+ * ⚠️ SECURITY / DEPLOYMENT ASSUMPTION: this trusts the first `X-Forwarded-For`
+ * hop. That is only sound when the app runs behind a trusted reverse proxy that
+ * OVERWRITES this header. If the app is exposed directly, a client can spoof
+ * `X-Forwarded-For` to get a fresh rate-limit bucket per request and bypass all
+ * limits (login brute-force + API flood). Deploy behind a trusted proxy; see
+ * SECURITY.md. Falls back to "unknown" when absent.
  */
 export function getClientIp(request: Request): string {
   return (
