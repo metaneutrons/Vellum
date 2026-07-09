@@ -105,7 +105,7 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           VERSION="${{ needs.version.outputs.version }}"
-          SAFE="${VERSION//+/-}"           # url/file-safe (drop '+build' metadata separator)
+          SAFE=$(printf '%s' "$VERSION" | tr '+' '-')   # url/file-safe (POSIX sh; drops '+build' separator)
           MODEL="${{ matrix.model }}"
           # App-only image → OTA. Its trailing 32 bytes are the digest the device
           # verifies via esp_partition_get_sha256() after esp_https_ota.
