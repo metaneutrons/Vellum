@@ -6,7 +6,7 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["@napi-rs/canvas"],
-  allowedDevOrigins: ["192.168.16.5", "192.168.18.1"],
+  allowedDevOrigins: ["192.168.16.5", "192.168.18.1", "10.10.10.10"],
   async headers() {
     // Baseline security headers on every response. NOTE: the CSP here is a
     // deliberately non-breaking subset (clickjacking / <base> / plugins / form
