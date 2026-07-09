@@ -94,9 +94,12 @@ menu "Vellum Configuration"
 
     config VELLUM_OTA_REQUIRE_SIGNATURE
         bool "Require a valid OTA signature (fail-closed)"
-        default n
+        default y
         help
             When set, OTA updates without a valid Ed25519 signature are rejected.
-            Leave off for local development; set =y for production builds.
+            Defaults to y (fail-closed): with Secure Boot disabled this app-level
+            signature is the ONLY control preventing malicious firmware, so it must
+            never silently fail open. Turn this off ONLY for local development that
+            deliberately ships an empty VELLUM_OTA_SIGNING_PUBKEY.
 
 endmenu
