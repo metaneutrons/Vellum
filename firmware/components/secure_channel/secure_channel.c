@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "psa/crypto.h"
 #include "mbedtls/base64.h"
+#include "mbedtls/platform_util.h"
 #include "nvs_manager.h"
 
 static const char *TAG = "secure_channel";
@@ -64,13 +65,23 @@ esp_err_t secure_channel_ensure_keypair(char *pub_b64_out, size_t out_len)
 
     /* Base64 encode */
     char priv_b64[NVS_MAX_KEY_LEN];
-    size_t priv_b64_len, pub_b64_len;
-    mbedtls_base64_encode((unsigned char *)priv_b64, sizeof(priv_b64), &priv_b64_len, priv_raw, priv_len);
-    mbedtls_base64_encode((unsigned char *)pub_b64_out, out_len, &pub_b64_len, pub_raw, pub_len);
+    size_t priv_b64_len = 0, pub_b64_len = 0;
+    int e1 = mbedtls_base64_encode((unsigned char *)priv_b64, sizeof(priv_b64), &priv_b64_len, priv_raw, priv_len);
+    int e2 = mbedtls_base64_encode((unsigned char *)pub_b64_out, out_len, &pub_b64_len, pub_raw, pub_len);
+    if (e1 != 0 || e2 != 0) {
+        ESP_LOGE(TAG, "Key base64 encode failed: priv=%d pub=%d", e1, e2);
+        mbedtls_platform_zeroize(priv_raw, sizeof(priv_raw));
+        mbedtls_platform_zeroize(priv_b64, sizeof(priv_b64));
+        return ESP_FAIL;
+    }
     priv_b64[priv_b64_len] = '\0';
     pub_b64_out[pub_b64_len] = '\0';
 
     nvs_manager_store_keypair(priv_b64, pub_b64_out);
+
+    /* Scrub the plaintext private key from stack once persisted. */
+    mbedtls_platform_zeroize(priv_raw, sizeof(priv_raw));
+    mbedtls_platform_zeroize(priv_b64, sizeof(priv_b64));
 
     ESP_LOGI(TAG, "X25519 keypair generated and stored");
     return ESP_OK;
@@ -85,21 +96,35 @@ char *secure_channel_decrypt_token(const char *ciphertext_b64, const char *nonce
         return NULL;
     }
 
-    /* Decode base64 inputs */
+    /* Decode + strictly validate every server-influenced field. mbedtls sets
+     * *olen to the *required* size on BUFFER_TOO_SMALL, so the return value MUST
+     * be checked before any decoded length is trusted — otherwise an oversized
+     * field would drive out-of-bounds reads and huge allocations downstream. */
     uint8_t priv_raw[32], server_pub[32], nonce[12];
     uint8_t ct_buf[256];
-    size_t priv_len, spub_len, nonce_len, ct_len;
+    size_t priv_len = 0, spub_len = 0, nonce_len = 0, ct_len = 0;
 
-    mbedtls_base64_decode(priv_raw, sizeof(priv_raw), &priv_len,
-                          (const unsigned char *)priv_b64, strlen(priv_b64));
-    mbedtls_base64_decode(server_pub, sizeof(server_pub), &spub_len,
-                          (const unsigned char *)server_pub_b64, strlen(server_pub_b64));
-    mbedtls_base64_decode(nonce, sizeof(nonce), &nonce_len,
-                          (const unsigned char *)nonce_b64, strlen(nonce_b64));
-    mbedtls_base64_decode(ct_buf, sizeof(ct_buf), &ct_len,
-                          (const unsigned char *)ciphertext_b64, strlen(ciphertext_b64));
+    if (mbedtls_base64_decode(priv_raw, sizeof(priv_raw), &priv_len,
+                              (const unsigned char *)priv_b64, strlen(priv_b64)) != 0 ||
+        mbedtls_base64_decode(server_pub, sizeof(server_pub), &spub_len,
+                              (const unsigned char *)server_pub_b64, strlen(server_pub_b64)) != 0 ||
+        mbedtls_base64_decode(nonce, sizeof(nonce), &nonce_len,
+                              (const unsigned char *)nonce_b64, strlen(nonce_b64)) != 0 ||
+        mbedtls_base64_decode(ct_buf, sizeof(ct_buf), &ct_len,
+                              (const unsigned char *)ciphertext_b64, strlen(ciphertext_b64)) != 0) {
+        ESP_LOGE(TAG, "Malformed base64 in token payload");
+        return NULL;
+    }
 
-    if (ct_len < 16) { ESP_LOGE(TAG, "Ciphertext too short"); return NULL; }
+    if (priv_len != 32 || spub_len != 32 || nonce_len != 12 ||
+        ct_len < 16 || ct_len > sizeof(ct_buf)) {
+        ESP_LOGE(TAG, "Rejected token: bad field lengths "
+                 "(priv=%u spub=%u nonce=%u ct=%u)",
+                 (unsigned)priv_len, (unsigned)spub_len,
+                 (unsigned)nonce_len, (unsigned)ct_len);
+        mbedtls_platform_zeroize(priv_raw, sizeof(priv_raw));
+        return NULL;
+    }
 
     /* ECDH via PSA: import our private key, compute shared secret */
     psa_crypto_init();
@@ -113,8 +138,10 @@ char *secure_channel_decrypt_token(const char *ciphertext_b64, const char *nonce
     psa_key_id_t key_id;
     if (psa_import_key(&attr, priv_raw, priv_len, &key_id) != PSA_SUCCESS) {
         ESP_LOGE(TAG, "Failed to import private key");
+        mbedtls_platform_zeroize(priv_raw, sizeof(priv_raw));
         return NULL;
     }
+    mbedtls_platform_zeroize(priv_raw, sizeof(priv_raw));
 
     uint8_t shared_raw[32];
     size_t shared_len;
@@ -137,17 +164,27 @@ char *secure_channel_decrypt_token(const char *ciphertext_b64, const char *nonce
         psa_set_key_type(&ikm_attr, PSA_KEY_TYPE_DERIVE);
 
         psa_key_id_t ikm_key;
-        psa_import_key(&ikm_attr, shared_raw, shared_len, &ikm_key);
+        psa_status_t kd = psa_import_key(&ikm_attr, shared_raw, shared_len, &ikm_key);
+        mbedtls_platform_zeroize(shared_raw, sizeof(shared_raw));
+        if (kd != PSA_SUCCESS) {
+            ESP_LOGE(TAG, "HKDF IKM import failed: %d", (int)kd);
+            return NULL;
+        }
 
         psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
-        psa_key_derivation_setup(&op, PSA_ALG_HKDF(PSA_ALG_SHA_256));
-        psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_SALT, NULL, 0);
-        psa_key_derivation_input_key(&op, PSA_KEY_DERIVATION_INPUT_SECRET, ikm_key);
-        psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_INFO,
+        kd  = psa_key_derivation_setup(&op, PSA_ALG_HKDF(PSA_ALG_SHA_256));
+        kd |= psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_SALT, NULL, 0);
+        kd |= psa_key_derivation_input_key(&op, PSA_KEY_DERIVATION_INPUT_SECRET, ikm_key);
+        kd |= psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_INFO,
                                        (const uint8_t *)"vellum-token-v1", 15);
-        psa_key_derivation_output_bytes(&op, aes_key, 32);
+        kd |= psa_key_derivation_output_bytes(&op, aes_key, 32);
         psa_key_derivation_abort(&op);
         psa_destroy_key(ikm_key);
+        if (kd != PSA_SUCCESS) {
+            ESP_LOGE(TAG, "HKDF derivation failed: %d", (int)kd);
+            mbedtls_platform_zeroize(aes_key, sizeof(aes_key));
+            return NULL;
+        }
     }
 
     /* AES-256-GCM decrypt via PSA */
@@ -163,7 +200,13 @@ char *secure_channel_decrypt_token(const char *ciphertext_b64, const char *nonce
         psa_set_key_bits(&aes_attr, 256);
 
         psa_key_id_t aes_key_id;
-        psa_import_key(&aes_attr, aes_key, 32, &aes_key_id);
+        psa_status_t imp = psa_import_key(&aes_attr, aes_key, 32, &aes_key_id);
+        mbedtls_platform_zeroize(aes_key, sizeof(aes_key));
+        if (imp != PSA_SUCCESS) {
+            ESP_LOGE(TAG, "AES key import failed: %d", (int)imp);
+            free(plaintext);
+            return NULL;
+        }
 
         size_t out_len;
         /* GCM ciphertext format: ciphertext || tag (16 bytes) */

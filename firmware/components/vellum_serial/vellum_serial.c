@@ -60,6 +60,8 @@ static uint8_t s_improv_state = IMPROV_STATE_READY;
 static void improv_send_packet(uint8_t type, const uint8_t *data, uint8_t len)
 {
     uint8_t pkt[256];
+    /* header(6)+ver+type+len = 9, payload = len, checksum = 1 → 10 + len. */
+    if ((size_t)len + 10 > sizeof(pkt)) return;
     memcpy(pkt, IMPROV_HEADER, 6);
     pkt[6] = IMPROV_VERSION;
     pkt[7] = type;
@@ -110,19 +112,21 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     if (len < 2) { improv_send_error(IMPROV_ERROR_INVALID_RPC); return; }
 
     uint8_t ssid_len = data[0];
-    if (1 + ssid_len >= len) { improv_send_error(IMPROV_ERROR_INVALID_RPC); return; }
+    if ((size_t)1 + ssid_len >= len) { improv_send_error(IMPROV_ERROR_INVALID_RPC); return; }
     char ssid[33] = {0};
     memcpy(ssid, &data[1], ssid_len > 32 ? 32 : ssid_len);
 
     uint8_t pass_len = data[1 + ssid_len];
+    /* The password bytes must lie within the received payload. */
+    if ((size_t)2 + ssid_len + pass_len > len) { improv_send_error(IMPROV_ERROR_INVALID_RPC); return; }
     char pass[65] = {0};
     if (pass_len > 0) memcpy(pass, &data[2 + ssid_len], pass_len > 64 ? 64 : pass_len);
 
     /* Optional third string: server URL */
-    int pos = 2 + ssid_len + pass_len;
+    size_t pos = (size_t)2 + ssid_len + pass_len;
     if (pos < len) {
         uint8_t url_len = data[pos];
-        if (url_len > 0 && pos + 1 + url_len <= len) {
+        if (url_len > 0 && pos + 1 + url_len <= (size_t)len) {
             char url[128] = {0};
             memcpy(url, &data[pos + 1], url_len > 127 ? 127 : url_len);
             nvs_manager_store_server_url(url);
@@ -158,7 +162,7 @@ static void improv_handle_device_info(void)
     const char *info[] = {
         "Vellum",
         CONFIG_VELLUM_FIRMWARE_VERSION,
-        "esp32s3",
+        CONFIG_IDF_TARGET,
         CONFIG_VELLUM_DISPLAY_MODEL,
     };
     improv_send_rpc_result(IMPROV_CMD_GET_DEVICE_INFO, info, 4);
@@ -170,6 +174,10 @@ static void improv_handle_rpc(const uint8_t *data, uint8_t len)
 
     uint8_t cmd = data[0];
     uint8_t cmd_len = data[1];
+
+    /* The declared command payload must fit within the bytes actually received;
+     * never trust cmd_len on its own (it drove out-of-bounds reads before). */
+    if ((size_t)2 + cmd_len > len) { improv_send_error(IMPROV_ERROR_INVALID_RPC); return; }
 
     switch (cmd) {
         case IMPROV_CMD_WIFI_SETTINGS:
