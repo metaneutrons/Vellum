@@ -28,16 +28,22 @@ jobs:
       - name: Calculate version
         id: calc
         run: |
-          # Base version from Kconfig (SSOT: release-please)
-          BASE=$(grep 'default "' firmware/main/Kconfig.projbuild | head -1 | grep -oP '\d+\.\d+\.\d+')
+          # Base version from Kconfig (SSOT: release-please). Anchor to the
+          # VELLUM_FIRMWARE_VERSION config block (marked by x-release-please-version)
+          # so an unrelated `default "..."` added above it can't hijack the version.
+          BASE=$(grep -A3 'config VELLUM_FIRMWARE_VERSION' firmware/main/Kconfig.projbuild \
+                 | grep -m1 -oP 'default "\K\d+\.\d+\.\d+')
 
           if [ "${{ github.event_name }}" = "release" ]; then
             echo "version=${BASE}" >> $GITHUB_OUTPUT
             echo "channel=stable" >> $GITHUB_OUTPUT
             echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
           else
-            # Beta: count commits since last release tag
-            LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "")
+            # Beta: count commits since last STABLE release tag. Exclude prerelease
+            # tags (beta / any tag containing '-') so BETA_NUM stays monotonic — a
+            # 'v*' match against beta tags would reset the count on every beta.
+            LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' \
+                         --exclude '*beta*' --exclude '*-*' 2>/dev/null || echo "")
             if [ -n "$LAST_TAG" ]; then
               BETA_NUM=$(git rev-list ${LAST_TAG}..HEAD --count)
             else
@@ -55,6 +61,13 @@ jobs:
 
   build:
     needs: version
+    # Skip the redundant beta pipeline for release-please's own release commit:
+    # that push lands a `chore(main): release …` commit on main, and the actual
+    # stable build fires moments later from the `release: published` event.
+    # Always build for real releases and any non-release-please push/dispatch.
+    if: >-
+      github.event_name == 'release' ||
+      !startsWith(github.event.head_commit.message, 'chore(main): release')
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.0
@@ -94,12 +107,14 @@ jobs:
           # Make esp_app_get_description()->version match the release version too
           # (ESP-IDF reads version.txt for PROJECT_VER; APP_PROJECT_VER_FROM_CONFIG=n).
           echo "${VERSION}" > version.txt
-          idf.py set-target ${{ matrix.target }}
+          # -DVELLUM_MODEL bakes the model into the app-descriptor project_name
+          # (vellum-<model>) so the OTA client can reject a wrong-model image.
+          idf.py -DVELLUM_MODEL=${{ matrix.model }} set-target ${{ matrix.target }}
 
       - name: Build
         run: |
           . $IDF_PATH/export.sh
-          idf.py build
+          idf.py -DVELLUM_MODEL=${{ matrix.model }} build
 
       - name: Extract binaries (app image for OTA + merged image for web flasher)
         run: |
@@ -109,7 +124,9 @@ jobs:
           MODEL="${{ matrix.model }}"
           # App-only image → OTA. Its trailing 32 bytes are the digest the device
           # verifies via esp_partition_get_sha256() after esp_https_ota.
-          cp build/vellum-firmware.bin "vellum-${MODEL}-v${SAFE}.bin"
+          # The app image is now named per-model (project(vellum-<model>)) so the
+          # OTA client can reject a wrong-model image; source it by that name.
+          cp "build/vellum-${MODEL}.bin" "vellum-${MODEL}-v${SAFE}.bin"
           # Merged full-flash image → web flasher (ESP Web Tools writes it at 0x0).
           cd build && esptool --chip ${{ matrix.target }} merge-bin \
             --output "../vellum-${MODEL}-v${SAFE}-factory.bin" @flash_args
@@ -133,6 +150,29 @@ jobs:
         with:
           path: binaries
           merge-multiple: true
+
+      - name: Guard app image fits the OTA partition (fail before signing/publishing)
+        run: |
+          # ota_0/ota_1 hold the OTA app image; parse ota_0's size from the
+          # partition table so this stays correct if the layout ever changes.
+          OTA_MAX=$(awk -F',' '$1 ~ /^ota_0/ {gsub(/[[:space:]]/,"",$5); print $5}' \
+                    firmware/partitions.csv)
+          OTA_MAX=$((OTA_MAX))                 # 0x300000 -> decimal
+          HEADROOM=$((64 * 1024))              # keep a little slack under the limit
+          LIMIT=$((OTA_MAX - HEADROOM))
+          echo "ota_0 size=${OTA_MAX} bytes; app-image limit (with headroom)=${LIMIT} bytes"
+          FAIL=0
+          for f in binaries/vellum-*-v*.bin; do
+            case "$f" in *-factory.bin) continue;; esac   # factory = full-flash, not OTA
+            SZ=$(stat -c%s "$f")
+            if [ "$SZ" -ge "$LIMIT" ]; then
+              echo "::error::${f} is ${SZ} bytes, >= OTA app limit ${LIMIT} (ota_0=${OTA_MAX}). Would not fit / no headroom."
+              FAIL=1
+            else
+              echo "OK: ${f} ${SZ} bytes < ${LIMIT}"
+            fi
+          done
+          [ "$FAIL" -eq 0 ]
 
       - name: Compute OTA digests (== on-device esp_partition_get_sha256)
         run: |
@@ -208,17 +248,61 @@ jobs:
           console.log(JSON.stringify(manifest, null, 2));
           "
 
-      - name: Upload to existing release
+      - name: Verify manifest integrity (all models present + complete) before publish
+        env:
+          # Signatures are mandatory on real releases (devices are fail-closed); on
+          # beta builds an unset FIRMWARE_SIGNING_KEY yields empty signatures, which
+          # dev/fail-open devices still accept — so only hard-require on release.
+          REQUIRE_SIG: ${{ github.event_name == 'release' }}
+        run: |
+          cd binaries
+          REQUIRE_SIG="$REQUIRE_SIG" node -e "
+          const fs = require('fs');
+          const EXPECTED = ['e1001', 'e1002', 'e1003', 'd1001'];   // the full fleet
+          const requireSig = process.env.REQUIRE_SIG === 'true';
+          const m = JSON.parse(fs.readFileSync('firmware-manifest.json', 'utf8'));
+          const bins = m.binaries || {};
+          const errors = [];
+          for (const model of EXPECTED) {
+            const b = bins[model];
+            if (!b) { errors.push(model + ': missing from manifest'); continue; }
+            if (!b.otaSha256) errors.push(model + ': empty otaSha256');
+            if (!(b.otaSize > 0)) errors.push(model + ': otaSize not > 0');
+            if (requireSig && !b.otaSignature) errors.push(model + ': empty otaSignature (required for release)');
+          }
+          const extra = Object.keys(bins).filter(k => !EXPECTED.includes(k));
+          if (extra.length) console.log('note: unexpected models in manifest: ' + extra.join(', '));
+          if (errors.length) {
+            for (const e of errors) console.error('::error::manifest ' + e);
+            process.exit(1);
+          }
+          console.log('Manifest integrity OK: ' + EXPECTED.join(', ') + (requireSig ? ' (signatures required)' : ''));
+          "
+
+      # Atomic-ish publish: upload the images/digests FIRST, then the manifest
+      # LAST in a separate step. resolveOta() keys off the manifest, so a device
+      # polling mid-publish must never see a manifest whose assets aren't up yet.
+      - name: Upload images to existing release
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd binaries
           gh release upload "${{ github.event.release.tag_name }}" \
-            *.bin *.sha256 firmware-manifest.json \
+            *.bin *.sha256 \
             --repo "${{ github.repository }}" --clobber
 
-      - name: Create beta release
+      - name: Upload manifest to existing release (last, after all images)
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd binaries
+          gh release upload "${{ github.event.release.tag_name }}" \
+            firmware-manifest.json \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Create beta release with images (manifest uploaded last, below)
         if: github.event_name != 'release'
         uses: softprops/action-gh-release@v3
         with:
@@ -229,4 +313,14 @@ jobs:
           files: |
             binaries/*.bin
             binaries/*.sha256
+
+      - name: Add manifest to beta release (last, after all images)
+        if: github.event_name != 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: "Firmware ${{ needs.version.outputs.version }}"
+          prerelease: true
+          make_latest: false
+          files: |
             binaries/firmware-manifest.json

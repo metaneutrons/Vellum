@@ -51,8 +51,8 @@ build:
 	@$(IDF_ACTIVATE) && $(IDF_ENV) && \
 		cp $(SDKCONFIG_DEFAULTS) sdkconfig.defaults && \
 		grep -q "$(PANEL_CONFIG)" sdkconfig.defaults 2>/dev/null || echo "$(PANEL_CONFIG)" >> sdkconfig.defaults && \
-		python $$IDF_PATH/tools/idf.py set-target $(TARGET_CHIP) && \
-		python $$IDF_PATH/tools/idf.py build
+		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) set-target $(TARGET_CHIP) && \
+		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) build
 
 flash: check-port
 	@echo "Flashing $(MODEL) to $(PORT)..."
@@ -61,17 +61,17 @@ ifeq ($(TARGET_CHIP),esp32p4)
 		espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x2000 bootloader/bootloader.bin && \
 		espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x8000 partition_table/partition-table.bin && \
 		espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x10000 ota_data_initial.bin && \
-		espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x20000 vellum-firmware.bin
+		espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x20000 vellum-$(MODEL).bin
 else
-	@$(IDF_ACTIVATE) && $(IDF_ENV) && python $$IDF_PATH/tools/idf.py -p $(PORT) -b $(BAUD) flash
+	@$(IDF_ACTIVATE) && $(IDF_ENV) && python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -p $(PORT) -b $(BAUD) flash
 endif
 
 flash-app: check-port
 	@echo "Flashing app only to $(PORT)..."
 ifeq ($(TARGET_CHIP),esp32p4)
-	@espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x20000 build/vellum-firmware.bin
+	@espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x20000 build/vellum-$(MODEL).bin
 else
-	@$(IDF_ACTIVATE) && $(IDF_ENV) && python $$IDF_PATH/tools/idf.py -p $(PORT) -b $(BAUD) app-flash
+	@$(IDF_ACTIVATE) && $(IDF_ENV) && python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -p $(PORT) -b $(BAUD) app-flash
 endif
 
 monitor: check-port

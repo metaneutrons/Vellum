@@ -102,4 +102,23 @@ menu "Vellum Configuration"
             never silently fail open. Turn this off ONLY for local development that
             deliberately ships an empty VELLUM_OTA_SIGNING_PUBKEY.
 
+    config VELLUM_OTA_ALLOW_UNSIGNED
+        bool "Allow unsigned OTA when no signing key is configured (DANGEROUS)"
+        default n
+        help
+            When set AND VELLUM_OTA_SIGNING_PUBKEY is empty, the device accepts
+            firmware images that carry no Ed25519 signature. With Secure Boot
+            disabled this removes the ONLY control preventing malicious firmware,
+            so it is strictly for local development. Leave at n (fail-closed) for
+            any device that leaves the bench — NEVER enable in production.
+
+    config VELLUM_OTA_MIN_BATTERY_PCT
+        int "Minimum battery % to start an OTA (when not USB-powered)"
+        default 35
+        range 0 100
+        help
+            OTA updates are skipped when running on battery below this level, so a
+            brownout mid-flash cannot corrupt the staged image and brick the
+            device. Ignored when the device is on USB power.
+
 endmenu
