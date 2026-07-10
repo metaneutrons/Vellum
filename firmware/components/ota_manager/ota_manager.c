@@ -139,6 +139,29 @@ static bool version_is_new(const char *offered)
     return true;
 }
 
+/* Parse leading major.minor.patch from a version string (ignores -pre/+build). */
+static void ota_parse_mmp(const char *v, int out[3])
+{
+    out[0] = out[1] = out[2] = 0;
+    if (!v) return;
+    if (*v == 'v') v++;
+    sscanf(v, "%d.%d.%d", &out[0], &out[1], &out[2]);
+}
+
+/* True if `offered` is a strictly-older RELEASE than the running one (compares
+ * major.minor.patch only — a pre-release-only difference is not treated as a
+ * downgrade). Defense-in-depth against a replayed/tampered older signed image. */
+static bool ota_is_downgrade(const char *offered)
+{
+    const esp_app_desc_t *app = esp_app_get_description();
+    if (!app || !offered) return false;
+    int o[3], r[3];
+    ota_parse_mmp(offered, o);
+    ota_parse_mmp(app->version, r);
+    for (int i = 0; i < 3; i++) if (o[i] != r[i]) return o[i] < r[i];
+    return false;
+}
+
 /* Fire-and-forget OTA outcome report to the server. `to` is the target version. */
 static esp_err_t ota_report(const char *to, const char *phase, const char *err)
 {
@@ -205,6 +228,8 @@ void ota_manager_check_and_apply(void)
     cJSON *ota_ver = data ? cJSON_GetObjectItemCaseSensitive(data, "otaVersion") : NULL;
     cJSON *ota_sha = data ? cJSON_GetObjectItemCaseSensitive(data, "otaSha256") : NULL;
     cJSON *ota_sig = data ? cJSON_GetObjectItemCaseSensitive(data, "otaSignature") : NULL;
+    cJSON *ota_dg  = data ? cJSON_GetObjectItemCaseSensitive(data, "allowDowngrade") : NULL;
+    bool allow_downgrade = cJSON_IsBool(ota_dg) && cJSON_IsTrue(ota_dg);
 
     if (!cJSON_IsString(ota_url) || !ota_url->valuestring || strlen(ota_url->valuestring) == 0) {
         cJSON_Delete(root);
@@ -225,6 +250,18 @@ void ota_manager_check_and_apply(void)
 
     /* Version gate: don't re-flash the version we're already running. */
     if (cJSON_IsString(ota_ver) && !version_is_new(ota_ver->valuestring)) {
+        cJSON_Delete(root);
+        http_client_free_response(&resp);
+        return;
+    }
+
+    /* Downgrade guard (defense-in-depth): refuse a strictly-older image unless the
+     * server sanctioned it (an operator pin-downgrade sets allowDowngrade). The
+     * server's auto path never offers older, so an unsanctioned downgrade offer
+     * means replay/tamper — don't flash it, and don't blocklist it (it's not bad). */
+    if (cJSON_IsString(ota_ver) && ota_is_downgrade(ota_ver->valuestring) && !allow_downgrade) {
+        ESP_LOGW(TAG, "Refusing unsanctioned downgrade to %s (running newer)",
+                 ota_ver->valuestring);
         cJSON_Delete(root);
         http_client_free_response(&resp);
         return;

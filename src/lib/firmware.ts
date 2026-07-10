@@ -239,6 +239,10 @@ export interface OtaInfo {
   otaVersion: string | null;
   otaSha256: string | null;
   otaSignature: string | null;
+  /** True only when the server INTENTIONALLY offers an older version (an operator
+   *  pin-downgrade). The device refuses a strictly-older image unless this is set,
+   *  so a compromised/replayed offer can't silently roll a device back. */
+  allowDowngrade: boolean;
 }
 
 const NO_UPDATE: OtaInfo = {
@@ -246,6 +250,7 @@ const NO_UPDATE: OtaInfo = {
   otaVersion: null,
   otaSha256: null,
   otaSignature: null,
+  allowDowngrade: false,
 };
 
 /**
@@ -305,6 +310,9 @@ export async function resolveOta(
     otaVersion: target.version,
     otaSha256: binary.otaSha256,
     otaSignature: binary.otaSignature,
+    // Only a pin to a strictly-older version is a sanctioned downgrade; the auto
+    // path already refuses target <= current, so it is never a downgrade.
+    allowDowngrade: pinned && compareSemver(target.version, currentVersion) < 0,
   };
 }
 
