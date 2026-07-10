@@ -26,6 +26,26 @@ export const reportRequestSchema = z.object({
   issue: z.string().min(1),
 });
 
+/** OTA outcome report — device posts one per phase transition of an update. */
+export const OTA_PHASES = [
+  "downloading",
+  "verify_ok",
+  "verify_fail",
+  "applied",
+  "boot_confirmed",
+  "rolled_back",
+  "deferred",
+] as const;
+
+export const otaReportSchema = z.object({
+  mac: macSchema,
+  model: z.string().max(32).optional(),
+  fromVersion: z.string().max(64).optional(),
+  toVersion: z.string().max(64).optional(),
+  phase: z.enum(OTA_PHASES),
+  errorCode: z.string().max(64).optional(),
+});
+
 export const renderQuerySchema = z.object({
   mac: macSchema,
 });

@@ -15,6 +15,7 @@
 
 import { log } from "./logger";
 import { getSetting } from "./settings";
+import { deviceFailedTarget, isDeviceInRollout } from "./rollout";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
 
@@ -249,12 +250,18 @@ const NO_UPDATE: OtaInfo = {
 
 /**
  * Resolve OTA update for a device.
+ *
+ * `mac` gates the auto-update path through the rollout engine: a deterministic
+ * canary cohort + a fleet-wide kill-switch, plus a per-device failure blocklist
+ * that breaks the brick-retry loop. An explicit `pinVersion` is an operator
+ * override for a single device and bypasses those gates by design.
  */
 export async function resolveOta(
   currentVersion: string,
   displayModel: string,
   channel: FirmwareChannel,
-  pinVersion: string | null
+  pinVersion: string | null,
+  mac: string
 ): Promise<OtaInfo> {
   // Channel semantics: 'beta' is a SUPERSET of 'stable'. A device tracking the
   // beta channel — typically sitting at a pre-release — must still roll forward
@@ -266,6 +273,7 @@ export async function resolveOta(
   if (manifests.length === 0) return NO_UPDATE;
 
   let target: FirmwareManifest | undefined;
+  const pinned = Boolean(pinVersion);
 
   if (pinVersion) {
     target = manifests.find((m) => m.version === pinVersion);
@@ -281,6 +289,15 @@ export async function resolveOta(
   if (!binary) {
     log.warn("No binary for model", { model: displayModel, version: target.version });
     return NO_UPDATE;
+  }
+
+  // Auto-update gates (skipped for an explicit per-device pin).
+  if (!pinned) {
+    // Break the brick-retry loop: never re-offer a version this device already
+    // failed (it would roll back, re-report the old version, and re-download).
+    if (await deviceFailedTarget(mac, target.version)) return NO_UPDATE;
+    // Rollout gate: canary cohort / percentage / paused / halted kill-switch.
+    if (!(await isDeviceInRollout(mac, target.version, channel))) return NO_UPDATE;
   }
 
   return {

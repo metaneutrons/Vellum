@@ -15,6 +15,13 @@
       "when": 1782219532205,
       "tag": "0001_add_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783699200000,
+      "tag": "0002_ota_rollout",
+      "breakpoints": true
     }
   ]
 }
