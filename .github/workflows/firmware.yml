@@ -21,7 +21,7 @@ jobs:
       channel: ${{ steps.calc.outputs.channel }}
       tag: ${{ steps.calc.outputs.tag }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
@@ -70,7 +70,7 @@ jobs:
       !startsWith(github.event.head_commit.message, 'chore(main): release')
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v6.0
+      image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
     strategy:
       fail-fast: false
       matrix:
@@ -95,7 +95,7 @@ jobs:
       run:
         working-directory: firmware
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Inject version and configure
         run: |
@@ -132,7 +132,7 @@ jobs:
             --output "../vellum-${MODEL}-v${SAFE}-factory.bin" @flash_args
           cd .. && ls -lh vellum-${MODEL}-v${SAFE}*.bin
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: firmware-${{ matrix.model }}
           path: firmware/vellum-${{ matrix.model }}-*.bin
@@ -140,13 +140,17 @@ jobs:
   sign-and-release:
     needs: [version, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write       # create/upload releases
+      id-token: write        # OIDC for SLSA build provenance
+      attestations: write    # write the provenance attestation
     env:
       # Job-level so step `if:` can read it reliably (step-level env is unreliable in `if`).
       FIRMWARE_SIGNING_KEY: ${{ secrets.FIRMWARE_SIGNING_KEY }}
     steps:
-      - uses: actions/checkout@v7          # needed for the embedded-pubkey check
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7 (embedded-pubkey check)
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: binaries
           merge-multiple: true
@@ -279,6 +283,14 @@ jobs:
           console.log('Manifest integrity OK: ' + EXPECTED.join(', ') + (requireSig ? ' (signatures required)' : ''));
           "
 
+      # SLSA build provenance: signed, verifiable attestation binding every
+      # released .bin to this workflow run + commit. Verify with:
+      #   gh attestation verify <file> --repo metaneutrons/Vellum
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: "binaries/*.bin"
+
       # Atomic-ish publish: upload the images/digests FIRST, then the manifest
       # LAST in a separate step. resolveOta() keys off the manifest, so a device
       # polling mid-publish must never see a manifest whose assets aren't up yet.
@@ -304,7 +316,7 @@ jobs:
 
       - name: Create beta release with images (manifest uploaded last, below)
         if: github.event_name != 'release'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Firmware ${{ needs.version.outputs.version }}"
@@ -316,7 +328,7 @@ jobs:
 
       - name: Add manifest to beta release (last, after all images)
         if: github.event_name != 'release'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Firmware ${{ needs.version.outputs.version }}"
