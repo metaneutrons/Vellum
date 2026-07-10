@@ -18,6 +18,11 @@ import { getSetting } from "./settings";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
 
+/** Releases fetched per API page. */
+const RELEASES_PER_PAGE = 50;
+/** Hard cap on release pages walked in one poll (safety bound: 500 releases). */
+const MAX_RELEASE_PAGES = 10;
+
 export type FirmwareChannel = "stable" | "beta";
 
 export interface FirmwareBinary {
@@ -92,60 +97,97 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
   }
 
   try {
-    const headers = githubHeaders();
-    if (releasesEtag) {
-      headers["If-None-Match"] = releasesEtag;
-    }
-
-    const res = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=50`,
-      { headers, signal: AbortSignal.timeout(15_000) }
-    );
-
-    lastPollAt = Date.now();
-
-    // 304 Not Modified — no new releases, return cached
-    if (res.status === 304) {
-      return sortedManifests;
-    }
-
-    if (!res.ok) {
-      log.warn("GitHub Releases API failed", { status: res.status });
-      return sortedManifests;
-    }
-
-    // Store ETag for next conditional request
-    const etag = res.headers.get("etag");
-    if (etag) releasesEtag = etag;
-
-    const releases = (await res.json()) as GitHubRelease[];
     let newCount = 0;
+    // Releases are returned newest-first. The first STABLE release with a
+    // manifest is the newest stable; every release after it is strictly older
+    // and can never be selected (devices roll forward, never back). Once we've
+    // fully processed the page containing it we can stop paginating — this is
+    // what keeps a still-current stable discoverable even when >50 unpruned
+    // betas have piled up on top of it in the release list.
+    let foundStableManifest = false;
 
-    for (const release of releases) {
-      const manifestAsset = release.assets.find(
-        (a) => a.name === "firmware-manifest.json"
-      );
-      if (!manifestAsset) continue;
-
-      // Already cached permanently — skip
-      if (manifestCache.has(release.tag_name)) continue;
-
-      // Fetch and cache the manifest (will never change)
-      try {
-        const mRes = await fetch(manifestAsset.browser_download_url, {
-          headers: { "User-Agent": "Vellum-Server" },
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!mRes.ok) continue;
-
-        const manifest = (await mRes.json()) as FirmwareManifest;
-        manifest.tag = release.tag_name;
-        manifest.channel = release.prerelease ? "beta" : "stable";
-        manifestCache.set(release.tag_name, manifest);
-        newCount++;
-      } catch {
-        log.warn("Failed to fetch manifest", { tag: release.tag_name });
+    for (let page = 1; page <= MAX_RELEASE_PAGES; page++) {
+      const headers = githubHeaders();
+      // The ETag conditional request is only meaningful on the FIRST page (it
+      // identifies the newest-releases page). Keeping it there preserves the
+      // common 304 fast-path — an unchanged release list costs no rate limit.
+      // Deeper pages are only fetched when page 1 has already changed, so they
+      // would never 304 anyway.
+      if (page === 1 && releasesEtag) {
+        headers["If-None-Match"] = releasesEtag;
       }
+
+      const res = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=${RELEASES_PER_PAGE}&page=${page}`,
+        { headers, signal: AbortSignal.timeout(15_000) }
+      );
+
+      if (page === 1) {
+        lastPollAt = Date.now();
+
+        // 304 Not Modified — newest page unchanged, nothing new to discover.
+        if (res.status === 304) {
+          return sortedManifests;
+        }
+      }
+
+      if (!res.ok) {
+        // Any HTTP error: fall back to the last-good cache. On page 1 this is a
+        // hard failure; on later pages we keep whatever earlier pages yielded.
+        if (page === 1) {
+          log.warn("GitHub Releases API failed", { status: res.status });
+          return sortedManifests;
+        }
+        log.warn("GitHub Releases pagination stopped early", {
+          status: res.status,
+          page,
+        });
+        break;
+      }
+
+      // Store ETag from the first page only, for the next conditional request.
+      if (page === 1) {
+        const etag = res.headers.get("etag");
+        if (etag) releasesEtag = etag;
+      }
+
+      const releases = (await res.json()) as GitHubRelease[];
+      if (releases.length === 0) break; // walked past the last page
+
+      for (const release of releases) {
+        const manifestAsset = release.assets.find(
+          (a) => a.name === "firmware-manifest.json"
+        );
+        if (!manifestAsset) continue;
+
+        // A stable release carrying a firmware manifest is our stop marker.
+        if (!release.prerelease) foundStableManifest = true;
+
+        // Already cached permanently — skip the download (releases are immutable).
+        if (manifestCache.has(release.tag_name)) continue;
+
+        // Fetch and cache the manifest (will never change).
+        try {
+          const mRes = await fetch(manifestAsset.browser_download_url, {
+            headers: { "User-Agent": "Vellum-Server" },
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!mRes.ok) continue;
+
+          const manifest = (await mRes.json()) as FirmwareManifest;
+          manifest.tag = release.tag_name;
+          manifest.channel = release.prerelease ? "beta" : "stable";
+          manifestCache.set(release.tag_name, manifest);
+          newCount++;
+        } catch {
+          log.warn("Failed to fetch manifest", { tag: release.tag_name });
+        }
+      }
+
+      // Bound the walk: stop once we've reached the newest stable manifest, or
+      // once a short page tells us we've hit the end of the release list.
+      if (foundStableManifest) break;
+      if (releases.length < RELEASES_PER_PAGE) break;
     }
 
     // Rebuild sorted list
@@ -214,7 +256,13 @@ export async function resolveOta(
   channel: FirmwareChannel,
   pinVersion: string | null
 ): Promise<OtaInfo> {
-  const manifests = await getManifestsByChannel(channel);
+  // Channel semantics: 'beta' is a SUPERSET of 'stable'. A device tracking the
+  // beta channel — typically sitting at a pre-release — must still roll forward
+  // onto a superseding STABLE release, so its candidate set is stable ∪ beta
+  // (newest by compareSemver wins). 'stable' devices only ever see stable.
+  const all = await getAllManifests();
+  const manifests =
+    channel === "beta" ? all : all.filter((m) => m.channel === "stable");
   if (manifests.length === 0) return NO_UPDATE;
 
   let target: FirmwareManifest | undefined;

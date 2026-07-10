@@ -56,15 +56,23 @@ static const char *TAG = "ota";
  * @param digest   32-byte SHA-256 of the staged firmware.
  * @param sig_b64  base64 of the 64-byte Ed25519 signature.
  * @return true if a valid signature was verified; false otherwise.
- *         When no signing key is configured, returns !OTA_REQUIRE_SIGNATURE
- *         (allow unsigned only in development).
+ *         When no signing key is configured this fails CLOSED (returns false)
+ *         unless CONFIG_VELLUM_OTA_ALLOW_UNSIGNED is set for local development.
  */
 static bool verify_ota_signature(const uint8_t digest[32], const char *sig_b64)
 {
     const char *pubkey_b64 = CONFIG_VELLUM_OTA_SIGNING_PUBKEY;
     if (!pubkey_b64 || strlen(pubkey_b64) == 0) {
-        ESP_LOGW(TAG, "No OTA signing key configured");
-        return !OTA_REQUIRE_SIGNATURE;
+#if defined(CONFIG_VELLUM_OTA_ALLOW_UNSIGNED)
+        /* Dev-only escape hatch. Log loudly so this never passes unnoticed. */
+        ESP_LOGW(TAG, "!!! No OTA signing key configured — ACCEPTING UNSIGNED "
+                      "firmware (CONFIG_VELLUM_OTA_ALLOW_UNSIGNED). This must "
+                      "NEVER be enabled in production.");
+        return true;
+#else
+        ESP_LOGE(TAG, "No OTA signing key configured — refusing OTA (fail-closed)");
+        return false;
+#endif
     }
     if (!sig_b64 || strlen(sig_b64) == 0) {
         ESP_LOGE(TAG, "OTA signature missing");
@@ -131,6 +139,18 @@ static bool version_is_new(const char *offered)
 
 void ota_manager_check_and_apply(void)
 {
+    /* Power guard (anti-brick): an OTA is a large flash write followed by a
+     * reboot; a brownout mid-write can corrupt the staged slot. Require USB
+     * power, or a battery with enough headroom, before doing ANY network work. */
+    if (!board_is_usb_powered()) {
+        int battery = board_battery_level();
+        if (battery < CONFIG_VELLUM_OTA_MIN_BATTERY_PCT) {
+            ESP_LOGW(TAG, "Skipping OTA: battery %d%% < %d%% and not USB-powered",
+                     battery, CONFIG_VELLUM_OTA_MIN_BATTERY_PCT);
+            return;
+        }
+    }
+
     ESP_LOGI(TAG, "Checking for OTA update via /config");
     vellum_http_response_t resp = {0};
     esp_err_t err = http_client_config(&resp);
@@ -182,12 +202,48 @@ void ota_manager_check_and_apply(void)
         .url = ota_url->valuestring,
         .timeout_ms = 120000,
         .crt_bundle_attach = esp_crt_bundle_attach,
+        /* Larger buffers for delivery robustness: GitHub Releases redirects
+         * carry long Location headers (rx), and weak links benefit from a bigger
+         * receive window than the 512-byte default. */
+        .buffer_size = 4096,
+        .buffer_size_tx = 1024,
     };
     esp_https_ota_config_t ota_cfg = { .http_config = &http_cfg };
 
     esp_https_ota_handle_t handle = NULL;
     if (esp_https_ota_begin(&ota_cfg, &handle) != ESP_OK || handle == NULL) {
         ESP_LOGW(TAG, "esp_https_ota_begin failed");
+        board_buzzer_beep(300, 500);
+        cJSON_Delete(root);
+        http_client_free_response(&resp);
+        return;
+    }
+
+    /* ── Anti-brick: reject a wrong-model image BEFORE downloading it ────
+     * All four models (e1001/e1002/e1003/d1001) are signed with the same key,
+     * so the Ed25519 signature can't tell them apart — a mis-targeted image
+     * would verify and then brick the device. The app descriptor project_name
+     * is baked per-model as "vellum-<model>" (see CMakeLists.txt); compare the
+     * staged image's project_name against the running one and abort on any
+     * mismatch. esp_https_ota_begin() has already fetched the image header, so
+     * the descriptor is available here. */
+    esp_app_desc_t staged_desc;
+    if (esp_https_ota_get_img_desc(handle, &staged_desc) != ESP_OK) {
+        ESP_LOGE(TAG, "Cannot read staged image descriptor — aborting OTA");
+        esp_https_ota_abort(handle);
+        board_buzzer_beep(300, 500);
+        cJSON_Delete(root);
+        http_client_free_response(&resp);
+        return;
+    }
+    const esp_app_desc_t *running_desc = esp_app_get_description();
+    if (!running_desc ||
+        strncmp(staged_desc.project_name, running_desc->project_name,
+                sizeof(staged_desc.project_name)) != 0) {
+        ESP_LOGE(TAG, "OTA model mismatch: staged '%s' != running '%s' — aborting",
+                 staged_desc.project_name,
+                 running_desc ? running_desc->project_name : "?");
+        esp_https_ota_abort(handle);
         board_buzzer_beep(300, 500);
         cJSON_Delete(root);
         http_client_free_response(&resp);
@@ -221,9 +277,12 @@ void ota_manager_check_and_apply(void)
             for (int i = 0; i < 32; i++) sprintf(sha_hex + i * 2, "%02x", sha[i]);
             sha_hex[64] = '\0';
 
-            bool sha_ok = !cJSON_IsString(ota_sha) ||
-                          strcmp(sha_hex, ota_sha->valuestring) == 0;
-            if (!sha_ok) {
+            /* The expected digest is mandatory: without a server-supplied
+             * otaSha256 the device has nothing to pin the image to, so treat a
+             * missing digest as a failure rather than silently trusting it. */
+            if (!cJSON_IsString(ota_sha) || !ota_sha->valuestring) {
+                ESP_LOGE(TAG, "Server did not supply otaSha256 — refusing OTA");
+            } else if (strcmp(sha_hex, ota_sha->valuestring) != 0) {
                 ESP_LOGE(TAG, "SHA256 mismatch: expected %s got %s",
                          ota_sha->valuestring, sha_hex);
             } else {
