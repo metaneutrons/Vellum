@@ -407,3 +407,73 @@ export async function getRecentOtaEvents(limit = 100) {
     "get-ota-events",
   );
 }
+
+export interface RolloutOverview {
+  rollouts: { version: string; channel: string; state: string; percent: number }[];
+  adoption: { version: string; count: number }[];
+  health: { version: string; phase: string; count: number }[];
+  recentEvents: {
+    mac: string;
+    model: string | null;
+    fromVersion: string | null;
+    toVersion: string | null;
+    phase: string;
+    errorCode: string | null;
+    timestamp: string;
+  }[];
+}
+
+/** Everything the rollout dashboard needs in one round-trip. */
+export async function getRolloutOverview(): Promise<RolloutOverview> {
+  const [rollouts, adoption, health, recentEvents] = await Promise.all([
+    getRollouts().catch(() => []),
+    // Adoption: how many devices are running each firmware version (latest
+    // telemetry row per device).
+    withDb(
+      () =>
+        db.execute(sql`
+          SELECT t.firmware_version AS version, count(*)::int AS count
+          FROM (
+            SELECT DISTINCT ON (mac) mac, firmware_version
+            FROM telemetry WHERE firmware_version IS NOT NULL
+            ORDER BY mac, timestamp DESC
+          ) t
+          GROUP BY t.firmware_version ORDER BY count DESC
+        `),
+      "rollout-adoption",
+    )
+      .then((r) => r.rows as { version: string; count: number }[])
+      .catch(() => []),
+    // Health: OTA outcome counts per target version (last 30 days).
+    withDb(
+      () =>
+        db.execute(sql`
+          SELECT to_version AS version, phase, count(*)::int AS count
+          FROM ota_events
+          WHERE timestamp > now() - make_interval(days => 30) AND to_version IS NOT NULL
+          GROUP BY to_version, phase
+        `),
+      "rollout-health",
+    )
+      .then((r) => r.rows as { version: string; phase: string; count: number }[])
+      .catch(() => []),
+    withDb(
+      () =>
+        db.execute(sql`
+          SELECT mac, model, from_version AS "fromVersion", to_version AS "toVersion",
+                 phase, error_code AS "errorCode",
+                 to_char(timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS timestamp
+          FROM ota_events ORDER BY timestamp DESC LIMIT 50
+        `),
+      "rollout-events",
+    )
+      .then((r) => r.rows as RolloutOverview["recentEvents"])
+      .catch(() => []),
+  ]);
+  return {
+    rollouts: rollouts as RolloutOverview["rollouts"],
+    adoption,
+    health,
+    recentEvents,
+  };
+}
