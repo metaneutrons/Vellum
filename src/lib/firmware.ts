@@ -39,6 +39,9 @@ export interface FirmwareBinary {
   /** Base64 Ed25519 signature over the raw 32-byte appended digest. */
   otaSignature: string;
   otaSize: number;
+  /** Id of the key that produced otaSignature. A non-authoritative fast-path
+   *  hint for the device's trust store; older manifests omit it. */
+  otaKeyId?: string;
 }
 
 export interface FirmwareManifest {
@@ -239,6 +242,9 @@ export interface OtaInfo {
   otaVersion: string | null;
   otaSha256: string | null;
   otaSignature: string | null;
+  /** Id of the signing key (fast-path hint for the device trust store); null
+   *  when the manifest predates key-id stamping. */
+  otaKeyId: string | null;
   /** True only when the server INTENTIONALLY offers an older version (an operator
    *  pin-downgrade). The device refuses a strictly-older image unless this is set,
    *  so a compromised/replayed offer can't silently roll a device back. */
@@ -250,6 +256,7 @@ const NO_UPDATE: OtaInfo = {
   otaVersion: null,
   otaSha256: null,
   otaSignature: null,
+  otaKeyId: null,
   allowDowngrade: false,
 };
 
@@ -310,6 +317,7 @@ export async function resolveOta(
     otaVersion: target.version,
     otaSha256: binary.otaSha256,
     otaSignature: binary.otaSignature,
+    otaKeyId: binary.otaKeyId ?? null,
     // Only a pin to a strictly-older version is a sanctioned downgrade; the auto
     // path already refuses target <= current, so it is never a downgrade.
     allowDowngrade: pinned && compareSemver(target.version, currentVersion) < 0,
