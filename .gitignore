@@ -9,7 +9,13 @@ out/
 .env*
 *.pem
 *.key
+*.der
 vellum-firmware-signing.key
+# KMS / HSM signing configs may hold PINs or credentials — commit only *.example.
+hsm_config.ini
+kmsp11.yaml
+# Public key material and eFuse digests ARE committed (public, needed to verify /
+# rotate): keys/*.pub and keys/*digest*.bin are safe — they are not secrets.
 
 # ── Build artifacts ───────────────────────────────────────────
 /build
@@ -19,6 +25,7 @@ vellum-firmware-signing.key
 firmware/build/
 firmware/sdkconfig
 firmware/sdkconfig.old
+firmware/sdkconfig.panel
 firmware/dependencies.lock
 firmware/managed_components/
 firmware/version.txt

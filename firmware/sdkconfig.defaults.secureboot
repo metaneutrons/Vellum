@@ -1,0 +1,49 @@
+# ============================================================================
+# Vellum Firmware — SECURE BOOT v2 PROFILE (reflashable bring-up)
+# ============================================================================
+#
+# The SECOND rung. Enables hardware Secure Boot v2 (RSA-3072) but LEAVES Flash
+# Encryption OFF and the UART ROM download path OPEN, so the board stays
+# reflashable while you iterate. Enabling Secure Boot still burns eFuses on
+# first boot (SECURE_BOOT_EN + the key digest) — those are IRREVERSIBLE — so use
+# a board you are willing to sacrifice.
+#
+# Apply (S3 only) via the SECURE=1 Makefile knob:
+#   make build MODEL=e1002 SECURE=1 SECURE_PROFILE=secureboot
+#
+# ⚠️  Digest-slot revocation: with Secure Boot ON (and not INSECURE mode), the
+#     app revokes UNUSED key-digest slots at startup. To retain rotation
+#     headroom you MUST pre-sign the bootloader with ALL keys the fleet will ever
+#     trust (up to 3) at provisioning — you can never add a key to a fielded
+#     unit, only revoke. See the runbook's key-rotation section.
+#
+# See docs/SECURE_BOOT_AND_KMS.md for the full runbook.
+# ----------------------------------------------------------------------------
+
+# ── Partition table moved to clear the larger signed bootloader ─────────────
+# A signed SB v2 bootloader (~0x9000) overflows the default 0x8000 table offset.
+# Use the secure layout (table @ 0x10000; ota_0/ota_1 offsets unchanged). This is
+# a FACTORY-FLASH-ONLY change — fix it before provisioning (see partitions.secure.csv).
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.secure.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x10000
+
+# ── Secure Boot v2 (RSA-3072, verified boot chain) ──────────────────────────
+CONFIG_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_V2_ENABLED=y
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
+# Remote/HSM/KMS signing — no Secure Boot private key on the build host. The
+# bootloader is signed once, offline, at factory provisioning; app images are
+# signed out-of-band in CI with `espsecure.py sign_data --version 2 --hsm`.
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n
+# No JTAG once Secure Boot is on.
+CONFIG_SECURE_BOOT_ALLOW_JTAG=n
+
+# ── Recovery paths kept OPEN for bring-up (do NOT harden here) ───────────────
+# Flash Encryption is intentionally OFF at this rung → the board stays
+# reflashable over UART while you validate OTA end-to-end. The irreversible
+# lock-down (Flash Enc RELEASE + ROM-DL disable + anti-rollback) lives in the
+# `prod` overlay, applied only after this profile is proven. Do NOT set
+# CONFIG_SECURE_DISABLE_ROM_DL_MODE or CONFIG_SECURE_FLASH_ENC_ENABLED here.
+
+# ── App-level OTA signature still required (defense in depth) ────────────────
+CONFIG_VELLUM_OTA_REQUIRE_SIGNATURE=y

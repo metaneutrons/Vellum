@@ -146,6 +146,11 @@ jobs:
       attestations: write    # write the provenance attestation
     env:
       # Job-level so step `if:` can read it reliably (step-level env is unreliable in `if`).
+      # Phase 3: KMS-preferred signing. When the OTA_KMS_KEY_VERSION repo variable is
+      # set, the OTA image is signed by a cloud KMS key via OIDC (no long-lived secret);
+      # otherwise it falls back to the legacy FIRMWARE_SIGNING_KEY secret. See
+      # docs/SECURE_BOOT_AND_KMS.md for provisioning. Set both, one, or neither.
+      OTA_KMS_KEY: ${{ vars.OTA_KMS_KEY_VERSION }}
       FIRMWARE_SIGNING_KEY: ${{ secrets.FIRMWARE_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7 (embedded-pubkey check)
@@ -189,35 +194,118 @@ jobs:
           done
 
       - name: Require a signing key for stable releases (devices are fail-closed)
-        if: github.event_name == 'release' && env.FIRMWARE_SIGNING_KEY == ''
+        if: github.event_name == 'release' && env.OTA_KMS_KEY == '' && env.FIRMWARE_SIGNING_KEY == ''
         run: |
-          echo "::error::FIRMWARE_SIGNING_KEY secret is not set. Fail-closed devices reject unsigned OTA, so a stable release must be signed."
+          echo "::error::No OTA signing key available (neither OTA_KMS_KEY_VERSION nor FIRMWARE_SIGNING_KEY). Fail-closed devices reject unsigned OTA, so a stable release must be signed."
           exit 1
 
-      - name: Sign binaries (Ed25519) and verify the key matches the embedded pubkey
-        if: env.FIRMWARE_SIGNING_KEY != ''
+      # ── KMS signing path (preferred): keyless via OIDC, no secret on the runner ──
+      - name: Authenticate to Google Cloud (OIDC, keyless)
+        if: env.OTA_KMS_KEY != ''
+        uses: google-github-actions/auth@7b53cdc2a387814ed14eec026287aac689ae8c9b # v2.1.9
+        with:
+          workload_identity_provider: ${{ vars.OTA_KMS_WIF_PROVIDER }}
+          service_account: ${{ vars.OTA_KMS_SERVICE_ACCOUNT }}
+      - name: Set up gcloud
+        if: env.OTA_KMS_KEY != ''
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+
+      - name: Sign binaries (Ed25519 via KMS) and verify the key matches the embedded pubkey
+        if: env.OTA_KMS_KEY != ''
+        run: |
+          # KMS key spec must be EC_SIGN_ED25519 (GCP): pure EdDSA over the raw message,
+          # raw 64-byte r||s signature — byte-identical to what the device verifies.
+          gcloud kms keys versions get-public-key "${OTA_KMS_KEY##*/cryptoKeyVersions/}" \
+            --key "$(echo "$OTA_KMS_KEY" | sed -E 's#.*/cryptoKeys/([^/]+)/.*#\1#')" \
+            --keyring "$(echo "$OTA_KMS_KEY" | sed -E 's#.*/keyRings/([^/]+)/.*#\1#')" \
+            --location "$(echo "$OTA_KMS_KEY" | sed -E 's#.*/locations/([^/]+)/.*#\1#')" \
+            --output-file kms_pub.pem
+          PUB=$(openssl pkey -pubin -in kms_pub.pem -pubout -outform DER | tail -c 32 | base64 | tr -d '\n')
+          echo "$PUB" | base64 -d > binaries/.signer_pub_raw           # for the roundtrip verify
+          # Guard: signer pubkey MUST equal an embedded trusted key (primary OR next),
+          # else every fail-closed device rejects every update.
+          EMB_PRIMARY=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_PUBKEY[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          EMB_NEXT=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_PUBKEY_NEXT[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          if [ "$PUB" != "$EMB_PRIMARY" ] && [ "$PUB" != "$EMB_NEXT" ]; then
+            echo "::error::KMS public key ($PUB) matches neither embedded primary ($EMB_PRIMARY) nor next ($EMB_NEXT). Devices would reject all updates."
+            exit 1
+          fi
+          echo "KMS public key matches an embedded trusted key ✓"
+          # Stamp the manifest with the id of the slot that actually matched, so
+          # otaKeyId is correct even mid-rotation (signing with the 'next' key).
+          if [ "$PUB" = "$EMB_PRIMARY" ]; then
+            KID=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_KEY_ID[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          else
+            KID=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_KEY_ID_NEXT[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          fi
+          echo "OTA_KEY_ID_RESOLVED=$KID" >> "$GITHUB_ENV"
+          cd binaries
+          for f in vellum-*-v*.bin; do
+            case "$f" in *-factory.bin) continue;; esac
+            tail -c 32 "$f" > "$f.hash"                                 # raw 32-byte digest = message
+            gcloud kms asymmetric-sign \
+              --version "${OTA_KMS_KEY##*/cryptoKeyVersions/}" \
+              --key "$(echo "$OTA_KMS_KEY" | sed -E 's#.*/cryptoKeys/([^/]+)/.*#\1#')" \
+              --keyring "$(echo "$OTA_KMS_KEY" | sed -E 's#.*/keyRings/([^/]+)/.*#\1#')" \
+              --location "$(echo "$OTA_KMS_KEY" | sed -E 's#.*/locations/([^/]+)/.*#\1#')" \
+              --input-file "$f.hash" --signature-file "$f.sig"
+            SIGLEN=$(wc -c < "$f.sig")
+            [ "$SIGLEN" -eq 64 ] || { echo "::error::$f: expected raw 64-byte Ed25519 sig, got $SIGLEN (DER? wrong algorithm?)"; exit 1; }
+            base64 -w0 "$f.sig" > "$f.sig.b64"
+          done
+
+      # ── Legacy local-key path (fallback when KMS is not configured) ──────────────
+      - name: Sign binaries (Ed25519, local key) and verify the key matches the embedded pubkey
+        if: env.OTA_KMS_KEY == '' && env.FIRMWARE_SIGNING_KEY != ''
         run: |
           echo "$FIRMWARE_SIGNING_KEY" | base64 -d > signing.key
-          # Guard: the signing key's public half MUST equal CONFIG_VELLUM_OTA_SIGNING_PUBKEY,
-          # otherwise every device would reject every update. Raw Ed25519 pubkey = last
-          # 32 bytes of the DER SubjectPublicKeyInfo.
+          # Guard: the signing key's public half MUST equal an embedded trusted key
+          # (primary OR next), otherwise every device would reject every update. Raw
+          # Ed25519 pubkey = last 32 bytes of the DER SubjectPublicKeyInfo.
           PUB=$(openssl pkey -in signing.key -pubout -outform DER | tail -c 32 | base64 | tr -d '\n')
-          EMB=$(grep -A3 'config VELLUM_OTA_SIGNING_PUBKEY' firmware/main/Kconfig.projbuild \
-                 | grep -oP 'default "\K[^"]+' | head -1)
-          if [ "$PUB" != "$EMB" ]; then
-            echo "::error::Signing key public part ($PUB) != embedded CONFIG_VELLUM_OTA_SIGNING_PUBKEY ($EMB). Devices would reject all updates."
+          echo "$PUB" | base64 -d > binaries/.signer_pub_raw
+          EMB_PRIMARY=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_PUBKEY[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          EMB_NEXT=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_PUBKEY_NEXT[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          if [ "$PUB" != "$EMB_PRIMARY" ] && [ "$PUB" != "$EMB_NEXT" ]; then
+            echo "::error::Signing key public part ($PUB) matches neither embedded primary ($EMB_PRIMARY) nor next ($EMB_NEXT). Devices would reject all updates."
             rm -f signing.key; exit 1
           fi
-          echo "Signing key matches embedded pubkey ✓"
+          echo "Signing key matches an embedded trusted key ✓"
+          if [ "$PUB" = "$EMB_PRIMARY" ]; then
+            KID=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_KEY_ID[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          else
+            KID=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_KEY_ID_NEXT[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          fi
+          echo "OTA_KEY_ID_RESOLVED=$KID" >> "$GITHUB_ENV"
           cd binaries
           for f in vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac
             tail -c 32 "$f" > "$f.hash"                                  # raw 32-byte digest
             openssl pkeyutl -sign -inkey ../signing.key -rawin -in "$f.hash" -out "$f.sig"
             base64 -w0 "$f.sig" > "$f.sig.b64"                           # no line wrapping
-            rm -f "$f.hash"
           done
           cd .. && rm -f signing.key
+
+      - name: Verify signatures (pure Ed25519 roundtrip — reject pre-hash/DER)
+        if: env.OTA_KMS_KEY != '' || env.FIRMWARE_SIGNING_KEY != ''
+        run: |
+          # Independent acceptance test: every produced signature must verify as PURE
+          # Ed25519 (PSA_ALG_PURE_EDDSA) over the raw 32-byte digest, exactly as the
+          # device does. Catches a KMS that returns Ed25519ph or DER before the fleet does.
+          cd binaries
+          # Wrap the raw 32-byte signer pubkey into a DER SPKI, then to PEM.
+          printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00' | cat - .signer_pub_raw > spki.der
+          openssl pkey -pubin -inform DER -in spki.der -out signer_pub.pem
+          for f in vellum-*-v*.bin; do
+            case "$f" in *-factory.bin) continue;; esac
+            [ -f "$f.sig.b64" ] || { echo "::error::$f has no signature"; exit 1; }
+            tail -c 32 "$f" > "$f.hash"
+            base64 -d "$f.sig.b64" > "$f.sig.raw"
+            openssl pkeyutl -verify -pubin -inkey signer_pub.pem -rawin -in "$f.hash" -sigfile "$f.sig.raw" \
+              || { echo "::error::$f signature failed pure-Ed25519 roundtrip verify"; exit 1; }
+            echo "OK: $f verified"
+          done
+          rm -f .signer_pub_raw spki.der signer_pub.pem *.hash *.sig.raw *.sig
 
       - name: Generate manifest
         env:
@@ -225,11 +313,12 @@ jobs:
           MCHAN: ${{ needs.version.outputs.channel }}
           MTAG: ${{ needs.version.outputs.tag }}
           MREPO: ${{ github.repository }}
+          MKID: ${{ env.OTA_KEY_ID_RESOLVED }}   # id of the slot that actually signed (set by the sign step)
         run: |
           cd binaries
           node -e "
           const fs = require('fs');
-          const { MVER, MCHAN, MTAG, MREPO } = process.env;
+          const { MVER, MCHAN, MTAG, MREPO, MKID } = process.env;
           const SAFE = MVER.replace(/\+/g, '-');
           const base = 'https://github.com/' + MREPO + '/releases/download/' + MTAG;
           const manifest = { version: MVER, channel: MCHAN, date: new Date().toISOString(), binaries: {} };
@@ -245,6 +334,7 @@ jobs:
               otaUrl: base + '/' + f,                                      // OTA app image
               otaSha256: fs.readFileSync(f + '.sha256', 'utf8').trim(),
               otaSignature: fs.existsSync(f + '.sig.b64') ? fs.readFileSync(f + '.sig.b64', 'utf8').trim() : '',
+              otaKeyId: MKID || '',                                        // signer id → device fast-path hint
               otaSize: fs.statSync(f).size,
             };
           }
