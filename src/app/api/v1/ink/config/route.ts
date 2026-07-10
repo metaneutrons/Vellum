@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
     firmwareVer,
     displayModel,
     (device?.firmwareChannel as FirmwareChannel) ?? "stable",
-    device?.firmwarePinVersion ?? null
+    device?.firmwarePinVersion ?? null,
+    validation.data.mac
   );
 
   const t = extractTelemetry(request.headers);

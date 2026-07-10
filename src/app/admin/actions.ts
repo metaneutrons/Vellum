@@ -13,7 +13,10 @@ import {
   telemetry,
   reports,
   refreshProfiles,
+  firmwareRollouts,
+  otaEvents,
 } from "@/db/schema";
+import type { RolloutState } from "@/lib/rollout";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { approveDevice as approveDeviceAuth } from "@/lib/auth";
 import { log } from "@/lib/logger";
@@ -354,4 +357,53 @@ export async function getKnownDisplaySizes(): Promise<{ label: string; width: nu
   }
 
   return sizes;
+}
+
+/* ── Firmware rollouts ────────────────────────────────────────── */
+
+/** All rollout records (for the rollout dashboard), newest-touched first. */
+export async function getRollouts() {
+  return withDb(
+    () => db.select().from(firmwareRollouts).orderBy(sql`${firmwareRollouts.updatedAt} DESC`),
+    "get-rollouts",
+  );
+}
+
+/**
+ * Create or update the rollout for a (version, channel). `percent` is clamped to
+ * 0-100 and only meaningful in the "canary"/"percent" states.
+ */
+export async function setRollout(
+  version: string,
+  channel: string,
+  state: RolloutState,
+  percent = 0,
+) {
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+  await withDb(
+    () =>
+      db
+        .insert(firmwareRollouts)
+        .values({ version, channel, state, percent: pct, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: [firmwareRollouts.version, firmwareRollouts.channel],
+          set: { state, percent: pct, updatedAt: new Date() },
+        }),
+    "set-rollout",
+  );
+  revalidatePath("/admin/firmware");
+}
+
+/** One-click kill-switch: stop offering `version` on `channel` fleet-wide. */
+export async function haltRollout(version: string, channel: string) {
+  await setRollout(version, channel, "halted", 0);
+}
+
+/** Recent OTA outcome events (for the rollout dashboard / failure triage). */
+export async function getRecentOtaEvents(limit = 100) {
+  return withDb(
+    () =>
+      db.select().from(otaEvents).orderBy(sql`${otaEvents.timestamp} DESC`).limit(limit),
+    "get-ota-events",
+  );
 }

@@ -12,6 +12,7 @@ import {
   boolean,
   customType,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -151,3 +152,57 @@ export const reports = pgTable("reports", {
   issue: text("issue"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
+
+/* ── OTA events ───────────────────────────────────────────────────
+ * Per-device OTA outcome reports. Powers (a) fleet OTA observability and
+ * (b) the per-device failure blocklist that breaks the brick-retry loop:
+ * a device that rolls back to its old firmware would otherwise re-report the
+ * old version and be re-offered the exact same bad image forever. `phase` is
+ * plain text (SSOT enum in code): "downloading" | "verify_ok" | "verify_fail"
+ * | "applied" | "boot_confirmed" | "rolled_back" | "deferred".
+ * ─────────────────────────────────────────────────────────────── */
+export const otaEvents = pgTable(
+  "ota_events",
+  {
+    id: serial("id").primaryKey(),
+    mac: text("mac").notNull().references(() => devices.mac),
+    model: text("model"),
+    fromVersion: text("from_version"),
+    toVersion: text("to_version"),
+    phase: text("phase").notNull(),
+    errorCode: text("error_code"),
+    timestamp: timestamp("timestamp").defaultNow().notNull(),
+  },
+  (t) => [
+    // Blocklist lookup: "has this device already failed this target?"
+    index("ota_events_mac_to_version_idx").on(t.mac, t.toVersion),
+    // Rollout dashboard: recent events / failure-rate windows.
+    index("ota_events_timestamp_idx").on(t.timestamp),
+  ],
+);
+
+/* ── Firmware rollouts ─────────────────────────────────────────────
+ * Per-(version, channel) rollout control. The ROLLOUT, not "the newest
+ * artifact", decides what ships — so publishing never auto-ships to 100% and a
+ * bad release is one `halted` away from stopping fleet-wide.
+ * `state` (SSOT enum in code): "paused" | "canary" | "percent" | "full" |
+ * "halted". `percent` (0-100) applies in the "percent"/"canary" states via a
+ * deterministic device-MAC hash so a device stays in its cohort across polls.
+ * A version with NO row falls back to the `firmware.rolloutDefault` setting.
+ * ─────────────────────────────────────────────────────────────── */
+export const firmwareRollouts = pgTable(
+  "firmware_rollouts",
+  {
+    id: serial("id").primaryKey(),
+    version: text("version").notNull(),
+    channel: text("channel").notNull(),
+    state: text("state").notNull().default("full"),
+    percent: integer("percent").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // One rollout row per (version, channel) — enables a clean upsert.
+    uniqueIndex("firmware_rollouts_version_channel_idx").on(t.version, t.channel),
+  ],
+);
