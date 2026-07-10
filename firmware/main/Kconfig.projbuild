@@ -85,22 +85,61 @@ menu "Vellum Configuration"
     endmenu
 
     config VELLUM_OTA_SIGNING_PUBKEY
-        string "Ed25519 OTA signing public key (raw 32 bytes, base64)"
+        string "Primary Ed25519 OTA signing public key (raw 32 bytes, base64)"
         default "sdY80/jyxvaEuXOHjs8qb5hyDdf3petsG+JjlSYZJmc="
         help
             Raw 32-byte Ed25519 public key, base64-encoded (NOT DER/PEM).
             The server signs the 32-byte SHA-256 digest of each firmware image
             with the matching private key; the device verifies that signature.
+            This is the PRIMARY trust anchor. During a planned key rotation the
+            successor goes in VELLUM_OTA_SIGNING_PUBKEY_NEXT first, then gets
+            promoted here.
+
+    config VELLUM_OTA_SIGNING_KEY_ID
+        string "Primary OTA key id"
+        default "vellum-ota-2026a"
+        help
+            Stable label for the primary key. CI stamps the signing key's id into
+            the manifest (otaKeyId) so the device can (a) fast-path the matching
+            key and (b) name it in OTA telemetry. Not security-relevant — a wrong
+            id only costs a fallback over the whole trust store.
+
+    config VELLUM_OTA_SIGNING_PUBKEY_NEXT
+        string "Next Ed25519 OTA signing public key (raw 32 bytes, base64)"
+        default ""
+        help
+            Reserved slot for a rotation successor. Leave EMPTY until a rotation
+            is staged. When set, the device trusts this key too, so a later
+            release can start signing with it without a fleet-wide cutover. An
+            empty value makes the slot inert. See the Secure Boot / KMS runbook.
+
+    config VELLUM_OTA_SIGNING_KEY_ID_NEXT
+        string "Next OTA key id"
+        default ""
+        help
+            Stable label for the reserved "next" key. Only meaningful once
+            VELLUM_OTA_SIGNING_PUBKEY_NEXT is populated.
+
+    config VELLUM_OTA_REVOKED_KEY_IDS
+        string "Comma-separated revoked OTA key ids"
+        default ""
+        help
+            Emergency revocation list. Any trusted key whose id appears here (as a
+            whole comma-separated token) is refused even though its public key is
+            still compiled in. Push a hotfix — signed by a still-trusted key —
+            that adds a compromised key's id here to lock it out fleet-wide.
 
     config VELLUM_OTA_REQUIRE_SIGNATURE
         bool "Require a valid OTA signature (fail-closed)"
         default y
         help
-            When set, OTA updates without a valid Ed25519 signature are rejected.
-            Defaults to y (fail-closed): with Secure Boot disabled this app-level
-            signature is the ONLY control preventing malicious firmware, so it must
-            never silently fail open. Turn this off ONLY for local development that
-            deliberately ships an empty VELLUM_OTA_SIGNING_PUBKEY.
+            When set (default y, fail-closed), OTA updates without a valid Ed25519
+            signature are rejected. With any signing key in the trust store a valid
+            signature is ALWAYS required; this knob additionally governs the no-key
+            case — accepting unsigned firmware requires BOTH this set to n AND
+            VELLUM_OTA_ALLOW_UNSIGNED=y. With Secure Boot disabled this app-level
+            signature is the ONLY control preventing malicious firmware, so leave it
+            at y for any device that leaves the bench.
 
     config VELLUM_OTA_ALLOW_UNSIGNED
         bool "Allow unsigned OTA when no signing key is configured (DANGEROUS)"

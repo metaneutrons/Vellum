@@ -17,8 +17,11 @@
  * image that fails to do so is rolled back by the bootloader on next boot.
  *
  * The signing contract: the server signs the raw 32-byte SHA-256 digest of the
- * firmware image with Ed25519; CONFIG_VELLUM_OTA_SIGNING_PUBKEY is the base64
- * of the 32-byte raw public key; otaSignature is base64 of the 64-byte sig.
+ * firmware image with Ed25519; otaSignature is base64 of the 64-byte sig. The
+ * device verifies it against a compile-time trust store (ota_trust_keys.h) — a
+ * primary key plus an optional reserved "next" key — accepting the signature if
+ * it validates under ANY non-revoked trusted key. That keyring is what makes
+ * signing-key rotation possible without a hard, fleet-wide cutover.
  */
 
 #include "ota_manager.h"
@@ -44,6 +47,7 @@
 #include "esp_attr.h"
 #include "esp_rom_crc.h"
 #include "sdkconfig.h"
+#include "ota_trust_keys.h"
 
 static const char *TAG = "ota";
 
@@ -53,54 +57,44 @@ static const char *TAG = "ota";
   #define OTA_REQUIRE_SIGNATURE 0
 #endif
 
-/**
- * Verify an Ed25519 signature over the 32-byte SHA-256 digest of the image.
- * @param digest   32-byte SHA-256 of the staged firmware.
- * @param sig_b64  base64 of the 64-byte Ed25519 signature.
- * @return true if a valid signature was verified; false otherwise.
- *         When no signing key is configured this fails CLOSED (returns false)
- *         unless CONFIG_VELLUM_OTA_ALLOW_UNSIGNED is set for local development.
- */
-static bool verify_ota_signature(const uint8_t digest[32], const char *sig_b64)
+/** True if `id` appears as a whole comma-separated token in `csv`
+ *  (surrounding spaces tolerated). Used for the revoked-key-id check. */
+static bool csv_contains_token(const char *csv, const char *id)
 {
-    const char *pubkey_b64 = CONFIG_VELLUM_OTA_SIGNING_PUBKEY;
-    if (!pubkey_b64 || strlen(pubkey_b64) == 0) {
-#if defined(CONFIG_VELLUM_OTA_ALLOW_UNSIGNED)
-        /* Dev-only escape hatch. Log loudly so this never passes unnoticed. */
-        ESP_LOGW(TAG, "!!! No OTA signing key configured — ACCEPTING UNSIGNED "
-                      "firmware (CONFIG_VELLUM_OTA_ALLOW_UNSIGNED). This must "
-                      "NEVER be enabled in production.");
-        return true;
-#else
-        ESP_LOGE(TAG, "No OTA signing key configured — refusing OTA (fail-closed)");
-        return false;
-#endif
+    if (!csv || !*csv || !id || !*id) return false;
+    const size_t idlen = strlen(id);
+    const char *p = csv;
+    while (*p) {
+        while (*p == ',' || *p == ' ') p++;      /* skip separators + leading space */
+        const char *start = p;
+        while (*p && *p != ',') p++;             /* to next comma / end */
+        size_t len = (size_t)(p - start);
+        while (len > 0 && start[len - 1] == ' ') len--;  /* trim trailing space */
+        if (len == idlen && strncmp(start, id, idlen) == 0) return true;
     }
-    if (!sig_b64 || strlen(sig_b64) == 0) {
-        ESP_LOGE(TAG, "OTA signature missing");
-        return false;
-    }
+    return false;
+}
 
+/** True if a trusted key's id has been revoked (CONFIG_VELLUM_OTA_REVOKED_KEY_IDS). */
+static bool key_is_revoked(const char *key_id)
+{
+    return csv_contains_token(CONFIG_VELLUM_OTA_REVOKED_KEY_IDS, key_id);
+}
+
+/**
+ * Verify the 64-byte Ed25519 `sig` over `digest` under ONE base64 public key.
+ * @return true on a valid PURE-EdDSA signature; false on decode/import/verify
+ *         failure. Isolated so the trust store can try each key in turn.
+ */
+static bool verify_one_key(const char *pubkey_b64, const uint8_t digest[32],
+                           const uint8_t *sig, size_t sig_len)
+{
     uint8_t pubkey[32];
     size_t pubkey_len = 0;
     if (mbedtls_base64_decode(pubkey, sizeof(pubkey), &pubkey_len,
                               (const unsigned char *)pubkey_b64, strlen(pubkey_b64)) != 0 ||
         pubkey_len != 32) {
         ESP_LOGE(TAG, "Bad OTA public key (need raw 32-byte Ed25519, base64)");
-        return false;
-    }
-
-    uint8_t sig[64];
-    size_t sig_len = 0;
-    if (mbedtls_base64_decode(sig, sizeof(sig), &sig_len,
-                              (const unsigned char *)sig_b64, strlen(sig_b64)) != 0 ||
-        sig_len != 64) {
-        ESP_LOGE(TAG, "Bad OTA signature length");
-        return false;
-    }
-
-    if (psa_crypto_init() != PSA_SUCCESS) {
-        ESP_LOGE(TAG, "psa_crypto_init failed");
         return false;
     }
 
@@ -118,13 +112,103 @@ static bool verify_ota_signature(const uint8_t digest[32], const char *sig_b64)
 
     psa_status_t st = psa_verify_message(key, PSA_ALG_PURE_EDDSA, digest, 32, sig, sig_len);
     psa_destroy_key(key);
+    return st == PSA_SUCCESS;
+}
 
-    if (st != PSA_SUCCESS) {
-        ESP_LOGE(TAG, "OTA signature verification FAILED: %d", (int)st);
+/**
+ * Verify an Ed25519 signature over the 32-byte SHA-256 digest of the image
+ * against the on-device trust store (ota_trust_keys.h). Accepts the signature
+ * if it validates under ANY non-revoked trusted key.
+ * @param digest       32-byte SHA-256 of the staged firmware.
+ * @param sig_b64      base64 of the 64-byte Ed25519 signature.
+ * @param key_id_hint  optional key id from /config (otaKeyId). Only a fast-path
+ *                     hint — NEVER authoritative; a wrong/absent hint just costs
+ *                     a fallback over the full store, so a crafted /config can't
+ *                     force-select or skip keys.
+ * @return true if a valid signature was verified; false otherwise.
+ *         When the store holds no usable key this fails CLOSED unless
+ *         CONFIG_VELLUM_OTA_ALLOW_UNSIGNED is set for local development.
+ */
+static bool verify_ota_signature(const uint8_t digest[32], const char *sig_b64,
+                                 const char *key_id_hint)
+{
+    /* Is any key actually usable (non-empty pubkey, not revoked)? */
+    bool have_key = false;
+    for (size_t i = 0; i < s_trusted_keys_len; i++) {
+        if (s_trusted_keys[i].pubkey_b64 && s_trusted_keys[i].pubkey_b64[0] &&
+            !key_is_revoked(s_trusted_keys[i].key_id)) {
+            have_key = true;
+            break;
+        }
+    }
+    if (!have_key) {
+#if defined(CONFIG_VELLUM_OTA_ALLOW_UNSIGNED)
+        /* Two flags must BOTH be set to accept unsigned firmware: ALLOW_UNSIGNED
+         * (this #if) AND !REQUIRE_SIGNATURE. So REQUIRE_SIGNATURE=y (the default)
+         * stays fail-closed even if someone also enabled ALLOW_UNSIGNED. */
+        if (OTA_REQUIRE_SIGNATURE) {
+            ESP_LOGE(TAG, "No OTA signing key, but signatures are REQUIRED "
+                          "(CONFIG_VELLUM_OTA_REQUIRE_SIGNATURE) — refusing (fail-closed). "
+                          "To accept unsigned on the bench, also set REQUIRE_SIGNATURE=n.");
+            return false;
+        }
+        /* Dev-only escape hatch. Log loudly so this never passes unnoticed. */
+        ESP_LOGW(TAG, "!!! No OTA signing key configured — ACCEPTING UNSIGNED "
+                      "firmware (CONFIG_VELLUM_OTA_ALLOW_UNSIGNED + REQUIRE_SIGNATURE=n). "
+                      "This must NEVER be enabled in production.");
+        return true;
+#else
+        ESP_LOGE(TAG, "No OTA signing key configured — refusing OTA (fail-closed)");
+        return false;
+#endif
+    }
+    if (!sig_b64 || strlen(sig_b64) == 0) {
+        ESP_LOGE(TAG, "OTA signature missing");
         return false;
     }
-    ESP_LOGI(TAG, "OTA signature verified ✓");
-    return true;
+
+    uint8_t sig[64];
+    size_t sig_len = 0;
+    if (mbedtls_base64_decode(sig, sizeof(sig), &sig_len,
+                              (const unsigned char *)sig_b64, strlen(sig_b64)) != 0 ||
+        sig_len != 64) {
+        ESP_LOGE(TAG, "Bad OTA signature length");
+        return false;
+    }
+
+    if (psa_crypto_init() != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_crypto_init failed");
+        return false;
+    }
+
+    /* Fast path: try the hinted key first (never authoritative). */
+    if (key_id_hint && *key_id_hint) {
+        for (size_t i = 0; i < s_trusted_keys_len; i++) {
+            const ota_trusted_key_t *k = &s_trusted_keys[i];
+            if (!k->pubkey_b64 || !k->pubkey_b64[0]) continue;
+            if (key_is_revoked(k->key_id)) continue;
+            if (strcmp(k->key_id, key_id_hint) != 0) continue;
+            if (verify_one_key(k->pubkey_b64, digest, sig, sig_len)) {
+                ESP_LOGI(TAG, "OTA signature verified ✓ (key %s)", k->key_id);
+                return true;
+            }
+            break;  /* hinted key present but didn't verify — fall through to full scan */
+        }
+    }
+
+    /* Fallback: try every non-revoked, non-empty trusted key. */
+    for (size_t i = 0; i < s_trusted_keys_len; i++) {
+        const ota_trusted_key_t *k = &s_trusted_keys[i];
+        if (!k->pubkey_b64 || !k->pubkey_b64[0]) continue;   /* inert reserved slot */
+        if (key_is_revoked(k->key_id)) continue;
+        if (verify_one_key(k->pubkey_b64, digest, sig, sig_len)) {
+            ESP_LOGI(TAG, "OTA signature verified ✓ (key %s)", k->key_id);
+            return true;
+        }
+    }
+
+    ESP_LOGE(TAG, "OTA signature verified by NO trusted key");
+    return false;
 }
 
 /** True if the offered version differs from the running one (avoid reflash loop). */
@@ -228,6 +312,7 @@ void ota_manager_check_and_apply(void)
     cJSON *ota_ver = data ? cJSON_GetObjectItemCaseSensitive(data, "otaVersion") : NULL;
     cJSON *ota_sha = data ? cJSON_GetObjectItemCaseSensitive(data, "otaSha256") : NULL;
     cJSON *ota_sig = data ? cJSON_GetObjectItemCaseSensitive(data, "otaSignature") : NULL;
+    cJSON *ota_kid = data ? cJSON_GetObjectItemCaseSensitive(data, "otaKeyId") : NULL;
     cJSON *ota_dg  = data ? cJSON_GetObjectItemCaseSensitive(data, "allowDowngrade") : NULL;
     bool allow_downgrade = cJSON_IsBool(ota_dg) && cJSON_IsTrue(ota_dg);
 
@@ -369,7 +454,9 @@ void ota_manager_check_and_apply(void)
             } else {
                 ESP_LOGI(TAG, "SHA256 verified ✓");
                 verified = verify_ota_signature(
-                    sha, cJSON_IsString(ota_sig) ? ota_sig->valuestring : NULL);
+                    sha,
+                    cJSON_IsString(ota_sig) ? ota_sig->valuestring : NULL,
+                    cJSON_IsString(ota_kid) ? ota_kid->valuestring : NULL);
             }
         } else {
             ESP_LOGE(TAG, "esp_partition_get_sha256 failed");
