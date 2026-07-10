@@ -27,8 +27,12 @@ export type RolloutState = "paused" | "canary" | "percent" | "full" | "halted";
 /** Default when a version has no rollout row: ship as before (no gating). */
 export const DEFAULT_ROLLOUT_STATE: RolloutState = "full";
 
-/** OTA phases that mark a target version as failed for a device. */
-export const OTA_FAILED_PHASES = ["download_fail", "verify_fail", "rolled_back"] as const;
+/** OTA phases that mark a target version as PERSISTENTLY failed for a device —
+ *  a bad signature/model/hash (verify_fail) or an image that booted but failed
+ *  its health check (rolled_back). Transient download failures are NOT included:
+ *  they should be retried, not blocklisted. These must be valid `otaReportSchema`
+ *  phases. */
+export const OTA_FAILED_PHASES = ["verify_fail", "rolled_back"] as const;
 
 /**
  * Deterministic cohort bucket [0,100) for a device MAC. Stable across polls so a

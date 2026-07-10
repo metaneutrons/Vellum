@@ -452,6 +452,60 @@ esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp)
     return err;
 }
 
+esp_err_t http_client_ota_report(const char *model, const char *from_version,
+                                 const char *to_version, const char *phase,
+                                 const char *error_code)
+{
+    if (!s_base_url_is_https) {
+        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    char url[512];
+    snprintf(url, sizeof(url), "%s/api/v1/ink/ota-report", s_base_url);
+
+    resp_buf_t rb = {0};
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_POST,
+        .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .event_handler = http_event_handler,
+        .user_data = &rb,
+        .disable_auto_redirect = true,
+    };
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) return ESP_FAIL;
+
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    set_auth_header(client);
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "mac", s_mac);
+    if (model && model[0]) cJSON_AddStringToObject(json, "model", model);
+    if (from_version && from_version[0]) cJSON_AddStringToObject(json, "fromVersion", from_version);
+    if (to_version && to_version[0]) cJSON_AddStringToObject(json, "toVersion", to_version);
+    cJSON_AddStringToObject(json, "phase", phase ? phase : "");
+    if (error_code && error_code[0]) cJSON_AddStringToObject(json, "errorCode", error_code);
+    char *body = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+    if (!body) {
+        esp_http_client_cleanup(client);
+        return ESP_ERR_NO_MEM;
+    }
+    esp_http_client_set_post_field(client, body, strlen(body));
+
+    esp_err_t err = esp_http_client_perform(client);
+    ESP_LOGI(TAG, "POST /ota-report [%s] → %d", phase ? phase : "?",
+             err == ESP_OK ? esp_http_client_get_status_code(client) : -1);
+
+    cJSON_free(body);
+    free(rb.buf);
+    esp_http_client_cleanup(client);
+    return err;
+}
+
 esp_err_t http_client_config(vellum_http_response_t *resp)
 {
     memset(resp, 0, sizeof(*resp));
