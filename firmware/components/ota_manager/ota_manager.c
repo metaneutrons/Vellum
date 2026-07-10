@@ -41,6 +41,8 @@
 #include "http_client.h"
 #include "vellum_display.h"
 #include "board.h"
+#include "esp_attr.h"
+#include "esp_rom_crc.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "ota";
@@ -137,6 +139,41 @@ static bool version_is_new(const char *offered)
     return true;
 }
 
+/* Fire-and-forget OTA outcome report to the server. `to` is the target version. */
+static esp_err_t ota_report(const char *to, const char *phase, const char *err)
+{
+    const esp_app_desc_t *app = esp_app_get_description();
+    return http_client_ota_report(CONFIG_VELLUM_DISPLAY_MODEL,
+                                  app ? app->version : NULL, to, phase, err);
+}
+
+/* If the bootloader rolled a failed image back to us, report the FAILED version
+ * so the server blocklists it — otherwise we'd re-report our old version and be
+ * re-served the exact same bad image forever (the brick-retry loop). RTC memory
+ * dedups across deep-sleep wakes; a magic guard resets it on a cold boot
+ * (RTC_NOINIT is uninitialised at power-on). Reported once per rollback. */
+#define OTA_RB_MAGIC 0x56454C55u  /* "VELU" */
+RTC_NOINIT_ATTR static uint32_t s_rb_magic;
+RTC_NOINIT_ATTR static uint32_t s_rb_reported_crc;
+
+static void ota_report_rollback_if_needed(void)
+{
+    const esp_partition_t *bad = esp_ota_get_last_invalid_partition();
+    if (!bad) return;
+    esp_app_desc_t bad_desc;
+    if (esp_ota_get_partition_description(bad, &bad_desc) != ESP_OK) return;
+
+    if (s_rb_magic != OTA_RB_MAGIC) { s_rb_magic = OTA_RB_MAGIC; s_rb_reported_crc = 0; }
+    uint32_t crc = esp_rom_crc32_le(0, (const uint8_t *)bad_desc.version,
+                                    strlen(bad_desc.version));
+    if (crc == s_rb_reported_crc) return;  /* already reported this rollback */
+
+    ESP_LOGW(TAG, "Detected rolled-back image %s — reporting for blocklist", bad_desc.version);
+    if (ota_report(bad_desc.version, "rolled_back", "boot_health_check") == ESP_OK) {
+        s_rb_reported_crc = crc;
+    }
+}
+
 void ota_manager_check_and_apply(void)
 {
     /* Power guard (anti-brick): an OTA is a large flash write followed by a
@@ -195,6 +232,12 @@ void ota_manager_check_and_apply(void)
 
     ESP_LOGI(TAG, "OTA update: %s → %s",
              cJSON_IsString(ota_ver) ? ota_ver->valuestring : "?", ota_url->valuestring);
+    /* Stable copy of the target version — the cJSON it lives in is freed before
+     * the "applied" report point. */
+    char to_ver[64];
+    snprintf(to_ver, sizeof(to_ver), "%s",
+             cJSON_IsString(ota_ver) && ota_ver->valuestring ? ota_ver->valuestring : "");
+
     display_show_ota_progress(0);
     board_buzzer_beep(800, 200);
 
@@ -243,6 +286,7 @@ void ota_manager_check_and_apply(void)
         ESP_LOGE(TAG, "OTA model mismatch: staged '%s' != running '%s' — aborting",
                  staged_desc.project_name,
                  running_desc ? running_desc->project_name : "?");
+        ota_report(to_ver, "verify_fail", "model_mismatch");
         esp_https_ota_abort(handle);
         board_buzzer_beep(300, 500);
         cJSON_Delete(root);
@@ -297,6 +341,7 @@ void ota_manager_check_and_apply(void)
 
     if (!verified) {
         ESP_LOGE(TAG, "OTA verification failed — aborting (image not booted)");
+        ota_report(to_ver, "verify_fail", "verify");
         esp_https_ota_abort(handle);
         board_buzzer_beep(300, 500);
         cJSON_Delete(root);
@@ -316,6 +361,7 @@ void ota_manager_check_and_apply(void)
     }
 
     ESP_LOGI(TAG, "OTA verified + applied — restarting");
+    ota_report(to_ver, "applied", NULL);
     board_buzzer_beep(2000, 100); vTaskDelay(pdMS_TO_TICKS(100)); board_buzzer_beep(2000, 100);
     esp_restart();
 }
@@ -324,9 +370,16 @@ void ota_manager_mark_valid(void)
 {
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t state;
-    if (esp_ota_get_state_partition(running, &state) != ESP_OK) return;
-    if (state == ESP_OTA_IMG_PENDING_VERIFY) {
+    if (esp_ota_get_state_partition(running, &state) == ESP_OK &&
+        state == ESP_OTA_IMG_PENDING_VERIFY) {
         ESP_LOGI(TAG, "First boot of new image confirmed good — cancelling rollback");
         esp_ota_mark_app_valid_cancel_rollback();
+        const esp_app_desc_t *app = esp_app_get_description();
+        http_client_ota_report(CONFIG_VELLUM_DISPLAY_MODEL, NULL,
+                               app ? app->version : NULL, "boot_confirmed", NULL);
     }
+
+    /* Detect + report a bootloader rollback so the server blocklists the bad
+     * version (breaks the brick-retry loop). Runs on every boot; deduped. */
+    ota_report_rollback_if_needed();
 }

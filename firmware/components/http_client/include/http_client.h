@@ -54,6 +54,12 @@ esp_err_t http_client_render(vellum_http_response_t *resp);
 /** POST /api/v1/ink/report */
 esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp);
 
+/** POST /api/v1/ink/ota-report — fire-and-forget OTA outcome event. Any arg
+ *  except `phase` may be NULL. */
+esp_err_t http_client_ota_report(const char *model, const char *from_version,
+                                 const char *to_version, const char *phase,
+                                 const char *error_code);
+
 /** GET /api/v1/ink/config */
 esp_err_t http_client_config(vellum_http_response_t *resp);
 
