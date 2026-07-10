@@ -1,0 +1,28 @@
+# ============================================================================
+# Vellum Firmware — SIGNED-VERIFY PROFILE (no eFuse, fully reversible)
+# ============================================================================
+#
+# The FIRST rung of the Secure Boot ladder. The bootloader verifies the app's
+# RSA-3072 signature but NOTHING is burned to eFuse — Secure Boot is NOT enabled.
+# Use this to prove the full sign -> OTA -> verify chain on a spare board before
+# any irreversible step. A board flashed with this profile stays a normal,
+# reflashable dev board.
+#
+# Apply (S3 only) via the SECURE=1 Makefile knob:
+#   make build MODEL=e1002 SECURE=1 SECURE_PROFILE=testsecure
+# or directly:
+#   idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults.s3;sdkconfig.defaults.testsecure" build
+#
+# See docs/SECURE_BOOT_AND_KMS.md for the full runbook.
+# ----------------------------------------------------------------------------
+
+# Require signed app images WITHOUT hardware Secure Boot (no eFuse burn).
+CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+# ESP32-S3 Secure Boot v2 uses the RSA-3072 signature scheme.
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
+# Remote/HSM/KMS signing: do NOT keep a private key on the build host. The image
+# is signed out-of-band with `espsecure.py sign_data --version 2 --hsm`.
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n
+
+# Keep the app-level Ed25519 OTA signature required as well (defense in depth).
+CONFIG_VELLUM_OTA_REQUIRE_SIGNATURE=y

@@ -19,6 +19,20 @@ PORT ?= $(shell ls /dev/cu.usbserial-* /dev/cu.wchusbserial* /dev/cu.usbmodem* 2
 BAUD ?= 460800
 MODEL ?= e1002
 
+# ── Secure Boot / signed-verify build profiles (OPT-IN — SECURE=1) ──────────
+# The default `make build` is byte-unchanged (unsigned, reflashable). SECURE=1
+# builds via an sdkconfig overlay CHAIN instead, climbing a 3-rung ladder — prove
+# each rung on a spare board before the next (see docs/SECURE_BOOT_AND_KMS.md):
+#   testsecure — software signature verify, NO eFuse burn (fully reversible)
+#   secureboot — Secure Boot v2 on, Flash-Enc OFF (first eFuse burns; reflashable)
+#   prod       — + Flash Encryption RELEASE + anti-rollback (POINT OF NO RETURN)
+# Overlays set BUILD_SIGNED_BINARIES=n → no private key on the build host; sign
+# the image out-of-band with `espsecure.py sign_data --version 2 --hsm` (KMS).
+# SECURE_PROFILE defaults to the fully-reversible `testsecure` (no eFuse burn);
+# the eFuse-burning rungs must be selected explicitly (fail-safe default).
+SECURE ?= 0
+SECURE_PROFILE ?= testsecure
+
 # Map model to target chip and panel Kconfig
 ifeq ($(MODEL),d1001)
   TARGET_CHIP = esp32p4
@@ -47,12 +61,31 @@ IDF_ENV := export IDF_PATH=/Volumes/Dev/esp-idf/v6.0/esp-idf && export IDF_PYTHO
 .PHONY: build flash monitor fm erase-nvs erase-all merged-bin clean check-port
 
 build:
+ifeq ($(SECURE),1)
+	@echo "SECURE build ($(SECURE_PROFILE)) for $(MODEL) ($(TARGET_CHIP))..."
+	@if [ "$(TARGET_CHIP)" = "esp32p4" ]; then \
+		echo "ERROR: Secure Boot profiles are ESP32-S3 only for now (P4 key spec differs)."; exit 1; fi
+	@if [ ! -f "sdkconfig.defaults.$(SECURE_PROFILE)" ]; then \
+		echo "ERROR: no overlay sdkconfig.defaults.$(SECURE_PROFILE) (use testsecure|secureboot|prod)"; exit 1; fi
+	@printf '%s\n' "$(PANEL_CONFIG)" > sdkconfig.panel
+	@rm -f sdkconfig   # force a fresh reconfigure so secure flags can't silently stay off
+	@$(IDF_ACTIVATE) && $(IDF_ENV) && \
+		CHAIN="$(SDKCONFIG_DEFAULTS);sdkconfig.panel;sdkconfig.defaults.$(SECURE_PROFILE)"; \
+		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -DSDKCONFIG_DEFAULTS="$$CHAIN" set-target $(TARGET_CHIP) && \
+		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) build; \
+		rc=$$?; rm -f sdkconfig.panel; [ $$rc -eq 0 ] || exit $$rc   # clean up even on failure
+	@grep -qE "^CONFIG_(SECURE_BOOT|SECURE_SIGNED_APPS)=y" sdkconfig || { \
+		echo "ERROR: secure flags absent from generated sdkconfig — overlay not applied"; exit 1; }
+	@echo "SECURE build OK — image is NOT yet signed; sign out-of-band before flashing (see runbook)."
+else
 	@echo "Building for $(MODEL) ($(TARGET_CHIP))..."
+	@rm -f sdkconfig.panel   # drop any leftover from an interrupted SECURE build
 	@$(IDF_ACTIVATE) && $(IDF_ENV) && \
 		cp $(SDKCONFIG_DEFAULTS) sdkconfig.defaults && \
 		grep -q "$(PANEL_CONFIG)" sdkconfig.defaults 2>/dev/null || echo "$(PANEL_CONFIG)" >> sdkconfig.defaults && \
-		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) set-target $(TARGET_CHIP) && \
+		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -DSDKCONFIG_DEFAULTS=sdkconfig.defaults set-target $(TARGET_CHIP) && \
 		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) build
+endif
 
 flash: check-port
 	@echo "Flashing $(MODEL) to $(PORT)..."

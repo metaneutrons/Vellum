@@ -1,0 +1,23 @@
+; Example PKCS#11 config for KMS-backed Secure Boot v2 signing via
+; `espsecure.py sign_data --version 2 --hsm --hsm-config hsm_config.ini`.
+;
+; Copy to hsm_config.ini (gitignored) and fill in for your provider. The PKCS#11
+; module bridges espsecure to the cloud KMS RSA-3072 key so no private key is
+; ever on the build host. This is ONLY for the Secure Boot RSA signature — the
+; OTA Ed25519 signature is produced with the `gcloud kms asymmetric-sign` CLI and
+; needs no PKCS#11.
+;
+; GCP:  libkmsp11.so   (https://github.com/GoogleCloudPlatform/kms-integrations)
+; AWS:  aws_kms_pkcs11.so (https://github.com/JackOfMostTrades/aws-kms-pkcs11)
+
+[hsm]
+; Path to the provider's PKCS#11 module (also export PKCS11_MODULE_PATH to it).
+pkcs11_lib = /usr/lib/libkmsp11.so
+slot = 0
+; Keep the key label SHORT — OpenSC/libp11 caps CKA_ID at 100 chars, which a full
+; GCP CryptoKeyVersion resource name exceeds. Map the short label to the resource
+; name in the provider config (e.g. GCP kmsp11.yaml).
+label = secureboot-rsa3072
+label_pubkey = secureboot-rsa3072
+; PIN is empty for KMS providers that authenticate via OIDC/ambient credentials.
+credentials =

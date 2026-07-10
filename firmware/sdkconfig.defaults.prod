@@ -1,26 +1,37 @@
 # ============================================================================
-# Vellum Firmware — PRODUCTION HARDENING PROFILE
+# Vellum Firmware — PRODUCTION HARDENING PROFILE (top of the ladder)
 # ============================================================================
 #
-# Apply this overlay ON TOP OF the base + per-variant defaults, e.g.:
+# The THIRD and final rung. Apply ONLY after `testsecure` and `secureboot` are
+# proven on spare/sacrificial boards:
 #
-#   idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.s3;sdkconfig.defaults.prod" build
+#   make build MODEL=e1002 SECURE=1 SECURE_PROFILE=prod
+# or directly:
+#   idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults.s3;sdkconfig.defaults.prod" build
 #
-# ⚠️  IRREVERSIBLE: enabling Secure Boot v2 and Flash Encryption (Release) causes
-#     the bootloader to BURN eFuses on first boot. After that the board can only
-#     run firmware signed with your Secure Boot key, JTAG/ROM-download are locked,
-#     and flash contents are encrypted with a per-device key. There is NO undo.
-#     Validate the full image + OTA flow on dev boards BEFORE burning production.
+# ⚠️  POINT OF NO RETURN: enabling Secure Boot v2 AND Flash Encryption (Release)
+#     causes the bootloader to BURN eFuses on first boot. After that the board can
+#     only run firmware signed with your Secure Boot key, JTAG/ROM-download are
+#     locked, and flash is encrypted with a per-device key. There is NO undo and
+#     NO UART recovery. Validate the full image + OTA flow on dev boards first.
 #
-# See ../SECURITY.md for the complete provisioning runbook and key management.
+# See docs/SECURE_BOOT_AND_KMS.md for the complete provisioning runbook.
 # ----------------------------------------------------------------------------
+
+# ── Partition table moved to clear the larger signed bootloader ─────────────
+# (Same secure layout as sdkconfig.defaults.secureboot — factory-flash-only.)
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.secure.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x10000
 
 # ── Secure Boot v2 (verified boot chain) ───────────────────────────────────
 CONFIG_SECURE_BOOT=y
 CONFIG_SECURE_BOOT_V2_ENABLED=y
-CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y
-# Path is relative to the firmware/ project dir. Keep this key OFFLINE (HSM/vault).
-CONFIG_SECURE_BOOT_SIGNING_KEY="keys/secure_boot_signing_key.pem"
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
+# Remote/HSM/KMS signing — no Secure Boot private key on the build host. The
+# bootloader is signed offline at provisioning; app images are signed in CI with
+# `espsecure.py sign_data --version 2 --hsm`. (Was BUILD_SIGNED_BINARIES=y with a
+# local keys/secure_boot_signing_key.pem — replaced by KMS custody in Phase 3.)
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n
 # Do not allow JTAG once secure boot is on.
 CONFIG_SECURE_BOOT_ALLOW_JTAG=n
 

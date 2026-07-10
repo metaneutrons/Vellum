@@ -1,0 +1,24 @@
+# Vellum partition table — SECURE BOOT variant
+#
+# A signed Secure Boot v2 bootloader is larger than the unsigned one (measured
+# ~0x9000 on ESP32-S3), so it no longer fits before the default 0x8000 partition
+# table. This layout moves the partition table to 0x10000 and shifts the small
+# data partitions up accordingly. ota_0 / ota_1 / storage keep their ORIGINAL
+# offsets and sizes, so the OTA app-image budget is byte-identical to the dev
+# layout (partitions.csv) and the CI partition-fit guard stays valid.
+#
+# ⚠️  Used ONLY by the secure/prod overlays (CONFIG_PARTITION_TABLE_CUSTOM_FILENAME
+#     + CONFIG_PARTITION_TABLE_OFFSET=0x10000). The default dev build keeps
+#     partitions.csv. Changing partition offsets is a FACTORY-FLASH-ONLY change —
+#     it cannot be delivered by OTA — so this layout must be fixed BEFORE
+#     provisioning secure units. Re-measure the signed bootloader size for your
+#     IDF/key and raise the offset further if `idf.py bootloader` still overflows.
+#
+# Name,    Type, SubType, Offset,   Size,    Flags
+nvs,       data, nvs,     0x11000,  0x6000,
+nvs_key,   data, nvs_keys,0x17000,  0x1000,
+otadata,   data, ota,     0x18000,  0x2000,
+phy_init,  data, phy,     0x1a000,  0x1000,
+ota_0,     app,  ota_0,   0x20000,  0x300000,
+ota_1,     app,  ota_1,   0x320000, 0x300000,
+storage,   data, fat,     0x620000, 0x20000,
