@@ -11,22 +11,19 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      # Prefer a GitHub App token. GITHUB_TOKEN-created PRs/releases do NOT trigger
-      # downstream workflows (GitHub's recursion guard), so with the default token
-      # the release PR's required checks stay "action_required" and the published
-      # release never fires firmware.yml's `release: published` build — the stable
-      # firmware silently never gets built. An App token is a real actor, so both
-      # cascade normally. Inert until the App is provisioned: with vars.RELEASE_APP_ID
-      # unset this step is skipped and the action falls back to GITHUB_TOKEN below.
-      - name: Generate GitHub App token (if configured)
-        id: app-token
-        if: ${{ vars.RELEASE_APP_ID != '' }}
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-        with:
-          app-id: ${{ vars.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         with:
-          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
-          release-type: node
+          # A PAT is a real actor, so the release PR fires CI (green checks, no
+          # --admin) and the published release fires firmware.yml's `release:
+          # published` build. GITHUB_TOKEN can't — GitHub suppresses downstream
+          # events for token-created PRs/releases. Falls back to GITHUB_TOKEN when
+          # RELEASE_PAT is unset (then downstream triggering won't work).
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          # Drive from the manifest config, NOT an inline release-type. The inline
+          # `release-type: node` put the action in simple mode and IGNORED
+          # release-please-config.json — so its `extra-files` rule that syncs
+          # firmware/main/Kconfig.projbuild's VELLUM_FIRMWARE_VERSION never ran, and
+          # the firmware built with a stale version string on every release.
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
