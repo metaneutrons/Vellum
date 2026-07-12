@@ -30,7 +30,11 @@ extern const char *unity_current_name;
   int unity_current_failed = 0;                                                \
   const char *unity_current_name = ""
 
-#define UNITY_BEGIN() (unity_tests_run = 0, unity_tests_failed = 0, 0)
+#define UNITY_BEGIN()                                                          \
+  do {                                                                         \
+    unity_tests_run = 0;                                                        \
+    unity_tests_failed = 0;                                                     \
+  } while (0)
 
 #define UNITY_END()                                                            \
   (printf("\n-----------------------\n%d Tests %d Failures\n%s\n",             \
