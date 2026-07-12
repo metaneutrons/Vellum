@@ -122,20 +122,45 @@ jobs:
           VERSION="${{ needs.version.outputs.version }}"
           SAFE=$(printf '%s' "$VERSION" | tr '+' '-')   # url/file-safe (POSIX sh; drops '+build' separator)
           MODEL="${{ matrix.model }}"
-          # App-only image → OTA. Its trailing 32 bytes are the digest the device
-          # verifies via esp_partition_get_sha256() after esp_https_ota.
-          # The app image is now named per-model (project(vellum-<model>)) so the
-          # OTA client can reject a wrong-model image; source it by that name.
-          cp "build/vellum-${MODEL}.bin" "vellum-${MODEL}-v${SAFE}.bin"
+          OTA="vellum-${MODEL}-v${SAFE}.bin"
+          # App-only image → OTA. Per-model project name (project(vellum-<model>))
+          # lets the client reject a wrong-model image; source it by that name.
+          cp "build/vellum-${MODEL}.bin" "$OTA"
+
+          # Secure Boot v2 OTA — OPT-IN, OFF in dev (vars.OTA_SECURE_BOOT != '1').
+          # When enabled, append the RSA-3072 signature block so the image boots on
+          # SB-provisioned devices. The OTA digest below is the appended app hash,
+          # which sits BEFORE this block, so the Ed25519/otaSha256 contract holds
+          # regardless of the append. Requires the HSM/PKCS#11 config (see
+          # docs/SECURE_BOOT_AND_KMS.md, Phase B). NOT exercised in CI while dev —
+          # validate on a secureboot board before first fleet rollout.
+          if [ "${{ vars.OTA_SECURE_BOOT }}" = "1" ]; then
+            [ -f hsm_config.ini ] || { echo "::error::OTA_SECURE_BOOT=1 but firmware/hsm_config.ini is absent — provide the PKCS#11/HSM config (docs/SECURE_BOOT_AND_KMS.md)"; exit 1; }
+            espsecure.py sign_data --version 2 --hsm --hsm-config hsm_config.ini --output "${OTA}.signed" "$OTA" \
+              || { echo "::error::Secure Boot v2 OTA signing failed for $OTA"; exit 1; }
+            mv "${OTA}.signed" "$OTA"
+            echo "Secure Boot v2 signature block appended to $OTA"
+          fi
+
+          # OTA digest = the app image's appended SHA-256 (esptool 'Validation hash').
+          # This equals esp_partition_get_sha256() on-device and is read from the
+          # correct offset even when a Secure Boot block trails the image — so it is
+          # robust to the optional append above (NOT tail -c 32 of a signed file).
+          DIGEST=$(esptool image-info "$OTA" 2>/dev/null | sed -nE 's/.*[Vv]alidation [Hh]ash:[[:space:]]*([0-9a-f]{64}).*/\1/p' | head -1)
+          [ -n "$DIGEST" ] || { echo "::error::$OTA has no appended validation hash (hash_appended disabled?)"; exit 1; }
+          printf '%s' "$DIGEST" > "${OTA}.sha256"
+
           # Merged full-flash image → web flasher (ESP Web Tools writes it at 0x0).
           cd build && esptool --chip ${{ matrix.target }} merge-bin \
             --output "../vellum-${MODEL}-v${SAFE}-factory.bin" @flash_args
-          cd .. && ls -lh vellum-${MODEL}-v${SAFE}*.bin
+          cd .. && ls -lh vellum-${MODEL}-v${SAFE}*.bin "${OTA}.sha256"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: firmware-${{ matrix.model }}
-          path: firmware/vellum-${{ matrix.model }}-*.bin
+          path: |
+            firmware/vellum-${{ matrix.model }}-*.bin
+            firmware/vellum-${{ matrix.model }}-*.bin.sha256
 
   sign-and-release:
     needs: [version, build]
@@ -164,8 +189,10 @@ jobs:
         run: |
           # ota_0/ota_1 hold the OTA app image; parse ota_0's size from the
           # partition table so this stays correct if the layout ever changes.
-          OTA_MAX=$(awk -F',' '$1 ~ /^ota_0/ {gsub(/[[:space:]]/,"",$5); print $5}' \
-                    firmware/partitions.csv)
+          # Secure Boot builds relocate partitions; parse the table matching the build.
+          PART=firmware/partitions.csv
+          [ "${{ vars.OTA_SECURE_BOOT }}" = "1" ] && PART=firmware/partitions.secure.csv
+          OTA_MAX=$(awk -F',' '$1 ~ /^ota_0/ {gsub(/[[:space:]]/,"",$5); print $5}' "$PART")
           OTA_MAX=$((OTA_MAX))                 # 0x300000 -> decimal
           HEADROOM=$((64 * 1024))              # keep a little slack under the limit
           LIMIT=$((OTA_MAX - HEADROOM))
@@ -183,14 +210,17 @@ jobs:
           done
           [ "$FAIL" -eq 0 ]
 
-      - name: Compute OTA digests (== on-device esp_partition_get_sha256)
+      - name: Verify precomputed OTA digests (built via esptool image-info == esp_partition_get_sha256)
         run: |
+          # The build job derives each digest from the app image's appended
+          # 'Validation hash' (esptool image-info) — read from the correct offset even
+          # when a Secure Boot block trails the image, so it is NOT tail -c 32 of a
+          # signed file. Here we only confirm the sidecar arrived intact.
           cd binaries
           for f in vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac
-            # The app image appends its own SHA-256 as the final 32 bytes; that IS
-            # the value esp_partition_get_sha256() returns (NOT sha256sum of the file).
-            tail -c 32 "$f" | xxd -p -c 64 > "$f.sha256"
+            [ -s "$f.sha256" ] || { echo "::error::$f: missing precomputed digest sidecar from the build job"; exit 1; }
+            grep -qE '^[0-9a-f]{64}$' "$f.sha256" || { echo "::error::$f.sha256 is not a 64-hex digest"; exit 1; }
           done
 
       - name: Require a signing key for stable releases (devices are fail-closed)
@@ -242,7 +272,7 @@ jobs:
           cd binaries
           for f in vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac
-            tail -c 32 "$f" > "$f.hash"                                 # raw 32-byte digest = message
+            xxd -r -p "$f.sha256" > "$f.hash"                          # raw 32-byte digest = message (build's image-info sidecar)
             gcloud kms asymmetric-sign \
               --version "${OTA_KMS_KEY##*/cryptoKeyVersions/}" \
               --key "$(echo "$OTA_KMS_KEY" | sed -E 's#.*/cryptoKeys/([^/]+)/.*#\1#')" \
@@ -280,7 +310,7 @@ jobs:
           cd binaries
           for f in vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac
-            tail -c 32 "$f" > "$f.hash"                                  # raw 32-byte digest
+            xxd -r -p "$f.sha256" > "$f.hash"                           # raw 32-byte digest (build's image-info sidecar)
             openssl pkeyutl -sign -inkey ../signing.key -rawin -in "$f.hash" -out "$f.sig"
             base64 -w0 "$f.sig" > "$f.sig.b64"                           # no line wrapping
           done
@@ -299,7 +329,7 @@ jobs:
           for f in vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac
             [ -f "$f.sig.b64" ] || { echo "::error::$f has no signature"; exit 1; }
-            tail -c 32 "$f" > "$f.hash"
+            xxd -r -p "$f.sha256" > "$f.hash"
             base64 -d "$f.sig.b64" > "$f.sig.raw"
             openssl pkeyutl -verify -pubin -inkey signer_pub.pem -rawin -in "$f.hash" -sigfile "$f.sig.raw" \
               || { echo "::error::$f signature failed pure-Ed25519 roundtrip verify"; exit 1; }

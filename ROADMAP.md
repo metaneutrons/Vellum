@@ -22,13 +22,22 @@ landed in #28 (see [SECURITY.md](SECURITY.md) for the resulting security model).
 
 ## Production hardening (eFuse-burning — manufacturing)
 
-- [ ] **Wire the Secure-Boot production profile into a manufacturing build.**
-      `sdkconfig.defaults.prod` enables Secure Boot v2 + Flash/NVS encryption +
-      anti-rollback. **Caveat:** with Secure Boot the app-image layout changes, so the
-      OTA digest can no longer be read as the last 32 bytes (`tail -c 32`) — it must come
-      from `esptool image-info` / the image metadata, and the bootloader's own verified
-      boot largely makes the app-level Ed25519 check redundant. Revisit the OTA signing
-      step when this profile goes into CI.
+- [x] **Secure-Boot ∩ OTA digest — fixed & wired (opt-in, OFF in dev).** CI now derives
+      the OTA digest from the appended app "Validation hash" (`esptool image-info`),
+      order-independent so it holds even when a Secure Boot block trails the image (kills
+      the old `tail -c 32`-of-a-signed-file trap; verified locally: image-info == tail-c-32
+      for a plain image). An opt-in `OTA_SECURE_BOOT=1` gate makes `firmware.yml`
+      RSA-PSS-sign the OTA image (`espsecure --hsm`, gated on `firmware/hsm_config.ini`)
+      and switch the partition-fit guard to `partitions.secure.csv`. **Off in dev.**
+- [ ] **Validate the Secure-Boot OTA leg on hardware (Phase B.5).** The `OTA_SECURE_BOOT`
+      append + boot path is unexercised in CI (no SB board/HSM here). Prove a full OTA →
+      RSA-verify → boot → rollback cycle on a `secureboot` board before enabling it for a
+      fleet. `sdkconfig.defaults.prod` (Secure Boot v2 + Flash/NVS encryption +
+      anti-rollback) stays a manual manufacturing profile.
+- [ ] **Add a real-signed-image OTA digest KAT.** The host KAT signs a synthetic 32-byte
+      string, so it locks the Ed25519 algorithm but nothing about digest derivation. Add a
+      test that builds (and RSA-signs) an image and asserts the derived digest matches
+      `esp_partition_get_sha256` semantics on the signed artifact.
 - [ ] **Execute the eFuse burn runbook** (SECURITY.md) on real hardware, only after
       the full image + OTA flow is validated on dev boards. The first boot burns eFuses
       irreversibly.
