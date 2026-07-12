@@ -35,7 +35,10 @@ bool epd_is_partial_ready(epd_device_t *dev);
 // timeout_ms: timeout in ms, 0 = infinite
 void epd_wait_busy_polarity(epd_spi_t *spi, uint32_t caps, uint32_t timeout_ms);
 
-// Convenience macro for controllers
-#define WAIT(dev) epd_wait_busy_polarity(epd_get_spi(dev), epd_get_panel(dev)->caps, 0)
+// Convenience macro for controllers.
+// Bounded to 30s (was 0 = infinite): a stuck/absent panel BUSY line must not wedge
+// the whole render flow forever — on timeout the wait returns and the caller can
+// proceed to sleep (and retry next wake) instead of hanging until a power cycle.
+#define WAIT(dev) epd_wait_busy_polarity(epd_get_spi(dev), epd_get_panel(dev)->caps, 30000)
 
 #endif // _EPAPER_COMMON_H_
