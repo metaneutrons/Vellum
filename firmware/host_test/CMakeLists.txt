@@ -23,7 +23,9 @@ add_executable(host_tests
   test_version_compare.c
   test_ota_signature.c
   test_secure_channel.c
+  test_key_revocation.c
   version_compare.c
+  revocation.c
 )
 target_link_libraries(host_tests PRIVATE OpenSSL::Crypto)
 
