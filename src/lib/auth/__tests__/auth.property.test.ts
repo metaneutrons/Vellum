@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import crypto from "crypto";
 import * as fc from "fast-check";
 import {
   handleHello,
@@ -7,6 +8,12 @@ import {
   type DeviceRecord,
   type DeviceRepository,
 } from "../index";
+
+/** A valid raw-32-byte X25519 public key, base64 — the shape a device sends. */
+function genDeviceKeyBase64(): string {
+  const kp = crypto.generateKeyPairSync("x25519");
+  return kp.publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("base64");
+}
 
 // --- In-memory repository for testing ---
 
@@ -86,30 +93,57 @@ describe("Property 10: Unknown MAC registration creates pending device", () => {
  * cryptographic token, and the device record should have status
  * "approved" with a non-null token.
  */
-describe("Property 11: Approved device receives token on next hello", () => {
-  it("after approveDevice, handleHello returns a 64-char hex token", async () => {
+describe("Property 11: Approved device receives an ENCRYPTED token, only to its enrolled key", () => {
+  it("after approveDevice, handleHello returns the token encrypted to the enrolled key (never plaintext)", async () => {
     await fc.assert(
       fc.asyncProperty(arbMac, async (mac) => {
         const repo = createInMemoryRepo();
+        const deviceKey = genDeviceKeyBase64();
 
-        // Register device
-        await handleHello(mac, null, undefined, repo);
+        // Enroll WITH a handshake key, then approve.
+        await handleHello(mac, deviceKey, undefined, repo);
         expect(repo.store.get(mac)!.status).toBe("pending");
-
-        // Approve
         await approveDevice(mac, repo);
         const approved = repo.store.get(mac)!;
-        expect(approved.status).toBe("approved");
-        expect(approved.token).not.toBeNull();
         expect(approved.token).toHaveLength(64); // 32 bytes hex
 
-        // Next hello should return the token
-        const result = await handleHello(mac, null, undefined, repo);
+        // Next hello (re-sending the SAME key) → token delivered ENCRYPTED only.
+        const result = await handleHello(mac, deviceKey, undefined, repo);
         expect(result.status).toBe("approved");
-        expect(result.token).toBe(approved.token);
+        expect(result.encryptedToken).toBeDefined();
+        expect(result.token).toBeUndefined();
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
+  });
+
+  // Regression for the audit's HIGH impersonation finding.
+  it("SECURITY: a caller substituting a DIFFERENT key gets NO token and cannot overwrite the enrolled key", async () => {
+    const repo = createInMemoryRepo();
+    const mac = "AA:BB:CC:DD:EE:FF";
+    const deviceKey = genDeviceKeyBase64();
+    const attackerKey = genDeviceKeyBase64();
+
+    await handleHello(mac, deviceKey, undefined, repo);
+    await approveDevice(mac, repo);
+
+    const res = await handleHello(mac, attackerKey, undefined, repo);
+    expect(res.status).toBe("pending"); // refused — re-provisioning required
+    expect(res.encryptedToken).toBeUndefined();
+    expect(res.token).toBeUndefined();
+    expect(repo.store.get(mac)!.publicKey).toBe(deviceKey); // enrolled key NOT overwritten
+  });
+
+  it("SECURITY: an approved device with no enrolled key is not handed a plaintext token", async () => {
+    const repo = createInMemoryRepo();
+    const mac = "11:22:33:44:55:66";
+    await handleHello(mac, null, undefined, repo); // keyless enrollment
+    await approveDevice(mac, repo);
+
+    const res = await handleHello(mac, null, undefined, repo);
+    expect(res.status).toBe("pending");
+    expect(res.token).toBeUndefined();
+    expect(res.encryptedToken).toBeUndefined();
   });
 });
 
