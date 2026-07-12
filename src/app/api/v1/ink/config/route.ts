@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, withDb } from "@/db";
 import { devices } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
@@ -25,12 +25,12 @@ export async function GET(request: NextRequest) {
     return Response.json(errorResponse("Unauthorized"), { status: 401 });
   }
 
-  // Load device for channel + pin info
-  const [device] = await db
-    .select()
-    .from(devices)
-    .where(eq(devices.mac, validation.data.mac))
-    .limit(1);
+  // Load device for channel + pin info — through the resilience layer (circuit
+  // breaker + retry) like every other DB access on the hot device path.
+  const [device] = await withDb(
+    () => db.select().from(devices).where(eq(devices.mac, validation.data.mac)).limit(1),
+    "config-get-device"
+  );
 
   // Resolve OTA update
   const firmwareVer = request.headers.get("x-firmware-ver") ?? "0.0.0";

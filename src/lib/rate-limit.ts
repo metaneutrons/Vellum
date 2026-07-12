@@ -67,21 +67,24 @@ export const loginLimiter = new RateLimiter({ maxRequests: 5, windowMs: 15 * 60_
 export const apiLimiter = new RateLimiter({ maxRequests: 60, windowMs: 60_000 });
 
 /**
- * Extract client IP from request headers.
+ * Extract the client IP used to key rate limits.
  *
- * ⚠️ SECURITY / DEPLOYMENT ASSUMPTION: this trusts the first `X-Forwarded-For`
- * hop. That is only sound when the app runs behind a trusted reverse proxy that
- * OVERWRITES this header. If the app is exposed directly, a client can spoof
- * `X-Forwarded-For` to get a fresh rate-limit bucket per request and bypass all
- * limits (login brute-force + API flood). Deploy behind a trusted proxy; see
- * SECURITY.md. Falls back to "unknown" when absent.
+ * Forwarding headers (`X-Forwarded-For` / `X-Real-IP`) are honored ONLY when the
+ * app is behind a trusted reverse proxy that OVERWRITES them — the shipped Docker
+ * deployment. A directly-exposed instance MUST set `TRUST_PROXY_HEADERS=false`,
+ * otherwise a client could spoof `X-Forwarded-For` to mint a fresh rate-limit
+ * bucket per request and bypass every limit (login brute-force + API flood).
+ * When headers are not trusted (or absent) all such requests share one bucket,
+ * which errs toward over-limiting rather than allowing a bypass.
  */
 export function getClientIp(request: Request): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown"
-  );
+  if (process.env.TRUST_PROXY_HEADERS !== "false") {
+    const fwd = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    if (fwd) return fwd;
+    const real = request.headers.get("x-real-ip");
+    if (real) return real;
+  }
+  return "direct";
 }
 
 /**
