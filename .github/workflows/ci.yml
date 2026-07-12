@@ -24,7 +24,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm install --ignore-scripts && npm rebuild
+      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm run lint
 
   typecheck:
@@ -36,7 +36,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm install --ignore-scripts && npm rebuild
+      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npx tsc --noEmit
 
   test:
@@ -48,7 +48,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm install --ignore-scripts && npm rebuild
+      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm test
 
   build:
@@ -60,5 +60,5 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm install --ignore-scripts && npm rebuild
+      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm run build

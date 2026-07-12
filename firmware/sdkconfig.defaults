@@ -12,6 +12,14 @@ CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_VELLUM_PANEL_E1003=y
 
 # NVS
+# DEV-ONLY POSTURE: NVS encryption is deliberately OFF in this baseline so dev
+# boards stay reflashable over UART. It provides NO at-rest confidentiality for
+# the WiFi PSK, device token or X25519 private key — an attacker with physical
+# flash access can read them. Production images MUST be built with the hardening
+# overlay, which turns this on and backs it with Flash Encryption (Release):
+#   make build MODEL=<model> SECURE=1 SECURE_PROFILE=prod
+# See firmware/sdkconfig.defaults.prod and docs/SECURE_BOOT_AND_KMS.md. Do not
+# ship a field/production image built from this default profile.
 CONFIG_NVS_ENCRYPTION=n
 
 # Wi-Fi

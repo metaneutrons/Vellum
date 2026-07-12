@@ -32,7 +32,7 @@ updates:
       github-actions:
         update-types: ["minor", "patch"]
 
-  # ── Docker — Dockerfile base image (node:22-alpine) ───────────────
+  # ── Docker — Dockerfile base image (node:26-alpine) ───────────────
   - package-ecosystem: "docker"
     directory: "/"
     target-branch: "main"
