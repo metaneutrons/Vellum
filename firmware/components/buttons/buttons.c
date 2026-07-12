@@ -82,11 +82,17 @@ void buttons_init(void)
 
 button_action_t buttons_poll(void)
 {
-    /* Check factory reset combo: KEY2 + KEY0 both held */
-    if (gpio_get_level(KEY0_GPIO) == PRESSED_LEVEL) {
+    /* Factory reset requires the deliberate TWO-HAND combo KEY2 + KEY0, both held
+     * for the whole window. Gating on KEY0 alone (the everyday green button) meant
+     * a single stuck/leaned-on/packaging-pressed KEY0 would wipe WiFi creds, the
+     * device token, and the keypair — forcing a full re-enrollment. Both keys must
+     * be down to arm it, and releasing EITHER one aborts. */
+    if (gpio_get_level(KEY0_GPIO) == PRESSED_LEVEL &&
+        gpio_get_level(KEY2_GPIO) == PRESSED_LEVEL) {
         ESP_LOGI(TAG, "KEY2+KEY0 held — checking for factory reset...");
         int64_t start = esp_timer_get_time() / 1000;
-        while (gpio_get_level(KEY0_GPIO) == PRESSED_LEVEL) {
+        while (gpio_get_level(KEY0_GPIO) == PRESSED_LEVEL &&
+               gpio_get_level(KEY2_GPIO) == PRESSED_LEVEL) {
             int64_t elapsed = (esp_timer_get_time() / 1000) - start;
             if (elapsed >= FACTORY_RESET_HOLD_MS) {
                 ESP_LOGW(TAG, "Factory reset triggered!");
@@ -95,7 +101,7 @@ button_action_t buttons_poll(void)
             }
             vTaskDelay(pdMS_TO_TICKS(50));
         }
-        /* Released before timeout */
+        /* Either key released before timeout — aborted */
         s_key0_pressed = false;
     }
 

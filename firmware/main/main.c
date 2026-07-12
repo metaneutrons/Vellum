@@ -144,8 +144,12 @@ static bool perform_hello(void)
  * Render flow
  * ----------------------------------------------------------------------- */
 
-static uint32_t perform_render(void)
+/* Renders the current content. `render_ok` (nullable) is set true ONLY on a
+ * genuinely successful round-trip (200 with a drawn frame, or a legitimate 304)
+ * — the caller uses it to decide whether to confirm a freshly-OTA'd image. */
+static uint32_t perform_render(bool *render_ok)
 {
+    if (render_ok) *render_ok = false;
     ESP_LOGI(TAG, "Requesting render");
 
     vellum_http_response_t resp = {0};
@@ -185,6 +189,8 @@ static uint32_t perform_render(void)
             if (display_update_raw(resp.binary_body, resp.binary_len) != ESP_OK) {
                 ESP_LOGW(TAG, "Malformed pixel buffer (%zu bytes)", resp.binary_len);
                 display_show_error("Error");
+            } else if (render_ok) {
+                *render_ok = true;   /* frame drawn successfully */
             }
         } else {
             ESP_LOGW(TAG, "Empty render response body");
@@ -192,6 +198,7 @@ static uint32_t perform_render(void)
         }
     } else if (resp.status_code == 304) {
         ESP_LOGI(TAG, "Content unchanged — skipping display refresh");
+        if (render_ok) *render_ok = true;   /* legitimate no-change */
     } else if (resp.status_code == 401) {
         ESP_LOGW(TAG, "401 Unauthorized");
         display_show_error("Unauthorized");
@@ -374,7 +381,13 @@ void app_main(void)
     int battery = board_battery_level();
     ESP_LOGI(TAG, "Battery level: %d%%", battery);
 
-    if (battery > 0 && battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !board_is_usb_powered()) {
+    /* 0% is the DEEPEST discharge, not an "ignore me" sentinel — the old
+     * `battery > 0` guard skipped exactly the most-critical case, letting the
+     * device keep running WiFi + a full refresh on a near-dead cell and brown out
+     * mid-write (corrupting NVS or a staged OTA slot → brick). Treat any sub-
+     * critical reading as critical unless we're on USB power (where a working ADC
+     * reads well above the divider and is_usb_powered() is true). */
+    if (battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !board_is_usb_powered()) {
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
         display_show_error("Low Battery");
@@ -477,17 +490,20 @@ void app_main(void)
     }
 
     /* 7. Request render and draw to display */
-    uint32_t sleep_duration = perform_render();
+    bool render_ok = false;
+    uint32_t sleep_duration = perform_render(&render_ok);
 
-    /* Reaching a successful render confirms WiFi + server + token + display all
-     * work — a good-enough signal to confirm a freshly-OTA'd image and cancel
-     * the bootloader rollback (no-op unless this image is PENDING_VERIFY). */
-    ota_manager_mark_valid();
+    /* Confirm a freshly-OTA'd image ONLY after a GENUINELY successful render
+     * (WiFi + server + token + display all worked). Confirming after a failed
+     * render would cancel the bootloader rollback for a broken-but-reachable
+     * image, defeating A/B recovery. mark_valid is a no-op unless PENDING_VERIFY. */
+    if (render_ok) ota_manager_mark_valid();
 
     /* 7b. If green button pressed during render, beep + re-render */
     while (buttons_key0_pressed()) {
         board_buzzer_beep(1000, 100);
-        sleep_duration = perform_render();
+        sleep_duration = perform_render(&render_ok);
+        if (render_ok) ota_manager_mark_valid();
     }
 
     /* 8. Check for OTA update */
@@ -505,7 +521,10 @@ void app_main(void)
             s_button_pressed = false;
             ESP_LOGI(TAG, "Button → immediate refresh");
         }
-        sleep_duration = perform_render();
+        sleep_duration = perform_render(&render_ok);
+        /* A good image that failed its FIRST render still confirms on the first
+         * successful poll here (mark_valid is idempotent). */
+        if (render_ok) ota_manager_mark_valid();
         ota_manager_check_and_apply();
     }
 #else
