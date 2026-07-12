@@ -87,7 +87,7 @@ the sections above are cross-referenced, not duplicated.
 
 ### Server / API (88 → 100)
 
-- [ ] **Close the `safeFetch` DNS-rebinding TOCTOU** by pinning the validated resolved IP at the socket (undici Agent custom `lookup`). *(next)*
+- [x] **safeFetch DNS-rebinding TOCTOU closed** by connect-time IP-pinning — an undici Agent whose `lookup` re-validates and pins the resolved IP, making validation and connect atomic (#71).
 - [ ] End-to-end route tests (device↔server) driven by a simulated device; fuzz `/hello`, `/config`, `/report`.
 - [ ] Correlation-ID request tracing + a structured error taxonomy.
 - [ ] (See also: CSP lockdown, XFF trusted-proxy, shared rate-limit store above.)
@@ -115,7 +115,7 @@ the sections above are cross-referenced, not duplicated.
 ### Testing & QA (88 → 100)
 
 - [x] **Firmware host-test suite grown 13 → 19 and merge-blocking on every PR** (#65, #66).
-- [ ] **Coverage measurement with a threshold gate** (no % tracked today). *(next)*
+- [x] **Coverage ratchet gate** enforced in the required Test check — vitest v8 thresholds set just below current, so coverage can only hold or improve (#70).
 - [ ] Device↔server E2E + firmware on-target smoke (HIL/QEMU); mutation testing to prove the suite catches regressions.
 
 ### Observability (80 → 100)
