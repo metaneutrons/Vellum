@@ -1,0 +1,30 @@
+name: Firmware Host Tests
+on:
+  push:
+    branches: [main]
+    paths: ['firmware/**']
+  pull_request:
+    branches: [main]
+    paths: ['firmware/**']
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    name: Firmware logic/crypto host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake libssl-dev
+
+      - name: Configure
+        run: cmake -S firmware/host_test -B firmware/host_test/build
+
+      - name: Build
+        run: cmake --build firmware/host_test/build
+
+      - name: Test
+        run: ctest --test-dir firmware/host_test/build --output-on-failure
