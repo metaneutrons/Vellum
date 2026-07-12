@@ -309,7 +309,12 @@ export async function resolveOta(
     // failed (it would roll back, re-report the old version, and re-download).
     if (await deviceFailedTarget(mac, target.version)) return NO_UPDATE;
     // Rollout gate: canary cohort / percentage / paused / halted kill-switch.
-    if (!(await isDeviceInRollout(mac, target.version, channel))) return NO_UPDATE;
+    // Key on the TARGET RELEASE's channel, NOT the device's subscription channel:
+    // rollout rows are created per (version, release-channel), so a beta-channel
+    // device rolling forward onto a STABLE build must be gated by that stable
+    // rollout row — otherwise the operator's halt/canary is silently bypassed for
+    // exactly the beta cohort most likely to be running risky firmware.
+    if (!(await isDeviceInRollout(mac, target.version, target.channel))) return NO_UPDATE;
   }
 
   return {
