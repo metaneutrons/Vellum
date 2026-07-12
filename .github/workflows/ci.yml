@@ -24,7 +24,13 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
+      # NOTE: `npm install` (not `npm ci`) is intentional for now — the committed
+      # package-lock.json is not `npm ci`-consistent (an esbuild version drift:
+      # tsx/vite require ^0.27/^0.28 while the lock pins 0.25.12) and cannot be
+      # cleanly regenerated with npm (a `workspace:` protocol reference plus
+      # eslint peer conflicts). Adopting `npm ci` needs a separate lockfile
+      # remediation. The scoped `npm rebuild @napi-rs/canvas` is retained.
+      - run: npm install --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm run lint
 
   typecheck:
@@ -36,7 +42,13 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
+      # NOTE: `npm install` (not `npm ci`) is intentional for now — the committed
+      # package-lock.json is not `npm ci`-consistent (an esbuild version drift:
+      # tsx/vite require ^0.27/^0.28 while the lock pins 0.25.12) and cannot be
+      # cleanly regenerated with npm (a `workspace:` protocol reference plus
+      # eslint peer conflicts). Adopting `npm ci` needs a separate lockfile
+      # remediation. The scoped `npm rebuild @napi-rs/canvas` is retained.
+      - run: npm install --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npx tsc --noEmit
 
   test:
@@ -48,7 +60,13 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
+      # NOTE: `npm install` (not `npm ci`) is intentional for now — the committed
+      # package-lock.json is not `npm ci`-consistent (an esbuild version drift:
+      # tsx/vite require ^0.27/^0.28 while the lock pins 0.25.12) and cannot be
+      # cleanly regenerated with npm (a `workspace:` protocol reference plus
+      # eslint peer conflicts). Adopting `npm ci` needs a separate lockfile
+      # remediation. The scoped `npm rebuild @napi-rs/canvas` is retained.
+      - run: npm install --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm test
 
   build:
@@ -60,5 +78,11 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
+      # NOTE: `npm install` (not `npm ci`) is intentional for now — the committed
+      # package-lock.json is not `npm ci`-consistent (an esbuild version drift:
+      # tsx/vite require ^0.27/^0.28 while the lock pins 0.25.12) and cannot be
+      # cleanly regenerated with npm (a `workspace:` protocol reference plus
+      # eslint peer conflicts). Adopting `npm ci` needs a separate lockfile
+      # remediation. The scoped `npm rebuild @napi-rs/canvas` is retained.
+      - run: npm install --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm run build
