@@ -5,6 +5,7 @@
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, withDb } from "@/db";
+import { safeFetch } from "@/lib/safe-fetch";
 import {
   devices,
   themes,
@@ -216,7 +217,10 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
     }
 
     if (provider.type === "ical") {
-      const res = await fetch(credentials.url, { signal: AbortSignal.timeout(10_000) });
+      // safeFetch (not raw fetch): the URL comes from stored provider credentials,
+      // so it must go through the SSRF guard that blocks private/link-local/loopback
+      // targets — otherwise "Test connection" is an authenticated SSRF primitive.
+      const res = await safeFetch(credentials.url, { timeoutMs: 10_000 });
       if (!res.ok) return { ok: false, message: `HTTP ${res.status} from iCal URL` };
       const text = await res.text();
       return { ok: text.includes("VCALENDAR"), message: text.includes("VCALENDAR") ? "Connected — valid iCal feed" : "Response is not a valid iCal feed" };
