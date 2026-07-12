@@ -173,9 +173,9 @@ secret: `gh secret delete FIRMWARE_SIGNING_KEY`.
 
 - Signed message = the **32-byte appended app digest** — the "Validation hash" from
   `esptool image-info vellum-<model>-v*.bin`, identical to on-device
-  `esp_partition_get_sha256`. CI reads it via image-info (NOT `tail -c 32`) so the
-  value comes from the correct offset even when a Secure Boot signature block trails
-  the image. Never `sha256sum` of the whole file; never the factory image.
+  `esp_partition_get_sha256`. CI reads it via `esptool image-info` (NOT `tail -c 32`)
+  so the value comes from the end of the app image even when a Secure Boot signature
+  block trails it. Never `sha256sum` of the whole file; never the factory image.
 - KMS returns a **raw 64-byte** `r||s` signature (GCP `EC_SIGN_ED25519` and AWS
   `ED25519_SHA_512`/`RAW` both do). If a provider ever returns DER, unwrap to raw
   before base64 — the device rejects DER.
@@ -250,7 +250,8 @@ with **no hard cutover**.
 4. **Invariant check:** confirm the OTA Ed25519 path still works after the RSA-PSS
    block is appended — do a full OTA and confirm the device `otaSha256` still equals
    the CI digest. CI derives that digest from the appended app "Validation hash"
-   (`esptool image-info`), read from a fixed offset *before* the SB block, so the
+   (`esptool image-info`), read from the end of the app image (before the SB block,
+   at the dynamic `image_len − 32` offset), so the
    Ed25519/otaSha256 contract holds whether the block is appended before or after
    signing — no ordering dependency. When `OTA_SECURE_BOOT=1` (opt-in; **OFF in
    dev**), `firmware.yml` performs this RSA-PSS append itself (gated on

@@ -25,8 +25,8 @@ landed in #28 (see [SECURITY.md](SECURITY.md) for the resulting security model).
 - [x] **Secure-Boot ∩ OTA digest — fixed & wired (opt-in, OFF in dev).** CI now derives
       the OTA digest from the appended app "Validation hash" (`esptool image-info`),
       order-independent so it holds even when a Secure Boot block trails the image (kills
-      the old `tail -c 32`-of-a-signed-file trap; verified locally: image-info == tail-c-32
-      for a plain image). An opt-in `OTA_SECURE_BOOT=1` gate makes `firmware.yml`
+      the old `tail -c 32`-of-a-signed-file trap; verified locally: `esptool image-info`
+      == `tail -c 32` for a plain image). An opt-in `OTA_SECURE_BOOT=1` gate makes `firmware.yml`
       RSA-PSS-sign the OTA image (`espsecure --hsm`, gated on `firmware/hsm_config.ini`)
       and switch the partition-fit guard to `partitions.secure.csv`. **Off in dev.**
 - [ ] **Validate the Secure-Boot OTA leg on hardware (Phase B.5).** The `OTA_SECURE_BOOT`
