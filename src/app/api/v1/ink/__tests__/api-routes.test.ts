@@ -18,6 +18,19 @@ vi.mock("@/lib/calendar", () => ({
   fetchRoomEvents: vi.fn(() => []),
 }));
 
+// Mock firmware/OTA resolution — the config route calls resolveOta(), which
+// otherwise hits the live GitHub Releases API and made this test hang/time out.
+vi.mock("@/lib/firmware", () => ({
+  resolveOta: vi.fn(async () => ({
+    otaUrl: null,
+    otaVersion: null,
+    otaSha256: null,
+    otaSignature: null,
+    otaKeyId: null,
+    allowDowngrade: false,
+  })),
+}));
+
 // Mock DB
 vi.mock("@/db", () => ({
   db: {

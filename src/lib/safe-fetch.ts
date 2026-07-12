@@ -25,7 +25,7 @@ function ipToBytes(ip: string): number[] | null {
 }
 
 /** True for loopback / link-local / private / unique-local / metadata ranges. */
-function isBlockedAddress(ip: string): boolean {
+export function isBlockedAddress(ip: string): boolean {
   const v = isIP(ip);
   if (v === 4) {
     const b = ipToBytes(ip);
