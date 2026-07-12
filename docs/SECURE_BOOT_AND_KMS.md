@@ -171,9 +171,11 @@ secret: `gh secret delete FIRMWARE_SIGNING_KEY`.
 
 ### 3.4 Byte-compatibility acceptance (must pass before any stable release)
 
-- Signed message = the **32-byte appended app digest** (`tail -c 32` of
-  `vellum-<model>-v*.bin`) — identical to on-device `esp_partition_get_sha256`.
-  Never `sha256sum` of the whole file; never the factory image.
+- Signed message = the **32-byte appended app digest** — the "Validation hash" from
+  `esptool image-info vellum-<model>-v*.bin`, identical to on-device
+  `esp_partition_get_sha256`. CI reads it via `esptool image-info` (NOT `tail -c 32`)
+  so the value comes from the end of the app image even when a Secure Boot signature
+  block trails it. Never `sha256sum` of the whole file; never the factory image.
 - KMS returns a **raw 64-byte** `r||s` signature (GCP `EC_SIGN_ED25519` and AWS
   `ED25519_SHA_512`/`RAW` both do). If a provider ever returns DER, unwrap to raw
   before base64 — the device rejects DER.
@@ -246,9 +248,17 @@ with **no hard cutover**.
    app.signed.bin`. Flash the spare; confirm it boots and rejects a deliberately
    corrupted signature.
 4. **Invariant check:** confirm the OTA Ed25519 path still works after the RSA-PSS
-   block is appended — do a full OTA and confirm the device `otaSha256` still
-   equals the CI `tail -c 32` value. (CI signs Ed25519 on the app-only image
-   *before* the SB block is appended, precisely to preserve this.)
+   block is appended — do a full OTA and confirm the device `otaSha256` still equals
+   the CI digest. CI derives that digest from the appended app "Validation hash"
+   (`esptool image-info`), read from the end of the app image (before the SB block,
+   at the dynamic `image_len − 32` offset), so the
+   Ed25519/otaSha256 contract holds whether the block is appended before or after
+   signing — no ordering dependency. When `OTA_SECURE_BOOT=1` (opt-in; **OFF in
+   dev**), `firmware.yml` performs this RSA-PSS append itself (gated on
+   `firmware/hsm_config.ini`) and the partition-fit guard switches to
+   `partitions.secure.csv`; otherwise CI publishes the app-only image and never
+   RSA-signs. This CI leg is unexercised while SB is off — validate it on a
+   `secureboot` board (Phase B.5) before enabling it for a fleet.
 5. **Bootloader fit:** `idf.py bootloader` with the `secureboot` overlay — confirm
    it is below the `partitions.secure.csv` table offset (0x10000). If it overflows,
    raise `CONFIG_PARTITION_TABLE_OFFSET` **now** (factory-flash-only later).
