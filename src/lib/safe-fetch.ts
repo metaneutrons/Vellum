@@ -17,7 +17,11 @@
 
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { Agent } from "undici";
+// Use undici's OWN fetch (matched to its Agent) rather than the global fetch:
+// Node's built-in fetch does not reliably honor an Agent from the external
+// undici package (it silently ignores the dispatcher on Node 22), which would
+// make the pinning below a no-op in production. undici.fetch always applies it.
+import { Agent, fetch as undiciFetch } from "undici";
 
 const MAX_REDIRECTS = 4;
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -137,12 +141,12 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
       // is what actually closes the TOCTOU at connect time.
       await assertAllowedHost(parsed.hostname);
 
-      const res = await fetch(url, {
+      const res = await undiciFetch(url, {
         ...init,
         redirect: "manual",
         signal: init.signal ?? AbortSignal.timeout(timeoutMs),
         dispatcher,
-      } as RequestInit & { dispatcher: Agent });
+      } as Parameters<typeof undiciFetch>[1]);
 
       if (res.status >= 300 && res.status < 400 && res.headers.has("location")) {
         await res.body?.cancel();
@@ -152,11 +156,12 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
       // Buffer the body so the pinned dispatcher can be closed (finally) without
       // truncating a still-streaming response. safeFetch targets bounded
       // resources (feeds, JSON, firmware images), so buffering is acceptable.
+      // Return a standard global Response so callers are unaffected.
       const body = await res.arrayBuffer();
       return new Response(body, {
         status: res.status,
         statusText: res.statusText,
-        headers: res.headers,
+        headers: [...res.headers],
       });
     }
     throw new Error("safeFetch: too many redirects");
