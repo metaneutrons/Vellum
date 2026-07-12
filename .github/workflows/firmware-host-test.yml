@@ -1,11 +1,14 @@
 name: Firmware Host Tests
+# Runs on EVERY push/PR to main (no path filter) on purpose: this is a REQUIRED
+# status check, and a required check that is path-filtered would sit forever in
+# "Expected — Waiting for status" on any PR that doesn't touch firmware/**,
+# wedging it. The suite is self-contained (cmake + OpenSSL, a few seconds), so
+# running it unconditionally is cheap and keeps every PR mergeable.
 on:
   push:
     branches: [main]
-    paths: ['firmware/**']
   pull_request:
     branches: [main]
-    paths: ['firmware/**']
 
 permissions:
   contents: read
