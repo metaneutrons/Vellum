@@ -342,6 +342,10 @@ esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, ui
     uint32_t row_bytes = (uint32_t)w / 2; /* 4bpp: w pixels = w/2 bytes */
     uint32_t row_words = row_bytes / 2;
     uint8_t *row_buf = heap_caps_malloc(row_bytes, MALLOC_CAP_DMA);
+    if (!row_buf) {
+        ESP_LOGE(TAG, "it8951: out of DMA memory for %u-byte row buffer", (unsigned)row_bytes);
+        return ESP_ERR_NO_MEM;   /* bail before touching CS — no NULL-deref write */
+    }
 
     gpio_set_level(s_cs_pin, 0);
     wait_busy();

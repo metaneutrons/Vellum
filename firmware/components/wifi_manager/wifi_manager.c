@@ -220,11 +220,24 @@ static int parse_form_field(const char *body, const char *field,
 
 static esp_err_t portal_save_handler(httpd_req_t *req)
 {
-    char buf[256];
-    int received = httpd_req_recv(req, buf, sizeof(buf) - 1);
-    if (received <= 0) {
+    /* The form body (ssid + pass + server URL, each URL-encoded) can exceed the
+     * old 256-byte buffer — a single truncating recv() silently corrupted the
+     * saved server URL. Size for the worst case, READ THE WHOLE BODY in a loop,
+     * and reject anything larger rather than storing a truncated value. */
+    char buf[1025];
+    if (req->content_len <= 0 || req->content_len >= (int)sizeof(buf)) {
         httpd_resp_set_status(req, "400 Bad Request");
         return httpd_resp_send(req, PORTAL_ERROR_HTML, HTTPD_RESP_USE_STRLEN);
+    }
+    int received = 0;
+    while (received < req->content_len) {
+        int r = httpd_req_recv(req, buf + received, req->content_len - received);
+        if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (r <= 0) {
+            httpd_resp_set_status(req, "400 Bad Request");
+            return httpd_resp_send(req, PORTAL_ERROR_HTML, HTTPD_RESP_USE_STRLEN);
+        }
+        received += r;
     }
     buf[received] = '\0';
 
@@ -488,6 +501,13 @@ void wifi_manager_start_softap(void)
         .ap = {
             .channel = 1,
             .max_connection = 4,
+            /* TRADEOFF: the onboarding SoftAP is OPEN so a first-time user can join
+             * without a pre-shared password (no screen/keyboard to convey one).
+             * The Wi-Fi PSK and server URL therefore transit this local AP in the
+             * clear during the brief provisioning window. It is only up while the
+             * device has no stored credentials, and shuts down on the first
+             * successful /save + reboot. Harden later with a WPA2 AP whose per-
+             * device password is shown on the e-paper screen / QR payload. */
             .authmode = WIFI_AUTH_OPEN,
         },
     };
