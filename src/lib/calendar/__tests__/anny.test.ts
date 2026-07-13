@@ -4,8 +4,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { annyProvider } from "../providers/anny";
 
 /** anny JSON:API bookings response. */
-function annyResponse(data: unknown[]): Response {
-  return new Response(JSON.stringify({ data, included: [] }), {
+function annyResponse(data: unknown[], lastPage = 1): Response {
+  return new Response(JSON.stringify({
+    data,
+    included: [],
+    meta: { page: { "current-page": 1, "last-page": lastPage } },
+  }), {
     status: 200,
     headers: { "content-type": "application/vnd.api+json" },
   });
@@ -17,6 +21,45 @@ const ROOM = { resourceId: "173420" };
 afterEach(() => vi.unstubAllGlobals());
 
 describe("anny provider — recurring series", () => {
+  it("fetches every bookings page before filtering the requested time window", async () => {
+    const pageOne = [{
+      id: "past",
+      type: "bookings",
+      attributes: {
+        start_date: "2026-07-01T09:00:00+00:00",
+        end_date: "2026-07-01T10:00:00+00:00",
+        status: "accepted",
+      },
+    }];
+    const pageTwo = [{
+      id: "today",
+      type: "bookings",
+      attributes: {
+        start_date: "2026-07-14T13:00:00+00:00",
+        end_date: "2026-07-14T14:00:00+00:00",
+        status: "accepted",
+        description: "Green Office",
+      },
+    }];
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(annyResponse(pageOne, 2))
+      .mockResolvedValueOnce(annyResponse(pageTwo));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const events = await annyProvider.fetchEvents({
+      credentials: CREDS,
+      roomConfig: ROOM,
+      windowStart: new Date("2026-07-14T00:00:00Z"),
+      windowEnd: new Date("2026-07-15T00:00:00Z"),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get("page[number]")).toBe("1");
+    expect(new URL(fetchMock.mock.calls[1][0]).searchParams.get("page[number]")).toBe("2");
+    expect(events).toHaveLength(1);
+    expect(events[0].subject).toBe("Green Office");
+  });
+
   it("excludes the series-master envelope but keeps the in-window occurrence", async () => {
     const now = Date.UTC(2026, 6, 14, 10, 0, 0); // 2026-07-14 10:00 UTC
     const windowStart = new Date(now - 4 * 3600_000);
