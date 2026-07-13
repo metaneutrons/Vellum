@@ -58,12 +58,26 @@ interface AnnyIncluded {
   attributes: Record<string, unknown>;
 }
 
+interface AnnyPage {
+  "current-page"?: number;
+  "last-page"?: number;
+  total?: number;
+}
+
+interface AnnyResponse {
+  data: unknown[];
+  included?: unknown[];
+  meta?: { page?: AnnyPage };
+}
+
+const ANNY_PAGE_SIZE = 50;
+
 async function annyFetch(
   path: string,
   token: string,
   orgId: string | null,
   params: Record<string, string> = {}
-): Promise<{ data: unknown[]; included?: unknown[]; meta?: { page?: { total?: number } } }> {
+): Promise<AnnyResponse> {
   const url = new URL(`${ANNY_BASE}${path}`);
   if (orgId) url.searchParams.set("o", orgId);
   for (const [k, v] of Object.entries(params)) {
@@ -85,6 +99,37 @@ async function annyFetch(
   }
 
   return res.json();
+}
+
+/** Fetch every page for anny endpoints whose result set can exceed one page. */
+async function annyFetchAll(
+  path: string,
+  token: string,
+  orgId: string | null,
+  params: Record<string, string> = {}
+): Promise<AnnyResponse> {
+  const first = await annyFetch(path, token, orgId, {
+    ...params,
+    "page[number]": "1",
+    "page[size]": String(ANNY_PAGE_SIZE),
+  });
+  const lastPage = first.meta?.page?.["last-page"] ?? 1;
+
+  if (!Number.isInteger(lastPage) || lastPage < 1) return first;
+
+  const data = [...first.data];
+  const included = [...(first.included ?? [])];
+  for (let page = 2; page <= lastPage; page++) {
+    const next = await annyFetch(path, token, orgId, {
+      ...params,
+      "page[number]": String(page),
+      "page[size]": String(ANNY_PAGE_SIZE),
+    });
+    data.push(...next.data);
+    included.push(...(next.included ?? []));
+  }
+
+  return { data, included, meta: first.meta };
 }
 
 /**
@@ -157,7 +202,7 @@ export const annyProvider: CalendarProvider = {
       to: windowEnd.toISOString().split("T")[0],
     });
 
-    const result = await annyFetch(
+    const result = await annyFetchAll(
       "/bookings",
       creds.apiToken,
       orgId,
@@ -165,7 +210,6 @@ export const annyProvider: CalendarProvider = {
         "filter[resources]": room.resourceId,
         "filter[status]": "accepted",
         "include": "customer",
-        "page[size]": "100",
       }
     );
 
