@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/metaneutrons/Vellum/compare/v1.1.2...v1.2.0) (2026-07-13)
+
+
+### Features
+
+* USB-serial WebUI provisioning — replace SoftAP (Phases 0-2) ([#76](https://github.com/metaneutrons/Vellum/issues/76)) ([ab29355](https://github.com/metaneutrons/Vellum/commit/ab29355e1e2addd2e3a0b0c8afe4175125f1dbb8))
+
 ## [1.1.2](https://github.com/metaneutrons/Vellum/compare/v1.1.1...v1.1.2) (2026-07-13)
 
 
