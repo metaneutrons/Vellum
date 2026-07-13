@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.1](https://github.com/metaneutrons/Vellum/compare/v1.1.0...v1.1.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* **anny:** skip recurring-series master bookings (room stuck BELEGT) ([#73](https://github.com/metaneutrons/Vellum/issues/73)) ([a256090](https://github.com/metaneutrons/Vellum/commit/a256090441d13c6c36f46be656e76c917f23036e))
+* **firmware:** factory-reset combo, conditional OTA confirm, battery-0%, panel hangs (audit H[#3](https://github.com/metaneutrons/Vellum/issues/3) + 6) ([72d45f2](https://github.com/metaneutrons/Vellum/commit/72d45f224e721dc808e1db9607525322aecb256b))
+* **firmware:** factory-reset combo, conditional OTA confirm, battery-0%, panel hangs (audit H[#3](https://github.com/metaneutrons/Vellum/issues/3),M[#9](https://github.com/metaneutrons/Vellum/issues/9)/10/11/12,L[#17](https://github.com/metaneutrons/Vellum/issues/17)/18) ([8afec23](https://github.com/metaneutrons/Vellum/commit/8afec23b0cc3877af09124493ceaea4cfb07f1b7))
+* **ota,ical:** halt/canary gate uses target channel; iCal honors TZID + all-day (audit H[#2](https://github.com/metaneutrons/Vellum/issues/2), M[#8](https://github.com/metaneutrons/Vellum/issues/8)) ([7a8746a](https://github.com/metaneutrons/Vellum/commit/7a8746a5c7cb4b94bee7d04aea45730f72874579))
+* **ota,ical:** halt/canary uses target channel; iCal TZID + all-day (audit H[#2](https://github.com/metaneutrons/Vellum/issues/2), M[#8](https://github.com/metaneutrons/Vellum/issues/8)) ([3848276](https://github.com/metaneutrons/Vellum/commit/3848276c1ed1ff9ee120fe319262d6ac498998bd))
+* **ota:** make the OTA digest Secure-Boot-robust; wire optional SB signing ([cd4318e](https://github.com/metaneutrons/Vellum/commit/cd4318e065f704c5b830362b71353ad04d487a6d))
+* **ota:** Secure-Boot-robust OTA digest (esptool image-info) + optional SB signing (off in dev) ([e4c5bf4](https://github.com/metaneutrons/Vellum/commit/e4c5bf4546614cd47731497fa2f644c0d43d0255))
+* **safe-fetch:** close DNS-rebinding TOCTOU by pinning the resolved IP (path-to-100) ([#71](https://github.com/metaneutrons/Vellum/issues/71)) ([e7c602f](https://github.com/metaneutrons/Vellum/commit/e7c602fbb3a4f8c4bb90e71f63f64d200d09cd92))
+* **security:** close device-token impersonation + SSRF + rate-limit bypass (audit H[#1](https://github.com/metaneutrons/Vellum/issues/1),M[#7](https://github.com/metaneutrons/Vellum/issues/7),L[#15](https://github.com/metaneutrons/Vellum/issues/15),L[#16](https://github.com/metaneutrons/Vellum/issues/16)) ([87b90ff](https://github.com/metaneutrons/Vellum/commit/87b90ff4ea440c5ea45cf7d05eac05e6acfacd82))
+* **security:** device-token impersonation + SSRF + rate-limit (audit H[#1](https://github.com/metaneutrons/Vellum/issues/1), M[#7](https://github.com/metaneutrons/Vellum/issues/7), L[#15](https://github.com/metaneutrons/Vellum/issues/15), L[#16](https://github.com/metaneutrons/Vellum/issues/16)) ([d93bf03](https://github.com/metaneutrons/Vellum/commit/d93bf037f7fb0d0597359c3ab7c46c07df58b866))
+* **test:** gcc -Werror=unused-value on UNITY_BEGIN comma expression ([#58](https://github.com/metaneutrons/Vellum/issues/58)) ([3b4d477](https://github.com/metaneutrons/Vellum/commit/3b4d477a4840d6afddfc7df6ed22ff31298a5e74))
+* **tsconfig:** exclude firmware build output from type-check ([#67](https://github.com/metaneutrons/Vellum/issues/67)) ([f3c316d](https://github.com/metaneutrons/Vellum/commit/f3c316d65a90d83ecf0e1f97dc741895672a438d))
+
 ## [1.1.0](https://github.com/metaneutrons/Vellum/compare/v1.1.0-beta.4-962608a...v1.1.0) (2026-07-11)
 
 
