@@ -1,6 +1,6 @@
 {
-  "id": "d0ba0bec-6a49-426a-b202-8c7a8aa7c354",
-  "prevId": "16b009a8-674d-454a-8165-9d757b7a6717",
+  "id": "16b009a8-674d-454a-8165-9d757b7a6717",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -490,44 +490,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "telemetry_mac_timestamp_idx": {
-          "name": "telemetry_mac_timestamp_idx",
-          "columns": [
-            {
-              "expression": "mac",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "timestamp",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "telemetry_timestamp_idx": {
-          "name": "telemetry_timestamp_idx",
-          "columns": [
-            {
-              "expression": "timestamp",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "telemetry_mac_devices_mac_fk": {
           "name": "telemetry_mac_devices_mac_fk",
@@ -594,23 +557,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "themes_is_default_idx": {
-          "name": "themes_is_default_idx",
-          "columns": [
-            {
-              "expression": "is_default",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
