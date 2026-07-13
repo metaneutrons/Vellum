@@ -130,6 +130,12 @@ export function FlashTool() {
           </p>
           <p className="mt-1">The firmware binary is downloaded from GitHub Releases via a local proxy.</p>
         </div>
+
+        <div className="mt-4 text-[13px]">
+          <Link href="/admin/firmware/provision" className="text-accent hover:underline">
+            Next: provision Wi-Fi &amp; server over USB →
+          </Link>
+        </div>
       </Card>
     </div>
   );

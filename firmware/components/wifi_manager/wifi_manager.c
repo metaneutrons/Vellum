@@ -275,6 +275,37 @@ static esp_err_t portal_save_handler(httpd_req_t *req)
 
 /* Redirect unknown paths → captive portal root */
 /* WiFi scan endpoint — returns JSON array of networks */
+int wifi_manager_scan(wifi_ap_info_t *out, int max)
+{
+    if (!out || max <= 0) return 0;
+    /* Scanning needs STA capability; APSTA keeps a running SoftAP portal alive. */
+    esp_wifi_set_mode(WIFI_MODE_APSTA);
+    wifi_scan_config_t scan_cfg = { .show_hidden = false };
+    if (esp_wifi_scan_start(&scan_cfg, true) != ESP_OK) return 0; /* blocking */
+
+    uint16_t count = 0;
+    esp_wifi_scan_get_ap_num(&count);
+    if (count > (uint16_t)max) count = (uint16_t)max;
+    if (count == 0) return 0;
+
+    wifi_ap_record_t *records = malloc(count * sizeof(wifi_ap_record_t));
+    if (!records) return 0;
+    esp_wifi_scan_get_ap_records(&count, records);
+
+    int n = 0;
+    for (int i = 0; i < count; i++) {
+        /* wifi_ap_record_t.ssid is a fixed 33-byte field; force NUL-termination. */
+        memcpy(out[n].ssid, records[i].ssid, 32);
+        out[n].ssid[32] = '\0';
+        if (out[n].ssid[0] == '\0') continue; /* skip hidden/blank */
+        out[n].rssi = records[i].rssi;
+        out[n].open = (records[i].authmode == WIFI_AUTH_OPEN);
+        n++;
+    }
+    free(records);
+    return n;
+}
+
 static esp_err_t portal_scan_handler(httpd_req_t *req)
 {
     /* Switch to APSTA mode for scanning */

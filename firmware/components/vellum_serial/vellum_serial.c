@@ -122,14 +122,17 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     char pass[65] = {0};
     if (pass_len > 0) memcpy(pass, &data[2 + ssid_len], pass_len > 64 ? 64 : pass_len);
 
-    /* Optional third string: server URL */
+    /* Optional third string: server URL. Also becomes the Improv redirect so a
+     * generic browser tool lands on the Vellum admin after setup. */
+    char redirect[256] = {0};
     size_t pos = (size_t)2 + ssid_len + pass_len;
     if (pos < len) {
         uint8_t url_len = data[pos];
         if (url_len > 0 && pos + 1 + url_len <= (size_t)len) {
-            char url[128] = {0};
-            memcpy(url, &data[pos + 1], url_len > 127 ? 127 : url_len);
+            char url[256] = {0};
+            memcpy(url, &data[pos + 1], url_len > 255 ? 255 : url_len);
             nvs_manager_store_server_url(url);
+            snprintf(redirect, sizeof(redirect), "%s", url);
             ESP_LOGI(TAG, "Improv: Server URL: %s", url);
         }
     }
@@ -147,7 +150,7 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     if (wifi_manager_connect_station() == WIFI_RESULT_CONNECTED) {
         s_improv_state = IMPROV_STATE_PROVISIONED;
         improv_send_state();
-        const char *result[] = { "" }; /* redirect URL — empty */
+        const char *result[] = { redirect };
         improv_send_rpc_result(IMPROV_CMD_WIFI_SETTINGS, result, 1);
         ESP_LOGI(TAG, "Improv: WiFi connected");
     } else {
@@ -166,6 +169,21 @@ static void improv_handle_device_info(void)
         CONFIG_VELLUM_DISPLAY_MODEL,
     };
     improv_send_rpc_result(IMPROV_CMD_GET_DEVICE_INFO, info, 4);
+}
+
+/* Improv SCAN_WIFI: one RPC_RESULT per network (ssid, rssi, auth-required),
+ * then a final empty RPC_RESULT to terminate the list (Improv spec). */
+static void improv_handle_scan_wifi(void)
+{
+    wifi_ap_info_t aps[20];
+    int n = wifi_manager_scan(aps, 20);
+    for (int i = 0; i < n; i++) {
+        char rssi_str[8];
+        snprintf(rssi_str, sizeof(rssi_str), "%d", aps[i].rssi);
+        const char *strs[] = { aps[i].ssid, rssi_str, aps[i].open ? "NO" : "YES" };
+        improv_send_rpc_result(IMPROV_CMD_SCAN_WIFI, strs, 3);
+    }
+    improv_send_rpc_result(IMPROV_CMD_SCAN_WIFI, NULL, 0);
 }
 
 static void improv_handle_rpc(const uint8_t *data, uint8_t len)
@@ -188,6 +206,9 @@ static void improv_handle_rpc(const uint8_t *data, uint8_t len)
             break;
         case IMPROV_CMD_GET_DEVICE_INFO:
             improv_handle_device_info();
+            break;
+        case IMPROV_CMD_SCAN_WIFI:
+            improv_handle_scan_wifi();
             break;
         default:
             improv_send_error(IMPROV_ERROR_UNKNOWN_CMD);

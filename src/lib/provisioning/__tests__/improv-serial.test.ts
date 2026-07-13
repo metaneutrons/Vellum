@@ -3,6 +3,8 @@
 import { describe, it, expect } from "vitest";
 import {
   encodeWifiSettings,
+  encodeScanWifi,
+  decodeScanNetwork,
   encodeFrame,
   ImprovParser,
   decodeRpcResult,
@@ -130,6 +132,24 @@ describe("ImprovParser (device → browser)", () => {
     // the corrupted copy is dropped; the clean one still parses
     expect(out.length).toBeGreaterThanOrEqual(1);
     expect(out[out.length - 1].payload[0]).toBe(ImprovState.PROVISIONING);
+  });
+
+  it("encodes a SCAN_WIFI command with an empty payload", () => {
+    const frame = encodeScanWifi();
+    expect(frame[7]).toBe(ImprovType.RPC_COMMAND);
+    // payload = [cmd=SCAN_WIFI, cmdLen=0]
+    expect(frame[9]).toBe(ImprovCmd.SCAN_WIFI);
+    expect(frame[10]).toBe(0);
+  });
+
+  it("decodes SCAN_WIFI networks and treats the empty result as a terminator", () => {
+    expect(decodeScanNetwork(["OfficeWiFi", "-52", "YES"])).toEqual({
+      ssid: "OfficeWiFi",
+      rssi: -52,
+      secured: true,
+    });
+    expect(decodeScanNetwork(["Guest", "-70", "NO"])?.secured).toBe(false);
+    expect(decodeScanNetwork([])).toBeNull(); // list terminator
   });
 
   it("decodes an RPC_RESULT into its length-prefixed strings", () => {

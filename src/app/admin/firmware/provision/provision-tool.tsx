@@ -12,10 +12,12 @@ import { Button } from "@/components/ui/button";
 import {
   isWebSerialSupported,
   provisionOverSerial,
+  scanNetworksOverSerial,
   MAX_SSID_LEN,
   MAX_PASS_LEN,
   type ProvisionPhase,
   type ProvisionResult,
+  type WifiNetwork,
 } from "@/lib/provisioning/improv-serial";
 
 const PHASE_TEXT: Record<ProvisionPhase, string> = {
@@ -38,6 +40,8 @@ export function ProvisionTool() {
   const [phase, setPhase] = useState<ProvisionPhase | null>(null);
   const [detail, setDetail] = useState("");
   const [result, setResult] = useState<ProvisionResult | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [networks, setNetworks] = useState<WifiNetwork[]>([]);
 
   useEffect(() => {
     setSupported(isWebSerialSupported());
@@ -67,6 +71,13 @@ export function ProvisionTool() {
     setBusy(false);
   }
 
+  async function doScan() {
+    setScanning(true);
+    const r = await scanNetworksOverSerial();
+    if (r.ok) setNetworks(r.networks);
+    setScanning(false);
+  }
+
   return (
     <div>
       <Link href="/admin/firmware" className="text-sm text-accent hover:underline mb-4 inline-block">
@@ -89,16 +100,37 @@ export function ProvisionTool() {
           <Field
             label="Wi-Fi network (SSID)"
             htmlFor="prov-ssid"
+            hint={supported ? "Type it, or Scan to list networks the device can see." : undefined}
             error={ssid && !ssidOk ? `Must be 1–${MAX_SSID_LEN} bytes.` : undefined}
           >
-            <Input
-              id="prov-ssid"
-              value={ssid}
-              onChange={(e) => setSsid(e.target.value)}
-              placeholder="e.g. OfficeWiFi"
-              autoComplete="off"
-              disabled={busy}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="prov-ssid"
+                list="prov-networks"
+                value={ssid}
+                onChange={(e) => setSsid(e.target.value)}
+                placeholder="e.g. OfficeWiFi"
+                autoComplete="off"
+                disabled={busy}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="gray"
+                onClick={doScan}
+                loading={scanning}
+                disabled={!supported || busy || scanning}
+              >
+                Scan
+              </Button>
+            </div>
+            <datalist id="prov-networks">
+              {networks.map((n) => (
+                <option key={n.ssid} value={n.ssid}>
+                  {`${n.ssid} · ${n.rssi} dBm${n.secured ? "" : " · open"}`}
+                </option>
+              ))}
+            </datalist>
           </Field>
 
           <Field

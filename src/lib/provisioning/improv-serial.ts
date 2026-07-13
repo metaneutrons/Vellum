@@ -83,6 +83,11 @@ export function encodeRpcCommand(cmd: number, cmdPayload: number[]): Uint8Array 
  * The cmd payload is `ssid_len|ssid|pass_len|pass|[url_len|url]`, exactly what
  * `improv_handle_wifi_settings` parses.
  */
+/** Encode a SCAN_WIFI command (no payload). */
+export function encodeScanWifi(): Uint8Array {
+  return encodeRpcCommand(ImprovCmd.SCAN_WIFI, []);
+}
+
 export function encodeWifiSettings(
   ssid: string,
   password: string,
@@ -323,4 +328,103 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
   }
 
   return done;
+}
+
+export interface WifiNetwork {
+  ssid: string;
+  rssi: number;
+  /** true if the network requires a password. */
+  secured: boolean;
+}
+
+export interface ScanResult {
+  ok: boolean;
+  networks: WifiNetwork[];
+  error?: string;
+}
+
+/** Decode a SCAN_WIFI RPC_RESULT (`[ssid, rssi, "YES"|"NO"]`) into a network. */
+export function decodeScanNetwork(strings: string[]): WifiNetwork | null {
+  if (strings.length < 3) return null; // empty result = list terminator
+  const [ssid, rssi, auth] = strings;
+  if (!ssid) return null;
+  return { ssid, rssi: Number.parseInt(rssi, 10) || 0, secured: auth === "YES" };
+}
+
+/**
+ * Ask the device to scan for nearby Wi-Fi networks (Improv SCAN_WIFI) and
+ * return the deduped list, strongest signal first. Browser-only.
+ */
+export async function scanNetworksOverSerial(opts?: {
+  anyPort?: boolean;
+  timeoutMs?: number;
+}): Promise<ScanResult> {
+  const serial = getSerial();
+  if (!serial) return { ok: false, networks: [], error: "Web Serial is not supported." };
+
+  let port: SerialPortLike;
+  try {
+    port = await serial.requestPort(
+      opts?.anyPort ? undefined : { filters: [{ usbVendorId: ESPRESSIF_USB_VENDOR_ID }] },
+    );
+  } catch {
+    return { ok: false, networks: [], error: "No serial port selected." };
+  }
+
+  await port.open({ baudRate: 115200 });
+  const parser = new ImprovParser();
+  const writer = port.writable?.getWriter();
+  const reader = port.readable?.getReader();
+  if (!writer || !reader) {
+    await port.close();
+    return { ok: false, networks: [], error: "Serial port is not readable/writable." };
+  }
+
+  const byName = new Map<string, WifiNetwork>();
+  let finished = false;
+  const timer = setTimeout(() => {
+    finished = true;
+  }, opts?.timeoutMs ?? 8000);
+
+  try {
+    await writer.write(encodeScanWifi());
+    while (!finished) {
+      const { value, done: streamDone } = await reader.read();
+      if (streamDone) break;
+      if (!value) continue;
+      for (const frame of parser.push(value)) {
+        if (frame.type !== ImprovType.RPC_RESULT) continue;
+        const { cmd, strings } = decodeRpcResult(frame.payload);
+        if (cmd !== ImprovCmd.SCAN_WIFI) continue;
+        const net = decodeScanNetwork(strings);
+        if (net) {
+          const prev = byName.get(net.ssid);
+          if (!prev || net.rssi > prev.rssi) byName.set(net.ssid, net);
+        } else {
+          finished = true; // empty terminator
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    clearTimeout(timer);
+    return {
+      ok: false,
+      networks: [],
+      error: e instanceof Error ? e.message : "Serial I/O error.",
+    };
+  } finally {
+    clearTimeout(timer);
+    try {
+      await reader.cancel();
+    } catch {
+      /* ignore */
+    }
+    reader.releaseLock();
+    writer.releaseLock();
+    await port.close().catch(() => {});
+  }
+
+  const networks = [...byName.values()].sort((a, b) => b.rssi - a.rssi);
+  return { ok: true, networks };
 }
