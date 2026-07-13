@@ -42,6 +42,10 @@ interface AnnyBooking {
     status: string;
     description?: string | null;
     note?: string | null;
+    /** True for the MASTER of a recurring series — an envelope spanning
+     *  [first occurrence, last occurrence]. The real occurrences arrive as
+     *  separate `is_series` member bookings. */
+    is_series_master?: boolean;
   };
   relationships?: {
     customer?: { data?: { id: string; type: string } | null };
@@ -179,6 +183,14 @@ export const annyProvider: CalendarProvider = {
 
     const events: CalendarEvent[] = [];
     for (const b of bookings) {
+      // Skip recurring-series MASTER bookings. anny returns the master as a
+      // single envelope spanning [first occurrence, last occurrence] — which
+      // can be weeks or months — AND returns every occurrence as its own
+      // `is_series` member booking. Including the master would mark the room
+      // occupied for the entire span (e.g. a daily 15:00–16:00 series showing
+      // BELEGT around the clock for three weeks).
+      if (b.attributes.is_series_master) continue;
+
       const start = new Date(b.attributes.start_date);
       const end = new Date(b.attributes.end_date);
       if (end <= windowStart || start >= windowEnd) continue;
