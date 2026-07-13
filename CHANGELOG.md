@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/metaneutrons/Vellum/compare/v1.1.1...v1.1.2) (2026-07-13)
+
+
+### Bug Fixes
+
+* paginate anny bookings ([#74](https://github.com/metaneutrons/Vellum/issues/74)) ([55e7357](https://github.com/metaneutrons/Vellum/commit/55e73573b385deb996f44df83234c1a7cf693ed7))
+
 ## [1.1.1](https://github.com/metaneutrons/Vellum/compare/v1.1.0...v1.1.1) (2026-07-13)
 
 
