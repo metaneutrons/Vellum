@@ -99,6 +99,25 @@ export const devices = pgTable("devices", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/**
+ * Pre-provisioning vouchers for zero-touch USB enrolment. An admin mints a
+ * voucher (a device token) and pushes it into a device profile over USB; the
+ * first device to present that token on an authenticated request claims the
+ * voucher and is auto-approved — no manual "pending → approve" step. The `token`
+ * IS the device token. A voucher is single-use (bound to the first MAC).
+ */
+export const provisioningVouchers = pgTable("provisioning_vouchers", {
+  token: text("token").primaryKey(),
+  label: text("label"),
+  claimedByMac: text("claimed_by_mac"),
+  claimedAt: timestamp("claimed_at"),
+  // A voucher stops being claimable after this instant. Limits the blast radius
+  // of a leaked-but-unclaimed voucher to the validity window. NULL = never
+  // expires (back-compat for rows minted before this column existed).
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 /* ── Custom column types ───────────────────────────────────────── */
 
 const bytea = customType<{ data: Buffer }>({

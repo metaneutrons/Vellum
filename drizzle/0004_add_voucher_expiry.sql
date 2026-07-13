@@ -1,0 +1,1 @@
+ALTER TABLE "provisioning_vouchers" ADD COLUMN "expires_at" timestamp;

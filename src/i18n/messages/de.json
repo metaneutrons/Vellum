@@ -184,6 +184,7 @@
     "title": "Firmware",
     "description": "OTA-Firmware-Updates über GitHub Releases",
     "flash": "Gerät flashen",
+    "provision": "Über USB einrichten",
     "versions": "Verfügbare Versionen",
     "noVersions": "Keine Firmware-Releases auf GitHub gefunden",
     "deviceFirmware": "Geräte-Firmware",

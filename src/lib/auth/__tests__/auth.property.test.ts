@@ -46,6 +46,9 @@ function createInMemoryRepo(): DeviceRepository & {
     async updateLastSeen(_mac) {
       // no-op for tests
     },
+    async claimVoucherAndEnroll(_token, _mac) {
+      return false; // this repo has no provisioning vouchers
+    },
   };
 }
 

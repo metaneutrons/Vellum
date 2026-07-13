@@ -89,7 +89,11 @@ static void improv_send_error(uint8_t error)
 
 static void improv_send_rpc_result(uint8_t cmd, const char **strings, int count)
 {
-    uint8_t buf[200];
+    /* Payload must fit an Improv frame — improv_send_packet caps at 246 payload
+     * bytes (pkt[256] minus the 10-byte header/checksum). Bound every write so a
+     * long device-supplied string (e.g. a 256-byte redirect URL on the
+     * WIFI_SETTINGS success path) can never overflow this buffer or the frame. */
+    uint8_t buf[246];
     int pos = 0;
     buf[pos++] = cmd;
 
@@ -98,13 +102,15 @@ static void improv_send_rpc_result(uint8_t cmd, const char **strings, int count)
 
     for (int i = 0; i < count; i++) {
         int slen = strlen(strings[i]);
+        if (slen > 255) slen = 255;
+        if (pos + 1 + slen > (int)sizeof(buf)) break; /* drop strings that don't fit */
         buf[pos++] = (uint8_t)slen;
         memcpy(&buf[pos], strings[i], slen);
         pos += slen;
     }
-    buf[data_start] = pos - data_start - 1;
+    buf[data_start] = (uint8_t)(pos - data_start - 1);
 
-    improv_send_packet(IMPROV_TYPE_RPC_RESULT, buf, pos);
+    improv_send_packet(IMPROV_TYPE_RPC_RESULT, buf, (uint8_t)pos);
 }
 
 static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
@@ -122,15 +128,32 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     char pass[65] = {0};
     if (pass_len > 0) memcpy(pass, &data[2 + ssid_len], pass_len > 64 ? 64 : pass_len);
 
-    /* Optional third string: server URL */
+    /* Optional third string: server URL (also the Improv redirect target).
+     * Optional fourth string: a pre-provisioning device token (zero-touch
+     * enrolment) — the server auto-approves the first device to present it. */
+    char redirect[NVS_MAX_URL_LEN] = {0};
     size_t pos = (size_t)2 + ssid_len + pass_len;
     if (pos < len) {
         uint8_t url_len = data[pos];
-        if (url_len > 0 && pos + 1 + url_len <= (size_t)len) {
-            char url[128] = {0};
-            memcpy(url, &data[pos + 1], url_len > 127 ? 127 : url_len);
-            nvs_manager_store_server_url(url);
-            ESP_LOGI(TAG, "Improv: Server URL: %s", url);
+        if (pos + 1 + url_len <= (size_t)len) {
+            if (url_len > 0) {
+                char url[NVS_MAX_URL_LEN] = {0};
+                memcpy(url, &data[pos + 1], url_len >= NVS_MAX_URL_LEN ? NVS_MAX_URL_LEN - 1 : url_len);
+                nvs_manager_store_server_url(url);
+                snprintf(redirect, sizeof(redirect), "%s", url);
+                ESP_LOGI(TAG, "Improv: Server URL: %s", url);
+            }
+            pos += 1 + url_len; /* advance past the URL string (even if empty) */
+
+            if (pos < len) {
+                uint8_t tok_len = data[pos];
+                if (tok_len > 0 && pos + 1 + tok_len <= (size_t)len) {
+                    char tok[NVS_MAX_TOKEN_LEN] = {0};
+                    memcpy(tok, &data[pos + 1], tok_len >= NVS_MAX_TOKEN_LEN ? NVS_MAX_TOKEN_LEN - 1 : tok_len);
+                    nvs_manager_store_token(tok);
+                    ESP_LOGI(TAG, "Improv: pre-provisioning token stored");
+                }
+            }
         }
     }
 
@@ -147,7 +170,7 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     if (wifi_manager_connect_station() == WIFI_RESULT_CONNECTED) {
         s_improv_state = IMPROV_STATE_PROVISIONED;
         improv_send_state();
-        const char *result[] = { "" }; /* redirect URL — empty */
+        const char *result[] = { redirect };
         improv_send_rpc_result(IMPROV_CMD_WIFI_SETTINGS, result, 1);
         ESP_LOGI(TAG, "Improv: WiFi connected");
     } else {
@@ -166,6 +189,21 @@ static void improv_handle_device_info(void)
         CONFIG_VELLUM_DISPLAY_MODEL,
     };
     improv_send_rpc_result(IMPROV_CMD_GET_DEVICE_INFO, info, 4);
+}
+
+/* Improv SCAN_WIFI: one RPC_RESULT per network (ssid, rssi, auth-required),
+ * then a final empty RPC_RESULT to terminate the list (Improv spec). */
+static void improv_handle_scan_wifi(void)
+{
+    wifi_ap_info_t aps[20];
+    int n = wifi_manager_scan(aps, 20);
+    for (int i = 0; i < n; i++) {
+        char rssi_str[8];
+        snprintf(rssi_str, sizeof(rssi_str), "%d", aps[i].rssi);
+        const char *strs[] = { aps[i].ssid, rssi_str, aps[i].open ? "NO" : "YES" };
+        improv_send_rpc_result(IMPROV_CMD_SCAN_WIFI, strs, 3);
+    }
+    improv_send_rpc_result(IMPROV_CMD_SCAN_WIFI, NULL, 0);
 }
 
 static void improv_handle_rpc(const uint8_t *data, uint8_t len)
@@ -188,6 +226,9 @@ static void improv_handle_rpc(const uint8_t *data, uint8_t len)
             break;
         case IMPROV_CMD_GET_DEVICE_INFO:
             improv_handle_device_info();
+            break;
+        case IMPROV_CMD_SCAN_WIFI:
+            improv_handle_scan_wifi();
             break;
         default:
             improv_send_error(IMPROV_ERROR_UNKNOWN_CMD);
@@ -251,6 +292,17 @@ static int cmd_server(int argc, char **argv)
     return 0;
 }
 
+static int cmd_token(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Usage: token <value>\n");
+        return 1;
+    }
+    nvs_manager_store_token(argv[1]);
+    printf("Device token stored.\n");
+    return 0;
+}
+
 static int cmd_info(int argc, char **argv)
 {
     (void)argc; (void)argv;
@@ -288,12 +340,42 @@ static void register_console_commands(void)
     esp_console_cmd_t cmds[] = {
         { .command = "wifi",      .help = "Set WiFi: wifi <ssid> <password> [server-url]", .func = &cmd_wifi },
         { .command = "server",    .help = "Get/set server URL: server [url]", .func = &cmd_server },
+        { .command = "token",     .help = "Store a pre-provisioning device token", .func = &cmd_token },
         { .command = "info",      .help = "Show device info",                 .func = &cmd_info },
         { .command = "nvs-erase", .help = "Factory reset (erase NVS)",        .func = &cmd_nvs_erase },
         { .command = "reboot",    .help = "Restart device",                   .func = &cmd_reboot },
     };
     for (int i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) {
         esp_console_cmd_register(&cmds[i]);
+    }
+}
+
+/* Feed one byte to the interactive text console (echo + line editing + run). */
+static void console_feed(int c, char *line_buf, size_t line_cap, int *line_pos)
+{
+    if (c == '\n' || c == '\r') {
+        if (*line_pos > 0) {
+            line_buf[*line_pos] = '\0';
+            printf("\n");
+            int ret;
+            esp_err_t err = esp_console_run(line_buf, &ret);
+            if (err == ESP_ERR_NOT_FOUND) {
+                printf("Unknown command: %s\n", line_buf);
+            }
+            printf("vellum> ");
+            fflush(stdout);
+            *line_pos = 0;
+        }
+    } else if (c == 0x7F || c == '\b') {
+        if (*line_pos > 0) {
+            (*line_pos)--;
+            printf("\b \b");
+            fflush(stdout);
+        }
+    } else if (*line_pos < (int)line_cap - 1) {
+        line_buf[(*line_pos)++] = (char)c;
+        fputc(c, stdout);
+        fflush(stdout);
     }
 }
 
@@ -317,7 +399,18 @@ static void serial_task(void *arg)
 
     ESP_LOGI(TAG, "Vellum Console ready. Type 'help' for commands.");
 
-    /* Read loop — detect Improv packets or console input */
+    /* Read loop. One byte stream carries two things: binary Improv frames
+     * (browser Wi-Fi/profile provisioning) and interactive console text. We
+     * accumulate into rx_buf while the bytes remain a VIABLE Improv frame — i.e.
+     * rx_buf is still a prefix of the "IMPROV" magic, or the magic already
+     * matched and we are collecting the rest of the declared frame. The moment
+     * the bytes can no longer be an Improv frame, we replay everything buffered
+     * so far to the text console (so a word that merely starts with 'I' still
+     * types normally).
+     *
+     * NB: the previous implementation reset rx_pos to 0 on every byte until it
+     * reached 10, which it never could — so Improv frames never assembled and
+     * browser provisioning silently never worked. */
     uint8_t rx_buf[256];
     int rx_pos = 0;
     char line_buf[256];
@@ -330,52 +423,30 @@ static void serial_task(void *arg)
             continue;
         }
 
-        /* Accumulate for Improv detection */
-        if (rx_pos < (int)sizeof(rx_buf)) {
-            rx_buf[rx_pos++] = (uint8_t)c;
-        }
+        if (rx_pos >= (int)sizeof(rx_buf)) rx_pos = 0; /* overflow guard */
+        rx_buf[rx_pos++] = (uint8_t)c;
 
-        /* Try Improv parse */
-        if (rx_pos >= 10 && memcmp(rx_buf, IMPROV_HEADER, 6) == 0) {
-            if (improv_try_parse(rx_buf, rx_pos)) {
-                rx_pos = 0;
-                line_pos = 0;
-                continue;
-            }
-            if (rx_pos >= (int)sizeof(rx_buf)) rx_pos = 0;
-            continue;
-        }
-
-        /* Not Improv — treat as console text */
-        rx_pos = 0;
-
-        if (c == '\n' || c == '\r') {
-            if (line_pos > 0) {
-                line_buf[line_pos] = '\0';
-                printf("\n");
-
-                int ret;
-                esp_err_t err = esp_console_run(line_buf, &ret);
-                if (err == ESP_ERR_NOT_FOUND) {
-                    printf("Unknown command: %s\n", line_buf);
-                } else if (err == ESP_ERR_INVALID_ARG) {
-                    /* empty input */
+        /* Still a viable Improv frame? (a prefix of the 6-byte magic, or past it) */
+        int hdr_n = rx_pos < 6 ? rx_pos : 6;
+        if (memcmp(rx_buf, IMPROV_HEADER, hdr_n) == 0) {
+            if (rx_pos >= 10) {
+                uint8_t data_len = rx_buf[8];
+                if (rx_pos >= 10 + (int)data_len) {
+                    improv_try_parse(rx_buf, rx_pos);
+                    rx_pos = 0;
+                    line_pos = 0; /* drop any half-typed console line */
                 }
+            }
+            continue; /* keep buffering; never echo binary Improv bytes */
+        }
 
-                printf("vellum> ");
-                fflush(stdout);
-                line_pos = 0;
-            }
-        } else if (c == 0x7F || c == '\b') {
-            if (line_pos > 0) {
-                line_pos--;
-                printf("\b \b");
-                fflush(stdout);
-            }
-        } else if (line_pos < (int)sizeof(line_buf) - 1) {
-            line_buf[line_pos++] = (char)c;
-            fputc(c, stdout);
-            fflush(stdout);
+        /* Not an Improv frame: replay the buffered bytes as console text. */
+        uint8_t pending[sizeof(rx_buf)];
+        int n = rx_pos;
+        memcpy(pending, rx_buf, n);
+        rx_pos = 0;
+        for (int i = 0; i < n; i++) {
+            console_feed(pending[i], line_buf, sizeof(line_buf), &line_pos);
         }
     }
 }

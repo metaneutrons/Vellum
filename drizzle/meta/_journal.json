@@ -22,6 +22,20 @@
       "when": 1783699200000,
       "tag": "0002_ota_rollout",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783984435090,
+      "tag": "0003_provisioning_vouchers",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783986516236,
+      "tag": "0004_add_voucher_expiry",
+      "breakpoints": true
     }
   ]
 }

@@ -49,6 +49,32 @@ landed in #28 (see [SECURITY.md](SECURITY.md) for the resulting security model).
       an operator-configured FQDN. Decide whether to keep mDNS as a best-effort fallback
       or gate it behind a private-CA / cert-pinning build.
 
+## USB provisioning (zero-touch enrolment)
+
+USB-serial provisioning (Improv Wi-Fi Serial over USB-Serial-JTAG) replaces the
+SoftAP captive-portal flow: an operator flashes and provisions a device from the
+WebUI over a cable, optionally minting a single-use voucher for zero-touch
+auto-enrolment. Phases 0–2 plus the review-fix batch shipped on
+`feat/usb-serial-provisioning` (PR #76): the memory-safety, liveness and
+voucher-atomicity findings are closed, and vouchers now carry a 7-day
+`expires_at` enforced in the claim predicate. Remaining, deliberately deferred as
+design calls:
+
+- [ ] **Bind a voucher to a MAC at mint time (review #10).** Today the first
+      device to present an unclaimed, unexpired voucher wins it. Binding to a
+      known MAC at mint closes the first-claimant window entirely, but needs an
+      "enter the device MAC when minting" step in the WebUI. Expiry (shipped)
+      already bounds the exposure window in the meantime.
+- [ ] **Encrypt the device token in transit over USB (review #14).** The token
+      crosses the cable in cleartext inside the Improv `WIFI_SETTINGS` frame.
+      Wrapping it needs an on-device key exchange (e.g. reuse the X25519 handshake
+      key before the token is delivered) rather than the plain length-prefixed
+      string the Improv spec defines. Contained: the exposure is a local USB
+      cable held by the operator, not the network.
+- [ ] **Voucher revocation UI.** No way to invalidate an issued-but-unclaimed
+      voucher before it expires. A "revoke" action (delete-if-unclaimed) is a
+      small follow-up; expiry covers the common case.
+
 ## Server / API hardening
 
 - [ ] **Tighten the Content-Security-Policy.** `next.config.ts` sets a non-breaking
