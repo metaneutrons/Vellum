@@ -16,11 +16,23 @@ import {
   refreshProfiles,
   firmwareRollouts,
   otaEvents,
+  provisioningVouchers,
 } from "@/db/schema";
 import type { RolloutState } from "@/lib/rollout";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { approveDevice as approveDeviceAuth } from "@/lib/auth";
 import { log } from "@/lib/logger";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
+import { randomBytes } from "node:crypto";
+
+/** Throw unless the caller holds a valid admin session cookie. */
+async function requireAdmin(): Promise<void> {
+  const c = await cookies();
+  if (!(await verifySessionToken(c.get(SESSION_COOKIE)?.value))) {
+    throw new Error("Unauthorized");
+  }
+}
 
 /* ── Devices ──────────────────────────────────────────────────── */
 
@@ -32,6 +44,22 @@ export async function approveDevice(mac: string) {
     log.error("Failed to approve device", { mac, error: String(err) });
     throw err;
   }
+}
+
+/**
+ * Mint a single-use pre-provisioning voucher (a device token) for zero-touch
+ * USB enrolment. The returned token is embedded in the device profile over USB;
+ * the first device to present it is auto-approved. Admin-session guarded.
+ */
+export async function createProvisioningVoucher(label: string): Promise<string> {
+  await requireAdmin();
+  const token = randomBytes(32).toString("hex");
+  await withDb(
+    () => db.insert(provisioningVouchers).values({ token, label: label.trim() || null }),
+    "create-voucher",
+  );
+  revalidatePath("/admin/devices");
+  return token;
 }
 
 export async function updateDevice(

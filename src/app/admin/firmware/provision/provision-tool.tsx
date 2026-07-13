@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { createProvisioningVoucher } from "../../actions";
 import {
   isWebSerialSupported,
   provisionOverSerial,
@@ -42,6 +43,7 @@ export function ProvisionTool() {
   const [result, setResult] = useState<ProvisionResult | null>(null);
   const [scanning, setScanning] = useState(false);
   const [networks, setNetworks] = useState<WifiNetwork[]>([]);
+  const [zeroTouch, setZeroTouch] = useState(false);
 
   useEffect(() => {
     setSupported(isWebSerialSupported());
@@ -58,10 +60,26 @@ export function ProvisionTool() {
     setResult(null);
     setPhase(null);
     setDetail("");
+
+    let deviceToken: string | undefined;
+    if (zeroTouch) {
+      try {
+        deviceToken = await createProvisioningVoucher(`${ssid.trim() || "device"} (USB)`);
+      } catch (e) {
+        setResult({
+          ok: false,
+          error: `Could not mint a provisioning voucher: ${e instanceof Error ? e.message : "error"}`,
+        });
+        setBusy(false);
+        return;
+      }
+    }
+
     const r = await provisionOverSerial({
       ssid: ssid.trim(),
       password,
       serverUrl: serverUrl.trim() || undefined,
+      deviceToken,
       onPhase: (p, d) => {
         setPhase(p);
         if (d) setDetail(d);
@@ -166,6 +184,21 @@ export function ProvisionTool() {
           </Field>
         </div>
 
+        <label className="mt-4 flex items-start gap-2 cursor-pointer text-[13px] text-label-secondary">
+          <input
+            type="checkbox"
+            checked={zeroTouch}
+            onChange={(e) => setZeroTouch(e.target.checked)}
+            disabled={busy}
+            className="mt-0.5 size-4 rounded accent-accent focus-ring"
+          />
+          <span>
+            <span className="font-medium text-label">Zero-touch (pre-authorize)</span> — mint a
+            one-time voucher so the device is approved automatically, skipping the manual step
+            under Devices.
+          </span>
+        </label>
+
         <div className="mt-5">
           <Button
             size="lg"
@@ -184,12 +217,21 @@ export function ProvisionTool() {
             {result ? (
               result.ok ? (
                 <Notice tone="green">
-                  <strong>Done.</strong> The device joined Wi-Fi and points at the server. It will
-                  appear as <strong>pending</strong> under{" "}
-                  <Link href="/admin/devices" className="underline">
-                    Devices
-                  </Link>{" "}
-                  for approval.
+                  <strong>Done.</strong> The device joined Wi-Fi and points at the server.{" "}
+                  {zeroTouch ? (
+                    <>
+                      It’s <strong>pre-authorized</strong> and enrolls automatically on first
+                      contact — no approval needed.
+                    </>
+                  ) : (
+                    <>
+                      It will appear as <strong>pending</strong> under{" "}
+                      <Link href="/admin/devices" className="underline">
+                        Devices
+                      </Link>{" "}
+                      for approval.
+                    </>
+                  )}
                   {result.redirectUrl ? (
                     <>
                       {" "}

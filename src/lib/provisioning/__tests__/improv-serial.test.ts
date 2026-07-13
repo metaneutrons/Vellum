@@ -24,6 +24,7 @@ function firmwareParse(frame: Uint8Array): {
   ssid?: string;
   pass?: string;
   url?: string;
+  token?: string;
 } {
   const b = Array.from(frame);
   if (b.length < 10) return { ok: false };
@@ -51,14 +52,22 @@ function firmwareParse(frame: Uint8Array): {
   const passLen = p[1 + ssidLen];
   const pass = dec.decode(Uint8Array.from(p.slice(2 + ssidLen, 2 + ssidLen + passLen)));
   let url: string | undefined;
-  const pos = 2 + ssidLen + passLen;
+  let token: string | undefined;
+  let pos = 2 + ssidLen + passLen;
   if (pos < p.length) {
     const urlLen = p[pos];
-    if (urlLen > 0 && pos + 1 + urlLen <= p.length) {
-      url = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + urlLen)));
+    if (pos + 1 + urlLen <= p.length) {
+      if (urlLen > 0) url = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + urlLen)));
+      pos += 1 + urlLen; // advance past URL (even if empty)
+      if (pos < p.length) {
+        const tokLen = p[pos];
+        if (tokLen > 0 && pos + 1 + tokLen <= p.length) {
+          token = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + tokLen)));
+        }
+      }
     }
   }
-  return { ok: true, ssid, pass, url };
+  return { ok: true, ssid, pass, url, token };
 }
 
 describe("Improv WIFI_SETTINGS encoding", () => {
@@ -74,6 +83,20 @@ describe("Improv WIFI_SETTINGS encoding", () => {
     expect(parsed.ssid).toBe("MyNet");
     expect(parsed.pass).toBe("s3cret!!");
     expect(parsed.url).toBe("https://vellum.example.com");
+  });
+
+  it("carries the zero-touch device token as the 4th string", () => {
+    const parsed = firmwareParse(
+      encodeWifiSettings("Net", "pw", "https://v.io", "a".repeat(64)),
+    );
+    expect(parsed.url).toBe("https://v.io");
+    expect(parsed.token).toBe("a".repeat(64));
+  });
+
+  it("puts the token 4th even without a server URL (empty URL placeholder)", () => {
+    const parsed = firmwareParse(encodeWifiSettings("Net", "pw", undefined, "tok123"));
+    expect(parsed.url).toBeUndefined();
+    expect(parsed.token).toBe("tok123");
   });
 
   it("omits the URL string when serverUrl is absent (2-string form)", () => {

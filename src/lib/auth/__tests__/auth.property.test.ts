@@ -46,6 +46,17 @@ function createInMemoryRepo(): DeviceRepository & {
     async updateLastSeen(_mac) {
       // no-op for tests
     },
+    async claimVoucher(_token, _mac) {
+      return false; // this repo has no provisioning vouchers
+    },
+    async upsertApprovedWithToken(mac, token) {
+      store.set(mac, {
+        mac,
+        status: "approved",
+        token,
+        publicKey: store.get(mac)?.publicKey ?? null,
+      });
+    },
   };
 }
 

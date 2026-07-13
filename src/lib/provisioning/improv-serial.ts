@@ -92,9 +92,14 @@ export function encodeWifiSettings(
   ssid: string,
   password: string,
   serverUrl?: string,
+  deviceToken?: string,
 ): Uint8Array {
   const payload = [...lenPrefixed(ssid), ...lenPrefixed(password)];
-  if (serverUrl) payload.push(...lenPrefixed(serverUrl));
+  // The device token is the optional 4TH string; the server URL is the 3rd and
+  // acts as its positional separator, so emit an empty URL placeholder if a
+  // token is supplied without one.
+  if (serverUrl || deviceToken) payload.push(...lenPrefixed(serverUrl ?? ""));
+  if (deviceToken) payload.push(...lenPrefixed(deviceToken));
   return encodeRpcCommand(ImprovCmd.WIFI_SETTINGS, payload);
 }
 
@@ -219,6 +224,8 @@ export interface ProvisionOptions {
   ssid: string;
   password: string;
   serverUrl?: string;
+  /** Optional pre-provisioning voucher token for zero-touch enrolment. */
+  deviceToken?: string;
   /** Progress callback for UI. */
   onPhase?: (phase: ProvisionPhase, detail?: string) => void;
   /** Overall timeout for the device to report PROVISIONED/error (ms). */
@@ -281,7 +288,9 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
 
   try {
     onPhase("sending");
-    await writer.write(encodeWifiSettings(opts.ssid, opts.password, opts.serverUrl));
+    await writer.write(
+      encodeWifiSettings(opts.ssid, opts.password, opts.serverUrl, opts.deviceToken),
+    );
 
     while (!settled) {
       const { value, done: streamDone } = await reader.read();

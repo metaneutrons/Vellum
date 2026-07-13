@@ -122,18 +122,32 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     char pass[65] = {0};
     if (pass_len > 0) memcpy(pass, &data[2 + ssid_len], pass_len > 64 ? 64 : pass_len);
 
-    /* Optional third string: server URL. Also becomes the Improv redirect so a
-     * generic browser tool lands on the Vellum admin after setup. */
-    char redirect[256] = {0};
+    /* Optional third string: server URL (also the Improv redirect target).
+     * Optional fourth string: a pre-provisioning device token (zero-touch
+     * enrolment) — the server auto-approves the first device to present it. */
+    char redirect[NVS_MAX_URL_LEN] = {0};
     size_t pos = (size_t)2 + ssid_len + pass_len;
     if (pos < len) {
         uint8_t url_len = data[pos];
-        if (url_len > 0 && pos + 1 + url_len <= (size_t)len) {
-            char url[256] = {0};
-            memcpy(url, &data[pos + 1], url_len > 255 ? 255 : url_len);
-            nvs_manager_store_server_url(url);
-            snprintf(redirect, sizeof(redirect), "%s", url);
-            ESP_LOGI(TAG, "Improv: Server URL: %s", url);
+        if (pos + 1 + url_len <= (size_t)len) {
+            if (url_len > 0) {
+                char url[NVS_MAX_URL_LEN] = {0};
+                memcpy(url, &data[pos + 1], url_len >= NVS_MAX_URL_LEN ? NVS_MAX_URL_LEN - 1 : url_len);
+                nvs_manager_store_server_url(url);
+                snprintf(redirect, sizeof(redirect), "%s", url);
+                ESP_LOGI(TAG, "Improv: Server URL: %s", url);
+            }
+            pos += 1 + url_len; /* advance past the URL string (even if empty) */
+
+            if (pos < len) {
+                uint8_t tok_len = data[pos];
+                if (tok_len > 0 && pos + 1 + tok_len <= (size_t)len) {
+                    char tok[NVS_MAX_TOKEN_LEN] = {0};
+                    memcpy(tok, &data[pos + 1], tok_len >= NVS_MAX_TOKEN_LEN ? NVS_MAX_TOKEN_LEN - 1 : tok_len);
+                    nvs_manager_store_token(tok);
+                    ESP_LOGI(TAG, "Improv: pre-provisioning token stored");
+                }
+            }
         }
     }
 
@@ -272,6 +286,17 @@ static int cmd_server(int argc, char **argv)
     return 0;
 }
 
+static int cmd_token(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Usage: token <value>\n");
+        return 1;
+    }
+    nvs_manager_store_token(argv[1]);
+    printf("Device token stored.\n");
+    return 0;
+}
+
 static int cmd_info(int argc, char **argv)
 {
     (void)argc; (void)argv;
@@ -309,6 +334,7 @@ static void register_console_commands(void)
     esp_console_cmd_t cmds[] = {
         { .command = "wifi",      .help = "Set WiFi: wifi <ssid> <password> [server-url]", .func = &cmd_wifi },
         { .command = "server",    .help = "Get/set server URL: server [url]", .func = &cmd_server },
+        { .command = "token",     .help = "Store a pre-provisioning device token", .func = &cmd_token },
         { .command = "info",      .help = "Show device info",                 .func = &cmd_info },
         { .command = "nvs-erase", .help = "Factory reset (erase NVS)",        .func = &cmd_nvs_erase },
         { .command = "reboot",    .help = "Restart device",                   .func = &cmd_reboot },
