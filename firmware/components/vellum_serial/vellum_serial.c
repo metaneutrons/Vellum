@@ -297,6 +297,35 @@ static void register_console_commands(void)
     }
 }
 
+/* Feed one byte to the interactive text console (echo + line editing + run). */
+static void console_feed(int c, char *line_buf, size_t line_cap, int *line_pos)
+{
+    if (c == '\n' || c == '\r') {
+        if (*line_pos > 0) {
+            line_buf[*line_pos] = '\0';
+            printf("\n");
+            int ret;
+            esp_err_t err = esp_console_run(line_buf, &ret);
+            if (err == ESP_ERR_NOT_FOUND) {
+                printf("Unknown command: %s\n", line_buf);
+            }
+            printf("vellum> ");
+            fflush(stdout);
+            *line_pos = 0;
+        }
+    } else if (c == 0x7F || c == '\b') {
+        if (*line_pos > 0) {
+            (*line_pos)--;
+            printf("\b \b");
+            fflush(stdout);
+        }
+    } else if (*line_pos < (int)line_cap - 1) {
+        line_buf[(*line_pos)++] = (char)c;
+        fputc(c, stdout);
+        fflush(stdout);
+    }
+}
+
 /* ── Serial task: handles both Improv and Console ─────────────── */
 
 static void serial_task(void *arg)
@@ -317,7 +346,18 @@ static void serial_task(void *arg)
 
     ESP_LOGI(TAG, "Vellum Console ready. Type 'help' for commands.");
 
-    /* Read loop — detect Improv packets or console input */
+    /* Read loop. One byte stream carries two things: binary Improv frames
+     * (browser Wi-Fi/profile provisioning) and interactive console text. We
+     * accumulate into rx_buf while the bytes remain a VIABLE Improv frame — i.e.
+     * rx_buf is still a prefix of the "IMPROV" magic, or the magic already
+     * matched and we are collecting the rest of the declared frame. The moment
+     * the bytes can no longer be an Improv frame, we replay everything buffered
+     * so far to the text console (so a word that merely starts with 'I' still
+     * types normally).
+     *
+     * NB: the previous implementation reset rx_pos to 0 on every byte until it
+     * reached 10, which it never could — so Improv frames never assembled and
+     * browser provisioning silently never worked. */
     uint8_t rx_buf[256];
     int rx_pos = 0;
     char line_buf[256];
@@ -330,52 +370,30 @@ static void serial_task(void *arg)
             continue;
         }
 
-        /* Accumulate for Improv detection */
-        if (rx_pos < (int)sizeof(rx_buf)) {
-            rx_buf[rx_pos++] = (uint8_t)c;
-        }
+        if (rx_pos >= (int)sizeof(rx_buf)) rx_pos = 0; /* overflow guard */
+        rx_buf[rx_pos++] = (uint8_t)c;
 
-        /* Try Improv parse */
-        if (rx_pos >= 10 && memcmp(rx_buf, IMPROV_HEADER, 6) == 0) {
-            if (improv_try_parse(rx_buf, rx_pos)) {
-                rx_pos = 0;
-                line_pos = 0;
-                continue;
-            }
-            if (rx_pos >= (int)sizeof(rx_buf)) rx_pos = 0;
-            continue;
-        }
-
-        /* Not Improv — treat as console text */
-        rx_pos = 0;
-
-        if (c == '\n' || c == '\r') {
-            if (line_pos > 0) {
-                line_buf[line_pos] = '\0';
-                printf("\n");
-
-                int ret;
-                esp_err_t err = esp_console_run(line_buf, &ret);
-                if (err == ESP_ERR_NOT_FOUND) {
-                    printf("Unknown command: %s\n", line_buf);
-                } else if (err == ESP_ERR_INVALID_ARG) {
-                    /* empty input */
+        /* Still a viable Improv frame? (a prefix of the 6-byte magic, or past it) */
+        int hdr_n = rx_pos < 6 ? rx_pos : 6;
+        if (memcmp(rx_buf, IMPROV_HEADER, hdr_n) == 0) {
+            if (rx_pos >= 10) {
+                uint8_t data_len = rx_buf[8];
+                if (rx_pos >= 10 + (int)data_len) {
+                    improv_try_parse(rx_buf, rx_pos);
+                    rx_pos = 0;
+                    line_pos = 0; /* drop any half-typed console line */
                 }
+            }
+            continue; /* keep buffering; never echo binary Improv bytes */
+        }
 
-                printf("vellum> ");
-                fflush(stdout);
-                line_pos = 0;
-            }
-        } else if (c == 0x7F || c == '\b') {
-            if (line_pos > 0) {
-                line_pos--;
-                printf("\b \b");
-                fflush(stdout);
-            }
-        } else if (line_pos < (int)sizeof(line_buf) - 1) {
-            line_buf[line_pos++] = (char)c;
-            fputc(c, stdout);
-            fflush(stdout);
+        /* Not an Improv frame: replay the buffered bytes as console text. */
+        uint8_t pending[sizeof(rx_buf)];
+        int n = rx_pos;
+        memcpy(pending, rx_buf, n);
+        rx_pos = 0;
+        for (int i = 0; i < n; i++) {
+            console_feed(pending[i], line_buf, sizeof(line_buf), &line_pos);
         }
     }
 }

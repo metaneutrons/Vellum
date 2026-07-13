@@ -8,7 +8,7 @@ import { useToast } from "@/components/toast";
 import { useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
-import { Cpu, Download, Package } from "lucide-react";
+import { Cpu, Download, Package, Usb } from "lucide-react";
 
 interface FirmwareVersion {
   version: string;
@@ -80,6 +80,11 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
           <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
           <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
         </div>
+        <a href="/admin/firmware/provision"
+          className="inline-flex items-center justify-center gap-2 font-semibold rounded-md select-none whitespace-nowrap focus-ring transition active:scale-[0.97] min-h-11 px-4 text-[15px] bg-fill-tertiary text-label hover:bg-fill-secondary">
+          <Usb size={16} aria-hidden="true" />
+          {t("provision")}
+        </a>
         <a href="/admin/firmware/flash"
           className="inline-flex items-center justify-center gap-2 font-semibold rounded-md select-none whitespace-nowrap focus-ring transition active:scale-[0.97] min-h-11 px-4 text-[15px] bg-accent text-on-accent shadow-e1 hover:bg-accent-hover active:bg-accent-pressed">
           <Download size={16} aria-hidden="true" />

@@ -184,6 +184,7 @@
     "title": "Firmware",
     "description": "OTA firmware updates via GitHub Releases",
     "flash": "Flash Device",
+    "provision": "Provision over USB",
     "versions": "Available Versions",
     "noVersions": "No firmware releases found on GitHub",
     "deviceFirmware": "Device Firmware",
