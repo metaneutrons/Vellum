@@ -8,6 +8,8 @@ import {
   encodeFrame,
   ImprovParser,
   decodeRpcResult,
+  wifiSettingsPayloadLength,
+  MAX_WIFI_SETTINGS_PAYLOAD,
   IMPROV_HEADER,
   IMPROV_VERSION,
   ImprovType,
@@ -121,6 +123,40 @@ describe("Improv WIFI_SETTINGS encoding", () => {
     for (let i = 0; i < 9 + len; i++) cs = (cs + frame[i]) & 0xff;
     expect(frame[9 + len]).toBe(cs);
     expect(frame.length).toBe(10 + len);
+  });
+});
+
+describe("WIFI_SETTINGS payload-size guard", () => {
+  // The payload becomes a single-byte cmd_len, so it must stay ≤253 or the
+  // length wraps and the firmware silently rejects (or misreads) the frame.
+  it("predicts the exact encoded payload length (matches the real frame)", () => {
+    const cases: [string, string, string?, string?][] = [
+      ["MyNet", "s3cret!!", "https://vellum.example.com", undefined],
+      ["Net", "pw", "https://v.io", "a".repeat(64)],
+      ["Net", "pw", undefined, "tok123"],
+      ["Café-WLAN", "", "http://x", undefined],
+      ["Net", "pw", undefined, undefined],
+    ];
+    for (const [ssid, pass, url, tok] of cases) {
+      const frame = encodeWifiSettings(ssid, pass, url, tok);
+      // frame[8] is data_len = cmd_len + 2 (cmd byte + cmd_len byte); the payload
+      // is cmd_len, so predicted length === data_len - 2.
+      expect(wifiSettingsPayloadLength(ssid, pass, url, tok)).toBe(frame[8] - 2);
+    }
+  });
+
+  it("accepts a profile exactly at the 253-byte limit", () => {
+    // ssid(1+5) + pass(1+1) + url(1+len) === 253  →  url len = 244
+    const url = "u".repeat(MAX_WIFI_SETTINGS_PAYLOAD - (1 + 5) - (1 + 1) - 1);
+    expect(wifiSettingsPayloadLength("hello", "p", url)).toBe(MAX_WIFI_SETTINGS_PAYLOAD);
+    expect(() => encodeWifiSettings("hello", "p", url)).not.toThrow();
+  });
+
+  it("throws instead of emitting a corrupt over-253-byte frame", () => {
+    // 250-byte URL is a valid single string (≤255) but overflows the total payload.
+    const url = "u".repeat(250);
+    expect(wifiSettingsPayloadLength("hello", "p", url)).toBeGreaterThan(MAX_WIFI_SETTINGS_PAYLOAD);
+    expect(() => encodeWifiSettings("hello", "p", url)).toThrow(/too large/);
   });
 });
 

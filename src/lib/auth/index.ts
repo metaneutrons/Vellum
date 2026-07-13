@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import crypto from "crypto";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, or, gt } from "drizzle-orm";
 import { db, withDb } from "@/db";
 import { devices, provisioningVouchers } from "@/db/schema";
 import { encryptForDevice } from "@/lib/crypto";
@@ -33,10 +33,14 @@ export interface DeviceRepository {
   updateDisplayCaps(mac: string, caps: DisplayCaps): Promise<void>;
   updateApproved(mac: string, token: string): Promise<void>;
   updateLastSeen(mac: string): Promise<void>;
-  /** Atomically claim an unclaimed voucher by token for this MAC; true if won. */
-  claimVoucher(token: string, mac: string): Promise<boolean>;
-  /** Insert-or-approve a device with a known (voucher) token. */
-  upsertApprovedWithToken(mac: string, token: string): Promise<void>;
+  /**
+   * Atomically claim an unclaimed voucher AND enrol the device in a single
+   * transaction. Returns true iff the voucher was unclaimed and the device was
+   * approved. Both effects commit together or not at all — a crash mid-way must
+   * never consume the voucher without enrolling the device (which would brick
+   * it: the voucher is single-use and could never be re-claimed).
+   */
+  claimVoucherAndEnroll(token: string, mac: string): Promise<boolean>;
 }
 
 export const drizzleDeviceRepo: DeviceRepository = {
@@ -71,24 +75,32 @@ export const drizzleDeviceRepo: DeviceRepository = {
   async updateLastSeen(mac) {
     await withDb(() => db.update(devices).set({ lastSeen: new Date() }).where(eq(devices.mac, mac)), "auth-update-last-seen");
   },
-  async claimVoucher(token, mac) {
-    // Single atomic UPDATE ... WHERE claimed_by_mac IS NULL RETURNING — prevents
-    // two devices claiming the same voucher (single-use, bound to the first MAC).
-    const rows = await withDb(() => db
-      .update(provisioningVouchers)
-      .set({ claimedByMac: mac, claimedAt: new Date() })
-      .where(and(eq(provisioningVouchers.token, token), isNull(provisioningVouchers.claimedByMac)))
-      .returning({ token: provisioningVouchers.token }), "auth-claim-voucher");
-    return rows.length > 0;
-  },
-  async upsertApprovedWithToken(mac, token) {
-    await withDb(() => db
-      .insert(devices)
-      .values({ mac, status: "approved", token, approvedAt: new Date() })
-      .onConflictDoUpdate({
-        target: devices.mac,
-        set: { status: "approved", token, approvedAt: new Date() },
-      }), "auth-voucher-enroll");
+  async claimVoucherAndEnroll(token, mac) {
+    return withDb(() => db.transaction(async (tx) => {
+      // Single atomic UPDATE ... WHERE claimed_by_mac IS NULL RETURNING — prevents
+      // two devices claiming the same voucher (single-use, bound to the first MAC).
+      const rows = await tx
+        .update(provisioningVouchers)
+        .set({ claimedByMac: mac, claimedAt: new Date() })
+        .where(and(
+          eq(provisioningVouchers.token, token),
+          isNull(provisioningVouchers.claimedByMac),
+          // Unexpired: no expiry set, or expiry still in the future.
+          or(isNull(provisioningVouchers.expiresAt), gt(provisioningVouchers.expiresAt, new Date())),
+        ))
+        .returning({ token: provisioningVouchers.token });
+      if (rows.length === 0) return false;
+      // Same transaction: if this insert throws, the voucher claim rolls back,
+      // so the voucher stays available for a retry instead of being burned.
+      await tx
+        .insert(devices)
+        .values({ mac, status: "approved", token, approvedAt: new Date() })
+        .onConflictDoUpdate({
+          target: devices.mac,
+          set: { status: "approved", token, approvedAt: new Date() },
+        });
+      return true;
+    }), "auth-claim-voucher-enroll");
   },
 };
 
@@ -179,11 +191,10 @@ export async function validateToken(
     return constantTimeEqual(device.token, token);
   }
   // Unknown MAC presenting a token: this may be a zero-touch device carrying a
-  // pre-provisioning voucher. Claim atomically and auto-enrol if it matches an
+  // pre-provisioning voucher. Claim-and-enrol atomically if it matches an
   // unclaimed voucher; otherwise reject. Existing and pending devices never
   // reach here, so the audited enrolment path is unchanged.
-  if (await repo.claimVoucher(token, mac)) {
-    await repo.upsertApprovedWithToken(mac, token);
+  if (await repo.claimVoucherAndEnroll(token, mac)) {
     log.info("device auto-enrolled via provisioning voucher", { mac });
     return true;
   }

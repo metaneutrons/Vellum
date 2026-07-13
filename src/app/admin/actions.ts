@@ -46,16 +46,25 @@ export async function approveDevice(mac: string) {
   }
 }
 
+/** Default voucher validity window: a voucher unclaimed after this is dead. */
+const VOUCHER_TTL_HOURS = 24 * 7;
+
 /**
  * Mint a single-use pre-provisioning voucher (a device token) for zero-touch
  * USB enrolment. The returned token is embedded in the device profile over USB;
- * the first device to present it is auto-approved. Admin-session guarded.
+ * the first device to present it is auto-approved. The voucher expires after
+ * `ttlHours` (default 7 days) so a leaked-but-unclaimed token cannot be redeemed
+ * indefinitely. Admin-session guarded.
  */
-export async function createProvisioningVoucher(label: string): Promise<string> {
+export async function createProvisioningVoucher(
+  label: string,
+  ttlHours: number = VOUCHER_TTL_HOURS,
+): Promise<string> {
   await requireAdmin();
   const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
   await withDb(
-    () => db.insert(provisioningVouchers).values({ token, label: label.trim() || null }),
+    () => db.insert(provisioningVouchers).values({ token, label: label.trim() || null, expiresAt }),
     "create-voucher",
   );
   revalidatePath("/admin/devices");

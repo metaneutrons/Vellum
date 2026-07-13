@@ -100,7 +100,35 @@ export function encodeWifiSettings(
   // token is supplied without one.
   if (serverUrl || deviceToken) payload.push(...lenPrefixed(serverUrl ?? ""));
   if (deviceToken) payload.push(...lenPrefixed(deviceToken));
+  if (payload.length > MAX_WIFI_SETTINGS_PAYLOAD) {
+    // The payload becomes a 1-byte cmd_len (and the frame's 1-byte data_len is
+    // cmd_len+2), so it can't exceed 253 or the length wraps and the firmware
+    // rejects the frame. Fail loudly instead of sending a corrupt frame.
+    throw new Error(
+      `Improv profile too large (${payload.length} > ${MAX_WIFI_SETTINGS_PAYLOAD} bytes) — shorten the server URL.`,
+    );
+  }
   return encodeRpcCommand(ImprovCmd.WIFI_SETTINGS, payload);
+}
+
+/**
+ * Max bytes for the WIFI_SETTINGS RPC payload. It becomes a single-byte cmd_len,
+ * and the frame's single-byte data_len is cmd_len+2, so the payload must be ≤253.
+ */
+export const MAX_WIFI_SETTINGS_PAYLOAD = 253;
+
+/** Byte length the WIFI_SETTINGS payload would occupy — for pre-send validation. */
+export function wifiSettingsPayloadLength(
+  ssid: string,
+  password: string,
+  serverUrl?: string,
+  deviceToken?: string,
+): number {
+  const enc = new TextEncoder();
+  let n = 1 + enc.encode(ssid).length + 1 + enc.encode(password).length;
+  if (serverUrl || deviceToken) n += 1 + enc.encode(serverUrl ?? "").length;
+  if (deviceToken) n += 1 + enc.encode(deviceToken).length;
+  return n;
 }
 
 export interface ImprovFrame {
@@ -261,24 +289,21 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
     return { ok: false, error: "No serial port selected." };
   }
 
-  onPhase("connecting");
-  await port.open({ baudRate: 115200 }); // baud is ignored by USB-Serial-JTAG
-
   const parser = new ImprovParser();
-  const writer = port.writable?.getWriter();
-  const reader = port.readable?.getReader();
-  if (!writer || !reader) {
-    await port.close();
-    return { ok: false, error: "Serial port is not readable/writable." };
-  }
-
   const done: ProvisionResult = { ok: false };
   let settled = false;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
+  let opened = false;
+  let graceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // finish() also cancels the reader so a pending reader.read() unblocks and the
+  // loop exits — otherwise a silent device would hang past the timeout.
   const finish = (r: ProvisionResult) => {
-    if (!settled) {
-      settled = true;
-      Object.assign(done, r);
-    }
+    if (settled) return;
+    settled = true;
+    Object.assign(done, r);
+    reader?.cancel().catch(() => {});
   };
 
   const timer = setTimeout(
@@ -287,37 +312,51 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
   );
 
   try {
-    onPhase("sending");
-    await writer.write(
-      encodeWifiSettings(opts.ssid, opts.password, opts.serverUrl, opts.deviceToken),
-    );
+    onPhase("connecting");
+    await port.open({ baudRate: 115200 }); // baud is ignored by USB-Serial-JTAG
+    opened = true;
+    writer = port.writable?.getWriter();
+    reader = port.readable?.getReader();
+    if (!writer || !reader) {
+      finish({ ok: false, error: "Serial port is not readable/writable." });
+    } else {
+      onPhase("sending");
+      await writer.write(
+        encodeWifiSettings(opts.ssid, opts.password, opts.serverUrl, opts.deviceToken),
+      );
 
-    while (!settled) {
-      const { value, done: streamDone } = await reader.read();
-      if (streamDone) {
-        finish({ ok: false, error: "Serial connection closed unexpectedly." });
-        break;
-      }
-      if (!value) continue;
-      for (const frame of parser.push(value)) {
-        if (frame.type === ImprovType.CURRENT_STATE) {
-          const state = frame.payload[0];
-          if (state === ImprovState.PROVISIONING) onPhase("provisioning");
-          else if (state === ImprovState.PROVISIONED) {
-            onPhase("provisioned");
-            finish({ ok: true });
-          }
-        } else if (frame.type === ImprovType.ERROR_STATE) {
-          const err = frame.payload[0];
-          if (err !== ImprovError.NONE) {
-            const msg = ERROR_TEXT[err] ?? `Device error 0x${err.toString(16)}.`;
-            onPhase("error", msg);
-            finish({ ok: false, error: msg });
-          }
-        } else if (frame.type === ImprovType.RPC_RESULT) {
-          const { cmd, strings } = decodeRpcResult(frame.payload);
-          if (cmd === ImprovCmd.WIFI_SETTINGS && strings[0]) {
-            done.redirectUrl = strings[0];
+      while (!settled) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) {
+          finish({ ok: false, error: "Serial connection closed unexpectedly." });
+          break;
+        }
+        if (!value) continue;
+        for (const frame of parser.push(value)) {
+          if (frame.payload.length === 0) continue; // ignore malformed empty frames
+          if (frame.type === ImprovType.CURRENT_STATE) {
+            const state = frame.payload[0];
+            if (state === ImprovState.PROVISIONING) onPhase("provisioning");
+            else if (state === ImprovState.PROVISIONED) {
+              onPhase("provisioned");
+              done.ok = true;
+              // The device sends the redirect RPC_RESULT just after PROVISIONED,
+              // possibly in a later chunk — wait a short grace to capture it.
+              if (!graceTimer) graceTimer = setTimeout(() => finish({ ok: true }), 600);
+            }
+          } else if (frame.type === ImprovType.ERROR_STATE) {
+            const err = frame.payload[0];
+            if (err !== ImprovError.NONE) {
+              const msg = ERROR_TEXT[err] ?? `Device error 0x${err.toString(16)}.`;
+              onPhase("error", msg);
+              finish({ ok: false, error: msg });
+            }
+          } else if (frame.type === ImprovType.RPC_RESULT) {
+            const { cmd, strings } = decodeRpcResult(frame.payload);
+            if (cmd === ImprovCmd.WIFI_SETTINGS && strings[0]) {
+              done.redirectUrl = strings[0];
+              if (done.ok) finish({ ok: true, redirectUrl: strings[0] });
+            }
           }
         }
       }
@@ -326,14 +365,15 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
     finish({ ok: false, error: e instanceof Error ? e.message : "Serial I/O error." });
   } finally {
     clearTimeout(timer);
+    if (graceTimer) clearTimeout(graceTimer);
     try {
-      await reader.cancel();
+      await reader?.cancel();
     } catch {
       /* ignore */
     }
-    reader.releaseLock();
-    writer.releaseLock();
-    await port.close().catch(() => {});
+    reader?.releaseLock();
+    writer?.releaseLock();
+    if (opened) await port.close().catch(() => {});
   }
 
   return done;
@@ -380,60 +420,64 @@ export async function scanNetworksOverSerial(opts?: {
     return { ok: false, networks: [], error: "No serial port selected." };
   }
 
-  await port.open({ baudRate: 115200 });
   const parser = new ImprovParser();
-  const writer = port.writable?.getWriter();
-  const reader = port.readable?.getReader();
-  if (!writer || !reader) {
-    await port.close();
-    return { ok: false, networks: [], error: "Serial port is not readable/writable." };
-  }
-
   const byName = new Map<string, WifiNetwork>();
   let finished = false;
+  let error: string | undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
+  let opened = false;
+
+  // Cancel the reader on timeout so a pending read unblocks (the scan may never
+  // receive the empty terminator from a misbehaving device).
   const timer = setTimeout(() => {
     finished = true;
+    reader?.cancel().catch(() => {});
   }, opts?.timeoutMs ?? 8000);
 
   try {
-    await writer.write(encodeScanWifi());
-    while (!finished) {
-      const { value, done: streamDone } = await reader.read();
-      if (streamDone) break;
-      if (!value) continue;
-      for (const frame of parser.push(value)) {
-        if (frame.type !== ImprovType.RPC_RESULT) continue;
-        const { cmd, strings } = decodeRpcResult(frame.payload);
-        if (cmd !== ImprovCmd.SCAN_WIFI) continue;
-        const net = decodeScanNetwork(strings);
-        if (net) {
-          const prev = byName.get(net.ssid);
-          if (!prev || net.rssi > prev.rssi) byName.set(net.ssid, net);
-        } else {
-          finished = true; // empty terminator
-          break;
+    await port.open({ baudRate: 115200 });
+    opened = true;
+    writer = port.writable?.getWriter();
+    reader = port.readable?.getReader();
+    if (!writer || !reader) {
+      error = "Serial port is not readable/writable.";
+    } else {
+      await writer.write(encodeScanWifi());
+      while (!finished) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) break;
+        if (!value) continue;
+        for (const frame of parser.push(value)) {
+          if (frame.type !== ImprovType.RPC_RESULT) continue;
+          const { cmd, strings } = decodeRpcResult(frame.payload);
+          if (cmd !== ImprovCmd.SCAN_WIFI) continue;
+          const net = decodeScanNetwork(strings);
+          if (net) {
+            const prev = byName.get(net.ssid);
+            if (!prev || net.rssi > prev.rssi) byName.set(net.ssid, net);
+          } else {
+            finished = true; // empty terminator
+            break;
+          }
         }
       }
     }
   } catch (e) {
-    clearTimeout(timer);
-    return {
-      ok: false,
-      networks: [],
-      error: e instanceof Error ? e.message : "Serial I/O error.",
-    };
+    error = e instanceof Error ? e.message : "Serial I/O error.";
   } finally {
     clearTimeout(timer);
     try {
-      await reader.cancel();
+      await reader?.cancel();
     } catch {
       /* ignore */
     }
-    reader.releaseLock();
-    writer.releaseLock();
-    await port.close().catch(() => {});
+    reader?.releaseLock();
+    writer?.releaseLock();
+    if (opened) await port.close().catch(() => {});
   }
 
+  if (error) return { ok: false, networks: [], error };
   const networks = [...byName.values()].sort((a, b) => b.rssi - a.rssi);
   return { ok: true, networks };
 }

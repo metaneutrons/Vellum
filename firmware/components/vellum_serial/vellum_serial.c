@@ -89,7 +89,11 @@ static void improv_send_error(uint8_t error)
 
 static void improv_send_rpc_result(uint8_t cmd, const char **strings, int count)
 {
-    uint8_t buf[200];
+    /* Payload must fit an Improv frame — improv_send_packet caps at 246 payload
+     * bytes (pkt[256] minus the 10-byte header/checksum). Bound every write so a
+     * long device-supplied string (e.g. a 256-byte redirect URL on the
+     * WIFI_SETTINGS success path) can never overflow this buffer or the frame. */
+    uint8_t buf[246];
     int pos = 0;
     buf[pos++] = cmd;
 
@@ -98,13 +102,15 @@ static void improv_send_rpc_result(uint8_t cmd, const char **strings, int count)
 
     for (int i = 0; i < count; i++) {
         int slen = strlen(strings[i]);
+        if (slen > 255) slen = 255;
+        if (pos + 1 + slen > (int)sizeof(buf)) break; /* drop strings that don't fit */
         buf[pos++] = (uint8_t)slen;
         memcpy(&buf[pos], strings[i], slen);
         pos += slen;
     }
-    buf[data_start] = pos - data_start - 1;
+    buf[data_start] = (uint8_t)(pos - data_start - 1);
 
-    improv_send_packet(IMPROV_TYPE_RPC_RESULT, buf, pos);
+    improv_send_packet(IMPROV_TYPE_RPC_RESULT, buf, (uint8_t)pos);
 }
 
 static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)

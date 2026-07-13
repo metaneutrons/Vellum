@@ -111,6 +111,10 @@ export const provisioningVouchers = pgTable("provisioning_vouchers", {
   label: text("label"),
   claimedByMac: text("claimed_by_mac"),
   claimedAt: timestamp("claimed_at"),
+  // A voucher stops being claimable after this instant. Limits the blast radius
+  // of a leaked-but-unclaimed voucher to the validity window. NULL = never
+  // expires (back-compat for rows minted before this column existed).
+  expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

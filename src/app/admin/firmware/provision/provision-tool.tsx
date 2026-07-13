@@ -14,12 +14,18 @@ import {
   isWebSerialSupported,
   provisionOverSerial,
   scanNetworksOverSerial,
+  wifiSettingsPayloadLength,
   MAX_SSID_LEN,
   MAX_PASS_LEN,
+  MAX_WIFI_SETTINGS_PAYLOAD,
   type ProvisionPhase,
   type ProvisionResult,
   type WifiNetwork,
 } from "@/lib/provisioning/improv-serial";
+
+// A zero-touch voucher token is 64 hex chars (32 bytes) — reserve for it when
+// validating the total profile size.
+const ZERO_TOUCH_TOKEN_LEN = 64;
 
 const PHASE_TEXT: Record<ProvisionPhase, string> = {
   connecting: "Opening serial port…",
@@ -53,7 +59,15 @@ export function ProvisionTool() {
   const ssidOk = ssid.trim().length > 0 && new TextEncoder().encode(ssid.trim()).length <= MAX_SSID_LEN;
   const passOk = new TextEncoder().encode(password).length <= MAX_PASS_LEN;
   const urlOk = new TextEncoder().encode(serverUrl.trim()).length <= MAX_URL_LEN;
-  const canSubmit = supported && !busy && ssidOk && passOk && urlOk;
+  // The whole profile must fit one Improv frame (ssid + pass + url [+ token]).
+  const payloadBytes = wifiSettingsPayloadLength(
+    ssid.trim(),
+    password,
+    serverUrl.trim() || undefined,
+    zeroTouch ? "x".repeat(ZERO_TOUCH_TOKEN_LEN) : undefined,
+  );
+  const payloadOk = payloadBytes <= MAX_WIFI_SETTINGS_PAYLOAD;
+  const canSubmit = supported && !busy && !scanning && ssidOk && passOk && urlOk && payloadOk;
 
   async function provision() {
     setBusy(true);
@@ -75,25 +89,41 @@ export function ProvisionTool() {
       }
     }
 
-    const r = await provisionOverSerial({
-      ssid: ssid.trim(),
-      password,
-      serverUrl: serverUrl.trim() || undefined,
-      deviceToken,
-      onPhase: (p, d) => {
-        setPhase(p);
-        if (d) setDetail(d);
-      },
-    });
-    setResult(r);
-    setBusy(false);
+    try {
+      const r = await provisionOverSerial({
+        ssid: ssid.trim(),
+        password,
+        serverUrl: serverUrl.trim() || undefined,
+        deviceToken,
+        onPhase: (p, d) => {
+          setPhase(p);
+          if (d) setDetail(d);
+        },
+      });
+      setResult(r);
+    } catch (e) {
+      setResult({ ok: false, error: e instanceof Error ? e.message : "Provisioning failed." });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function doScan() {
     setScanning(true);
-    const r = await scanNetworksOverSerial();
-    if (r.ok) setNetworks(r.networks);
-    setScanning(false);
+    setResult(null);
+    try {
+      const r = await scanNetworksOverSerial();
+      if (r.ok) {
+        setNetworks(r.networks);
+        if (r.networks.length === 0) setResult({ ok: false, error: "Scan found no networks." });
+      } else {
+        setResult({ ok: false, error: r.error ?? "Scan failed." });
+      }
+    } catch (e) {
+      setResult({ ok: false, error: e instanceof Error ? e.message : "Scan failed." });
+    } finally {
+      setScanning(false);
+    }
   }
 
   return (
@@ -171,7 +201,13 @@ export function ProvisionTool() {
             label="Server URL"
             htmlFor="prov-url"
             hint="Where the device reports in. Prefilled from this admin’s address."
-            error={!urlOk ? `Too long (max ${MAX_URL_LEN} bytes).` : undefined}
+            error={
+              !urlOk
+                ? `Too long (max ${MAX_URL_LEN} bytes).`
+                : !payloadOk
+                  ? `Profile too large for one USB frame (${payloadBytes}/${MAX_WIFI_SETTINGS_PAYLOAD} bytes) — shorten the URL.`
+                  : undefined
+            }
           >
             <Input
               id="prov-url"
