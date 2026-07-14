@@ -203,6 +203,63 @@ function timeToY(ts: number, wStart: number, wEnd: number, top: number, h: numbe
   return Math.round(top + ((ts - wStart) / (wEnd - wStart)) * h);
 }
 
+export interface TimelineBlock<T extends DisplayEvent = DisplayEvent> {
+  evt: T;
+  y1: number;
+  y2: number;
+  /** 0-based column index within its overlap group. */
+  col: number;
+  /** Number of side-by-side columns the overlap group needs (block width = 1/totalCols). */
+  totalCols: number;
+}
+
+/**
+ * Assign timeline events to side-by-side columns for overlap-free layout.
+ *
+ * This is a greedy sweep-line: each event takes the first column whose previous
+ * occupant has already ended. That is only correct when events are processed in
+ * start-time order — otherwise a later-starting event can grab column 0 and its
+ * (larger) end-Y never frees the column for an earlier event, which then gets
+ * bumped into a phantom extra column and rendered at half width. Calendar
+ * providers do NOT guarantee ordering, so we sort a copy by start time here
+ * before packing. (Regression: two reverse-ordered, non-overlapping events were
+ * rendering as one full-width + one half-width-right block.)
+ */
+export function computeTimelineLayout<T extends DisplayEvent>(
+  visible: T[],
+  windowStart: number,
+  windowEnd: number,
+  areaTop: number,
+  areaH: number,
+): TimelineBlock<T>[] {
+  const sorted = [...visible].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+  const columns: { end: number }[] = [];
+  const layout: TimelineBlock<T>[] = [];
+  for (const evt of sorted) {
+    const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
+    const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
+
+    // First column free by the time this event starts (touching ends may share).
+    let col = 0;
+    for (col = 0; col < columns.length; col++) {
+      if (columns[col].end <= y1) break;
+    }
+    if (col === columns.length) columns.push({ end: 0 });
+    columns[col] = { end: y2 };
+
+    layout.push({ evt, y1, y2, col, totalCols: 0 });
+  }
+
+  // Group width = the widest column index reached by any event overlapping this one.
+  for (const item of layout) {
+    const overlapping = layout.filter((o) => o.y1 < item.y2 && o.y2 > item.y1);
+    item.totalCols = Math.max(...overlapping.map((o) => o.col + 1));
+  }
+
+  return layout;
+}
+
 function isBusy(events: DisplayEvent[], now: Date): boolean {
   return events.some(
     (e) => e.startTime.getTime() <= now.getTime() && e.endTime.getTime() > now.getTime()
@@ -328,36 +385,11 @@ export function renderToCanvas(
     ctx.fillRect(gutterW, y, width - Math.round(8 * scale) - gutterW, Math.round(2 * scale));
   }
 
-  // Event blocks
+  // Event blocks — detect overlaps and arrange side by side
   const visible = events.filter(
     (e) => e.endTime.getTime() > windowStart && e.startTime.getTime() < windowEnd
   );
-  // Event blocks — detect overlaps and arrange side by side
-  const columns: { end: number; col: number }[] = [];
-  const eventLayout: { evt: typeof visible[0]; y1: number; y2: number; col: number; totalCols: number }[] = [];
-
-  for (const evt of visible) {
-    const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
-    const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
-
-    // Find first available column
-    let col = 0;
-    for (col = 0; col < columns.length; col++) {
-      if (columns[col].end <= y1) break;
-    }
-    if (col === columns.length) columns.push({ end: 0, col });
-    columns[col] = { end: y2, col };
-
-    eventLayout.push({ evt, y1, y2, col, totalCols: 0 });
-  }
-
-  // Calculate total columns for each group
-  for (const item of eventLayout) {
-    const overlapping = eventLayout.filter(
-      (o) => o.y1 < item.y2 && o.y2 > item.y1
-    );
-    item.totalCols = Math.max(...overlapping.map((o) => o.col + 1));
-  }
+  const eventLayout = computeTimelineLayout(visible, windowStart, windowEnd, areaTop, areaH);
 
   for (const { evt, y1, y2, col, totalCols } of eventLayout) {
     const blockH = Math.max(y2 - y1, 5); /* minimum 5px visible */
