@@ -4,6 +4,15 @@
 
 A flexible e-paper display driver component for ESP-IDF with LVGL 9 integration. Designed for IoT devices, electronic shelf labels, photo frames, and low-power display applications.
 
+> **Vellum fork — do not re-pull.** This directory is a **vendored/forked copy**
+> of [`tuanpmt/esp_epaper`](https://github.com/tuanpmt/esp_epaper), extended with
+> Vellum-specific controllers: `uc8179_bw.c` (GDEY075T7 / UC8179, Vellum **e1001**)
+> and `ed103tc2.c` (ED103TC2, Vellum **e1003**). **Do NOT re-pull it from the
+> ESP-IDF Component Registry or re-clone it from upstream** — either would
+> overwrite `src/controllers/uc8179_bw.c` and `src/controllers/ed103tc2.c` and
+> break the e1001/e1003 firmware. Edit this in-tree copy directly. The upstream
+> MIT license and author attribution are preserved below.
+
 ## Supported Boards
 
 <table>
@@ -68,6 +77,8 @@ Smart partial refresh for BW panels:
 | GDEY0154D67 | 1.54" | 200x200 | BW | Yes (custom LUT) |
 | GDEP073E01 | 7.3" | 800x480 | 6-Color | No |
 | GDEY037F51 | 3.7" | 240x416 | 4-Color BWRY | No |
+| GDEY075T7 | 7.5" | 800x480 | BW | No (Vellum e1001, UC8179) |
+| ED103TC2 | 10.3" | 1404x1872 | 16-Gray | No (Vellum e1003) |
 
 ### Generic SSD16xx Panels
 
@@ -84,6 +95,13 @@ Adding new BW panels requires only **1 line of code** - see [ADDING_PANELS.md](A
 | SSD16XX_420 | 4.2" | 400x300 | GDEY042T81, GDEQ0426T82 |
 
 ## Installation
+
+> **Vellum note:** The registry and clone steps below describe the **upstream**
+> flow only. In the Vellum firmware this component is **vendored in-tree** at
+> `firmware/components-epaper/epaper_uc8179` and must **not** be fetched from the
+> ESP-IDF Component Registry or re-cloned from upstream — doing so clobbers the
+> Vellum-added `uc8179_bw.c` / `ed103tc2.c` controllers (breaking the e1001/e1003
+> builds). These steps are retained for reference / standalone upstream use.
 
 ### Using ESP-IDF Component Registry (Recommended)
 
@@ -238,8 +256,9 @@ epd_config_t cfg = {
 |                  |     | - gdey0154_lut.c  |
 | - Panel specs    |     | - acep_6color.c   |
 | - Capabilities   |     | - bwry_4color.c   |
-| - Controller map |     +-------------------+
-+------------------+
+| - Controller map |     | - uc8179_bw.c     |
++------------------+     | - ed103tc2.c      |
+                         +-------------------+
 ```
 
 ### Panel Registry (Data-Driven)

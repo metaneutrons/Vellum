@@ -352,5 +352,3 @@
 ### Code Refactoring
 
 * **firmware:** unify D1001 and E-series into single codebase ([b7c31b0](https://github.com/metaneutrons/Vellum/commit/b7c31b07635b7c1a845d2c3775eed18efe4bb0f9))
-
-## Changelog

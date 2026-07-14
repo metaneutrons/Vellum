@@ -38,10 +38,11 @@
 - [x] Telemetry on every API call (hello, config, render, report)
 - [x] lastSeen updated on every telemetry log
 
+## Phase 5: Panels, Version-Sync & Provisioning UI ✅
+- [x] E1001 (BW) panel support — `panel_epaper.c` GDEY075T7 via the `UC8179_BW` controller (vendored `epaper_uc8179` fork, `uc8179_bw.c`)
+- [x] E1003 (10.3") panel support — ED103TC2 driven by IT8951, **16-gray / 4bpp (GC16), 1404×1872** (not "Mono"); `panel_epaper.c` + `epaper_it8951`/`ed103tc2.c`
+- [x] Firmware version sync via release-please — `firmware` component → `Kconfig.projbuild` `CONFIG_VELLUM_FIRMWARE_VERSION` (`# x-release-please-version`, current 1.2.1)
+- [x] Admin provisioning UI — Improv provisioning over the **Web Serial API** (`src/app/admin/firmware/provision/provision-tool.tsx`), **not** ESP Web Tools. The "Setup Device in one flow" goal ships as **two adjacent pages**: **Flash** (`flash-tool.tsx`, ESP Web Tools) then **Provision** (`provision-tool.tsx`, Web Serial)
+
 ## Remaining / Future
-- [ ] E1001 (BW) panel support in esp_epaper (not yet in component)
-- [ ] E1003 (10.3" Mono) panel support
-- [ ] Improv WiFi detection from ESP Web Tools in admin UI
-- [ ] Admin "Setup Device" page (flash + WiFi config in one flow)
 - [ ] OTA update flow end-to-end verification
-- [ ] Firmware version sync from Git tag / release-please

@@ -42,5 +42,9 @@ the new constants:
 node firmware/host_test/scripts/gen_kat.mjs
 ```
 
-CI runs this suite via `.github/workflows/firmware-host-test.yml` on every push
-and PR that touches `firmware/**`.
+CI runs this suite via `.github/workflows/firmware-host-test.yml` unconditionally
+on **every** push and PR to `main` — there is deliberately **no** `firmware/**`
+path filter. This is a required status check, and path-filtering a required check
+would leave any PR that doesn't touch `firmware/**` stuck forever in
+"Expected — Waiting for status". The suite is self-contained (CMake + OpenSSL, a
+few seconds), so running it on every PR is cheap and keeps every PR mergeable.

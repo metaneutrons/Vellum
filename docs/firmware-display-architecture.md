@@ -7,7 +7,8 @@ The display layer has two distinct rendering modes:
 1. **Local Mode (LVGL)** — Device renders UI locally for system screens
 2. **Server Mode (Raw Buffer)** — Server sends pre-rendered pixel buffer, device writes it directly to the display
 
-Both modes share the same underlying display driver (`esp_epaper` component).
+Both modes share the same panel backend (`vellum_panel`), which is split by
+target: `panel_epaper.c` (ESP32-S3 e-paper) and `panel_lcd.c` (ESP32-P4 LCD).
 
 ---
 
@@ -21,7 +22,7 @@ Both modes share the same underlying display driver (`esp_epaper` component).
 │  │  Local Mode   │       │   Server Mode       │ │
 │  │  (LVGL 9)     │       │   (Raw Buffer)      │ │
 │  │               │       │                     │ │
-│  │  Boot Logo    │       │  HTTP GET /render    │ │
+│  │  Boot Logo    │       │  GET …/ink/render    │ │
 │  │  WiFi Setup   │       │  → pixel buffer     │ │
 │  │  QR Code      │       │  → epd_update()     │ │
 │  │  OTA Progress │       │                     │ │
@@ -43,13 +44,14 @@ Both modes share the same underlying display driver (`esp_epaper` component).
 │                     │                            │
 │                     ▼                            │
 │  ┌─────────────────────────────────────────────┐ │
-│  │        esp_epaper (ESP Component)            │ │
-│  │        tuanpmt/esp_epaper ^2.0.0             │ │
+│  │        panel backend (vellum_panel)         │ │
+│  │  panel_epaper.c (S3) + panel_lcd.c (P4)     │ │
 │  │                                              │ │
 │  │  Supported panels:                           │ │
-│  │  - GDEY075T7   (E1001, 7.5" BW, 800x480)   │ │
-│  │  - GDEP073E01  (E1002, 7.3" 6-Color)        │ │
-│  │  - TBD         (E1003, 10.3" Mono)           │ │
+│  │  - GDEY075T7   E1001  mono    800x480 (UC8179)│ │
+│  │  - GDEP073E01  E1002  6-color 800x480 (UC8179)│ │
+│  │  - ED103TC2    E1003  16-gray 1404x1872 (IT8951)│ │
+│  │  - JD9365      D1001  RGB565  800x1280 (P4 LCD)│ │
 │  │                                              │ │
 │  │  Features:                                   │ │
 │  │  - Correct init sequences per panel          │ │
@@ -118,23 +120,31 @@ These screens are rendered on-device when the server is not available or during 
 ```
 Server                          Device
   │                               │
-  │  GET /render?mac=XX           │
+  │  GET /api/v1/ink/render?mac=XX │
+  │  x-device-token: <token>      │
   │◄──────────────────────────────│
   │                               │
+  │  validateToken(mac, token)    │
+  │    → 401 Unauthorized if bad  │
   │  Render content (Canvas API)  │
   │  Quantize to panel palette    │
-  │  Return pixel buffer          │
+  │  computeSleep() → duration    │
   │                               │
-  │  Content-Type: application/   │
-  │  octet-stream                 │
-  │  X-Sleep-Seconds: 300         │
+  │  200 application/octet-stream │
+  │  X-Sleep-Duration: 300        │
+  │  X-Sleep-Mode: deep           │
+  │  ETag: <sha256>  (+ raw buf)  │
   │──────────────────────────────►│
   │                               │
-  │                    epd_update(buffer)
-  │                    epd_sleep()
-  │                    deep_sleep(300s)
+  │              display_update_raw(buffer)
+  │              display_sleep()
+  │              deep_sleep(300s)
   │                               │
 ```
+
+*Illustrative — the exact route, auth (`x-device-token` → `validateToken`),
+headers (`X-Sleep-Duration` / `X-Sleep-Mode` / `ETag`) and 304/`If-None-Match`
+fast-path live in `src/app/api/v1/ink/render/route.ts`.*
 
 ### Pixel Buffer Format
 
@@ -144,7 +154,8 @@ The server sends a raw byte array. Format depends on the panel:
 |-------|-----------|------------|-------------|--------|
 | E1001 | BW | 1 bpp | 48,000 bytes | 1 bit per pixel, MSB first |
 | E1002 | 6-Color | 4 bpp | 192,000 bytes | 4 bits per pixel (2 pixels/byte) |
-| E1003 | Mono | 1 bpp | ~160,000 bytes | 1 bit per pixel, MSB first |
+| E1003 | 16-Gray | 4 bpp | 1,314,144 bytes (~1.3 MB) | 4 bits per pixel (2 pixels/byte), IT8951 GC16 (1872×1404) |
+| D1001 | Full-color | 16 bpp | 2,048,000 bytes (~2.0 MB) | RGB565 (2 bytes/pixel), ESP32-P4 MIPI-DSI LCD (800×1280) |
 
 ### E1002 Color Encoding (4-bit native)
 
@@ -175,12 +186,33 @@ For server-rendered content, the device does **zero processing**:
 
 ### Dependencies
 
+The e-paper driver is declared by the **display component**, gated to the S3
+targets (it has no esp32p4 build); `tuanpmt/esp_epaper` is a **vendored fork** in
+`firmware/components-epaper/epaper_uc8179` (adds `uc8179_bw.c` / `ed103tc2.c`) —
+don't re-pull it from the registry.
+
+```yaml
+# firmware/components/vellum_display/idf_component.yml
+dependencies:
+  tuanpmt/esp_epaper:          # vendored fork; e-paper backend only
+    version: "^2.0.0"
+    rules:
+      - if: "target == esp32s3"
+  espressif/qrcode: "==0.2.0"  # Wi-Fi-setup QR, all targets (pinned)
+```
+
+The main app declares its own deps (mDNS, JSON, JPEG, and the P4/LCD stack):
+
 ```yaml
 # firmware/main/idf_component.yml
 dependencies:
-  tuanpmt/esp_epaper: "^2.0.0"
   espressif/cjson: ">=1.7.15"
   espressif/mdns: ">=1.0.0"
+  espressif/esp_jpeg: "*"
+  espressif/esp_wifi_remote: "1.*"       # esp32p4 only
+  espressif/esp_hosted: "2.*"            # esp32p4 only
+  espressif/esp_io_expander: "^1"        # esp32p4 only
+  waveshare/esp_lcd_jd9365_8: "^2.0.0"   # esp32p4 only — D1001 LCD
 ```
 
 ### Configuration (Kconfig)
@@ -191,13 +223,16 @@ choice VELLUM_DISPLAY_PANEL
     default VELLUM_PANEL_GDEP073E01
 
     config VELLUM_PANEL_GDEY075T7
-        bool "E1001 — GDEY075T7 (7.5\" BW, 800×480)"
+        bool "E1001 — GDEY075T7 (7.5\" BW, 800x480)"
 
     config VELLUM_PANEL_GDEP073E01
-        bool "E1002 — GDEP073E01 (7.3\" 6-Color, 800×480)"
+        bool "E1002 — GDEP073E01 (7.3\" 6-Color, 800x480)"
 
     config VELLUM_PANEL_E1003
-        bool "E1003 — TBD (10.3\" Mono)"
+        bool "E1003 — 10.3\" 16-Gray, 1404x1872"
+
+    config VELLUM_PANEL_D1001
+        bool "D1001 — 8\" LCD MIPI-DSI, 800x1280"
 endchoice
 ```
 
@@ -275,11 +310,11 @@ esp_err_t display_init(void);
 
 // Get display info (reported to server in /hello)
 typedef struct {
-    const char *model;      // "e1001", "e1002", "e1003"
-    uint16_t width;         // 800
-    uint16_t height;        // 480
-    uint8_t bpp;            // 1 or 4
-    const char *color_mode; // "bw", "color", "mono"
+    const char *model;      // "e1001", "e1002", "e1003", or "d1001"
+    uint16_t width;         // varies by panel (800, 1872, …)
+    uint16_t height;        // varies by panel (480, 1404, 1280, …)
+    uint8_t bpp;            // 1 (BW), 4 (grayscale/color), or 16 (fullcolor)
+    const char *color_mode; // "bw", "color", "grayscale", or "fullcolor"
 } display_info_t;
 esp_err_t display_get_info(display_info_t *info);
 
@@ -335,7 +370,10 @@ esp_err_t display_wake(void);
 
 ## Open Questions
 
-1. **E1003 panel**: Which exact panel/controller? Need datasheet or GxEPD2 driver reference.
-2. **Partial refresh for status updates**: GDEP073E01 doesn't support partial refresh. Status updates during server mode (e.g., "Connecting...") require full refresh (~15-30s). Consider using a small status area or LED/buzzer for quick feedback instead.
-3. **LVGL memory**: 6-color LVGL buffer needs ~1.15 MB for dithering. ESP32-S3 has 8MB PSRAM — sufficient, but need to configure PSRAM allocation.
-4. **Server buffer format**: Currently server sends palette-indexed bytes (1 byte per pixel for color). Should we switch to native 4-bit packed format to halve transfer size? Trade-off: server needs to pack, device needs no conversion.
+> **Resolved**: The E1003 panel is the **ED103TC2**, driven by an **IT8951**
+> TCON in **16-gray (4bpp, GC16)** at 1404×1872 (`panel_epaper.c`,
+> `epaper_it8951` / `ed103tc2.c`). It is no longer an open question.
+
+1. **Partial refresh for status updates**: GDEP073E01 doesn't support partial refresh. Status updates during server mode (e.g., "Connecting...") require full refresh (~15-30s). Consider using a small status area or LED/buzzer for quick feedback instead.
+2. **LVGL memory**: 6-color LVGL buffer needs ~1.15 MB for dithering. ESP32-S3 has 8MB PSRAM — sufficient, but need to configure PSRAM allocation.
+3. **Server buffer format**: Currently server sends palette-indexed bytes (1 byte per pixel for color). Should we switch to native 4-bit packed format to halve transfer size? Trade-off: server needs to pack, device needs no conversion.

@@ -25,11 +25,14 @@ release PR per component. Merging a release PR publishes a GitHub Release under
 that component's tag, which triggers exactly one build workflow:
 
 - **Server release** (`vX.Y.Z`) → `docker.yml` builds + signs the multi-arch
-  image and moves `latest`. `firmware.yml` does **not** run (its release job is
-  gated to `firmware-*` tags).
+  image and moves `latest`. `firmware.yml` also triggers on the same
+  `release: published` event, but its jobs skip (gated on the tag name — the
+  `version` job's `if:` requires a `firmware-*` tag, so it and the downstream
+  `build` / `sign-and-release` jobs skip on a server release).
 - **Firmware release** (`firmware-vX.Y.Z`) → `firmware.yml` builds the model
   matrix, signs each OTA image (Ed25519), and uploads `firmware-manifest.json`
-  to the release. `docker.yml` does **not** run (gated to non-firmware tags).
+  to the release. `docker.yml` also triggers, but its jobs skip (its `build` job
+  is gated to non-firmware tag names).
 
 > **Merge release-please PRs with a merge commit, not a squash.** Squashing a
 > release PR rewrites the release commit, and release-please can then fail to
@@ -62,11 +65,19 @@ The `firmware` component is anchored by the tag **`firmware-v1.2.0`** at the
 SHA for the component and would open a first firmware PR enumerating all
 historical firmware commits. The tag has no GitHub Release attached, so the fleet
 (which discovers by release asset) never sees it — it exists purely as a
-release-please anchor. The first real firmware release will be `firmware-v1.3.0`
-(there is intentionally no `firmware-v1.2.0` *release*).
+release-please anchor — there is intentionally no `firmware-v1.2.0` *release*.
+That anchor has since been superseded by the first real firmware release,
+**`firmware-v1.2.1`**, now the firmware version of record
+(`.release-please-manifest.json` `firmware` = `1.2.1`, propagated into the
+Kconfig default). The next firmware version is **whatever release-please
+computes** from the `firmware/**` commits landed since `firmware-v1.2.1` — don't
+assume a specific number.
 
 ## Beta firmware
 
 Any push under `firmware/**` (that is not a release-please release commit) builds
-a prerelease tagged `firmware-vX.Y.Z-beta.N+<sha>`. Betas also carry a manifest;
-the server exposes them on the `beta` channel.
+a prerelease. The version / manifest string is `firmware-vX.Y.Z-beta.N+<sha>`,
+but because `+` (SemVer build metadata) is illegal in a git ref, the git tag and
+release name rewrite the `+` to `-` (e.g. version `1.2.1-beta.7+42b4910` → tag
+`firmware-v1.2.1-beta.7-42b4910`). Betas also carry a manifest; the server
+exposes them on the `beta` channel.

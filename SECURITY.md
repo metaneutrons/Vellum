@@ -35,11 +35,21 @@ Provision that URL via the captive portal, Improv serial, or the console `server
 command. `.local` / bare-IP endpoints will not validate against public roots.
 
 ### Token confidentiality
-The device token is delivered **end-to-end encrypted** (X25519 ECDH →
-HKDF-SHA256 → AES-256-GCM) so it is protected even from the TLS-terminating proxy
+**On the network `/hello` path**, the device token is delivered **end-to-end
+encrypted** (X25519 ECDH → HKDF-SHA256 → AES-256-GCM) so it is protected even
+from the TLS-terminating proxy
 (`firmware/components/secure_channel/secure_channel.c`). All server-supplied
 fields are length-validated before use, and private key material is zeroized from
 the stack after use.
+
+**The voucher / USB provisioning path is different — the token is NOT encrypted
+there.** It is the same device bearer token (`src/db/schema.ts`; `validateToken`
+in `src/lib/auth/index.ts`), but it crosses the **USB cable in cleartext**: as
+the 4th length-prefixed string in the Improv `WIFI_SETTINGS` frame
+(`src/lib/provisioning/improv-serial.ts`), and via the plaintext `token <value>`
+serial-console command (`firmware/components/vellum_serial/vellum_serial.c`).
+This path relies on **physical trust of the provisioning window**, not
+cryptography (see §4).
 
 ---
 
@@ -96,6 +106,21 @@ in NVS (`firmware/components/nvs_manager/`).
 - **Improv-serial / USB console** requires physical USB access (which already
   grants full control). RPC length fields are validated against the bytes actually
   received before use.
+- **Zero-touch voucher enrolment** (optional). An admin mints a single-use
+  provisioning voucher (`provisioning_vouchers` table, `src/db/schema.ts`) whose
+  `token` **is** the device bearer token, and pushes it over USB with the Wi-Fi
+  profile. On the device's first authenticated request `claimVoucherAndEnroll`
+  (`src/lib/auth/index.ts`) claims *and* enrols it: the voucher is bound to the
+  first claiming MAC by a single atomic
+  `UPDATE … WHERE claimed_by_mac IS NULL`, and the claim + device enrolment run in
+  **one transaction** — a crash mid-way rolls both back, so the voucher is never
+  burned without the device being enrolled. An optional expiry (`expiresAt`,
+  default 7 days) bounds the leak window of an unclaimed voucher; **`expiresAt =
+  NULL` never expires, so this expiry mitigation is opt-in.** Enrolment is
+  auth-gated by **possession of the voucher** (not open enrolment — an unknown MAC
+  with no matching voucher is rejected), and after approval the device's handshake
+  public key is **frozen**, so a spoofed MAC can no longer extract the token
+  (`handleHello` / `validateToken`, `src/lib/auth/index.ts`).
 
 ---
 

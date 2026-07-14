@@ -11,10 +11,11 @@ epaper_config.h          epaper_registry.c         controllers/
 | (enum)         |       | - name            |      | gdey0154_lut.c |
 +----------------+       | - width/height    |      | acep_6color.c  |
                          | - color_mode      |      | bwry_4color.c  |
-                         | - bits_per_pixel  |      +----------------+
-                         | - caps            |
-                         | - ctrl (enum)     | ---> controller_ops[]
-                         +-------------------+      (vtable lookup)
+                         | - bits_per_pixel  |      | uc8179_bw.c    |
+                         | - caps            |      | ed103tc2.c     |
+                         | - ctrl (enum)     |      +----------------+
+                         +-------------------+ ---> controller_ops[]
+                                                    (vtable lookup)
 ```
 
 ## Quick Start: Same Controller, Different Size
@@ -233,6 +234,8 @@ typedef enum {
     EPD_CTRL_GDEY0154_LUT,
     EPD_CTRL_ACEP_6COLOR,
     EPD_CTRL_BWRY_4COLOR,
+    EPD_CTRL_UC8179_BW,        // Vellum e1001 (GDEY075T7)
+    EPD_CTRL_ED103TC2,         // Vellum e1003 (ED103TC2)
     EPD_CTRL_YOUR_CONTROLLER,  // <-- Add here
     EPD_CTRL_COUNT
 } epd_controller_type_t;
@@ -299,10 +302,12 @@ idf_component_register(
         "src/controllers/gdey0154_lut.c"
         "src/controllers/acep_6color.c"
         "src/controllers/bwry_4color.c"
+        "src/controllers/uc8179_bw.c"
+        "src/controllers/ed103tc2.c"
         "src/controllers/your_controller.c"  # <-- Add here
     INCLUDE_DIRS "include"
     REQUIRES driver esp_driver_gpio esp_driver_spi esp_timer
-    PRIV_REQUIRES lvgl esp_psram
+    PRIV_REQUIRES lvgl esp_psram epaper_it8951
 )
 ```
 
