@@ -21,8 +21,16 @@ const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
 
 /** Releases fetched per API page. */
 const RELEASES_PER_PAGE = 50;
-/** Hard cap on release pages walked in one poll (safety bound: 500 releases). */
-const MAX_RELEASE_PAGES = 10;
+/**
+ * Hard cap on release pages walked in one poll (safety bound: 2000 releases).
+ * Server releases (tag `v*`, no firmware manifest) and betas now share the same
+ * /releases list as stable firmware releases, so the newest stable firmware can
+ * sit many manifest-less releases deep. The page-1 ETag fast-path and permanent
+ * per-release manifest cache keep the steady-state cost near zero; this bound
+ * only matters on a cold cache and gives years of headroom before the walk could
+ * fail to reach the newest firmware (a fail-safe NO_UPDATE, never a bad image).
+ */
+const MAX_RELEASE_PAGES = 40;
 
 export type FirmwareChannel = "stable" | "beta";
 

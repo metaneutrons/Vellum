@@ -15,6 +15,20 @@ permissions:
 
 jobs:
   version:
+    # Firmware is versioned independently of the server (release-please `firmware`
+    # component → tag `firmware-v*`). A stable firmware build fires ONLY for a
+    # firmware-scoped release; server releases (`v*`) publish no firmware, so the
+    # fleet — which discovers updates by the presence of a firmware-manifest.json
+    # asset, not by tag or "latest" — correctly sees nothing new. Beta builds
+    # (push to firmware/**) and manual dispatch always run.
+    #
+    # On a server release this job SKIPS; `build` (needs: version) and
+    # `sign-and-release` (needs: [version, build]) then skip too via the default
+    # success() gating of their `if:`. Do NOT add always()/!cancelled() to those
+    # jobs or they'd run on server releases against the wrong event.
+    if: >-
+      github.event_name != 'release' ||
+      startsWith(github.event.release.tag_name, 'firmware')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.calc.outputs.version }}
@@ -35,15 +49,19 @@ jobs:
                  | grep -m1 -oP 'default "\K\d+\.\d+\.\d+')
 
           if [ "${{ github.event_name }}" = "release" ]; then
+            # Honour the release's prerelease flag so a firmware-v*-beta release
+            # published manually is labelled beta, not stable.
+            CHAN=stable
+            [ "${{ github.event.release.prerelease }}" = "true" ] && CHAN=beta
             echo "version=${BASE}" >> $GITHUB_OUTPUT
-            echo "channel=stable" >> $GITHUB_OUTPUT
+            echo "channel=${CHAN}" >> $GITHUB_OUTPUT
             echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
           else
-            # Beta: count commits since last STABLE release tag. Exclude prerelease
-            # tags (beta / any tag containing '-') so BETA_NUM stays monotonic — a
-            # 'v*' match against beta tags would reset the count on every beta.
-            LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' \
-                         --exclude '*beta*' --exclude '*-*' 2>/dev/null || echo "")
+            # Beta: count commits since the last STABLE firmware tag. Anchor to the
+            # firmware tag line (`firmware-v1.2.3`) and exclude betas (`*-beta*`) so
+            # BETA_NUM stays monotonic and never anchors to a server `v*` tag.
+            LAST_TAG=$(git describe --tags --abbrev=0 --match 'firmware-v[0-9]*' \
+                         --exclude '*-beta*' 2>/dev/null || echo "")
             if [ -n "$LAST_TAG" ]; then
               BETA_NUM=$(git rev-list ${LAST_TAG}..HEAD --count)
             else
@@ -53,7 +71,7 @@ jobs:
             VERSION="${BASE}-beta.${BETA_NUM}+${SHORT_SHA}"
             # '+' (SemVer build metadata) is illegal in a git ref — keep it in
             # VERSION (manifest/firmware string) but make the tag git-safe.
-            TAG="v${VERSION//+/-}"
+            TAG="firmware-v${VERSION//+/-}"
             echo "version=${VERSION}" >> $GITHUB_OUTPUT
             echo "channel=beta" >> $GITHUB_OUTPUT
             echo "tag=${TAG}" >> $GITHUB_OUTPUT
@@ -62,12 +80,16 @@ jobs:
   build:
     needs: version
     # Skip the redundant beta pipeline for release-please's own release commit:
-    # that push lands a `chore(main): release …` commit on main, and the actual
-    # stable build fires moments later from the `release: published` event.
-    # Always build for real releases and any non-release-please push/dispatch.
+    # that push lands a `chore(main): release …` (server) or `chore(firmware):
+    # release …` commit on main; the stable firmware build fires moments later
+    # from the `release: published` event instead. Anchor to the SUBJECT start so
+    # a normal firmware commit whose body merely contains "release" is not skipped.
+    # (For a server release commit, `version` still runs but produces only a beta;
+    # harmless.) Always build for real releases and manual dispatch.
     if: >-
-      github.event_name == 'release' ||
-      !startsWith(github.event.head_commit.message, 'chore(main): release')
+      github.event_name != 'push' ||
+      !(startsWith(github.event.head_commit.message, 'chore(main): release ') ||
+        startsWith(github.event.head_commit.message, 'chore(firmware): release '))
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
