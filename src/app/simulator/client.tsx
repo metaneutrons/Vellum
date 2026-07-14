@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DISPLAY_REGISTRY } from "@/lib/display";
+import { AppFooter } from "@/components/app-footer";
 
 /* ── Constants matching real hardware ─────────────────────────────── */
 
@@ -563,6 +564,8 @@ export function SimulatorClient() {
           </div>
         </div>
       </div>
+
+      <AppFooter className="mt-8 pt-4 border-t border-white/10 text-[#7a7a99]" />
     </div>
   );
 }
