@@ -25,6 +25,13 @@ that component's tag, which triggers exactly one build workflow:
   matrix, signs each OTA image (Ed25519), and uploads `firmware-manifest.json`
   to the release. `docker.yml` does **not** run (gated to non-firmware tags).
 
+> **Merge release-please PRs with a merge commit, not a squash.** Squashing a
+> release PR rewrites the release commit, and release-please can then fail to
+> create the GitHub Release object from it (observed on v1.2.1 under the
+> multi-component config — the tag/release had to be created by hand). A merge
+> commit preserves the release commit release-please expects. Only the two
+> `chore: release …` PRs need this; ordinary feature/fix PRs stay squash-merged.
+
 ## Why this is safe for the fleet
 
 Devices discover updates by scanning GitHub Releases **newest-first for the first

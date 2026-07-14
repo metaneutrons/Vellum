@@ -1,0 +1,43 @@
+name: Firmware PR Build
+
+# Compile-only smoke test for firmware changes on PRs. The full signed matrix in
+# firmware.yml runs ONLY on a `firmware-v*` release, so a -Werror break (e.g. the
+# always-false `-Werror=type-limits` that failed the v1.2.0 firmware release for
+# every model) would otherwise surface only at release time. Building one model
+# here catches that class before merge — the failures are model-independent, so a
+# single target is enough and stays far cheaper than the 4-model release build.
+
+on:
+  pull_request:
+    paths: ['firmware/**']
+
+permissions:
+  contents: read
+
+# One in-flight build per PR branch; newer pushes cancel older runs.
+concurrency:
+  group: firmware-pr-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Configure + compile (e1001 / esp32s3, compile-only)
+        run: |
+          . $IDF_PATH/export.sh
+          # Mirror firmware.yml's config injection; the version is a placeholder
+          # (this build is never released, only compiled).
+          cp sdkconfig.defaults.s3 sdkconfig.defaults
+          echo 'CONFIG_VELLUM_FIRMWARE_VERSION="0.0.0-pr"' >> sdkconfig.defaults
+          echo 'CONFIG_VELLUM_PANEL_GDEY075T7=y' >> sdkconfig.defaults
+          echo "0.0.0-pr" > version.txt
+          idf.py -DVELLUM_MODEL=e1001 set-target esp32s3
+          idf.py -DVELLUM_MODEL=e1001 build
