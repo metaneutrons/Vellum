@@ -14,6 +14,11 @@ jobs:
   # Build each arch on its NATIVE runner and push by digest (no tag yet), with an
   # SBOM + max-mode SLSA provenance attestation and a per-arch GHA build cache.
   build:
+    # Server-scoped only: a firmware release (`firmware-v*`) ships no Docker image
+    # and must not move the `latest` tag or push a `firmware-v*`-named image.
+    if: >-
+      github.event_name != 'release' ||
+      !startsWith(github.event.release.tag_name, 'firmware')
     strategy:
       fail-fast: false
       matrix:
