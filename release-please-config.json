@@ -3,12 +3,18 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
+      "exclude-paths": ["firmware"]
+    },
+    "firmware": {
+      "release-type": "simple",
+      "package-name": "vellum-firmware",
+      "component": "firmware",
+      "include-component-in-tag": true,
+      "tag-separator": "-",
       "extra-files": [
         {
           "type": "generic",
-          "path": "firmware/main/Kconfig.projbuild",
+          "path": "main/Kconfig.projbuild",
           "glob": false
         }
       ]
