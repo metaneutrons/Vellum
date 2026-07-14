@@ -8,7 +8,13 @@ image.
 | Artifact | release-please component | Version SSOT | Git tag | Built by |
 |----------|--------------------------|--------------|---------|----------|
 | **Server** (Next.js / Docker) | `.` (root, `node`) | `package.json` | `vX.Y.Z` | `docker.yml` |
-| **Firmware** (ESP32 OTA) | `firmware` (`simple`) | `firmware/version.txt` + `firmware/main/Kconfig.projbuild` | `firmware-vX.Y.Z` | `firmware.yml` |
+| **Firmware** (ESP32 OTA) | `firmware` (`simple`) | `.release-please-manifest.json` → `firmware/main/Kconfig.projbuild` | `firmware-vX.Y.Z` | `firmware.yml` |
+
+> The firmware version of record is the `firmware` key in
+> `.release-please-manifest.json`; release-please propagates it into
+> `firmware/main/Kconfig.projbuild` (the `x-release-please-version` default),
+> which the build reads. `firmware/version.txt` is **gitignored** (the build
+> regenerates it for `PROJECT_VER`) and is **not** a source of truth.
 
 ## How it works
 

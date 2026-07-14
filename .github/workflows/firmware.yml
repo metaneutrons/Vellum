@@ -79,17 +79,21 @@ jobs:
 
   build:
     needs: version
-    # Skip the redundant beta pipeline for release-please's own release commit:
-    # that push lands a `chore(main): release …` (server) or `chore(firmware):
-    # release …` commit on main; the stable firmware build fires moments later
-    # from the `release: published` event instead. Anchor to the SUBJECT start so
-    # a normal firmware commit whose body merely contains "release" is not skipped.
-    # (For a server release commit, `version` still runs but produces only a beta;
-    # harmless.) Always build for real releases and manual dispatch.
+    # Skip the redundant beta pipeline for release-please's own release commit; the
+    # stable firmware build fires moments later from the `release: published` event.
+    # Two ways a release lands on main:
+    #  - squash-merge → subject `chore(main): release …` / `chore(firmware): release …`
+    #    (anchored to the SUBJECT start so a normal commit whose BODY merely says
+    #    "release" is not skipped);
+    #  - merge-commit (the required flow for release PRs, see docs/RELEASING.md) →
+    #    `Merge pull request #N from …/release-please--branches--…`, matched by the
+    #    branch marker so the merge doesn't fire a second, redundant beta.
+    # Always build for real releases and manual dispatch.
     if: >-
       github.event_name != 'push' ||
       !(startsWith(github.event.head_commit.message, 'chore(main): release ') ||
-        startsWith(github.event.head_commit.message, 'chore(firmware): release '))
+        startsWith(github.event.head_commit.message, 'chore(firmware): release ') ||
+        contains(github.event.head_commit.message, 'release-please--branches'))
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
