@@ -36,12 +36,12 @@ const linkClass = "rounded hover:underline underline-offset-2 focus-ring";
 export function AppFooter({ className = "" }: { className?: string }) {
   return (
     <footer
-      className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12px] ${className}`}
+      className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[12px] ${className}`}
     >
       <a href={RELEASE_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
         {APP_NAME} v{APP_VERSION}
       </a>
-      <span aria-hidden="true">·</span>
+      <span aria-hidden="true" className="hidden sm:inline">·</span>
       <a
         href={REPO_URL}
         target="_blank"
@@ -51,11 +51,11 @@ export function AppFooter({ className = "" }: { className?: string }) {
         <GitHubMark />
         GitHub
       </a>
-      <span aria-hidden="true">·</span>
+      <span aria-hidden="true" className="hidden sm:inline">·</span>
       <span>
         &copy; {COPYRIGHT_YEAR} {COPYRIGHT_HOLDER}
       </span>
-      <span aria-hidden="true">·</span>
+      <span aria-hidden="true" className="hidden sm:inline">·</span>
       <a href={LICENSE_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
         {LICENSE}
       </a>

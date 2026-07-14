@@ -565,7 +565,7 @@ export function SimulatorClient() {
         </div>
       </div>
 
-      <AppFooter className="mt-8 pt-4 border-t border-white/10 text-[#7a7a99]" />
+      <AppFooter className="mt-8 pt-4 border-t border-white/10 text-[#9494b8]" />
     </div>
   );
 }
