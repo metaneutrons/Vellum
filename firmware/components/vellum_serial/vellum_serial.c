@@ -138,7 +138,12 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
         if (pos + 1 + url_len <= (size_t)len) {
             if (url_len > 0) {
                 char url[NVS_MAX_URL_LEN] = {0};
-                memcpy(url, &data[pos + 1], url_len >= NVS_MAX_URL_LEN ? NVS_MAX_URL_LEN - 1 : url_len);
+                /* url_len is uint8_t (<=255) and NVS_MAX_URL_LEN is 256, so a full
+                 * copy always leaves room for the NUL — a `url_len >= NVS_MAX_URL_LEN`
+                 * clamp is provably always-false and trips -Werror=type-limits. Assert
+                 * the invariant so shrinking the buffer can't silently overflow. */
+                _Static_assert(NVS_MAX_URL_LEN >= 256, "url buffer must hold any uint8_t-length value + NUL");
+                memcpy(url, &data[pos + 1], url_len);
                 nvs_manager_store_server_url(url);
                 snprintf(redirect, sizeof(redirect), "%s", url);
                 ESP_LOGI(TAG, "Improv: Server URL: %s", url);
