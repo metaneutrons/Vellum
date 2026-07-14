@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/metaneutrons/Vellum/compare/v1.2.0...v1.2.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* **room-booking:** sort timeline events before column packing ([#79](https://github.com/metaneutrons/Vellum/issues/79)) ([2a619f1](https://github.com/metaneutrons/Vellum/commit/2a619f1a30ad09fb7123d4a40bb17902d6ff5e05))
+
 ## [1.2.0](https://github.com/metaneutrons/Vellum/compare/v1.1.2...v1.2.0) (2026-07-13)
 
 
