@@ -33,7 +33,7 @@ Vellum is an open-source platform for managing (not only) E-Ink/E-Paper displays
 - **⏱ Refresh Profiles** — Schedule rules by weekday/time (night mode, weekends, office hours)
 - **⬆️ OTA Updates** — Signed firmware distribution via GitHub Releases (Ed25519 + SHA256)
 - **🔒 Encrypted Security** — validated TLS (HTTPS) to the backend, X25519 ECDH encrypted token delivery, and NVS credential encryption at rest (production hardening profile — see [SECURITY.md](SECURITY.md))
-- **🌐 Zero-Config Setup** — mDNS auto-discovery, branded captive portal for WiFi provisioning
+- **🌐 Zero-Config Setup** — mDNS auto-discovery, USB/Web-Serial provisioning from the browser (SoftAP captive portal remains the first-boot fallback)
 - **🖱 Web Flasher** — Flash firmware to devices directly from the browser via USB
 - **🧪 Device Simulator** — Web-based E-Paper simulator for development (dev-only)
 - **📊 Telemetry Dashboard** — Battery, RSSI, firmware version monitoring with warnings
@@ -81,7 +81,7 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env: set DATABASE_URL, ENCRYPTION_KEY, ADMIN_API_KEY, ADMIN_USER, ADMIN_PASS
+# Edit .env: set DATABASE_URL, ENCRYPTION_KEY, SESSION_SECRET (required, min 32 chars — `openssl rand -hex 32`), ADMIN_API_KEY, ADMIN_USER, ADMIN_PASS
 
 # Create database and run migrations
 createdb vellum
@@ -103,6 +103,7 @@ docker run -d \
   -p 3000:3000 \
   -e DATABASE_URL=postgresql://user:pass@host:5432/vellum \
   -e ENCRYPTION_KEY=your-encryption-key \
+  -e SESSION_SECRET=$(openssl rand -hex 32) \
   -e ADMIN_API_KEY=your-admin-api-key \
   -e ADMIN_USER=admin \
   -e ADMIN_PASS=your-password \
@@ -133,8 +134,9 @@ Multi-arch image available for **linux/amd64** and **linux/arm64** (native build
 
 ```bash
 cd firmware
-make setup    # Install ESP-IDF v6.0 + toolchain (one-time)
-make build    # Compile firmware
+# Requires ESP-IDF v6.0 installed out-of-band (the Makefile activates it from a
+# hardcoded path — there is no `make setup` target).
+make build    # Compile firmware (default MODEL=e1002; e.g. make build MODEL=e1001)
 make fm       # Flash + open serial monitor
 ```
 
@@ -142,14 +144,16 @@ See `firmware/main/Kconfig.projbuild` for all configurable options (display mode
 
 ### Device Setup
 
-Once flashed, the device:
+Provision the device over the USB cable — no phone or hotspot needed:
 
-1. Starts a WiFi hotspot **"Vellum-XXXX"**
-2. Shows a QR code on the display
-3. Connect your phone → captive portal opens
-4. Enter WiFi credentials (server URL is auto-discovered via mDNS)
-5. Device reboots, connects to WiFi, registers with the server
-6. Approve the device in the admin dashboard → it starts displaying content
+1. Keep the reTerminal connected via USB-C (Chrome or Edge — Web Serial API)
+2. Open **Admin → Firmware → Provision**
+3. Push the WiFi SSID/password and server URL to the device over the cable
+4. *(Optional)* Mint a single-use, 7-day **voucher** for zero-touch auto-enrolment — the voucher token is delivered over the cable as the device's bearer token, so it registers and enrols itself without a manual approval step
+5. The device connects to WiFi and registers with the server
+6. Approve the device in the admin dashboard (unless a voucher auto-enrolled it) → it starts displaying content
+
+> **Fallback — SoftAP captive portal.** If the device boots with no stored WiFi credentials, it opens an open access point **"Vellum-XXXX"** and shows a QR code. Connect a phone to the AP, complete the captive portal, and enter WiFi credentials (server URL is auto-discovered via mDNS). This is the first-boot fallback only; USB provisioning is the primary path.
 
 ## API Endpoints
 
@@ -168,7 +172,7 @@ Once flashed, the device:
 ```bash
 npm run dev          # Start Next.js dev server
 npm run dev:mdns     # Start with mDNS announcement
-npm test             # Run tests (52 tests)
+npm test             # Run tests (~20 vitest suites)
 npm run lint         # ESLint
 npx tsc --noEmit     # Type check
 ```
@@ -202,16 +206,22 @@ src/
     └── crypto.ts         # X25519 ECDH for secure token delivery
 
 firmware/
-├── main/                 # ESP-IDF entry point, OTA, ECDH, sensor reads
+├── main/                 # ESP-IDF entry point + boot flow (Wi-Fi, ECDH, render, sleep)
 └── components/
+    ├── board/            # Board HAL (battery ADC, USB-power detect, pin map)
     ├── vellum_display/   # Display driver abstraction
     │   └── drivers/      # E1001 (UC8179), E1002 (UC8179C), E1003, Stub
     ├── http_client/      # Server communication (cJSON, TLS)
-    ├── wifi_manager/     # Station + SoftAP captive portal
+    ├── wifi_manager/     # Station + SoftAP captive portal (first-boot fallback)
+    ├── vellum_serial/    # USB-serial Improv Wi-Fi provisioning + text console (primary onboarding)
+    ├── secure_channel/   # X25519 ECDH secure channel for encrypted token delivery
+    ├── ota_manager/      # OTA update engine (Ed25519-signed image verify, staged partition)
     ├── nvs_manager/      # NVS store (WiFi, token, X25519 keypair; encrypted in prod profile)
     ├── buttons/          # GPIO interrupt handler (3 buttons)
     └── sleep_manager/    # Deep sleep + timer/GPIO wake
 ```
+
+The browser-based flash and USB-serial provisioning UIs live under `src/app/admin/firmware/` (`flash/` and `provision/`).
 
 ## Security
 

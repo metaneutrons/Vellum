@@ -134,8 +134,8 @@ the sections above are cross-referenced, not duplicated.
 ### CI/CD & Supply Chain (87 → 100)
 
 - [x] **Firmware host-tests + build are REQUIRED branch-protection checks** (#66) — a red host-test can no longer merge (as #56 did).
-- [ ] **Fix the lockfile so `npm ci` works, then flip CI back to it** (M#13 — still open; a prior attempt exposed an esbuild drift + `workspace:` protocol + eslint peer conflicts).
-- [ ] SBOM + Snyk as gating checks; verify SLSA provenance on release.
+- [x] **Lockfile fixed — CI & Docker run `npm ci`** (M#13). All four `ci.yml` jobs (Lint, Type Check, Test, Build) and the `Dockerfile` run `npm ci --ignore-scripts && npm rebuild @napi-rs/canvas` against a committed `lockfileVersion`-3 `package-lock.json`; the earlier esbuild-drift + `workspace:`-protocol + eslint-peer conflicts are resolved.
+- [ ] Make SLSA provenance + SBOM *gating* checks, and add Snyk. Both are already emitted (firmware `attest-build-provenance@v2`; docker `sbom: true` + `provenance: mode=max`), but nothing verifies them in-pipeline; Snyk is genuinely absent.
 - [ ] Signed tags/commits + a dependency-review gate.
 
 ### Testing & QA (88 → 100)

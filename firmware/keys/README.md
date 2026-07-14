@@ -17,6 +17,13 @@ Vellum has **two independent signing trust chains**. Do not conflate them.
   `kmsp11.yaml`. These are `.gitignore`d. Private key material lives in KMS; a
   local PEM should never touch this directory or CI.
 
+> **Status — Secure Boot v2 not yet provisioned:** `secureboot.pub` and
+> `secureboot_digest*.bin` (the row-2 material above) do **not** exist here yet.
+> They are produced only when Secure Boot v2 is actually provisioned (a still-open
+> phase), so this directory is legitimately **README-only** for now. The one
+> public key that *does* exist today is the OTA Ed25519 key at repo root,
+> `vellum-firmware-signing.pub` (row 1) — not in this directory.
+
 ## Why KMS, not a local PEM
 
 Phase 3 moved both keys to a cloud KMS/HSM signed via GitHub OIDC (keyless) —
