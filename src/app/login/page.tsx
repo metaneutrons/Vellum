@@ -6,6 +6,7 @@ import { loginAction } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/field";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { AppFooter } from "@/components/app-footer";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(loginAction, null);
@@ -42,7 +43,7 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="text-center mt-6 text-[13px] text-label-tertiary">Vellum</p>
+        <AppFooter className="mt-8 text-label-tertiary" />
       </div>
     </div>
   );

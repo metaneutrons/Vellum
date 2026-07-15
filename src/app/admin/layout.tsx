@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminNav } from "./nav";
+import { AppFooter } from "@/components/app-footer";
 import { ToastProvider } from "@/components/toast";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
@@ -22,7 +23,10 @@ export default async function AdminLayout({
           legacy skin themselves (strangler); migrated pages render clean Aurora. */}
       <div className="flex min-h-dvh bg-bg-secondary text-label">
         <AdminNav />
-        <main className="flex-1 min-w-0 p-4 md:p-8 pt-16 md:pt-8">{children}</main>
+        <div className="flex-1 min-w-0 flex flex-col">
+          <main className="flex-1 min-w-0 p-4 md:p-8 pt-16 md:pt-8">{children}</main>
+          <AppFooter className="px-4 md:px-8 py-4 border-t border-separator/60 text-label-tertiary" />
+        </div>
       </div>
     </ToastProvider>
   );

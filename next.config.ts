@@ -1,10 +1,19 @@
 import type { NextConfig } from "next";
+import { readFileSync } from "node:fs";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
+// Bake the package.json version into the client bundle at build time so the UI
+// can display it (footer / login). `env` inlines the value for both server and
+// client components — no runtime lookup needed.
+const { version } = JSON.parse(readFileSync("./package.json", "utf8")) as { version: string };
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  env: {
+    NEXT_PUBLIC_APP_VERSION: version,
+  },
   serverExternalPackages: ["@napi-rs/canvas"],
   allowedDevOrigins: ["192.168.16.5", "192.168.18.1", "10.10.10.10"],
   async headers() {
