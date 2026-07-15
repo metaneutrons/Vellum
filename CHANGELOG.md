@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/metaneutrons/Vellum/compare/v1.3.0...v1.4.0) (2026-07-15)
+
+
+### Features
+
+* **dashboard:** distinguish device connectivity from approval status ([#89](https://github.com/metaneutrons/Vellum/issues/89)) ([0aa16ef](https://github.com/metaneutrons/Vellum/commit/0aa16efd5d876648a184ca4bf02cafcd18578fb6))
+
 ## [1.3.0](https://github.com/metaneutrons/Vellum/compare/v1.2.1...v1.3.0) (2026-07-15)
 
 
