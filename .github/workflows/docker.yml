@@ -16,9 +16,15 @@ jobs:
   build:
     # Server-scoped only: a firmware release (`firmware-v*`) ships no Docker image
     # and must not move the `latest` tag or push a `firmware-v*`-named image.
+    # A Release Please merge changes server release metadata, then emits a release
+    # event. Skip that push build: the release event builds the same image once,
+    # with the final version and `latest` tags.
     if: >-
-      github.event_name != 'release' ||
-      !startsWith(github.event.release.tag_name, 'firmware')
+      (github.event_name != 'release' ||
+        !startsWith(github.event.release.tag_name, 'firmware')) &&
+      (github.event_name != 'push' ||
+        !(startsWith(github.event.head_commit.message, 'chore(main): release ') ||
+          contains(github.event.head_commit.message, 'release-please--branches')))
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +83,25 @@ jobs:
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
+
+  # Release Please uses terse component-derived titles. Give server releases a
+  # consistent human-facing name and reserve GitHub's "Latest" badge for them.
+  release-presentation:
+    if: >-
+      github.event_name == 'release' &&
+      !startsWith(github.event.release.tag_name, 'firmware')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Normalize server release presentation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method PATCH \
+            "repos/${{ github.repository }}/releases/${{ github.event.release.id }}" \
+            -f "name=Vellum Server ${{ github.event.release.tag_name }}" \
+            -F "make_latest=true"
 
   # Combine the per-arch digests into ONE multi-arch manifest, tag it, and sign it
   # keyless with cosign (Sigstore/Fulcio + Rekor transparency log).

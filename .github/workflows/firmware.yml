@@ -460,12 +460,25 @@ jobs:
             firmware-manifest.json \
             --repo "${{ github.repository }}" --clobber
 
+      # Release Please creates the stable release before this workflow runs.
+      # Normalize its title and prevent a hardware artifact release from taking
+      # GitHub's single "Latest" badge away from the current server release.
+      - name: Normalize stable firmware release presentation
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method PATCH \
+            "repos/${{ github.repository }}/releases/${{ github.event.release.id }}" \
+            -f "name=Vellum Firmware v${{ needs.version.outputs.version }}" \
+            -F "make_latest=false"
+
       - name: Create beta release with images (manifest uploaded last, below)
         if: github.event_name != 'release'
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
-          name: "Firmware ${{ needs.version.outputs.version }}"
+          name: "Vellum Firmware v${{ needs.version.outputs.version }}"
           prerelease: true
           make_latest: false
           files: |
@@ -477,7 +490,7 @@ jobs:
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
-          name: "Firmware ${{ needs.version.outputs.version }}"
+          name: "Vellum Firmware v${{ needs.version.outputs.version }}"
           prerelease: true
           make_latest: false
           files: |
