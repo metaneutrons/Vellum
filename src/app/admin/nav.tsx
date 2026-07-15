@@ -77,7 +77,6 @@ export function AdminNav() {
         <Link
           href="/admin"
           onClick={() => setOpen(false)}
-          aria-label={t("title")}
           className="flex items-center gap-2.5 px-2 pb-4 rounded-lg focus-ring"
         >
           <img src="/vellum-icon.svg" alt="" width={28} height={28} className="dark:invert" />
@@ -87,8 +86,13 @@ export function AdminNav() {
         <div className="flex flex-col gap-0.5">
           {links.map(({ href, key, Icon }) => {
             // Overview (/admin) is the index — exact match so it isn't perma-active
-            // under every sub-route; sub-pages match by path prefix.
-            const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+            // under every sub-route. Sub-pages match themselves or a nested route,
+            // with a path boundary so e.g. /admin/devices doesn't light up for a
+            // hypothetical /admin/devices-settings.
+            const active =
+              href === "/admin"
+                ? pathname === "/admin"
+                : pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
