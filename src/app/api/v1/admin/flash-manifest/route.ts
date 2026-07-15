@@ -14,12 +14,18 @@ import { getManifestsByChannel, type FirmwareChannel } from "@/lib/firmware";
  *
  * Query params: model=e1002&channel=stable&version=1.0.0 (optional)
  */
-const CHIP_FAMILY: Record<string, "ESP32-S3" | "ESP32-P4"> = {
-  e1001: "ESP32-S3",
-  e1002: "ESP32-S3",
-  e1003: "ESP32-S3",
-  d1001: "ESP32-P4", // ESP32-P4 + JD9365 MIPI-DSI LCD
-};
+/**
+ * chipFamily by model prefix — `e*` (e1001/e1002/e1003) run ESP32-S3, `d*`
+ * (d1001) is ESP32-P4. Prefix-based so new revisions (e1004, d1002) work with no
+ * server change; an unrecognised prefix returns undefined → 400, rather than
+ * silently serving a wrong chip.
+ */
+function getChipFamily(model: string): "ESP32-S3" | "ESP32-P4" | undefined {
+  const m = model.toLowerCase();
+  if (m.startsWith("e")) return "ESP32-S3";
+  if (m.startsWith("d")) return "ESP32-P4";
+  return undefined;
+}
 
 export async function GET(request: NextRequest) {
   const model = request.nextUrl.searchParams.get("model") ?? "e1002";
@@ -41,7 +47,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: `No binary for model ${model} in v${target.version}` }, { status: 404 });
   }
 
-  const chipFamily = CHIP_FAMILY[model];
+  const chipFamily = getChipFamily(model);
   if (!chipFamily) {
     // Fail loud instead of serving a wrong chipFamily — esp-web-tools would
     // otherwise reject the board with a confusing "not supported" (the D1001 bug).
