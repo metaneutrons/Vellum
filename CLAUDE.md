@@ -108,6 +108,19 @@ downstream triggers).
   the release commit and release-please fails to create the GitHub Release object
   (hit on v1.2.1; tag/release had to be hand-created). Ordinary PRs stay
   squash-merged.
+- **If a merged release PR is left UNTAGGED** (the post-merge run aborts with
+  `⚠ There are untagged, merged release PRs outstanding - aborting` and
+  `No latest release found ... but a previous version (X.Y.Z) was specified in
+  the manifest` — i.e. the manifest bumped but no tag/Release exists): this can
+  happen **even with a correct merge-commit** (hit on v1.3.0) and is
+  **deterministic** — `gh run rerun` reproduces the abort, it does NOT self-heal.
+  The `commit could not be parsed: ... Merge pull request #N` log lines are
+  benign, not the cause. Recover by hand-creating it:
+  `gh release create vX.Y.Z --target <release/merge SHA> --latest --notes-file
+  <CHANGELOG X.Y.Z section>` (create it as a **real user via PAT** so it fires
+  `docker.yml`'s `release: published` build — `GITHUB_TOKEN` would not), then
+  `gh pr edit <#> --remove-label "autorelease: pending" --add-label
+  "autorelease: tagged"` so release-please's state stays consistent.
 - Firmware version **SSOT**: the `firmware` key in
   `.release-please-manifest.json` → `firmware/main/Kconfig.projbuild`
   `default "X.Y.Z" # x-release-please-version`. **Current = 1.2.1.**
