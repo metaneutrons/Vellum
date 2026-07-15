@@ -225,8 +225,6 @@ interface SerialLike {
   requestPort(options?: { filters?: { usbVendorId?: number }[] }): Promise<SerialPortLike>;
 }
 
-const ESPRESSIF_USB_VENDOR_ID = 0x303a;
-
 export function isWebSerialSupported(): boolean {
   return typeof navigator !== "undefined" && "serial" in navigator;
 }
@@ -258,8 +256,6 @@ export interface ProvisionOptions {
   onPhase?: (phase: ProvisionPhase, detail?: string) => void;
   /** Overall timeout for the device to report PROVISIONED/error (ms). */
   timeoutMs?: number;
-  /** Skip the Espressif VID filter in the port picker (show all serial ports). */
-  anyPort?: boolean;
 }
 
 const ERROR_TEXT: Record<number, string> = {
@@ -282,11 +278,13 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
 
   let port: SerialPortLike;
   try {
-    port = await serial.requestPort(
-      opts.anyPort ? undefined : { filters: [{ usbVendorId: ESPRESSIF_USB_VENDOR_ID }] },
-    );
+    // Show ALL serial ports (no VID filter) — exactly like ESP Web Tools does
+    // for flashing. A device on a USB-UART bridge (CP210x/CH340/FTDI) has a
+    // non-Espressif VID and an exclusive filter would hide it entirely — which
+    // is why flashing worked but provisioning reported "no serial port".
+    port = await serial.requestPort();
   } catch {
-    return { ok: false, error: "No serial port selected." };
+    return { ok: false, error: "No serial port selected. Make sure the device is connected via USB and isn't open in another tab." };
   }
 
   const parser = new ImprovParser();
@@ -405,7 +403,6 @@ export function decodeScanNetwork(strings: string[]): WifiNetwork | null {
  * return the deduped list, strongest signal first. Browser-only.
  */
 export async function scanNetworksOverSerial(opts?: {
-  anyPort?: boolean;
   timeoutMs?: number;
 }): Promise<ScanResult> {
   const serial = getSerial();
@@ -413,11 +410,9 @@ export async function scanNetworksOverSerial(opts?: {
 
   let port: SerialPortLike;
   try {
-    port = await serial.requestPort(
-      opts?.anyPort ? undefined : { filters: [{ usbVendorId: ESPRESSIF_USB_VENDOR_ID }] },
-    );
+    port = await serial.requestPort(); // show all ports — see provisionOverSerial
   } catch {
-    return { ok: false, networks: [], error: "No serial port selected." };
+    return { ok: false, networks: [], error: "No serial port selected. Make sure the device is connected via USB." };
   }
 
   const parser = new ImprovParser();

@@ -2,10 +2,12 @@ name: Firmware PR Build
 
 # Compile-only smoke test for firmware changes on PRs. The full signed matrix in
 # firmware.yml runs ONLY on a `firmware-v*` release, so a -Werror break (e.g. the
-# always-false `-Werror=type-limits` that failed the v1.2.0 firmware release for
-# every model) would otherwise surface only at release time. Building one model
-# here catches that class before merge — the failures are model-independent, so a
-# single target is enough and stays far cheaper than the 4-model release build.
+# always-false `-Werror=type-limits` that failed the v1.2.0 firmware release)
+# would otherwise surface only at release time. We build ONE model per chip /
+# display backend — e1001 (ESP32-S3 / e-paper) and d1001 (ESP32-P4 / MIPI LCD) —
+# because a P4-only break (LCD driver, esp-hosted Wi-Fi, `esp32p4` #if branches)
+# compiles clean on S3 and would otherwise slip to release. Still far cheaper
+# than the full 4-model signed release build.
 
 on:
   pull_request:
@@ -22,6 +24,18 @@ concurrency:
 jobs:
   compile:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - model: e1001
+            target: esp32s3
+            base: sdkconfig.defaults.s3
+            panel: CONFIG_VELLUM_PANEL_GDEY075T7=y
+          - model: d1001
+            target: esp32p4
+            base: sdkconfig.defaults.p4
+            panel: CONFIG_VELLUM_PANEL_D1001=y
     container:
       image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
     defaults:
@@ -30,14 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - name: Configure + compile (e1001 / esp32s3, compile-only)
+      - name: Configure + compile (${{ matrix.model }} / ${{ matrix.target }}, compile-only)
         run: |
           . $IDF_PATH/export.sh
           # Mirror firmware.yml's config injection; the version is a placeholder
           # (this build is never released, only compiled).
-          cp sdkconfig.defaults.s3 sdkconfig.defaults
+          cp ${{ matrix.base }} sdkconfig.defaults
           echo 'CONFIG_VELLUM_FIRMWARE_VERSION="0.0.0-pr"' >> sdkconfig.defaults
-          echo 'CONFIG_VELLUM_PANEL_GDEY075T7=y' >> sdkconfig.defaults
+          echo '${{ matrix.panel }}' >> sdkconfig.defaults
           echo "0.0.0-pr" > version.txt
-          idf.py -DVELLUM_MODEL=e1001 set-target esp32s3
-          idf.py -DVELLUM_MODEL=e1001 build
+          idf.py -DVELLUM_MODEL=${{ matrix.model }} set-target ${{ matrix.target }}
+          idf.py -DVELLUM_MODEL=${{ matrix.model }} build
