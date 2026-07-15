@@ -28,4 +28,13 @@ export interface CalendarProvider {
     windowStart: Date;
     windowEnd: Date;
   }): Promise<CalendarEvent[]>;
+  /**
+   * Return a public, resource-specific booking URL when the provider exposes
+   * one. This deliberately lives alongside the resource configuration rather
+   * than on calendar events: a booking link describes a room, not a meeting.
+   */
+  getBookingUrl?(params: {
+    credentials: unknown;
+    roomConfig: unknown;
+  }): string | null;
 }

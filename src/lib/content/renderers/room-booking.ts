@@ -41,6 +41,13 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
 import type { Theme } from "@/lib/theme";
 import type { DisplayEvent, RoomPolicy } from "@/lib/types";
+import QRCode from "qrcode";
+import {
+  BOOKING_QR_VISIBILITIES,
+  normalizeBookingUrl,
+  shouldShowBookingQr,
+  type BookingQrVisibility,
+} from "./booking-qr";
 
 /* ── Bitmap font registration for color e-paper ──────────────── */
 
@@ -141,6 +148,16 @@ function textWrap(
 export { ROOM_POLICIES } from "./room-booking-types";
 import { ROOM_POLICIES } from "./room-booking-types";
 
+const bookingQrConfigSchema = z.object({
+  visibility: z.enum(BOOKING_QR_VISIBILITIES).default("never"),
+  source: z.enum(["provider", "custom"]).default("provider"),
+  customUrl: z.string().max(256).optional(),
+}).superRefine((value, ctx) => {
+  if (value.source === "custom" && !normalizeBookingUrl(value.customUrl)) {
+    ctx.addIssue({ code: "custom", path: ["customUrl"], message: "A valid HTTP(S) booking URL is required." });
+  }
+});
+
 export const roomBookingConfigSchema = z.object({
   providerId: z.string().uuid(),
   roomConfig: z.record(z.string(), z.unknown()),
@@ -152,6 +169,7 @@ export const roomBookingConfigSchema = z.object({
   policy: z.enum(ROOM_POLICIES).default("Show All"),
   cacheTtlS: z.number().int().min(0).default(120),
   timelineShiftH: z.number().int().min(1).max(8).default(2),
+  bookingQr: bookingQrConfigSchema.default({ visibility: "never", source: "provider" }),
 });
 
 const eventsCache = new TtlCache<CalendarEvent[]>(Infinity); // TTL managed per-entry
@@ -187,6 +205,25 @@ export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema
 
   eventsCache.set(cacheKey, events, config.cacheTtlS * 1000);
   return events;
+}
+
+/** Resolve an optional booking URL without coupling it to calendar events. */
+export async function resolveBookingUrl(config: z.infer<typeof roomBookingConfigSchema>): Promise<string | null> {
+  if (config.bookingQr.source === "custom") return normalizeBookingUrl(config.bookingQr.customUrl);
+
+  const [provider] = await db
+    .select()
+    .from(dataProviders)
+    .where(eq(dataProviders.id, config.providerId))
+    .limit(1);
+  if (!provider) return null;
+
+  const impl = getCalendarProvider(provider.type);
+  if (!impl?.getBookingUrl) return null;
+  return normalizeBookingUrl(impl.getBookingUrl({
+    credentials: decryptCredentials(provider.encryptedCredentials),
+    roomConfig: config.roomConfig,
+  }));
 }
 
 /* ── Canvas rendering ─────────────────────────────────────────── */
@@ -266,6 +303,65 @@ function isBusy(events: DisplayEvent[], now: Date): boolean {
   );
 }
 
+export interface BookingQrRenderOptions {
+  url: string;
+  visibility: BookingQrVisibility;
+  /** Must be calculated from raw provider events, before privacy filtering. */
+  isRoomFree: boolean;
+}
+
+function bookingLabel(locale: string): string {
+  return ({ en: "Book room", de: "Jetzt buchen", fr: "Réserver", it: "Prenota", es: "Reservar" }[locale] ?? "Book room");
+}
+
+/** Draw a crisp, scanner-safe QR panel. Matrix modules are never interpolated. */
+function renderBookingQr(
+  ctx: SKRSContext2D,
+  tc: TextCtx,
+  T: Theme,
+  width: number,
+  height: number,
+  scale: number,
+  locale: string,
+  options: BookingQrRenderOptions | undefined,
+): { visible: boolean; reservedWidth: number; reservedHeight: number } {
+  if (!options || !shouldShowBookingQr(options.visibility, options.isRoomFree, options.url)) {
+    return { visible: false, reservedWidth: 0, reservedHeight: 0 };
+  }
+
+  const panelSize = Math.max(Math.round(182 * scale), 120);
+  const labelH = Math.max(Math.round(22 * scale), 15);
+  const panelX = width - panelSize - Math.round(12 * scale);
+  const panelY = height - panelSize - labelH - Math.round(22 * scale);
+  const qr = QRCode.create(options.url, { errorCorrectionLevel: "M" });
+  const quietZone = 4;
+  const modules = qr.modules.size + quietZone * 2;
+  const moduleSize = Math.max(1, Math.floor(panelSize / modules));
+  const qrSize = moduleSize * modules;
+  const qrX = panelX + Math.floor((panelSize - qrSize) / 2);
+  const qrY = panelY + Math.floor((panelSize - qrSize) / 2);
+
+  // The white quiet zone is part of the QR code, not a decorative card.
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(panelX, panelY, panelSize, panelSize);
+  ctx.fillStyle = "#000000";
+  for (let row = 0; row < qr.modules.size; row++) {
+    for (let col = 0; col < qr.modules.size; col++) {
+      if (qr.modules.get(row, col)) {
+        ctx.fillRect(qrX + (col + quietZone) * moduleSize, qrY + (row + quietZone) * moduleSize, moduleSize, moduleSize);
+      }
+    }
+  }
+  // text() only supports left/right alignment; center the label manually.
+  const label = bookingLabel(locale);
+  const labelWidth = textWidth(tc, label, "sm");
+  ctx.fillStyle = T.background;
+  ctx.fillRect(panelX, panelY + panelSize, panelSize, labelH + 2);
+  text(tc, panelX + (panelSize - labelWidth) / 2, panelY + panelSize + labelH, label, "sm", T.footerText);
+
+  return { visible: true, reservedWidth: panelSize + Math.round(24 * scale), reservedHeight: panelSize + labelH + Math.round(28 * scale) };
+}
+
 /** Render room-booking day view to canvas. Exported for testing. */
 /* ── Shared Header ─────────────────────────────────────────────── */
 
@@ -321,7 +417,8 @@ export function renderToCanvas(
   colorMode: string = "indexed",
   timelineShiftH: number = 2,
   locale: string = "en",
-  dateFormat: string = "PPPP"
+  dateFormat: string = "PPPP",
+  bookingQr?: BookingQrRenderOptions,
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -340,7 +437,9 @@ export function renderToCanvas(
   const areaTop = headerH + Math.round(24 * scale);
   const areaH = height - headerH - footerH - Math.round(8 * scale);
   const eventLeft = gutterW + Math.round(4 * scale);
-  const eventW = width - eventLeft - Math.round(16 * scale);
+  const qrReservation = bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
+    ? Math.max(Math.round(206 * scale), 138) : 0;
+  const eventW = width - eventLeft - Math.round(16 * scale) - qrReservation;
   const nowMs = now.getTime();
   /* Round to timelineShiftH blocks — timeline only shifts every N hours */
   const blockMs = timelineShiftH * 3600_000;
@@ -439,6 +538,7 @@ export function renderToCanvas(
   const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
   const timeStr = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
   text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${timeStr}`, "sm", T.footerText, "right");
+  renderBookingQr(ctx, tc, T, width, height, scale, locale, bookingQr);
 
   return canvas;
 }
@@ -489,7 +589,8 @@ function renderStacked(
   colorCount: number,
   colorMode: string = "indexed",
   locale: string = "en",
-  dateFormat: string = "PPPP"
+  dateFormat: string = "PPPP",
+  bookingQr?: BookingQrRenderOptions,
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -522,8 +623,10 @@ function renderStacked(
   let y = headerH + Math.round(24 * scale);
   let lastDateStr = "";
 
+  const qrReservedHeight = bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
+    ? Math.max(Math.round(234 * scale), 158) : 0;
   for (const evt of upcoming) {
-    if (y + cardH > height - Math.round(40 * scale)) break;
+    if (y + cardH > height - Math.round(40 * scale) - qrReservedHeight) break;
 
     // Day separator
     const evtDate = format(new TZDate(evt.startTime, timezone), "yyyy-MM-dd");
@@ -557,6 +660,7 @@ function renderStacked(
   const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
   const footerTime = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
   text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${footerTime}`, "sm", T.footerText, "right");
+  renderBookingQr(ctx, tc, T, width, height, scale, locale, bookingQr);
 
   return canvas;
 }
@@ -579,9 +683,21 @@ export const roomBookingRenderer: ContentRenderer = {
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy, cfg.locale);
-    if (cfg.layout === "stacked") {
-      return { canvas: renderStacked(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.locale, cfg.dateFormat) };
+    let bookingUrl: string | null = null;
+    try {
+      bookingUrl = await resolveBookingUrl(cfg);
+    } catch (err) {
+      // A missing public booking link must never take the room display offline.
+      log.warn("Room-booking QR URL resolution failed", { error: String(err) });
     }
-    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.timelineShiftH, cfg.locale, cfg.dateFormat) };
+    const bookingQr: BookingQrRenderOptions | undefined = bookingUrl ? {
+      url: bookingUrl,
+      visibility: cfg.bookingQr.visibility,
+      isRoomFree: !events.some((event) => event.startTime.getTime() <= now.getTime() && event.endTime.getTime() > now.getTime()),
+    } : undefined;
+    if (cfg.layout === "stacked") {
+      return { canvas: renderStacked(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.locale, cfg.dateFormat, bookingQr) };
+    }
+    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.timelineShiftH, cfg.locale, cfg.dateFormat, bookingQr) };
   },
 };

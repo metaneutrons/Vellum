@@ -77,7 +77,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
               providerId={config.providerId as string}
               resourceId={(config.resourceId as string) ?? ""}
               resourceName={config.resourceName as string | undefined}
-              onChange={(resId, resName) => onChange({ ...config, resourceId: resId, resourceName: resName })}
+            onChange={(resId, resName) => onChange({ ...config, resourceId: resId, resourceName: resName })}
             />
           </div>
         </>
@@ -144,6 +144,9 @@ function RoomBookingEditor({ config, onChange, providers }: {
 }) {
   const t = useTranslations("content");
   const roomConfig = (config.roomConfig ?? {}) as Record<string, string>;
+  const bookingQr = (config.bookingQr ?? { visibility: "never", source: "provider" }) as {
+    visibility?: "never" | "always" | "free"; source?: "provider" | "custom"; customUrl?: string;
+  };
   const provider = providers.find((p) => p.id === config.providerId);
 
   const isAnny = provider?.type === "anny";
@@ -175,9 +178,9 @@ function RoomBookingEditor({ config, onChange, providers }: {
             providerId={config.providerId as string}
             resourceId={roomConfig.resourceId ?? ""}
             resourceName={roomConfig.resourceName}
-            onChange={(resId, resName) => onChange({
+            onChange={(resId, resName, bookingUrl) => onChange({
               ...config,
-              roomConfig: { resourceId: resId, resourceName: resName },
+              roomConfig: { resourceId: resId, resourceName: resName, ...(bookingUrl ? { bookingUrl } : {}) },
               roomName: (config.roomName as string) || resName,
             })}
           />
@@ -185,7 +188,7 @@ function RoomBookingEditor({ config, onChange, providers }: {
       ) : fieldConfig ? (
         <Input className="mb-3" placeholder={fieldConfig.placeholder}
           value={roomConfig[fieldConfig.key] ?? ""}
-          onChange={(e) => onChange({ ...config, roomConfig: { [fieldConfig.key]: e.target.value } })} />
+          onChange={(e) => onChange({ ...config, roomConfig: { ...roomConfig, [fieldConfig.key]: e.target.value } })} />
       ) : <div className="mb-3" /> }
 
       <TimezonePicker label="Timezone" className="mb-3" value={(config.timezone as string) ?? "Europe/Berlin"}
@@ -215,6 +218,32 @@ function RoomBookingEditor({ config, onChange, providers }: {
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>
         {ROOM_POLICIES.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
+
+      <div className="border-t border-separator pt-3 mt-1 mb-3">
+        <label className="block text-sm font-semibold text-label mb-1">Booking QR code</label>
+        <p className="text-xs text-label-tertiary mb-2">Shows a public booking link on the display. It is never shown when the calendar is unavailable.</p>
+        <label className="block text-sm font-medium text-label-secondary mb-1">Show QR code</label>
+        <select className={`${selectCls} mb-2`} value={bookingQr.visibility ?? "never"}
+          onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, visibility: e.target.value } })}>
+          <option value="never">Never</option>
+          <option value="always">Always</option>
+          <option value="free">Only when room is free</option>
+        </select>
+
+        <label className="block text-sm font-medium text-label-secondary mb-1">Booking link</label>
+        <select className={`${selectCls} mb-2`} value={bookingQr.source ?? "provider"}
+          onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, source: e.target.value } })}>
+          <option value="provider">Use provider link{isAnny && roomConfig.bookingUrl ? " (available)" : ""}</option>
+          <option value="custom">Use custom URL</option>
+        </select>
+        {bookingQr.source === "custom" && (
+          <Input type="url" placeholder="https://booking.example.com/room" value={bookingQr.customUrl ?? ""}
+            onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, customUrl: e.target.value } })} />
+        )}
+        {bookingQr.source !== "custom" && !roomConfig.bookingUrl && (
+          <p className="text-xs text-label-tertiary">This provider has no verified booking link for the selected room. Add a custom URL to enable the QR code.</p>
+        )}
+      </div>
 
       <label className="block text-sm font-medium text-label-secondary mb-1">Cache TTL (seconds)</label>
       <Input type="number" className="mb-3" min={0} step={30}
