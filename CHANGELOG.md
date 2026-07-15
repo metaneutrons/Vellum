@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/metaneutrons/Vellum/compare/v1.2.1...v1.3.0) (2026-07-15)
+
+
+### Features
+
+* show version, repo link and copyright in the footer ([#86](https://github.com/metaneutrons/Vellum/issues/86)) ([a1eb07d](https://github.com/metaneutrons/Vellum/commit/a1eb07d788b09bfd98f85ca098065ba64cd14de1))
+
 ## [1.2.1](https://github.com/metaneutrons/Vellum/compare/v1.2.0...v1.2.1) (2026-07-14)
 
 
