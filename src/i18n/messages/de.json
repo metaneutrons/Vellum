@@ -46,13 +46,19 @@
     "warnings": {
       "lowBattery": "Niedriger Akkustand",
       "weakSignal": "Schwaches Signal",
-      "offline": "Offline >1h"
+      "offline": "Offline"
     },
     "auto": "Automatisch",
     "landscape": "Querformat",
     "portrait": "Hochformat",
     "deleteTitle": "Gerät entfernen",
-    "deleteMsg": "Dieses Gerät entfernen? Es muss erneut genehmigt werden."
+    "deleteMsg": "Dieses Gerät entfernen? Es muss erneut genehmigt werden.",
+    "connectivity": {
+      "online": "Online",
+      "late": "Verspätet",
+      "offline": "Offline",
+      "never": "Nie gesehen"
+    }
   },
   "content": {
     "title": "Inhaltsinstanzen",

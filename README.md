@@ -83,9 +83,9 @@ npm install
 cp .env.example .env
 # Edit .env: set DATABASE_URL, ENCRYPTION_KEY, SESSION_SECRET (required, min 32 chars — `openssl rand -hex 32`), ADMIN_API_KEY, ADMIN_USER, ADMIN_PASS
 
-# Create database and run migrations
+# Create database and run migrations (idempotent — safe to re-run on upgrades)
 createdb vellum
-for f in drizzle/*.sql; do psql -d vellum -f "$f"; done
+npm run db:migrate
 
 # Start with mDNS auto-discovery
 npm run dev:mdns
@@ -109,6 +109,8 @@ docker run -d \
   -e ADMIN_PASS=your-password \
   ghcr.io/metaneutrons/vellum:latest
 ```
+
+The container **applies pending database migrations on startup** (idempotent; fail-open so a transient DB outage doesn't block boot), so a fresh `DATABASE_URL` is provisioned automatically and upgrades pick up new migrations with no manual step.
 
 Multi-arch image available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
 

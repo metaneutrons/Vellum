@@ -46,13 +46,19 @@
     "warnings": {
       "lowBattery": "Low battery",
       "weakSignal": "Weak signal",
-      "offline": "Offline >1h"
+      "offline": "Offline"
     },
     "auto": "Auto",
     "landscape": "Landscape",
     "portrait": "Portrait",
     "deleteTitle": "Delete Device",
-    "deleteMsg": "Remove this device? It will need to be re-approved."
+    "deleteMsg": "Remove this device? It will need to be re-approved.",
+    "connectivity": {
+      "online": "Online",
+      "late": "Late",
+      "offline": "Offline",
+      "never": "Never seen"
+    }
   },
   "content": {
     "title": "Content Instances",

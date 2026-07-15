@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
+import { deviceConnectivity, connectivityTone } from "@/lib/connectivity";
+import { parseDeviceTs } from "../dashboard/ts";
 import {
   AlertTriangle, Battery, BatteryLow, Wifi, Trash2, Search,
   ImageOff, MonitorSmartphone,
@@ -29,6 +31,7 @@ interface Device {
   display_caps: unknown;
   orientation_override: string | null;
   last_seen: string | null;
+  expected_interval_s: number | null;
   battery_level: number | null;
   battery_voltage: number | null;
   wifi_rssi: number | null;
@@ -108,13 +111,23 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
           const bWarn = d.battery_level !== null && d.battery_level < 20;
           const rWarn = d.wifi_rssi !== null && d.wifi_rssi < -70;
           const lastSeen = d.last_seen ? new Date(d.last_seen + "Z") : null;
-          const oWarn = lastSeen ? Date.now() - lastSeen.getTime() > 3600_000 : false;
+          // Connectivity is judged against the device's own expected cadence
+          // (shared helper), not a fixed window — see src/lib/connectivity.ts.
+          const connState = deviceConnectivity(parseDeviceTs(d.last_seen), d.expected_interval_s, Date.now());
+          const oWarn = connState === "offline";
+          const connLabel =
+            connState === "online" ? t("connectivity.online")
+              : connState === "late" ? t("connectivity.late")
+                : connState === "offline" ? t("connectivity.offline")
+                  : t("connectivity.never");
           const hasWarning = bWarn || rWarn || oWarn;
           const channel = d.firmware_channel ?? "stable";
           const channelVersions = channel === "beta" ? [...stableVersions, ...betaVersions] : stableVersions;
           const hasContent = d.content_instance_id && d.status === "approved";
           const contentName = contentInstances.find((c) => c.id === d.content_instance_id)?.name;
-          const statusTone = d.status === "approved" ? "green" : d.status === "pending" ? "orange" : "red";
+          // Authorization tone — green is reserved for connectivity, so an
+          // approved device is a neutral accent chip, not green.
+          const statusTone = d.status === "approved" ? "accent" : d.status === "pending" ? "orange" : "red";
 
           return (
             <div key={d.mac} className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden">
@@ -143,6 +156,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                     )}
                     <span className="font-mono text-sm font-semibold tracking-tight text-label">{d.mac}</span>
                     <StatusPill tone={statusTone} dot>{d.status}</StatusPill>
+                    <StatusPill tone={connectivityTone(connState)} dot>{connLabel}</StatusPill>
                     <span className="text-xs text-label-secondary">{model}</span>
                     {caps?.width && <span className="text-xs text-label-tertiary">{caps.width}×{caps.height}</span>}
                     {contentName && (

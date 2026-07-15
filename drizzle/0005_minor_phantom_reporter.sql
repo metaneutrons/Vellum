@@ -1,0 +1,1 @@
+ALTER TABLE "devices" ADD COLUMN IF NOT EXISTS "expected_interval_s" integer;

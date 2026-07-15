@@ -70,4 +70,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/v1/health').then(()=>process.exit(0)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "server.js"]
+# Apply pending DB migrations (idempotent, self-baselining), then start the
+# server. FAIL-OPEN: a transient DB outage at boot must not stop the server from
+# starting — same reasoning as the liveness HEALTHCHECK above. If migrations
+# can't run, the app still boots and degrades gracefully until the schema
+# catches up on a later start. `scripts/` and `drizzle/` are copied above, and
+# `pg` is present in the traced standalone node_modules.
+CMD ["sh", "-c", "node scripts/migrate.mjs || echo 'vellum: DB migration step failed — starting server anyway'; exec node server.js"]

@@ -15,24 +15,44 @@ export default async function DevicesPage() {
     getKnownDisplaySizes(),
   ]);
 
-  // Single query: devices + latest telemetry
-  const rows = await db.execute(sql`
-    SELECT
-      d.mac, d.status, d.content_instance_id, d.theme_id,
-      d.refresh_profile_id, d.firmware_channel, d.firmware_pin_version,
-      d.display_caps, d.orientation_override, d.last_seen, d.approved_at, d.created_at,
-      t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
-    FROM devices d
-    LEFT JOIN LATERAL (
-      SELECT battery_level, battery_voltage, wifi_rssi, firmware_version
-      FROM telemetry WHERE mac = d.mac ORDER BY timestamp DESC LIMIT 1
-    ) t ON true
-    ORDER BY d.last_seen DESC NULLS LAST
-  `);
+  // Devices + latest telemetry. The primary query includes expected_interval_s
+  // (the connectivity cadence). If that column isn't migrated yet, fall back to
+  // a query without it so the page degrades gracefully instead of 500ing —
+  // connectivity then uses the default cadence until `npm run db:migrate` runs.
+  let deviceRows: Record<string, unknown>[];
+  try {
+    deviceRows = (await db.execute(sql`
+      SELECT
+        d.mac, d.status, d.content_instance_id, d.theme_id,
+        d.refresh_profile_id, d.firmware_channel, d.firmware_pin_version,
+        d.display_caps, d.orientation_override, d.last_seen, d.expected_interval_s, d.approved_at, d.created_at,
+        t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
+      FROM devices d
+      LEFT JOIN LATERAL (
+        SELECT battery_level, battery_voltage, wifi_rssi, firmware_version
+        FROM telemetry WHERE mac = d.mac ORDER BY timestamp DESC LIMIT 1
+      ) t ON true
+      ORDER BY d.last_seen DESC NULLS LAST
+    `)).rows as Record<string, unknown>[];
+  } catch {
+    deviceRows = (await db.execute(sql`
+      SELECT
+        d.mac, d.status, d.content_instance_id, d.theme_id,
+        d.refresh_profile_id, d.firmware_channel, d.firmware_pin_version,
+        d.display_caps, d.orientation_override, d.last_seen, d.approved_at, d.created_at,
+        t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
+      FROM devices d
+      LEFT JOIN LATERAL (
+        SELECT battery_level, battery_voltage, wifi_rssi, firmware_version
+        FROM telemetry WHERE mac = d.mac ORDER BY timestamp DESC LIMIT 1
+      ) t ON true
+      ORDER BY d.last_seen DESC NULLS LAST
+    `)).rows as Record<string, unknown>[];
+  }
 
   return (
     <DeviceTable
-      devices={rows.rows as Record<string, unknown>[]}
+      devices={deviceRows}
       themes={themeList}
       contentInstances={contentList}
       refreshProfiles={profileList}

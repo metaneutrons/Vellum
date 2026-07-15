@@ -4,9 +4,10 @@
  * Server-side aggregation for the admin overview dashboard.
  *
  * SSOT: every metric is derived here from the database + firmware manifest, so
- * the dashboard widgets stay pure presentational components fed real data. The
- * fleet thresholds mirror the device table (online ≤ 1h, low battery < 20%,
- * weak signal < −70 dBm) so the two screens never disagree.
+ * the dashboard widgets stay pure presentational components fed real data.
+ * Connectivity comes from the shared cadence-aware helper (src/lib/connectivity.ts)
+ * — the same one the device table uses — so the two screens never disagree.
+ * Other thresholds: low battery < 20%, weak signal < −70 dBm.
  */
 import { sql } from "drizzle-orm";
 import { db, withDb } from "@/db";
@@ -19,8 +20,8 @@ import {
 } from "./actions";
 import { compareSemver } from "@/lib/firmware";
 import { parseDeviceTs } from "./dashboard/ts";
+import { deviceConnectivity, type Connectivity } from "@/lib/connectivity";
 
-const ONLINE_WINDOW_MS = 3600_000; // online if last seen within the hour
 const LOW_BATTERY_PCT = 20;
 const WEAK_SIGNAL_DBM = -70;
 const CHECKIN_DAYS = 14;
@@ -30,6 +31,7 @@ interface DeviceRow {
   status: string;
   content_instance_id: string | null;
   last_seen: string | null;
+  expected_interval_s: number | null;
   battery_level: number | null;
   battery_voltage: number | null;
   wifi_rssi: number | null;
@@ -53,7 +55,7 @@ export interface RecentDevice {
   lastSeen: string | null;
   batteryLevel: number | null;
   wifiRssi: number | null;
-  online: boolean;
+  connectivity: Connectivity;
 }
 
 export interface DashboardData {
@@ -63,7 +65,9 @@ export interface DashboardData {
     pending: number;
     rejected: number;
     online: number;
+    late: number;
     offline: number;
+    never: number;
     lowBattery: number;
     weakSignal: number;
     withContent: number;
@@ -92,9 +96,9 @@ export interface DashboardData {
   generatedAt: string;
 }
 
-function isOnline(lastSeen: string | null, now: number): boolean {
-  const ms = parseDeviceTs(lastSeen);
-  return ms !== null && now - ms < ONLINE_WINDOW_MS;
+/** Connectivity relative to each device's own expected cadence (SSOT). */
+function connOf(d: DeviceRow, now: number): Connectivity {
+  return deviceConnectivity(parseDeviceTs(d.last_seen), d.expected_interval_s, now);
 }
 
 /** Continuous CHECKIN_DAYS window (zero-filled) so the activity chart never has gaps. */
@@ -110,7 +114,7 @@ function fillCheckins(rows: { day: string; count: number }[], now: number): { da
 }
 
 const EMPTY: DashboardData = {
-  fleet: { total: 0, approved: 0, pending: 0, rejected: 0, online: 0, offline: 0, lowBattery: 0, weakSignal: 0, withContent: 0, noContent: 0, avgBattery: null },
+  fleet: { total: 0, approved: 0, pending: 0, rejected: 0, online: 0, late: 0, offline: 0, never: 0, lowBattery: 0, weakSignal: 0, withContent: 0, noContent: 0, avgBattery: null },
   attention: [],
   recent: [],
   firmware: { latestStable: null, latestBeta: null, upToDate: 0, behind: 0, unknown: 0, byVersion: [] },
@@ -135,7 +139,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   try {
     [deviceRows, checkinRows, reportRows, versions, content, providers, themes, profiles] = await Promise.all([
       withDb(() => db.execute(sql`
-        SELECT d.mac, d.status, d.content_instance_id, d.last_seen,
+        SELECT d.mac, d.status, d.content_instance_id, d.last_seen, d.expected_interval_s,
                t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
         FROM devices d
         LEFT JOIN LATERAL (
@@ -166,7 +170,11 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // ── Fleet ──────────────────────────────────────────────────────
   const approved = deviceRows.filter((d) => d.status === "approved");
-  const online = deviceRows.filter((d) => isOnline(d.last_seen, now)).length;
+  const conn = deviceRows.map((d) => connOf(d, now));
+  const online = conn.filter((c) => c === "online").length;
+  const late = conn.filter((c) => c === "late").length;
+  const offlineCount = conn.filter((c) => c === "offline").length;
+  const neverCount = conn.filter((c) => c === "never").length;
   const batteries = deviceRows.map((d) => d.battery_level).filter((b): b is number => b !== null);
   const avgBattery = batteries.length ? Math.round(batteries.reduce((a, b) => a + b, 0) / batteries.length) : null;
   const withContent = approved.filter((d) => d.content_instance_id).length;
@@ -177,7 +185,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     pending: deviceRows.filter((d) => d.status === "pending").length,
     rejected: deviceRows.filter((d) => d.status === "rejected").length,
     online,
-    offline: deviceRows.length - online,
+    late,
+    offline: offlineCount,
+    never: neverCount,
     lowBattery: deviceRows.filter((d) => d.battery_level !== null && d.battery_level < LOW_BATTERY_PCT).length,
     weakSignal: deviceRows.filter((d) => d.wifi_rssi !== null && d.wifi_rssi < WEAK_SIGNAL_DBM).length,
     withContent,
@@ -191,7 +201,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     .map((d) => {
       const reasons: AttentionReason[] = [];
       const isApproved = d.status === "approved";
-      if (isApproved && !isOnline(d.last_seen, now)) reasons.push("offline");
+      if (isApproved && connOf(d, now) === "offline") reasons.push("offline");
       if (d.battery_level !== null && d.battery_level < LOW_BATTERY_PCT) reasons.push("lowBattery");
       if (d.wifi_rssi !== null && d.wifi_rssi < WEAK_SIGNAL_DBM) reasons.push("weakSignal");
       if (isApproved && !d.content_instance_id) reasons.push("noContent");
@@ -215,7 +225,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     lastSeen: d.last_seen,
     batteryLevel: d.battery_level,
     wifiRssi: d.wifi_rssi,
-    online: isOnline(d.last_seen, now),
+    connectivity: connOf(d, now),
   }));
 
   // ── Firmware ───────────────────────────────────────────────────
