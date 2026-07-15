@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.0](https://github.com/metaneutrons/Vellum/compare/v1.4.0...v1.5.0) (2026-07-15)
+
+
+### Features
+
+* **nav:** add Overview item and make the logo link to the dashboard ([#91](https://github.com/metaneutrons/Vellum/issues/91)) ([f1f3880](https://github.com/metaneutrons/Vellum/commit/f1f388060a8ab939e3b525d214ac430495de3301))
+
+
+### Bug Fixes
+
+* **firmware:** D1001 (ESP32-P4) boots past the battery gate; add P4 CI coverage ([#95](https://github.com/metaneutrons/Vellum/issues/95)) ([a40ab71](https://github.com/metaneutrons/Vellum/commit/a40ab7140a1169caff3c2fc866ba230e2a800b44))
+* **flash:** correct chipFamily per model so ESP32-P4 (D1001) can flash ([9a146f5](https://github.com/metaneutrons/Vellum/commit/9a146f5514b8fda776af77faa15d9050a25ac3c2))
+* **flash:** send correct chipFamily per model so ESP32-P4 (D1001) can flash ([2443fbd](https://github.com/metaneutrons/Vellum/commit/2443fbddcfbdba79bd0c0bda4634db4e21b85432))
+* **provisioning:** show all serial ports so bridge-chip devices appear ([#92](https://github.com/metaneutrons/Vellum/issues/92)) ([9d32915](https://github.com/metaneutrons/Vellum/commit/9d329156dcd84f70ac331094f766e7ab6f0ee141))
+
 ## [1.4.0](https://github.com/metaneutrons/Vellum/compare/v1.3.0...v1.4.0) (2026-07-15)
 
 
