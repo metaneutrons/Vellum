@@ -448,7 +448,7 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
     // is why flashing worked but provisioning reported "no serial port".
     port = await serial.requestPort();
   } catch {
-    return { ok: false, error: "No serial port selected. Make sure the device is connected via USB and isn't open in another tab." };
+    return { ok: false, error: "No serial port selected. Make sure the device is connected via USB." };
   }
 
   const parser = new ImprovParser();
@@ -550,7 +550,16 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
       }
     }
   } catch (e) {
-    finish({ ok: false, error: e instanceof Error ? e.message : "Serial I/O error." });
+    const msg = e instanceof Error ? e.message : "Serial I/O error.";
+    // A port already held by the flash tool or another tab fails here at
+    // port.open() (not at requestPort) — surface an actionable hint.
+    const inUse = /already open|in use|failed to open/i.test(msg);
+    finish({
+      ok: false,
+      error: inUse
+        ? "Couldn't open the serial port — it's already in use. Close the flash tool or other tabs using it, then retry."
+        : msg,
+    });
   } finally {
     if (timer) clearTimeout(timer);
     if (graceTimer) clearTimeout(graceTimer);
