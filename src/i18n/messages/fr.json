@@ -46,13 +46,19 @@
     "warnings": {
       "lowBattery": "Batterie faible",
       "weakSignal": "Signal faible",
-      "offline": "Hors ligne >1h"
+      "offline": "Hors ligne"
     },
     "auto": "Auto",
     "landscape": "Paysage",
     "portrait": "Portrait",
     "deleteTitle": "Supprimer l appareil",
-    "deleteMsg": "Supprimer cet appareil ? Il devra être ré-approuvé."
+    "deleteMsg": "Supprimer cet appareil ? Il devra être ré-approuvé.",
+    "connectivity": {
+      "online": "En ligne",
+      "late": "En retard",
+      "offline": "Hors ligne",
+      "never": "Jamais vu"
+    }
   },
   "content": {
     "title": "Instances de contenu",

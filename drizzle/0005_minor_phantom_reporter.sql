@@ -1,0 +1,1 @@
+ALTER TABLE "devices" ADD COLUMN "expected_interval_s" integer;

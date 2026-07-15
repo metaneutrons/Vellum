@@ -46,13 +46,19 @@
     "warnings": {
       "lowBattery": "Batería baja",
       "weakSignal": "Señal débil",
-      "offline": "Sin conexión >1h"
+      "offline": "Sin conexión"
     },
     "auto": "Auto",
     "landscape": "Horizontal",
     "portrait": "Vertical",
     "deleteTitle": "Eliminar dispositivo",
-    "deleteMsg": "¿Eliminar este dispositivo? Deberá ser re-aprobado."
+    "deleteMsg": "¿Eliminar este dispositivo? Deberá ser re-aprobado.",
+    "connectivity": {
+      "online": "En línea",
+      "late": "Con retraso",
+      "offline": "Sin conexión",
+      "never": "Nunca visto"
+    }
   },
   "content": {
     "title": "Contenidos",

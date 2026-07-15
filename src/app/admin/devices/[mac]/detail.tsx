@@ -5,6 +5,7 @@
 import { useTransition } from "react";
 import { updateDevice } from "../../actions";
 import { useToast } from "@/components/toast";
+import { deviceConnectivity } from "@/lib/connectivity";
 
 interface Device {
   mac: string;
@@ -15,6 +16,7 @@ interface Device {
   refreshProfileId: string | null;
   approvedAt: Date | null;
   lastSeen: Date | null;
+  expectedIntervalS: number | null;
   createdAt: Date;
 }
 
@@ -70,6 +72,20 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
   const caps = device.displayCaps as { model?: string; width?: number; height?: number; quantize?: string } | null;
   const latest = telemetryHistory[0];
 
+  // Connectivity (liveness) is separate from authorization status, and judged
+  // against the device's own expected cadence — see src/lib/connectivity.ts.
+  const connState = deviceConnectivity(
+    device.lastSeen ? new Date(device.lastSeen).getTime() : null,
+    device.expectedIntervalS,
+    Date.now(),
+  );
+  const conn = {
+    online: { label: "Online", color: "bg-green-100 text-green-800" },
+    late: { label: "Late", color: "bg-yellow-100 text-yellow-800" },
+    offline: { label: "Offline", color: "bg-red-100 text-red-800" },
+    never: { label: "Never seen", color: "bg-gray-100 text-gray-700" },
+  }[connState];
+
   function handleUpdate(data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null }) {
     startTransition(async () => {
       try { await updateDevice(device.mac, data); toast("success", "Device updated"); }
@@ -83,8 +99,9 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
       <div className="flex items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold font-mono">{device.mac}</h1>
         <Badge label={device.status}
-          color={device.status === "approved" ? "bg-green-100 text-green-800" :
+          color={device.status === "approved" ? "bg-blue-100 text-blue-800" :
                  device.status === "pending" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"} />
+        <Badge label={conn.label} color={conn.color} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">

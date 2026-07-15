@@ -7,13 +7,29 @@ import { DashCard } from "./card";
 import { relativeTime, shortMac, batteryTone } from "./util";
 import { StatusPill } from "@/components/ui/badge";
 import type { DashboardData, RecentDevice } from "../dashboard-data";
+import type { Connectivity } from "@/lib/connectivity";
 
-/** Status string → StatusPill tone. */
-function statusTone(status: string): "green" | "orange" | "red" {
-  if (status === "approved") return "green";
+/** Authorization status → StatusPill tone. Green is reserved for connectivity,
+ *  so "approved" is a neutral accent, not green. */
+function statusTone(status: string): "accent" | "orange" | "red" {
+  if (status === "approved") return "accent";
   if (status === "pending") return "orange";
   return "red";
 }
+
+/** Connectivity → status-dot colour + label. */
+const CONN_DOT: Record<Connectivity, string> = {
+  online: "bg-green",
+  late: "bg-orange",
+  offline: "bg-red",
+  never: "bg-separator",
+};
+const CONN_LABEL: Record<Connectivity, string> = {
+  online: "Online",
+  late: "Late",
+  offline: "Offline",
+  never: "Never seen",
+};
 
 /** batteryTone bucket → label text color (muted falls back to tertiary). */
 const BATTERY_TEXT: Record<ReturnType<typeof batteryTone>, string> = {
@@ -62,10 +78,9 @@ export function ActivityFeed({
                       className="flex items-center gap-3 px-5 py-2.5"
                     >
                       <span
-                        className={`size-2 rounded-full shrink-0 ${
-                          d.online ? "bg-green" : "bg-separator"
-                        }`}
-                        aria-label={d.online ? "Online" : "Offline"}
+                        className={`size-2 rounded-full shrink-0 ${CONN_DOT[d.connectivity]}`}
+                        aria-label={CONN_LABEL[d.connectivity]}
+                        title={CONN_LABEL[d.connectivity]}
                       />
                       <span
                         className="font-mono text-[13px] font-medium text-label tracking-tight shrink-0"

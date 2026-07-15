@@ -107,7 +107,7 @@ export function KpiCards({
         chipTone="green"
         value={fleet.online}
         label="Online Now"
-        sub={`of ${fleet.total.toLocaleString()} · ${onlinePct}%`}
+        sub={`${onlinePct}% · ${fleet.offline.toLocaleString()} offline`}
       />
       <Tile
         icon={UserCheck}

@@ -96,6 +96,11 @@ export const devices = pgTable("devices", {
   firmwarePinVersion: text("firmware_pin_version"),
   approvedAt: timestamp("approved_at"),
   lastSeen: timestamp("last_seen"),
+  /* Expected check-in cadence (seconds) — the sleep interval last handed to the
+   * device by the render route. Lets the admin UI judge connectivity relative
+   * to the device's own schedule instead of a fixed window. Null until the
+   * device has rendered once (connectivity falls back to a default). */
+  expectedIntervalS: integer("expected_interval_s"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
