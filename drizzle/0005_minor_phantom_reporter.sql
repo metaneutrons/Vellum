@@ -1,1 +1,1 @@
-ALTER TABLE "devices" ADD COLUMN "expected_interval_s" integer;
+ALTER TABLE "devices" ADD COLUMN IF NOT EXISTS "expected_interval_s" integer;

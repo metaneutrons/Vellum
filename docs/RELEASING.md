@@ -58,6 +58,22 @@ bounded (`MAX_RELEASE_PAGES`) with large headroom, backed by a page-1 ETag
 fast-path and a permanent per-release manifest cache, so steady-state polling
 cost stays near zero and the bound only matters on a cold cache.
 
+## Database migrations (server)
+
+Server schema changes ship as `drizzle/*.sql` files — generate with `npm run
+db:generate` after editing `src/db/schema.ts`, and commit the SQL plus
+`drizzle/meta`. They are applied by **`npm run db:migrate`** (`scripts/migrate.mjs`),
+**not** `drizzle-kit migrate` — whose journal is empty here because the databases
+were created with `drizzle-kit push`, so `drizzle-kit migrate` would try to replay
+`0000…` against existing tables. The runner is idempotent and **self-baselining**:
+a statement whose object already exists is recorded rather than failed, so it
+adopts a pre-existing DB and applies only genuinely-new statements.
+
+The Docker image runs `db:migrate` on container start (**fail-open** — see the
+Dockerfile `CMD`), so a server release deploys with no manual migration step.
+Migrations are additive, and the app degrades gracefully if it happens to start
+before the schema catches up.
+
 ## Onboarding the firmware component (one-time)
 
 The `firmware` component is anchored by the tag **`firmware-v1.2.0`** at the
