@@ -32,6 +32,8 @@ export const annyCredentialSchema = z.object({
 export const annyRoomConfigSchema = z.object({
   resourceId: z.string().min(1),
   resourceName: z.string().optional(),
+  /** Persisted from Anny's resource slug; never infer this from a display name. */
+  bookingUrl: z.string().url().max(256).optional(),
 });
 
 interface AnnyBooking {
@@ -158,11 +160,11 @@ export async function fetchAnnyResources(
   search?: string,
   page = 1,
   perPage = 20
-): Promise<{ resources: { id: string; name: string; description?: string }[]; total: number }> {
+): Promise<{ resources: { id: string; name: string; description?: string; bookingUrl?: string }[]; total: number }> {
   const params: Record<string, string> = {
     "page[number]": String(page),
     "page[size]": String(perPage),
-    "fields[resources]": "name,description",
+    "fields[resources]": "name,description,slug",
   };
   if (search) {
     params["filter[search]"] = search;
@@ -170,10 +172,13 @@ export async function fetchAnnyResources(
 
   const result = await annyFetch("/resources", apiToken, organizationId, params);
 
-  const resources = (result.data as { id: string; attributes: { name: string; description?: string } }[]).map((r) => ({
+  const resources = (result.data as { id: string; attributes: { name: string; description?: string; slug?: string } }[]).map((r) => ({
     id: r.id,
     name: r.attributes.name,
     description: r.attributes.description,
+    // A resource ID and its public booking slug are unrelated. Only build a
+    // direct link when Anny explicitly supplied the latter.
+    bookingUrl: r.attributes.slug ? `https://anny.co/b/book/${encodeURIComponent(r.attributes.slug)}` : undefined,
   }));
 
   return {
@@ -187,6 +192,11 @@ export const annyProvider: CalendarProvider = {
   name: "anny.co — Room & Workspace Booking",
   credentialSchema: annyCredentialSchema,
   roomConfigSchema: annyRoomConfigSchema,
+
+  getBookingUrl({ roomConfig }) {
+    const room = annyRoomConfigSchema.parse(roomConfig);
+    return room.bookingUrl ?? null;
+  },
 
   async fetchEvents({ credentials, roomConfig, windowStart, windowEnd }) {
     const creds = annyCredentialSchema.parse(credentials);
