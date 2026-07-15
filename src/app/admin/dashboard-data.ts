@@ -67,6 +67,7 @@ export interface DashboardData {
     online: number;
     late: number;
     offline: number;
+    never: number;
     lowBattery: number;
     weakSignal: number;
     withContent: number;
@@ -113,7 +114,7 @@ function fillCheckins(rows: { day: string; count: number }[], now: number): { da
 }
 
 const EMPTY: DashboardData = {
-  fleet: { total: 0, approved: 0, pending: 0, rejected: 0, online: 0, late: 0, offline: 0, lowBattery: 0, weakSignal: 0, withContent: 0, noContent: 0, avgBattery: null },
+  fleet: { total: 0, approved: 0, pending: 0, rejected: 0, online: 0, late: 0, offline: 0, never: 0, lowBattery: 0, weakSignal: 0, withContent: 0, noContent: 0, avgBattery: null },
   attention: [],
   recent: [],
   firmware: { latestStable: null, latestBeta: null, upToDate: 0, behind: 0, unknown: 0, byVersion: [] },
@@ -173,6 +174,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   const online = conn.filter((c) => c === "online").length;
   const late = conn.filter((c) => c === "late").length;
   const offlineCount = conn.filter((c) => c === "offline").length;
+  const neverCount = conn.filter((c) => c === "never").length;
   const batteries = deviceRows.map((d) => d.battery_level).filter((b): b is number => b !== null);
   const avgBattery = batteries.length ? Math.round(batteries.reduce((a, b) => a + b, 0) / batteries.length) : null;
   const withContent = approved.filter((d) => d.content_instance_id).length;
@@ -185,6 +187,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     online,
     late,
     offline: offlineCount,
+    never: neverCount,
     lowBattery: deviceRows.filter((d) => d.battery_level !== null && d.battery_level < LOW_BATTERY_PCT).length,
     weakSignal: deviceRows.filter((d) => d.wifi_rssi !== null && d.wifi_rssi < WEAK_SIGNAL_DBM).length,
     withContent,

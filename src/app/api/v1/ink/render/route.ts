@@ -141,11 +141,15 @@ export async function GET(request: NextRequest) {
 
   // Record the cadence we just handed this device so the admin UI can judge
   // connectivity relative to its own schedule (src/lib/connectivity.ts), not a
-  // fixed window. Non-fatal — connectivity falls back to a default interval.
-  await withDb(
-    () => db.update(devices).set({ expectedIntervalS: Math.round(sleepDuration) }).where(eq(devices.mac, validation.data.mac)),
-    "render-update-expected-interval",
-  ).catch((err) => log.warn("expectedIntervalS update failed", { mac: validation.data.mac, error: String(err) }));
+  // fixed window. Only write when it actually changed — skips a DB round-trip on
+  // the steady-state render path. Non-fatal — falls back to a default interval.
+  const roundedInterval = Math.round(sleepDuration);
+  if (device.expectedIntervalS !== roundedInterval) {
+    await withDb(
+      () => db.update(devices).set({ expectedIntervalS: roundedInterval }).where(eq(devices.mac, validation.data.mac)),
+      "render-update-expected-interval",
+    ).catch((err) => log.warn("expectedIntervalS update failed", { mac: validation.data.mac, error: String(err) }));
+  }
 
   // Compute content hash for client-side caching (skip refresh if unchanged)
   const { createHash } = await import("crypto");

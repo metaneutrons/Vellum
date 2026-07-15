@@ -43,7 +43,7 @@ function MiniStat({ icon, label, value, tone }: MiniStatProps) {
 }
 
 export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
-  const { total, online, late, offline, avgBattery, lowBattery, weakSignal } = fleet;
+  const { total, online, late, offline, never, avgBattery, lowBattery, weakSignal } = fleet;
   const hasDevices = total > 0;
 
   const pct = hasDevices ? Math.round((online / total) * 100) : 0;
@@ -150,6 +150,10 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
               <span className="size-2.5 rounded-full" style={{ backgroundColor: "var(--color-red)" }} aria-hidden="true" />
               <span className="font-medium text-label tabular-nums">{offline}</span> offline
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-label-secondary">
+              <span className="size-2.5 rounded-full" style={{ backgroundColor: "var(--color-separator)" }} aria-hidden="true" />
+              <span className="font-medium text-label tabular-nums">{never}</span> never seen
             </span>
           </div>
 
