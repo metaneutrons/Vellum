@@ -16,6 +16,12 @@
 #include "driver/ledc.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
+#if CONFIG_VELLUM_PANEL_D1001
+/* D1001 (ESP32-P4) battery/USB sensing. board REQUIRES d1001_board (+ its
+ * transitive esp_io_expander include) on esp32p4 — see CMakeLists.txt — so the
+ * public header can be included directly for proper signature type-checking. */
+#include "d1001_board.h"
+#endif
 
 static const char *TAG = "board";
 
@@ -59,6 +65,13 @@ static void battery_adc_init(void)
 
 float board_battery_voltage(void)
 {
+#if CONFIG_VELLUM_PANEL_D1001
+    /* D1001 (ESP32-P4) uses its own board ADC, initialised by d1001_board_init()
+     * at boot. The reTerminal divider + enable-GPIO path below doesn't exist on
+     * this board, and running it (with board.c's ADC uninitialised on P4) is what
+     * made the boot battery-gate read 0V and halt the device. */
+    return d1001_battery_voltage() / 1000.0f;   /* d1001 API returns millivolts */
+#endif
     if (s_batt_valid) return s_batt_voltage;   /* one physical read per wake */
 
     gpio_set_direction(CONFIG_VELLUM_BATTERY_EN_GPIO, GPIO_MODE_OUTPUT);
@@ -89,6 +102,9 @@ float board_battery_voltage(void)
 
 int board_battery_level(void)
 {
+#if CONFIG_VELLUM_PANEL_D1001
+    return d1001_battery_percent();
+#endif
     float v = board_battery_voltage();
     int level = (int)((v - 3.0f) / (4.2f - 3.0f) * 100.0f);
     if (level < 0) level = 0;
@@ -98,6 +114,11 @@ int board_battery_level(void)
 
 bool board_is_usb_powered(void)
 {
+#if CONFIG_VELLUM_PANEL_D1001
+    /* D1001 has a dedicated VBUS sense channel (mV); ~5V present on USB. Unlike
+     * the reTerminal, USB detection is independent of the battery voltage. */
+    return d1001_usb_voltage() > 4000;
+#endif
     return board_battery_voltage() > 4.5f;
 }
 

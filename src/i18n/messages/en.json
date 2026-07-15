@@ -1,6 +1,7 @@
 {
   "nav": {
     "title": "Vellum Console",
+    "overview": "Overview",
     "devices": "Devices",
     "content": "Content",
     "providers": "Data Providers",
