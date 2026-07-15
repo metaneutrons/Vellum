@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import {
+  LayoutDashboard,
   MonitorSmartphone,
   FileText,
   Plug,
@@ -20,7 +21,8 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
-const links: { href: string; key: "devices" | "content" | "providers" | "themes" | "profiles" | "firmware"; Icon: LucideIcon }[] = [
+const links: { href: string; key: "overview" | "devices" | "content" | "providers" | "themes" | "profiles" | "firmware"; Icon: LucideIcon }[] = [
+  { href: "/admin", key: "overview", Icon: LayoutDashboard },
   { href: "/admin/devices", key: "devices", Icon: MonitorSmartphone },
   { href: "/admin/content", key: "content", Icon: FileText },
   { href: "/admin/providers", key: "providers", Icon: Plug },
@@ -72,14 +74,25 @@ export function AdminNav() {
           flex flex-col px-3 py-4 transition-transform duration-300
           ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
-        <div className="flex items-center gap-2.5 px-2 pb-4">
+        <Link
+          href="/admin"
+          onClick={() => setOpen(false)}
+          className="flex items-center gap-2.5 px-2 pb-4 rounded-lg focus-ring"
+        >
           <img src="/vellum-icon.svg" alt="" width={28} height={28} className="dark:invert" />
           <span className="text-[17px] font-semibold tracking-tight text-label">{t("title")}</span>
-        </div>
+        </Link>
 
         <div className="flex flex-col gap-0.5">
           {links.map(({ href, key, Icon }) => {
-            const active = pathname.startsWith(href);
+            // Overview (/admin) is the index — exact match so it isn't perma-active
+            // under every sub-route. Sub-pages match themselves or a nested route,
+            // with a path boundary so e.g. /admin/devices doesn't light up for a
+            // hypothetical /admin/devices-settings.
+            const active =
+              href === "/admin"
+                ? pathname === "/admin"
+                : pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
