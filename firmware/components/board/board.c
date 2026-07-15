@@ -17,13 +17,10 @@
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #if CONFIG_VELLUM_PANEL_D1001
-/* D1001 (ESP32-P4) battery/USB sensing lives in the d1001_board component. We
- * forward-declare the three accessors here rather than #include "d1001_board.h",
- * which transitively pulls esp_io_expander.h — a PRIVATE dep of d1001_board that
- * isn't on board's include path. (board REQUIRES d1001_board only for linkage.) */
-extern int d1001_battery_voltage(void);   /* millivolts */
-extern int d1001_battery_percent(void);   /* 0-100 */
-extern int d1001_usb_voltage(void);        /* millivolts (dedicated VBUS sense) */
+/* D1001 (ESP32-P4) battery/USB sensing. board REQUIRES d1001_board (+ its
+ * transitive esp_io_expander include) on esp32p4 — see CMakeLists.txt — so the
+ * public header can be included directly for proper signature type-checking. */
+#include "d1001_board.h"
 #endif
 
 static const char *TAG = "board";
