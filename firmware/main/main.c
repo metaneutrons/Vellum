@@ -398,10 +398,19 @@ void app_main(void)
          * board through the button wake source. The fallback interval keeps
          * the brownout protection while allowing the next boot to clear the
          * stale warning and surface newer states such as Wi-Fi failures. */
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+        /* LCD sleep returns after its bounded retry delay. Keep the panel in
+         * that low-power loop until charging (or a healthy battery) is seen;
+         * restarting every cycle would flash the boot screen, beep, and waste
+         * power without improving the battery measurement. */
+        while (board_battery_level() < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
+               !board_is_usb_powered()) {
+            sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+        }
+#else
+        /* Deep-sleep panels wake on the timer and re-check on the next boot. */
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
-        /* does not return on deep-sleep panels; LCD panels need a fresh
-         * battery sample after the retry delay as well. */
-        esp_restart();
+#endif
     }
 
     /* 3. Connect to Wi-Fi or enter SoftAP */
