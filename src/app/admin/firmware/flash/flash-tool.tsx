@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { DISPLAY_REGISTRY } from "@/lib/display";
+import { useTranslations } from "next-intl";
 
 // ESP Web Tools registers <esp-web-install-button> (script loaded lazily below).
 // Cast the tag name to a component so it renders as a custom element with real
@@ -26,6 +27,7 @@ const selectCls =
   "text-[15px] text-label focus-ring focus:border-accent transition";
 
 export function FlashTool() {
+  const t = useTranslations("flash");
   const [model, setModel] = useState("e1002");
   const [channel, setChannel] = useState("stable");
   const [loaded, setLoaded] = useState(false);
@@ -52,19 +54,19 @@ export function FlashTool() {
         href="/admin/firmware"
         className="text-sm text-accent hover:underline mb-4 inline-block"
       >
-        ← Back to Firmware
+        {t("back")}
       </Link>
-      <PageHeader title="Flash Firmware" description="Flash firmware directly from the browser via USB" />
+      <PageHeader title={t("title")} description={t("description")} />
 
       <Card className="p-6 max-w-lg">
         <div className="flex flex-col gap-4">
-          <Field label="Display Model" htmlFor="flash-model">
+          <Field label={t("model")} htmlFor="flash-model">
             <select
               id="flash-model"
               className={selectCls}
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              aria-label="Display model"
+              aria-label={t("model")}
             >
               {Object.entries(DISPLAY_REGISTRY).map(([id, m]) => (
                 <option key={id} value={id}>{m.name}</option>
@@ -72,16 +74,16 @@ export function FlashTool() {
             </select>
           </Field>
 
-          <Field label="Channel" htmlFor="flash-channel">
+          <Field label={t("channel")} htmlFor="flash-channel">
             <select
               id="flash-channel"
               className={selectCls}
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
-              aria-label="Firmware channel"
+              aria-label={t("channel")}
             >
-              <option value="stable">Stable</option>
-              <option value="beta">Beta</option>
+              <option value="stable">{t("stable")}</option>
+              <option value="beta">{t("beta")}</option>
             </select>
           </Field>
         </div>
@@ -97,38 +99,37 @@ export function FlashTool() {
                 leading={<span aria-hidden="true">⚡</span>}
                 className="w-full"
               >
-                Connect &amp; Flash
+                {t("connect")}
               </Button>
               <Notice slot="unsupported" tone="orange">
-                Web Serial isn’t supported in this browser. Use Chrome or Edge.
+                {t("unsupported")}
               </Notice>
               <Notice slot="not-allowed" tone="red">
-                Serial port access was denied. Check your browser permissions.
+                {t("denied")}
               </Notice>
             </EspInstallButton>
           ) : (
             <div className="w-full min-h-12 grid place-items-center rounded-md bg-fill-tertiary text-sm text-label-secondary">
-              Loading flash tools…
+              {t("loading")}
             </div>
           )}
         </div>
 
         <div className="mt-6 flex flex-col gap-2 text-[13px] text-label-secondary">
-          <p className="font-medium text-label">Instructions</p>
+          <p className="font-medium text-label">{t("instructions.title")}</p>
           <ol className="list-decimal list-inside flex flex-col gap-1">
-            <li>Connect the device via USB-C cable</li>
-            <li>Turn on the device (power switch on back)</li>
-            <li>Click “Connect &amp; Flash” and select the serial port</li>
-            <li>Wait for the flash to complete — do not disconnect</li>
+            <li>{t("instructions.step1")}</li>
+            <li>{t("instructions.step2")}</li>
+            <li>{t("instructions.step3")}</li>
+            <li>{t("instructions.step4")}</li>
           </ol>
         </div>
 
         <div className="mt-4 p-3 rounded-lg bg-fill-secondary text-[13px] text-label-secondary">
           <p>
-            Requires <strong className="font-medium text-label">Chrome 89+</strong> or{" "}
-            <strong className="font-medium text-label">Edge 89+</strong> with Web Serial API support.
+            {t("requirements")}
           </p>
-          <p className="mt-1">The firmware binary is downloaded from GitHub Releases via a local proxy.</p>
+          <p className="mt-1">{t("proxy")}</p>
         </div>
 
         <div className="mt-4 text-[13px]">

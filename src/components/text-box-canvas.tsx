@@ -9,6 +9,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Rnd } from "react-rnd";
+import { useTranslations } from "next-intl";
 import { Plus, Trash2, X } from "lucide-react";
 import type { TextBox } from "@/lib/content/renderers/door-sign-types";
 
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function TextBoxCanvas({ boxes, onChange, width, height, backgroundColor, backgroundUrl, templateVars, label }: Props) {
+  const t = useTranslations("content.doorSign");
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 500, h: 300 });
   const [selectedBox, setSelectedBox] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function TextBoxCanvas({ boxes, onChange, width, height, backgroundColor,
                   <button
                     onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); deleteBox(box.id); }}
                     className="absolute top-1 right-1 size-5 text-label-tertiary hover:text-label rounded bg-surface/60 backdrop-blur-sm flex items-center justify-center focus-ring"
-                    title="Delete"
+                    title={t("deleteTextBox")}
                   ><X size={12} aria-hidden="true" /></button>
                 )}
               </div>
@@ -120,7 +122,7 @@ export function TextBoxCanvas({ boxes, onChange, width, height, backgroundColor,
       {/* Properties panel for selected box */}
       {selectedBoxData && (
         <div className="p-3 bg-surface-secondary rounded-lg space-y-2">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-label-tertiary">Text Box</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-label-tertiary">{t("textBox")}</label>
           <textarea value={selectedBoxData.template}
             onChange={e => updateBox(selectedBoxData.id, { template: e.target.value })}
             className="w-full rounded-md bg-surface border border-separator px-2 py-1 text-sm text-label placeholder:text-label-tertiary h-12 resize-none focus-ring" placeholder="{full_name}" />
@@ -134,20 +136,20 @@ export function TextBoxCanvas({ boxes, onChange, width, height, backgroundColor,
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-label-secondary">Size</label>
+                    <label className="block text-xs text-label-secondary">{t("size")}</label>
               <input type="range" min="0.02" max="0.3" step="0.005"
                 value={selectedBoxData.fontSize}
                 onChange={e => updateBox(selectedBoxData.id, { fontSize: parseFloat(e.target.value) })}
                 className="w-full accent-accent focus-ring" />
             </div>
             <div>
-              <label className="block text-xs text-label-secondary">Align</label>
+                    <label className="block text-xs text-label-secondary">{t("align")}</label>
               <select value={selectedBoxData.align}
                 onChange={e => updateBox(selectedBoxData.id, { align: e.target.value as TextBox["align"] })}
                 className={`w-full ${selectCls}`}>
-                <option value="left">Left</option>
-                <option value="center">Center</option>
-                <option value="right">Right</option>
+                <option value="left">{t("alignLeft")}</option>
+                <option value="center">{t("alignCenter")}</option>
+                <option value="right">{t("alignRight")}</option>
               </select>
             </div>
           </div>

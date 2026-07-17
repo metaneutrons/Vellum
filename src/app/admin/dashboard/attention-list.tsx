@@ -15,6 +15,7 @@ import {
 import { DashCard } from "./card";
 import { relativeTime, shortMac, batteryTone, signalTone, ATTENTION_LABELS } from "./util";
 import type { AttentionDevice } from "../dashboard-data";
+import { useTranslations } from "next-intl";
 
 /** Per-reason chip styling + icon, keyed to the data layer's reason strings. */
 const REASON_STYLE: Record<
@@ -35,11 +36,12 @@ const TONE_TEXT: Record<"green" | "orange" | "red" | "muted", string> = {
 };
 
 export function AttentionList({ devices, now }: { devices: AttentionDevice[]; now: number }) {
+  const t = useTranslations("dashboard");
   return (
     <DashCard
-      title="Needs attention"
+      title={t("needsAttention")}
       icon={<AlertTriangle size={16} />}
-      action={{ label: "All devices", href: "/admin/devices" }}
+      action={{ label: t("allDevices"), href: "/admin/devices" }}
       flush
     >
       {devices.length === 0 ? (
@@ -47,9 +49,9 @@ export function AttentionList({ devices, now }: { devices: AttentionDevice[]; no
           <span className="size-12 rounded-full bg-green/10 text-green grid place-items-center mb-3">
             <CheckCircle2 size={26} aria-hidden="true" />
           </span>
-          <p className="text-[15px] font-semibold text-label">Everything looks healthy</p>
+          <p className="text-[15px] font-semibold text-label">{t("healthy")}</p>
           <p className="text-[13px] text-label-secondary mt-1 max-w-[16rem]">
-            No devices need attention right now.
+            {t("attentionHint")}
           </p>
         </div>
       ) : (

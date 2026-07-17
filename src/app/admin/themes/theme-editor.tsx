@@ -14,18 +14,14 @@ import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { Plus, Pencil, Trash2, Search, Palette } from "lucide-react";
 import type { Theme } from "@/lib/theme";
+import { useTranslations } from "next-intl";
 
-const THEME_FIELDS: { key: keyof Theme; label: string }[] = [
-  { key: "headerBg", label: "Header Background" },
-  { key: "headerText", label: "Header Text" },
-  { key: "freeBadge", label: "FREE Badge" },
-  { key: "busyBadge", label: "BUSY Badge" },
-  { key: "badgeText", label: "Badge Text" },
-  { key: "background", label: "Background" },
-  { key: "eventBg", label: "Event Block" },
-  { key: "slotText", label: "Event Text" },
-  { key: "slotSecondary", label: "Secondary Text" },
-  { key: "footerText", label: "Footer Text" },
+const THEME_FIELDS: { key: keyof Theme; labelKey: string }[] = [
+  { key: "headerBg", labelKey: "colorHeaderBg" }, { key: "headerText", labelKey: "colorHeaderText" },
+  { key: "freeBadge", labelKey: "colorFreeBadge" }, { key: "busyBadge", labelKey: "colorBusyBadge" },
+  { key: "badgeText", labelKey: "colorBadgeText" }, { key: "background", labelKey: "colorBackground" },
+  { key: "eventBg", labelKey: "colorEventBg" }, { key: "slotText", labelKey: "colorSlotText" },
+  { key: "slotSecondary", labelKey: "colorSlotSecondary" }, { key: "footerText", labelKey: "colorFooterText" },
 ];
 
 const DEFAULT_CONFIG: Theme = {
@@ -37,6 +33,7 @@ const DEFAULT_CONFIG: Theme = {
 interface DbTheme { id: string; name: string; config: unknown; isDefault: boolean; }
 
 export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
+  const tt = useTranslations("themes");
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
@@ -54,9 +51,9 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
       try {
         if (editing === "new") await createTheme(name, config as unknown as Record<string, string>);
         else if (editing) await updateTheme(editing, name, config as unknown as Record<string, string>);
-        toast("success", editing === "new" ? "Theme created" : "Theme updated");
+        toast("success", editing === "new" ? tt("created") : tt("updated"));
         setEditing(null);
-      } catch { toast("error", "Failed to save theme"); }
+    } catch { toast("error", tt("saveFailed")); }
     });
   }
 
@@ -65,8 +62,8 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
     const id = deleting;
     setDeleting(null);
     startTransition(async () => {
-      try { await deleteTheme(id); toast("success", "Theme deleted"); }
-      catch { toast("error", "Failed to delete theme"); }
+      try { await deleteTheme(id); toast("success", tt("deleted")); }
+      catch { toast("error", tt("deleteFailed")); }
     });
   }
 
@@ -75,14 +72,14 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
       {/* Header */}
       <div className="flex flex-wrap items-end gap-4 mb-6">
         <div className="flex-1 min-w-0">
-          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">Themes</h1>
-          <p className="text-[15px] text-label-secondary mt-1.5">Customize display appearance</p>
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{tt("title")}</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">{tt("description")}</p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search themes..." className="pl-9" aria-label="Search themes" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tt("search")} className="pl-9" aria-label={tt("search")} />
         </div>
-        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Theme</Button>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>{tt("add")}</Button>
       </div>
 
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 divide-y divide-separator overflow-hidden">
@@ -90,7 +87,7 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
           <div key={t.id} className="flex items-center justify-between px-4 py-3 gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <span className="font-medium text-label truncate">{t.name}</span>
-              {t.isDefault && <StatusPill tone="accent">default</StatusPill>}
+              {t.isDefault && <StatusPill tone="accent">{tt("default")}</StatusPill>}
               <div className="flex gap-1">
                 {Object.values(t.config as Record<string, string>)
                   .filter((v) => typeof v === "string" && v.startsWith("#")).slice(0, 6)
@@ -98,8 +95,8 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <Button size="sm" variant="plain" onClick={() => startEdit(t)} leading={<Pencil size={16} aria-hidden="true" />}>Edit</Button>
-              <Button size="sm" variant="plain" aria-label="Delete" onClick={() => setDeleting(t.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
+              <Button size="sm" variant="plain" onClick={() => startEdit(t)} leading={<Pencil size={16} aria-hidden="true" />}>{tt("edit")}</Button>
+              <Button size="sm" variant="plain" aria-label={tt("delete")} onClick={() => setDeleting(t.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
             </div>
           </div>
         ))}
@@ -116,16 +113,16 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
       <Modal
         open={!!editing} onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
-        title={editing === "new" ? "New Theme" : "Edit Theme"}
+        title={editing === "new" ? tt("newTheme") : tt("editTheme")}
         footer={
           <>
-            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>{tt("cancel")}</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>{tt("save")}</Button>
           </>
         }
       >
         <div className="mb-4">
-          <Field label="Name" htmlFor="theme-name">
+          <Field label={tt("name")} htmlFor="theme-name">
             <Input id="theme-name" value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
         </div>
@@ -135,18 +132,18 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
               <input type="color" value={(config as unknown as Record<string, string>)[f.key] ?? "#000000"}
                 onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
                 className="size-8 shrink-0 rounded-md border border-separator bg-surface-secondary cursor-pointer focus-ring" />
-              {f.label}
+              {tt(f.labelKey)}
             </label>
           ))}
         </div>
         <div className="mt-4">
-          <span className="block text-sm font-medium text-label mb-2">Preview</span>
+          <span className="block text-sm font-medium text-label mb-2">{tt("preview")}</span>
           <ThemePreview theme={config} />
         </div>
       </Modal>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-        title="Delete Theme" message="Delete this theme? Devices using it will fall back to the default." confirmLabel="Delete" destructive />
+        title={tt("deleteThemeTitle")} message={tt("deleteThemeMessage")} confirmLabel={tt("delete")} destructive />
     </div>
   );
 }

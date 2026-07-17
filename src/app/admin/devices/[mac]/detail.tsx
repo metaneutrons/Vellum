@@ -3,6 +3,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { updateDevice } from "../../actions";
 import { useToast } from "@/components/toast";
 import { deviceConnectivity } from "@/lib/connectivity";
@@ -67,6 +68,7 @@ function Stat({ label, value, warn }: { label: string; value: string; warn?: boo
 }
 
 export function DeviceDetail({ device, telemetryHistory, recentReports, themes, contentInstances, refreshProfiles }: Props) {
+  const t = useTranslations("devices");
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const caps = device.displayCaps as { model?: string; width?: number; height?: number; quantize?: string } | null;
@@ -106,56 +108,56 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         {/* Telemetry */}
-        <Card title="Telemetry">
+        <Card title={t("telemetry")}>
           {latest ? (
             <div className="grid grid-cols-2 gap-4">
-              <Stat label="Battery" value={`${latest.batteryLevel ?? "—"}%`} warn={(latest.batteryLevel ?? 100) < 20} />
-              <Stat label="Voltage" value={`${latest.batteryVoltage?.toFixed(2) ?? "—"}V`} />
-              <Stat label="WiFi RSSI" value={`${latest.wifiRssi ?? "—"} dBm`} warn={(latest.wifiRssi ?? 0) < -70} />
-              <Stat label="Firmware" value={latest.firmwareVersion ?? "—"} />
+              <Stat label={t("battery")} value={`${latest.batteryLevel ?? "—"}%`} warn={(latest.batteryLevel ?? 100) < 20} />
+              <Stat label={t("voltage")} value={`${latest.batteryVoltage?.toFixed(2) ?? "—"}V`} />
+              <Stat label={t("wifiRssi")} value={`${latest.wifiRssi ?? "—"} dBm`} warn={(latest.wifiRssi ?? 0) < -70} />
+              <Stat label={t("firmware")} value={latest.firmwareVersion ?? "—"} />
             </div>
-          ) : <p className="text-sm text-gray-400">No telemetry data yet.</p>}
+          ) : <p className="text-sm text-gray-400">{t("noTelemetry")}</p>}
         </Card>
 
         {/* Display */}
-        <Card title="Display">
+        <Card title={t("display")}>
           {caps ? (
             <div className="grid grid-cols-2 gap-4">
-              <Stat label="Model" value={caps.model ?? "—"} />
-              <Stat label="Resolution" value={caps.width && caps.height ? `${caps.width}×${caps.height}` : "—"} />
-              <Stat label="Quantize" value={caps.quantize ?? "—"} />
+              <Stat label={t("model")} value={caps.model ?? "—"} />
+              <Stat label={t("resolution")} value={caps.width && caps.height ? `${caps.width}×${caps.height}` : "—"} />
+              <Stat label={t("quantize")} value={caps.quantize ?? "—"} />
             </div>
-          ) : <p className="text-sm text-gray-400">Display capabilities not reported yet.</p>}
+          ) : <p className="text-sm text-gray-400">{t("noDisplayCaps")}</p>}
         </Card>
 
         {/* Timestamps */}
-        <Card title="Timeline">
+        <Card title={t("timeline")}>
           <div className="space-y-2 text-sm">
-            <div><span className="text-gray-500">Registered:</span> {new Date(device.createdAt).toLocaleString("de-DE")}</div>
-            {device.approvedAt && <div><span className="text-gray-500">Approved:</span> {new Date(device.approvedAt).toLocaleString("de-DE")}</div>}
-            <div><span className="text-gray-500">Last Seen:</span> {device.lastSeen ? new Date(device.lastSeen).toLocaleString("de-DE") : "—"}</div>
+            <div><span className="text-gray-500">{t("registered")}:</span> {new Date(device.createdAt).toLocaleString("de-DE")}</div>
+            {device.approvedAt && <div><span className="text-gray-500">{t("approvedAt")}:</span> {new Date(device.approvedAt).toLocaleString("de-DE")}</div>}
+            <div><span className="text-gray-500">{t("lastSeen")}:</span> {device.lastSeen ? new Date(device.lastSeen).toLocaleString("de-DE") : "—"}</div>
           </div>
         </Card>
       </div>
 
       {/* Assignments */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <Card title="Content Assignment">
-          <select className="w-full border rounded px-3 py-2 text-sm" aria-label="Content assignment" value={device.contentInstanceId ?? ""}
+        <Card title={t("contentAssignment")}>
+          <select className="w-full border rounded px-3 py-2 text-sm" aria-label={t("contentAssignment")} value={device.contentInstanceId ?? ""}
             onChange={(e) => handleUpdate({ contentInstanceId: e.target.value || null })}>
             <option value="">— none —</option>
             {contentInstances.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Card>
-        <Card title="Theme Assignment">
-          <select className="w-full border rounded px-3 py-2 text-sm" aria-label="Theme assignment" value={device.themeId ?? ""}
+        <Card title={t("themeAssignment")}>
+          <select className="w-full border rounded px-3 py-2 text-sm" aria-label={t("themeAssignment")} value={device.themeId ?? ""}
             onChange={(e) => handleUpdate({ themeId: e.target.value || null })}>
             <option value="">— default —</option>
             {themes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </Card>
-        <Card title="Refresh Profile">
-          <select className="w-full border rounded px-3 py-2 text-sm" aria-label="Refresh profile" value={device.refreshProfileId ?? ""}
+        <Card title={t("refreshProfile")}>
+          <select className="w-full border rounded px-3 py-2 text-sm" aria-label={t("refreshProfile")} value={device.refreshProfileId ?? ""}
             onChange={(e) => handleUpdate({ refreshProfileId: e.target.value || null })}>
             <option value="">— default —</option>
             {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -164,17 +166,13 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
       </div>
 
       {/* Telemetry History */}
-      <Card title={`Telemetry History (last ${telemetryHistory.length})`}>
+      <Card title={`${t("telemetryHistory")} (${telemetryHistory.length})`}>
         {telemetryHistory.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="text-left text-gray-500">
                 <tr>
-                  <th className="pr-4 py-1">Time</th>
-                  <th className="pr-4 py-1">Battery</th>
-                  <th className="pr-4 py-1">Voltage</th>
-                  <th className="pr-4 py-1">RSSI</th>
-                  <th className="pr-4 py-1">Firmware</th>
+                  <th className="pr-4 py-1">{t("time")}</th><th className="pr-4 py-1">{t("battery")}</th><th className="pr-4 py-1">{t("voltage")}</th><th className="pr-4 py-1">{t("rssi")}</th><th className="pr-4 py-1">{t("firmware")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -190,13 +188,13 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
               </tbody>
             </table>
           </div>
-        ) : <p className="text-sm text-gray-400">No telemetry data.</p>}
+        ) : <p className="text-sm text-gray-400">{t("noTelemetry")}</p>}
       </Card>
 
       {/* Reports */}
       {recentReports.length > 0 && (
         <div className="mt-4">
-          <Card title="Recent Reports">
+          <Card title={t("recentReports")}>
             <div className="space-y-2">
               {recentReports.map((r) => (
                 <div key={r.id} className="flex justify-between text-sm border-b pb-2">

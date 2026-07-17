@@ -4,6 +4,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { ChevronsUpDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /** All IANA timezones from the runtime */
 const ALL_TIMEZONES = Intl.supportedValuesOf("timeZone");
@@ -16,6 +17,7 @@ interface TimezonePickerProps {
 }
 
 export function TimezonePicker({ value, onChange, label, className }: TimezonePickerProps) {
+  const t = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,7 +51,7 @@ export function TimezonePicker({ value, onChange, label, className }: TimezonePi
         className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex items-center justify-between gap-2"
         onClick={() => { setOpen(!open); setSearch(""); }}
       >
-        <span className={value ? "" : "text-label-tertiary"}>{value || "Select timezone…"}</span>
+        <span className={value ? "" : "text-label-tertiary"}>{value || t("selectTimezone")}</span>
         <ChevronsUpDown size={16} className="text-label-tertiary shrink-0" aria-hidden="true" />
       </button>
       {open && (
@@ -58,7 +60,7 @@ export function TimezonePicker({ value, onChange, label, className }: TimezonePi
             ref={inputRef}
             type="text"
             className="w-full px-3 py-2 text-[15px] bg-surface text-label placeholder:text-label-tertiary border-b border-separator outline-none focus-ring"
-            placeholder="Search…"
+            placeholder={t("search")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -73,7 +75,7 @@ export function TimezonePicker({ value, onChange, label, className }: TimezonePi
               </li>
             ))}
             {filtered.length === 0 && (
-              <li className="px-3 py-2 text-[13px] text-label-tertiary">No results</li>
+              <li className="px-3 py-2 text-[13px] text-label-tertiary">{t("noResults")}</li>
             )}
           </ul>
         </div>

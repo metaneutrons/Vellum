@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/modal";
 import { TrendingDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface DataPoint { voltage: number | null; level: number | null; timestamp: string; }
 
@@ -21,6 +22,7 @@ const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
 export function BatteryChartModal({ mac, open, onClose }: Props) {
+  const t = useTranslations("devices");
   const [data, setData] = useState<DataPoint[]>([]);
   const [metric, setMetric] = useState<Metric>("voltage");
   const [range, setRange] = useState<TimeRange>("30");
@@ -82,15 +84,15 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
   });
 
   const unit = metric === "voltage" ? "V" : "%";
-  const title = metric === "voltage" ? "Spannung" : "Kapazität";
+  const title = metric === "voltage" ? t("voltage") : t("capacity");
 
   return (
     <Modal open={open} onClose={onClose} title={`${title} — ${mac}`} wide>
       <div className="flex items-center gap-3 mb-4">
         <select value={metric} onChange={e => setMetric(e.target.value as Metric)}
           className={selectCls}>
-          <option value="voltage">Spannung (V)</option>
-          <option value="level">Kapazität (%)</option>
+          <option value="voltage">{t("voltage")} (V)</option>
+          <option value="level">{t("capacity")} (%)</option>
         </select>
         <select value={range} onChange={e => setRange(e.target.value as TimeRange)}
           className={selectCls}>
@@ -99,13 +101,13 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
           <option value="30">30 Tage</option>
           <option value="90">90 Tage</option>
         </select>
-        <span className="text-xs text-label-secondary">{points.length} Datenpunkte</span>
+        <span className="text-xs text-label-secondary">{points.length} {t("dataPoints")}</span>
       </div>
 
       {loading ? (
-        <div className="h-52 flex items-center justify-center text-label-tertiary">Laden...</div>
+        <div className="h-52 flex items-center justify-center text-label-tertiary">{t("loadingData")}</div>
       ) : points.length === 0 ? (
-        <div className="h-52 flex items-center justify-center text-label-tertiary">Keine Daten</div>
+        <div className="h-52 flex items-center justify-center text-label-tertiary">{t("noData")}</div>
       ) : (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full border border-separator rounded bg-surface">
           {/* Grid lines */}
@@ -149,7 +151,7 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
             return (
               <div className="mt-3 p-2 bg-accent-soft text-label rounded text-sm flex items-center gap-2">
                 <TrendingDown size={16} aria-hidden="true" className="text-accent shrink-0" />
-                <span>Prognose: ~<strong>{daysLeft} Tage</strong> verbleibend (bei aktuellem Verbrauch)</span>
+                <span>{t("prediction", { days: daysLeft })}</span>
               </div>
             );
           }

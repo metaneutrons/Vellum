@@ -190,48 +190,48 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                 {/* Actions */}
                 <div className="flex items-start gap-1.5 shrink-0">
                   {d.status === "pending" && <Button size="sm" onClick={() => act(() => approveDevice(d.mac), t("approved"), t("failed"))}>{t("approve")}</Button>}
-                  <Button size="sm" variant="plain" aria-label="Delete" onClick={() => setDeleting(d.mac)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
+                  <Button size="sm" variant="plain" aria-label={t("delete")} onClick={() => setDeleting(d.mac)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
                 </div>
               </div>
 
               {/* Assignments row — only for approved devices */}
               {d.status === "approved" && (
                 <div className="flex items-center gap-3 px-4 py-2.5 border-t border-separator bg-surface-secondary text-[13px] text-label-secondary flex-wrap">
-                  <label className="flex items-center gap-1.5">Content
-                    <select className={selectCls} value={d.content_instance_id ?? ""} aria-label="Content" onChange={(e) => update(d.mac, { contentInstanceId: e.target.value || null })}>
+                  <label className="flex items-center gap-1.5">{t("content")}
+                    <select className={selectCls} value={d.content_instance_id ?? ""} aria-label={t("content")} onChange={(e) => update(d.mac, { contentInstanceId: e.target.value || null })}>
                       <option value="">—</option>
                       {contentInstances.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1.5">Theme
-                    <select className={selectCls} value={d.theme_id ?? ""} aria-label="Theme" onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
+                  <label className="flex items-center gap-1.5">{t("theme")}
+                    <select className={selectCls} value={d.theme_id ?? ""} aria-label={t("theme")} onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
                       <option value="">{t("default")}</option>
                       {themes.map((th) => <option key={th.id} value={th.id}>{th.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex items-center gap-1.5">Profile
-                    <select className={selectCls} value={d.refresh_profile_id ?? ""} aria-label="Refresh profile" onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
+                  <label className="flex items-center gap-1.5">{t("profile")}
+                    <select className={selectCls} value={d.refresh_profile_id ?? ""} aria-label={t("profile")} onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
                       <option value="">{t("default")}</option>
                       {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </label>
                   <span className="text-separator">|</span>
                   <label className="flex items-center gap-1.5">{t("orientation")}
-                    <select className={selectCls} value={d.orientation_override ?? ""} aria-label="Orientation" onChange={(e) => update(d.mac, { orientationOverride: e.target.value || null })}>
+                    <select className={selectCls} value={d.orientation_override ?? ""} aria-label={t("orientation")} onChange={(e) => update(d.mac, { orientationOverride: e.target.value || null })}>
                       <option value="">{t("auto")}</option>
                       <option value="landscape">{t("landscape")}</option>
                       <option value="portrait">{t("portrait")}</option>
                     </select>
                   </label>
                   <span className="text-separator">|</span>
-                  <label className="flex items-center gap-1.5">FW
-                    <select className={selectCls} value={channel} aria-label="Firmware channel" onChange={(e) => update(d.mac, { firmwareChannel: e.target.value })}>
+                  <label className="flex items-center gap-1.5">{t("firmware")}
+                    <select className={selectCls} value={channel} aria-label={t("channel")} onChange={(e) => update(d.mac, { firmwareChannel: e.target.value })}>
                       <option value="stable">stable</option>
                       <option value="beta">beta</option>
                     </select>
                   </label>
-                  <label className="flex items-center gap-1.5">Pin
-                    <select className={selectCls} value={d.firmware_pin_version ?? ""} aria-label="Pin version" onChange={(e) => update(d.mac, { firmwarePinVersion: e.target.value || null })}>
+                  <label className="flex items-center gap-1.5">{t("pin")}
+                    <select className={selectCls} value={d.firmware_pin_version ?? ""} aria-label={t("pin")} onChange={(e) => update(d.mac, { firmwarePinVersion: e.target.value || null })}>
                       <option value="">{t("latest")}</option>
                       {channelVersions.map((v) => <option key={v.tag} value={v.version}>v{v.version}</option>)}
                     </select>
@@ -256,7 +256,7 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
         <div className="fixed inset-0 z-50 material-overlay flex items-center justify-center p-8 cursor-pointer"
           onClick={() => setPreviewId(null)}
           onKeyDown={(e) => e.key === "Escape" && setPreviewId(null)}
-          tabIndex={0} role="button" aria-label="Close preview">
+          tabIndex={0} role="button" aria-label={t("preview")}>
           <img src={`/api/v1/admin/preview?instanceId=${previewId}&mac=${previewMac}`} alt="Preview"
             className="max-w-full max-h-full object-contain rounded-2xl shadow-e3" />
         </div>

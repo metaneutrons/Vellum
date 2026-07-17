@@ -3,6 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
@@ -27,18 +28,12 @@ import {
 // validating the total profile size.
 const ZERO_TOUCH_TOKEN_LEN = 64;
 
-const PHASE_TEXT: Record<ProvisionPhase, string> = {
-  connecting: "Opening serial port…",
-  sending: "Sending profile to the device…",
-  provisioning: "Device is joining Wi-Fi…",
-  provisioned: "Device joined Wi-Fi.",
-  error: "Provisioning failed.",
-};
-
 // Server URL fits the firmware Improv buffer (256B); keep well under one byte's worth.
 const MAX_URL_LEN = 255;
 
 export function ProvisionTool() {
+  const t = useTranslations("provision");
+  const tx = useTranslations("provisionExtras");
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [serverUrl, setServerUrl] = useState("");
@@ -132,23 +127,22 @@ export function ProvisionTool() {
         ← Back to Firmware
       </Link>
       <PageHeader
-        title="Provision over USB"
-        description="Push Wi-Fi and the server URL to a device over the USB cable — no SoftAP setup."
+        title={t("title")}
+        description={t("description")}
       />
 
       <Card className="p-6 max-w-lg">
         {!supported && (
           <Notice tone="orange">
-            Web Serial isn’t available in this browser. Use <strong>Chrome</strong> or{" "}
-            <strong>Edge</strong> on desktop, over HTTPS or localhost.
+            {t("unsupported")}
           </Notice>
         )}
 
         <div className="flex flex-col gap-4 mt-1">
           <Field
-            label="Wi-Fi network (SSID)"
+            label={t("ssid")}
             htmlFor="prov-ssid"
-            hint={supported ? "Type it, or Scan to list networks the device can see." : undefined}
+            hint={supported ? t("scanHint") : undefined}
             error={ssid && !ssidOk ? `Must be 1–${MAX_SSID_LEN} bytes.` : undefined}
           >
             <div className="flex gap-2">
@@ -157,7 +151,7 @@ export function ProvisionTool() {
                 list="prov-networks"
                 value={ssid}
                 onChange={(e) => setSsid(e.target.value)}
-                placeholder="e.g. OfficeWiFi"
+                placeholder={tx("ssidPlaceholder")}
                 autoComplete="off"
                 disabled={busy}
                 className="flex-1"
@@ -169,7 +163,7 @@ export function ProvisionTool() {
                 loading={scanning}
                 disabled={!supported || busy || scanning}
               >
-                Scan
+                {t("scan")}
               </Button>
             </div>
             <datalist id="prov-networks">
@@ -182,9 +176,9 @@ export function ProvisionTool() {
           </Field>
 
           <Field
-            label="Wi-Fi password"
+            label={t("password")}
             htmlFor="prov-pass"
-            hint="Leave empty for an open network."
+            hint={t("openHint")}
             error={!passOk ? `Must be at most ${MAX_PASS_LEN} bytes.` : undefined}
           >
             <Input
@@ -198,9 +192,9 @@ export function ProvisionTool() {
           </Field>
 
           <Field
-            label="Server URL"
+            label={t("serverUrl")}
             htmlFor="prov-url"
-            hint="Where the device reports in. Prefilled from this admin’s address."
+            hint={t("serverHint")}
             error={
               !urlOk
                 ? `Too long (max ${MAX_URL_LEN} bytes).`
@@ -213,7 +207,7 @@ export function ProvisionTool() {
               id="prov-url"
               value={serverUrl}
               onChange={(e) => setServerUrl(e.target.value)}
-              placeholder="https://vellum.example.com"
+              placeholder={tx("serverPlaceholder")}
               autoComplete="off"
               disabled={busy}
             />
@@ -229,7 +223,7 @@ export function ProvisionTool() {
             className="mt-0.5 size-4 rounded accent-accent focus-ring"
           />
           <span>
-            <span className="font-medium text-label">Zero-touch (pre-authorize)</span> — mint a
+            <span className="font-medium text-label">{t("zeroTouch")}</span> — mint a
             one-time voucher so the device is approved automatically, skipping the manual step
             under Devices.
           </span>
@@ -244,7 +238,7 @@ export function ProvisionTool() {
             disabled={!canSubmit}
             onClick={provision}
           >
-            {busy ? "Provisioning…" : "Provision over USB"}
+            {busy ? t("provisioning") : t("button")}
           </Button>
         </div>
 
@@ -253,7 +247,7 @@ export function ProvisionTool() {
             {result ? (
               result.ok ? (
                 <Notice tone="green">
-                  <strong>Done.</strong> The device joined Wi-Fi and points at the server.{" "}
+                  <strong>{t("done")}</strong> The device joined Wi-Fi and points at the server.{" "}
                   {zeroTouch ? (
                     <>
                       It’s <strong>pre-authorized</strong> and enrolls automatically on first
@@ -278,14 +272,14 @@ export function ProvisionTool() {
                 </Notice>
               ) : (
                 <Notice tone="red">
-                  <strong>Failed.</strong> {result.error ?? "Unknown error."}
+                  <strong>{t("failed")}</strong> {result.error ?? t("unknown")}
                 </Notice>
               )
             ) : (
               phase && (
                 <div className="p-3 rounded-lg bg-fill-secondary text-[13px] text-label-secondary flex items-center gap-2">
                   <span className="inline-block size-2 rounded-full bg-accent animate-pulse" aria-hidden="true" />
-                  {PHASE_TEXT[phase]} {detail}
+                  {tx(phase)} {detail}
                 </div>
               )
             )}
@@ -293,16 +287,15 @@ export function ProvisionTool() {
         )}
 
         <div className="mt-6 flex flex-col gap-2 text-[13px] text-label-secondary">
-          <p className="font-medium text-label">Instructions</p>
+          <p className="font-medium text-label">{t("instructions")}</p>
           <ol className="list-decimal list-inside flex flex-col gap-1">
-            <li>Connect the device via USB-C and power it on.</li>
-            <li>Enter the Wi-Fi details (the server URL is prefilled).</li>
-            <li>Click “Provision over USB” and pick the device’s serial port.</li>
-            <li>Wait for “Device joined Wi-Fi”, then approve it under Devices.</li>
+            <li>{t("step1")}</li>
+            <li>{t("step2")}</li>
+            <li>{t("step3")}</li>
+            <li>{t("step4")}</li>
           </ol>
           <p className="mt-2">
-            Requires <strong className="font-medium text-label">Chrome/Edge 89+</strong> with Web
-            Serial. Credentials travel over the USB cable only — nothing is broadcast.
+            {tx("requirements")}
           </p>
         </div>
       </Card>

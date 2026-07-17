@@ -5,6 +5,7 @@
 import { useId } from "react";
 import { Activity } from "lucide-react";
 import { DashCard } from "./card";
+import { useTranslations } from "next-intl";
 
 interface Checkin {
   day: string;
@@ -19,6 +20,7 @@ interface Checkin {
  * case (no telemetry at all) falls back to a flat baseline plus a friendly hint.
  */
 export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
+  const t = useTranslations("dashboard");
   // SVG geometry — generous inner padding leaves room for axis labels.
   const W = 600;
   const H = 200;
@@ -94,16 +96,16 @@ export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
   const hasData = total > 0;
 
   return (
-    <DashCard title="Check-in activity" subtitle="Last 14 days" icon={<Activity size={16} />}>
+    <DashCard title={t("checkinActivity")} subtitle={t("lastDays", { count: 14 })} icon={<Activity size={16} />}>
       {/* Headline stats */}
       <div className="flex items-end gap-8 mb-4">
         <div>
           <div className="text-3xl font-semibold tabular-nums text-label leading-none">{total.toLocaleString()}</div>
-          <div className="text-xs text-label-secondary mt-1.5">Total check-ins</div>
+          <div className="text-xs text-label-secondary mt-1.5">{t("totalCheckins")}</div>
         </div>
         <div>
           <div className="text-3xl font-semibold tabular-nums text-label leading-none">{peak.toLocaleString()}</div>
-          <div className="text-xs text-label-secondary mt-1.5">Peak / day</div>
+          <div className="text-xs text-label-secondary mt-1.5">{t("peakPerDay")}</div>
         </div>
       </div>
 
@@ -187,8 +189,8 @@ export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
         {!hasData && (
           <div className="absolute inset-0 grid place-items-center pointer-events-none">
             <div className="text-center">
-              <p className="text-[13px] font-medium text-label-secondary">No check-ins yet</p>
-              <p className="text-xs text-label-tertiary mt-0.5">Activity will appear once devices report in.</p>
+              <p className="text-[13px] font-medium text-label-secondary">{t("noCheckins")}</p>
+              <p className="text-xs text-label-tertiary mt-0.5">{t("checkinHint")}</p>
             </div>
           </div>
         )}

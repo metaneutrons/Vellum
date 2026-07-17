@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { TextBoxCanvas } from "@/components/text-box-canvas";
 import { KNOWN_DISPLAYS, type DisplaySize, type Design } from "@/lib/content/renderers/door-sign-types";
 import { MULTI_TEMPLATE_VARS, type DoorSignMultiConfig, type RowTemplate } from "@/lib/content/renderers/door-sign-multi-types";
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays }: Props) {
+  const t = useTranslations("content.doorSign");
   const [activeDisplay, setActiveDisplay] = useState<string>("default");
   const [availableResources, setAvailableResources] = useState<{ id: string; name: string }[]>([]);
   const [selectedProvider, setSelectedProvider] = useState(config.resources[0]?.providerId ?? providers[0]?.id ?? "");
@@ -72,7 +74,7 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
     <div className="space-y-4">
       {/* Resource selection */}
       <div className="p-4 bg-surface-secondary rounded-lg space-y-3">
-        <label className="block text-sm font-semibold text-label">Resources</label>
+        <label className="block text-sm font-semibold text-label">{t("resource")}</label>
         <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)}
           className="w-full min-h-11 rounded-md bg-surface border border-separator px-3 text-sm text-label focus-ring">
           {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -87,7 +89,7 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
               </label>
             );
           })}
-          {availableResources.length === 0 && <span className="text-xs text-label-tertiary">Loading resources...</span>}
+          {availableResources.length === 0 && <span className="text-xs text-label-tertiary">{t("loading")}</span>}
         </div>
         {config.resources.length > 0 && (
           <div className="text-xs text-label-tertiary">{config.resources.length} selected</div>
@@ -113,7 +115,7 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
 
       {/* Header height slider */}
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-label">Header</label>
+        <label className="text-sm font-medium text-label">{t("template")}</label>
         <input type="range" min="0.1" max="0.6" step="0.05" value={config.headerHeight}
           onChange={e => onChange({ ...config, headerHeight: parseFloat(e.target.value) })}
           className="flex-1 accent-accent focus-ring" />
@@ -156,14 +158,14 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
 
       {/* Preview */}
       <div className="p-3 bg-surface-secondary rounded-lg">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-label-tertiary mb-2">Preview</label>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-label-tertiary mb-2">{t("previewAllSizes")}</label>
         <div className="relative border border-separator rounded overflow-hidden"
           style={{ width: "100%", maxWidth: 400, aspectRatio: `${currentDisplay.width}/${currentDisplay.height}`, background: activeDesign.backgroundColor }}>
           {bgUrl && <img src={bgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
           {/* Header area indicator */}
           <div className="absolute left-0 right-0 top-0 border-b border-dashed border-accent"
             style={{ height: `${config.headerHeight * 100}%` }}>
-            <span className="absolute top-1 left-2 text-[9px] text-accent">Header</span>
+            <span className="absolute top-1 left-2 text-[9px] text-accent">{t("header")}</span>
           </div>
           {/* Row indicators */}
           {config.resources.map((r, i) => (

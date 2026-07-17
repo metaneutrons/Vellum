@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
+import { useTranslations } from "next-intl";
 
 interface ScheduleRule {
   name: string;
@@ -52,6 +53,7 @@ function matchesNow(rule: ScheduleRule): boolean {
 }
 
 export function ScheduleTimeline({ rules, defaultIntervalS }: { rules: ScheduleRule[]; defaultIntervalS: number }) {
+  const t = useTranslations("profiles");
   if (rules.length === 0) return null;
 
   const nowHour = new Date().getHours();
@@ -117,7 +119,7 @@ export function ScheduleTimeline({ rules, defaultIntervalS }: { rules: ScheduleR
                 {active && <span className="ml-1 text-orange-400">● active</span>}
                 {isOvernight(rule) && <span className="ml-1">🌙</span>}
               </span>
-              {hasOverlap && <span className="text-[10px] text-yellow-500" title="This rule overlaps with another rule. First match wins.">⚠</span>}
+              {hasOverlap && <span className="text-[10px] text-yellow-500" title={t("overlapHint")}>⚠</span>}
             </div>
           );
         })}

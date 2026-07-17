@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Pencil } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface Resource { id: string; name: string; description?: string; bookingUrl?: string }
 
@@ -18,6 +19,7 @@ interface Props {
  * Searchable room picker — fetches resources from anny via provider credentials.
  */
 export function AnnyResourcePicker({ providerId, resourceId, resourceName, onChange }: Props) {
+  const t = useTranslations("resourcePicker");
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,21 +68,21 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
         <button type="button" onClick={() => { setOpen(true); fetchResources(""); }}
           className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex justify-between items-center gap-2">
           <span className="truncate">{selectedName || resourceId}</span>
-          <span className="text-label-tertiary text-xs shrink-0 inline-flex items-center gap-1"><Pencil size={13} aria-hidden="true" />Change</span>
+          <span className="text-label-tertiary text-xs shrink-0 inline-flex items-center gap-1"><Pencil size={13} aria-hidden="true" />{t("change")}</span>
         </button>
       ) : (
         <input className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label placeholder:text-label-tertiary focus-ring"
-          placeholder="Search rooms..."
+          placeholder={t("search")}
           value={search}
           onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
           onFocus={() => { setOpen(true); if (!results.length) fetchResources(""); }}
-          aria-label="Search rooms" />
+          aria-label={t("search")} />
       )}
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-surface border border-separator rounded-lg shadow-e3 max-h-64 overflow-y-auto">
-          {loading && <div className="px-3 py-2 text-sm text-label-tertiary">Loading...</div>}
+          {loading && <div className="px-3 py-2 text-sm text-label-tertiary">{t("loading")}</div>}
           {!loading && results.length === 0 && (
-            <div className="px-3 py-2 text-sm text-label-tertiary">{search ? "No rooms found" : "No resources"}</div>
+            <div className="px-3 py-2 text-sm text-label-tertiary">{search ? t("noResults") : t("noResources")}</div>
           )}
           {results.map((r) => (
             <button key={r.id} type="button" onClick={() => select(r)}

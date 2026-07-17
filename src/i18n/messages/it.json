@@ -1,5 +1,6 @@
 {
   "nav": {
+    "language": "Lingua",
     "title": "Vellum Console",
     "overview": "Panoramica",
     "devices": "Dispositivi",
@@ -10,7 +11,7 @@
     "firmware": "Firmware",
     "logout": "Esci",
     "lightMode": "Modalità chiara",
-    "darkMode": "Modalità scura"
+    "darkMode": "Modalità scura", "systemMode": "Sistema", "appearance": "Aspetto"
   },
   "devices": {
     "title": "Dispositivi",
@@ -54,6 +55,8 @@
     "portrait": "Verticale",
     "deleteTitle": "Rimuovi dispositivo",
     "deleteMsg": "Rimuovere questo dispositivo? Dovrà essere ri-approvato.",
+    "noTelemetry": "Nessun dato di telemetria.", "noDisplayCaps": "Le capacità del display non sono ancora disponibili.", "voltage": "Tensione", "capacity": "Capacità", "days": "{count} giorni", "dataPoints": "punti dati", "loadingData": "Caricamento…", "noData": "Nessun dato", "prediction": "Previsione: ~{days} giorni rimanenti (consumo attuale)",
+    "telemetry": "Telemetria", "display": "Display", "timeline": "Cronologia", "registered": "Registrato", "approvedAt": "Approvato", "lastSeen": "Ultimo accesso", "contentAssignment": "Assegnazione contenuto", "themeAssignment": "Assegnazione tema", "refreshProfile": "Profilo di aggiornamento", "telemetryHistory": "Cronologia telemetria", "time": "Ora", "battery": "Batteria", "rssi": "RSSI", "wifiRssi": "RSSI Wi‑Fi", "firmware": "Firmware", "model": "Modello", "resolution": "Risoluzione", "quantize": "Quantizzazione", "recentReports": "Rapporti recenti",
     "connectivity": {
       "online": "Online",
       "late": "In ritardo",
@@ -62,6 +65,7 @@
     }
   },
   "content": {
+    "removeProperty": "Rimuovi proprietà", "add": "Aggiungi", "layout": "Layout", "timeline": "Cronologia", "stacked": "Impilato", "cancel": "Annulla", "save": "Salva", "contentType": "Tipo di contenuto", "name": "Nome", "namePlaceholder": "es. Sala riunioni",
     "title": "Istanze di contenuto",
     "description": "Configura cosa mostra ogni display",
     "add": "Nuovo contenuto",
@@ -111,6 +115,7 @@
     "deleteMessage": "Eliminare questa istanza di contenuto? I dispositivi che la utilizzano non mostreranno più nulla.",
     "previewTitle": "Anteprima contenuto",
     "doorSign": {
+      "loading": "Caricamento…", "header": "Intestazione",
       "resource": "Risorsa (Sala/Scrivania)",
       "customProperties": "Proprietà personalizzate",
       "customPropertiesHint": "Definire valori statici disponibili come variabili di modello",
@@ -143,6 +148,7 @@
     "emptyDesc": "Crea un contenuto e assegnalo a un dispositivo."
   },
   "providers": {
+    "clearSearch": "Cancella ricerca",
     "title": "Provider",
     "description": "Configura le fonti di calendario e prenotazione",
     "add": "Aggiungi fornitore",
@@ -182,24 +188,29 @@
     "emptyDesc": "Aggiungi un provider per collegare fonti dati."
   },
   "themes": {
+    "created": "Tema creato", "updated": "Tema aggiornato", "saveFailed": "Impossibile salvare il tema", "deleted": "Tema eliminato", "deleteFailed": "Impossibile eliminare il tema", "default": "predefinito", "newTheme": "Nuovo tema", "editTheme": "Modifica tema", "name": "Nome",
+    "preview": "Anteprima", "deleteThemeTitle": "Elimina tema", "deleteThemeMessage": "Eliminare questo tema? I dispositivi useranno il tema predefinito.", "colorHeaderBg": "Sfondo intestazione", "colorHeaderText": "Testo intestazione", "colorFreeBadge": "Badge LIBERO", "colorBusyBadge": "Badge OCCUPATO", "colorBadgeText": "Testo badge", "colorBackground": "Sfondo", "colorEventBg": "Blocco evento", "colorSlotText": "Testo evento", "colorSlotSecondary": "Testo secondario", "colorFooterText": "Testo piè di pagina",
     "title": "Temi",
     "description": "Personalizza l'aspetto dei display",
     "add": "Aggiungi tema",
     "edit": "Modifica",
     "delete": "Elimina",
     "save": "Salva",
-    "cancel": "Annulla"
+    "cancel": "Annulla", "search": "Cerca…", "defaultIntervals": "Intervalli predefiniti", "scheduleRules": "Regole di pianificazione", "refreshInterval": "Intervallo di aggiornamento", "moveUp": "Sposta su", "moveDown": "Sposta giù", "overnight": "Regola notturna (oltre mezzanotte)", "deleteTitle": "Elimina profilo", "deleteMessage": "Eliminare questo profilo? I dispositivi useranno i valori predefiniti."
   },
   "profiles": {
+    "overlapHint": "Questa regola si sovrappone a un'altra. Viene usata la prima corrispondenza.",
+    "all": "Tutti", "weekdays": "Giorni feriali", "weekend": "Weekend", "custom": "Personalizzato", "seconds": "secondi", "name": "Nome", "namePlaceholder": "es. Ufficio standard", "remove": "Rimuovi", "ruleName": "Nome regola", "days": "Giorni", "from": "Da", "until": "A",
     "title": "Profili di aggiornamento",
     "description": "Configura i programmi di aggiornamento",
     "add": "Aggiungi profilo",
     "edit": "Modifica",
     "delete": "Elimina",
     "save": "Salva",
-    "cancel": "Annulla"
+    "cancel": "Annulla", "search": "Cerca…", "defaultIntervals": "Intervalli predefiniti", "scheduleRules": "Regole di pianificazione", "refreshInterval": "Intervallo di aggiornamento", "moveUp": "Sposta su", "moveDown": "Sposta giù", "overnight": "Regola notturna (oltre mezzanotte)", "deleteTitle": "Elimina profilo", "deleteMessage": "Eliminare questo profilo? I dispositivi useranno i valori predefiniti."
   },
   "firmware": {
+    "rolloutAdoption": "dispositivi con questa versione", "rolloutState": "Stato del rollout per {version}", "rolloutPercent": "Percentuale del rollout per {version}", "halt": "Arresta {version}", "stateFull": "completo", "stateCanary": "canary", "statePercent": "percentuale", "statePaused": "in pausa", "stateHalted": "arrestato", "rolloutUpdated": "Rollout: {version} → {state}{percent}", "rolloutUpdateFailed": "Impossibile aggiornare il rollout",
     "title": "Firmware",
     "description": "Aggiornamenti OTA firmware tramite GitHub Releases",
     "flash": "Flash dispositivo",
@@ -223,7 +234,7 @@
     "flashDesc": "Flash firmware direttamente via USB",
     "failedUpdate": "Aggiornamento fallito",
     "autoPollDesc": "Il server controlla GitHub automaticamente",
-    "manualPollDesc": "Controlla solo all apertura della pagina admin"
+    "manualPollDesc": "Controlla solo all apertura della pagina admin", "rollouts": "Rilasci progressivi", "rolloutHint": "È il rilascio — non la build più recente — a decidere cosa viene distribuito", "noFirmwareVersions": "Nessuna versione firmware.", "recentOta": "Eventi OTA recenti", "noOta": "Nessun report OTA."
   },
   "flash": {
     "title": "Flash firmware",
@@ -252,9 +263,10 @@
     "username": "Nome utente",
     "password": "Password",
     "submit": "Accedi",
-    "error": "Credenziali non valide"
+    "error": "Credenziali non valide", "subtitle": "Gestione dei display E-Ink", "signingIn": "Accesso in corso…"
   },
   "common": {
+    "databaseUnavailable": "Database non disponibile", "databaseHalted": "Il sistema ha arrestato le operazioni del database dopo errori ripetuti.", "databaseRetrying": "Impossibile raggiungere il database. Nuovo tentativo automatico…", "status": "Stato", "failures": "Errori", "errorLabel": "Errore", "reconnecting": "Riconnessione…",
     "loading": "Caricamento...",
     "error": "Errore",
     "success": "Successo",
@@ -270,7 +282,7 @@
     "failed": "Fallito",
     "create": "Crea",
     "retry": "Riprova",
-    "confirmDelete": "Sei sicuro?"
+    "confirmDelete": "Sei sicuro?", "selectTimezone": "Seleziona fuso orario…", "clearSearch": "Cancella ricerca"
   },
   "contentTypes": {
     "room-booking": "Prenotazione sala",
@@ -284,6 +296,12 @@
     "unexpected": "Si è verificato un errore imprevisto.",
     "retry": "Riprova"
   },
+  "dashboard": {
+    "overview": "Panoramica", "subtitle": "La flotta Vellum a colpo d’occhio", "fleetHealth": "Stato flotta", "noDevices": "Nessun dispositivo", "fleetHint": "Lo stato della flotta appare quando i dispositivi effettuano il check-in.", "online": "online", "late": "in ritardo", "offline": "offline", "neverSeen": "mai visto", "averageBattery": "Batteria media", "lowBattery": "Batteria scarica", "weakSignal": "Segnale debole", "checkinActivity": "Attività check-in", "lastDays": "Ultimi {count} giorni", "totalCheckins": "Check-in totali", "peakPerDay": "Picco / giorno", "noCheckins": "Nessun check-in", "checkinHint": "L’attività apparirà quando i dispositivi invieranno dati.", "recentActivity": "Attività recente", "noRecentActivity": "Nessuna attività recente", "latestCheckins": "Ultimi check-in", "reports": "Segnalazioni", "noDetail": "(nessun dettaglio)", "needsAttention": "Richiede attenzione", "allDevices": "Tutti i dispositivi", "healthy": "Tutto sembra regolare", "attentionHint": "Nessun dispositivo richiede attenzione al momento.", "firmwareData": "Nessun dato firmware", "manage": "Gestisci", "latestStable": "Ultima stabile", "latestBeta": "Ultima beta", "upToDate": "aggiornato", "behind": "indietro", "unknown": "sconosciuto", "byVersion": "Per versione"
+  },
+  "resourcePicker": { "change": "Modifica", "search": "Cerca sale…", "loading": "Caricamento…", "noResults": "Nessuna sala trovata", "noResources": "Nessuna risorsa" },
+  "provision": { "title": "Provisiona via USB", "description": "Invia Wi-Fi e URL del server al dispositivo tramite USB — senza configurazione SoftAP.", "unsupported": "Web Serial non è disponibile in questo browser. Usa Chrome o Edge su desktop, tramite HTTPS o localhost.", "ssid": "Rete Wi-Fi (SSID)", "scanHint": "Inseriscila o scansiona le reti visibili al dispositivo.", "scan": "Scansiona", "password": "Password Wi-Fi", "openHint": "Lascia vuoto per una rete aperta.", "serverUrl": "URL del server", "serverHint": "Destinazione dei report del dispositivo. Precompilato con l’indirizzo di questo pannello.", "zeroTouch": "Zero-touch (pre-autorizza)", "provisioning": "Provisioning…", "button": "Provisiona via USB", "done": "Fatto.", "failed": "Operazione non riuscita.", "unknown": "Errore sconosciuto.", "instructions": "Istruzioni", "step1": "Collega il dispositivo via USB-C e accendilo.", "step2": "Inserisci i dati Wi-Fi (l’URL del server è precompilato).", "step3": "Fai clic su “Provisiona via USB” e scegli la porta seriale.", "step4": "Attendi la connessione del dispositivo, poi approvalo in Dispositivi." },
+  "provisionExtras": { "ssidPlaceholder": "es. OfficeWiFi", "serverPlaceholder": "https://vellum.example.com", "requirements": "Richiede Chrome/Edge 89+ con supporto Web Serial. Le credenziali viaggiano solo tramite USB.", "connecting": "Apertura della porta seriale…", "sending": "Invio del profilo al dispositivo…", "provisioning": "Il dispositivo si sta unendo al Wi‑Fi…", "provisioned": "Il dispositivo è connesso al Wi‑Fi.", "error": "Provisioning non riuscito." },
   "wizard": {
     "progress": "Progresso",
     "stepOf": "Passo {current} di {total}"
