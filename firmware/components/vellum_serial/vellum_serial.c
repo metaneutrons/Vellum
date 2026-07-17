@@ -175,6 +175,12 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     if (wifi_manager_connect_station() == WIFI_RESULT_CONNECTED) {
         s_improv_state = IMPROV_STATE_PROVISIONED;
         improv_send_state();
+        /* A repeat provisioning run may omit the optional URL. Preserve the
+         * previously configured redirect so ESP Web Tools can still offer a
+         * useful Visit Device action instead of hiding it unnecessarily. */
+        if (redirect[0] == '\0') {
+            nvs_manager_get_server_url(redirect, sizeof(redirect));
+        }
         /* ESP Web Tools uses the first RPC result string as the optional
          * redirect for its “Visit Device” action. Never send an empty string:
          * the web component treats that as a present href (the current page),
