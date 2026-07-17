@@ -220,28 +220,28 @@ function RoomBookingEditor({ config, onChange, providers }: {
       </select>
 
       <div className="border-t border-separator pt-3 mt-1 mb-3">
-        <label className="block text-sm font-semibold text-label mb-1">Booking QR code</label>
-        <p className="text-xs text-label-tertiary mb-2">Shows a public booking link on the display. It is never shown when the calendar is unavailable.</p>
-        <label className="block text-sm font-medium text-label-secondary mb-1">Show QR code</label>
+        <label className="block text-sm font-semibold text-label mb-1">{t("bookingQr")}</label>
+        <p className="text-xs text-label-tertiary mb-2">{t("bookingQrHint")}</p>
+        <label className="block text-sm font-medium text-label-secondary mb-1">{t("bookingQrVisibility")}</label>
         <select className={`${selectCls} mb-2`} value={bookingQr.visibility ?? "never"}
           onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, visibility: e.target.value } })}>
-          <option value="never">Never</option>
-          <option value="always">Always</option>
-          <option value="free">Only when room is free</option>
+          <option value="never">{t("bookingQrNever")}</option>
+          <option value="always">{t("bookingQrAlways")}</option>
+          <option value="free">{t("bookingQrWhenFree")}</option>
         </select>
 
-        <label className="block text-sm font-medium text-label-secondary mb-1">Booking link</label>
+        <label className="block text-sm font-medium text-label-secondary mb-1">{t("bookingQrLink")}</label>
         <select className={`${selectCls} mb-2`} value={bookingQr.source ?? "provider"}
           onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, source: e.target.value } })}>
-          <option value="provider">Use provider link{isAnny && roomConfig.bookingUrl ? " (available)" : ""}</option>
-          <option value="custom">Use custom URL</option>
+          <option value="provider">{isAnny && roomConfig.bookingUrl ? t("bookingQrProviderAvailable") : t("bookingQrProvider")}</option>
+          <option value="custom">{t("bookingQrCustom")}</option>
         </select>
         {bookingQr.source === "custom" && (
-          <Input type="url" placeholder="https://booking.example.com/room" value={bookingQr.customUrl ?? ""}
+          <Input type="url" placeholder={t("bookingQrCustomPlaceholder")} value={bookingQr.customUrl ?? ""}
             onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, customUrl: e.target.value } })} />
         )}
         {bookingQr.source !== "custom" && !roomConfig.bookingUrl && (
-          <p className="text-xs text-label-tertiary">This provider has no verified booking link for the selected room. Add a custom URL to enable the QR code.</p>
+          <p className="text-xs text-label-tertiary">{t("bookingQrUnavailable")}</p>
         )}
       </div>
 
