@@ -175,8 +175,17 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     if (wifi_manager_connect_station() == WIFI_RESULT_CONNECTED) {
         s_improv_state = IMPROV_STATE_PROVISIONED;
         improv_send_state();
-        const char *result[] = { redirect };
-        improv_send_rpc_result(IMPROV_CMD_WIFI_SETTINGS, result, 1);
+        /* ESP Web Tools uses the first RPC result string as the optional
+         * redirect for its “Visit Device” action. Never send an empty string:
+         * the web component treats that as a present href (the current page),
+         * rendering a dead link. Omitting the result cleanly hides the action
+         * until a real device URL is available. */
+        if (redirect[0] != '\0') {
+            const char *result[] = { redirect };
+            improv_send_rpc_result(IMPROV_CMD_WIFI_SETTINGS, result, 1);
+        } else {
+            improv_send_rpc_result(IMPROV_CMD_WIFI_SETTINGS, NULL, 0);
+        }
         ESP_LOGI(TAG, "Improv: WiFi connected");
     } else {
         s_improv_state = IMPROV_STATE_READY;
