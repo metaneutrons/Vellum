@@ -5,13 +5,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Pencil } from "lucide-react";
 
-interface Resource { id: string; name: string; description?: string }
+interface Resource { id: string; name: string; description?: string; bookingUrl?: string }
 
 interface Props {
   providerId: string;
   resourceId: string;
   resourceName?: string;
-  onChange: (resourceId: string, resourceName: string) => void;
+  onChange: (resourceId: string, resourceName: string, bookingUrl?: string) => void;
 }
 
 /**
@@ -57,7 +57,7 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
     setSelectedName(r.name);
     setSearch("");
     setOpen(false);
-    onChange(r.id, r.name);
+    onChange(r.id, r.name, r.bookingUrl);
   }
 
   return (

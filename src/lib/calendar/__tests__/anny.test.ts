@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { annyProvider } from "../providers/anny";
+import { annyProvider, fetchAnnyResources } from "../providers/anny";
 
 /** anny JSON:API bookings response. */
 function annyResponse(data: unknown[], lastPage = 1): Response {
@@ -191,5 +191,27 @@ describe("anny provider — recurring series", () => {
 
     expect(events).toHaveLength(1);
     expect(events[0].subject).toBe("Besprechung");
+  });
+});
+
+describe("anny provider — direct booking URLs", () => {
+  it("uses a booking URL only when Anny explicitly supplies a resource slug", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => annyResponse([{
+      id: "resource-1",
+      type: "resources",
+      attributes: { name: "Team Room", slug: "team-room" },
+    }])));
+
+    const result = await fetchAnnyResources(CREDS.apiToken, "org-1");
+    expect(result.resources).toEqual([{
+      id: "resource-1",
+      name: "Team Room",
+      description: undefined,
+      bookingUrl: "https://anny.co/b/book/team-room",
+    }]);
+  });
+
+  it("does not infer a public booking URL from a resource ID or name", () => {
+    expect(annyProvider.getBookingUrl?.({ credentials: CREDS, roomConfig: { resourceId: "looks-like-a-slug" } })).toBeNull();
   });
 });
