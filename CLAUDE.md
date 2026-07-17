@@ -26,6 +26,12 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   Plain `npm ci` reopens the install-hook supply-chain surface; without the
   rebuild, the one native addon the room-booking renderer needs
   (`@napi-rs/canvas`) is unbuilt and canvas rendering fails at runtime.
+- **npm is pinned to `npm@10.9.8`** (`package.json` `packageManager`; CI runs
+  `corepack enable`). **Regenerate `package-lock.json` ONLY under npm 10** — run
+  `corepack enable` once locally, or `npx npm@10.9.8 install`. A lockfile written
+  by npm 11 fails CI's npm-10 `npm ci` with `Missing @esbuild/<platform> from
+  lock file` (passes on the author's Mac, red on CI). pnpm migration is on the
+  roadmap; until then, npm 10 is mandatory for lockfile edits.
 - Scripts (`package.json`): `dev`, `build`, `start`, `lint` (`eslint .`),
   `test` (`vitest --run`), `test:coverage`, `db:migrate` (`drizzle-kit migrate`),
   `dev:mdns` / `mdns`. Type-check: `npx tsc --noEmit`.
