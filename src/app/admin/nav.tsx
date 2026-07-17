@@ -115,7 +115,7 @@ export function AdminNav() {
             <select
               value={locale}
               onChange={(e) => setLocale(e.target.value)}
-              aria-label="Language"
+              aria-label={t("language")}
               className="flex-1 min-h-9 px-2.5 rounded-md bg-surface-secondary border border-separator text-sm text-label focus-ring"
             >
               {LOCALES.map((l) => (

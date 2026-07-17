@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { createRefreshProfile, updateRefreshProfile, deleteRefreshProfile } from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
@@ -52,6 +53,7 @@ const RULE_TEMPLATES: { label: string; rule: ScheduleRule }[] = [
 ];
 
 function IntervalPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const t = useTranslations("profiles");
   const [custom, setCustom] = useState(false);
   const isPreset = INTERVAL_PRESETS.some(p => p.value === value);
 
@@ -65,14 +67,14 @@ function IntervalPicker({ value, onChange }: { value: number; onChange: (v: numb
           </Button>
         ))}
         <Button size="sm" variant={custom || !isPreset ? "filled" : "gray"} onClick={() => setCustom(true)}>
-          Custom
+          {t("custom")}
         </Button>
       </div>
       {(custom || !isPreset) && (
         <div className="flex items-center gap-2">
           <Input type="number" min={10} step={10} className="w-24 min-h-8"
             value={value} onChange={e => onChange(parseInt(e.target.value) || 60)} />
-          <span className="text-xs text-label-secondary">seconds ({fmtInterval(value)})</span>
+          <span className="text-xs text-label-secondary">{t("seconds")} ({fmtInterval(value)})</span>
         </div>
       )}
     </div>
@@ -80,6 +82,7 @@ function IntervalPicker({ value, onChange }: { value: number; onChange: (v: numb
 }
 
 function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[]) => void }) {
+  const t = useTranslations("profiles");
   function toggle(day: number) {
     onChange(days.includes(day) ? days.filter(d => d !== day) : [...days, day].sort());
   }
@@ -90,9 +93,9 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
   return (
     <div>
       <div className="flex gap-1 mb-1">
-        <Button size="sm" variant={isAll ? "filled" : "gray"} onClick={() => onChange([])}>All</Button>
-        <Button size="sm" variant={isWeekdays ? "filled" : "gray"} onClick={() => onChange([...WEEKDAYS])}>Weekdays</Button>
-        <Button size="sm" variant={isWeekend ? "filled" : "gray"} onClick={() => onChange([...WEEKEND])}>Weekend</Button>
+        <Button size="sm" variant={isAll ? "filled" : "gray"} onClick={() => onChange([])}>{t("all")}</Button>
+        <Button size="sm" variant={isWeekdays ? "filled" : "gray"} onClick={() => onChange([...WEEKDAYS])}>{t("weekdays")}</Button>
+        <Button size="sm" variant={isWeekend ? "filled" : "gray"} onClick={() => onChange([...WEEKEND])}>{t("weekend")}</Button>
       </div>
       <div className="flex gap-1">
         {DAY_NAMES.map((d, i) => (
@@ -122,6 +125,7 @@ const DEFAULT_CONFIG = {
 };
 
 export function ProfileList({ profiles }: { profiles: Profile[] }) {
+  const t = useTranslations("profiles");
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
@@ -173,14 +177,14 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       {/* Header */}
       <div className="flex flex-wrap items-end gap-4 mb-6">
         <div className="flex-1 min-w-0">
-          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">Refresh Profiles</h1>
-          <p className="text-[15px] text-label-secondary mt-1.5">Control how often devices refresh their display</p>
+        <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
+        <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="pl-9" aria-label="Search..." />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("search")} className="pl-9" aria-label={t("search")} />
         </div>
-        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Profile</Button>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>{t("add")}</Button>
       </div>
 
       <div className="space-y-3">
@@ -210,8 +214,8 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <Button size="sm" variant="gray" onClick={() => startEdit(p)} leading={<Pencil size={15} aria-hidden="true" />}>Edit</Button>
-                  <Button size="sm" variant="plain" aria-label="Delete" onClick={() => setDeleting(p.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
+                  <Button size="sm" variant="gray" onClick={() => startEdit(p)} leading={<Pencil size={15} aria-hidden="true" />}>{t("edit")}</Button>
+                  <Button size="sm" variant="plain" aria-label={t("delete")} onClick={() => setDeleting(p.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
                 </div>
               </div>
             </div>
@@ -230,12 +234,12 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       <Modal open={!!editing} onClose={() => setEditing(null)}
         title={editing === "new" ? "New Refresh Profile" : "Edit Profile"}
         onSubmit={name ? save : undefined}
-        footer={<><Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button><Button onClick={save} disabled={!name} loading={pending}>Save</Button></>}>
+        footer={<><Button variant="gray" onClick={() => setEditing(null)}>{t("cancel")}</Button><Button onClick={save} disabled={!name} loading={pending}>{t("save")}</Button></>}>
 
-        <label className="block text-sm font-medium text-label mb-1">Name</label>
-        <Input className="mb-4" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Office Standard" />
+          <label className="block text-sm font-medium text-label mb-1">{t("name")}</label>
+          <Input className="mb-4" value={name} onChange={e => setName(e.target.value)} placeholder={t("namePlaceholder")} />
 
-        <h3 className="text-sm font-semibold text-label mb-3">Default Intervals</h3>
+        <h3 className="text-sm font-semibold text-label mb-3">{t("defaultIntervals")}</h3>
         <div className="space-y-3 mb-6">
           {BASE_FIELDS.map(f => (
             <div key={f.key}>
@@ -265,7 +269,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         </div>
 
         <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-semibold text-label">Schedule Rules</h3>
+          <h3 className="text-sm font-semibold text-label">{t("scheduleRules")}</h3>
         </div>
         <p className="text-xs text-label-secondary mb-3">
           Override the battery interval for specific days/times. Rules are checked top-to-bottom — first match wins.
@@ -284,36 +288,36 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
           <div key={i} className="border border-separator rounded-lg p-3 mb-3 bg-surface-secondary">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-1">
-                <Button size="sm" variant="gray" aria-label="Move up" onClick={() => moveRule(i, -1)} disabled={i === 0} className="px-1.5">
+                <Button size="sm" variant="gray" aria-label={t("moveUp")} onClick={() => moveRule(i, -1)} disabled={i === 0} className="px-1.5">
                   <ChevronUp size={14} aria-hidden="true" />
                 </Button>
-                <Button size="sm" variant="gray" aria-label="Move down" onClick={() => moveRule(i, 1)} disabled={i === schedule.length - 1} className="px-1.5">
+                <Button size="sm" variant="gray" aria-label={t("moveDown")} onClick={() => moveRule(i, 1)} disabled={i === schedule.length - 1} className="px-1.5">
                   <ChevronDown size={14} aria-hidden="true" />
                 </Button>
                 <span className="inline-flex items-center gap-1 text-xs text-label-tertiary ml-1">
                   #{i + 1}
-                  {rule.startHour > rule.endHour && <Moon size={13} aria-label="Overnight rule (wraps past midnight)" />}
+                  {rule.startHour > rule.endHour && <Moon size={13} aria-label={t("overnight")} />}
                 </span>
               </div>
-              <Button size="sm" variant="plain" onClick={() => removeRule(i)} className="text-red">Remove</Button>
+              <Button size="sm" variant="plain" onClick={() => removeRule(i)} className="text-red">{t("remove")}</Button>
             </div>
 
-            <Input className="mb-2 min-h-9" placeholder="Rule name"
+            <Input className="mb-2 min-h-9" placeholder={t("ruleName")}
               value={rule.name} onChange={e => updateRule(i, { name: e.target.value })} />
 
-            <label className="block text-xs font-medium text-label-secondary mb-1">Days</label>
+            <label className="block text-xs font-medium text-label-secondary mb-1">{t("days")}</label>
             <DayPicker days={rule.days} onChange={days => updateRule(i, { days })} />
 
             <div className="grid grid-cols-2 gap-2 mt-2 mb-2">
               <div>
-                <label className="block text-xs font-medium text-label-secondary mb-1">From</label>
+                <label className="block text-xs font-medium text-label-secondary mb-1">{t("from")}</label>
                 <select className={`${selectCls} w-full`} value={rule.startHour}
                   onChange={e => updateRule(i, { startHour: parseInt(e.target.value) })}>
                   {HOURS.map(h => <option key={h} value={h}>{fmtHour(h)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-label-secondary mb-1">Until</label>
+                <label className="block text-xs font-medium text-label-secondary mb-1">{t("until")}</label>
                 <select className={`${selectCls} w-full`} value={rule.endHour}
                   onChange={e => updateRule(i, { endHour: parseInt(e.target.value) })}>
                   {HOURS.map(h => <option key={h} value={h}>{fmtHour(h)}</option>)}
@@ -321,7 +325,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
               </div>
             </div>
 
-            <label className="block text-xs font-medium text-label-secondary mb-1">Refresh Interval</label>
+            <label className="block text-xs font-medium text-label-secondary mb-1">{t("refreshInterval")}</label>
             <IntervalPicker value={rule.intervalS} onChange={v => updateRule(i, { intervalS: v })} />
           </div>
         ))}
@@ -336,8 +340,8 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       </Modal>
 
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-        title="Delete Profile" message="Delete this refresh profile? Devices using it will fall back to defaults."
-        confirmLabel="Delete" destructive />
+        title={t("deleteTitle")} message={t("deleteMessage")}
+        confirmLabel={t("delete")} destructive />
     </div>
   );
 }

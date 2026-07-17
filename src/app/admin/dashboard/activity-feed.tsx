@@ -8,6 +8,7 @@ import { relativeTime, shortMac, batteryTone } from "./util";
 import { StatusPill } from "@/components/ui/badge";
 import type { DashboardData, RecentDevice } from "../dashboard-data";
 import type { Connectivity } from "@/lib/connectivity";
+import { useTranslations } from "next-intl";
 
 /** Authorization status → StatusPill tone. Green is reserved for connectivity,
  *  so "approved" is a neutral accent, not green. */
@@ -51,24 +52,25 @@ export function ActivityFeed({
   reports: DashboardData["reports"];
   now: number;
 }) {
+  const t = useTranslations("dashboard");
   const hasRecent = recent.length > 0;
   const hasReports = reports.length > 0;
 
   return (
-    <DashCard title="Recent activity" icon={<History size={16} />} flush>
+    <DashCard title={t("recentActivity")} icon={<History size={16} />} flush>
       {!hasRecent && !hasReports ? (
         <div className="flex flex-col items-center justify-center gap-2 px-5 py-12 text-center">
           <span className="size-10 rounded-full bg-accent-soft text-accent grid place-items-center">
             <Inbox size={18} aria-hidden="true" />
           </span>
-          <p className="text-[13px] text-label-secondary">No recent activity yet</p>
+          <p className="text-[13px] text-label-secondary">{t("noRecentActivity")}</p>
         </div>
       ) : (
         <div className="pb-2">
           {/* (A) Latest check-ins */}
           {hasRecent && (
             <section>
-              <h3 className={SECTION_HEADING}>Latest check-ins</h3>
+              <h3 className={SECTION_HEADING}>{t("latestCheckins")}</h3>
               <ul className="divide-y divide-separator">
                 {recent.map((d) => {
                   const tone = batteryTone(d.batteryLevel);
@@ -109,7 +111,7 @@ export function ActivityFeed({
           {/* (B) Reports */}
           {hasReports && (
             <section>
-              <h3 className={SECTION_HEADING}>Reports</h3>
+              <h3 className={SECTION_HEADING}>{t("reports")}</h3>
               <ul className="divide-y divide-separator">
                 {reports.map((r, i) => (
                   <li
@@ -123,7 +125,7 @@ export function ActivityFeed({
                     />
                     <span className="flex-1 min-w-0 truncate text-[13px] text-label">
                       {r.issue ?? (
-                        <span className="text-label-tertiary italic">(no detail)</span>
+                        <span className="text-label-tertiary italic">{t("noDetail")}</span>
                       )}
                     </span>
                     <span

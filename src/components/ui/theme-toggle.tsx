@@ -2,13 +2,10 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 type Theme = "light" | "dark" | "system";
-const OPTIONS: { value: Theme; label: string }[] = [
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-  { value: "system", label: "Auto" },
-];
+const OPTIONS: Theme[] = ["light", "dark", "system"];
 
 function apply(theme: Theme) {
   const dark =
@@ -19,6 +16,7 @@ function apply(theme: Theme) {
 
 /** Light / Dark / Auto segmented control, persisted to localStorage. */
 export function ThemeToggle() {
+  const t = useTranslations("nav");
   const [theme, setTheme] = useState<Theme>("system");
 
   useEffect(() => {
@@ -39,18 +37,18 @@ export function ThemeToggle() {
   }
 
   return (
-    <div role="radiogroup" aria-label="Appearance" className="inline-flex p-0.5 bg-fill-tertiary rounded-md gap-0.5">
+    <div role="radiogroup" aria-label={t("appearance")} className="inline-flex p-0.5 bg-fill-tertiary rounded-md gap-0.5">
       {OPTIONS.map((o) => (
         <button
-          key={o.value}
+          key={o}
           role="radio"
-          aria-checked={theme === o.value}
-          onClick={() => choose(o.value)}
+          aria-checked={theme === o}
+          onClick={() => choose(o)}
           className={`px-2.5 min-h-7 text-[13px] font-medium rounded-[7px] focus-ring transition ${
-            theme === o.value ? "bg-surface text-label shadow-e1" : "text-label-secondary hover:text-label"
+            theme === o ? "bg-surface text-label shadow-e1" : "text-label-secondary hover:text-label"
           }`}
         >
-          {o.label}
+          {t(o === "light" ? "lightMode" : o === "dark" ? "darkMode" : "systemMode")}
         </button>
       ))}
     </div>

@@ -215,7 +215,7 @@ export function DoorSignEditor({ design, designOverrides, onChange, knownDisplay
                     <button
                       onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); deleteBox(box.id); }}
                       className="absolute top-1 right-1 size-6 text-label-tertiary hover:text-label rounded-md backdrop-blur-sm bg-surface/60 flex items-center justify-center transition focus-ring"
-                      title="Delete"
+                      title={t("deleteTextBox")}
                     >
                       <Trash2 size={14} aria-hidden="true" />
                     </button>

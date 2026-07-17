@@ -103,7 +103,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
             <Input className="flex-1 min-h-9 text-[13px]" value={key} readOnly />
             <Input className="flex-1 min-h-9 text-[13px]" value={val}
               onChange={(e) => onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [key]: e.target.value } })} />
-            <Button size="sm" variant="plain" className="text-red px-2" aria-label="Remove property" onClick={() => {
+            <Button size="sm" variant="plain" className="text-red px-2" aria-label={t("removeProperty")} onClick={() => {
               const { [key]: _, ...rest } = (config.cachedProperties as Record<string, string>) ?? {};
               onChange({ ...config, cachedProperties: rest });
             }}><X size={16} aria-hidden="true" /></Button>
@@ -119,7 +119,7 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
               onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [keyEl.value]: valEl.value } });
               keyEl.value = ""; valEl.value = "";
             }
-          }}>Add</Button>
+          }}>{t("add")}</Button>
         </div>
       </div>
 
@@ -167,8 +167,8 @@ function RoomBookingEditor({ config, onChange, providers }: {
         {providers.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
       </select>
 
-      <label className="block text-sm font-medium text-label-secondary mb-1">Room Display Name</label>
-      <Input className="mb-3" placeholder="e.g. Besprechungsraum EG"
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("roomName")}</label>
+      <Input className="mb-3" placeholder={t("roomNamePlaceholder")}
         value={(config.roomName as string) ?? ""} onChange={(e) => onChange({ ...config, roomName: e.target.value })} />
 
       <label className="block text-sm font-medium text-label-secondary mb-1">{fieldConfig?.label ?? ""}</label>
@@ -191,13 +191,13 @@ function RoomBookingEditor({ config, onChange, providers }: {
           onChange={(e) => onChange({ ...config, roomConfig: { ...roomConfig, [fieldConfig.key]: e.target.value } })} />
       ) : <div className="mb-3" /> }
 
-      <TimezonePicker label="Timezone" className="mb-3" value={(config.timezone as string) ?? "Europe/Berlin"}
+      <TimezonePicker label={t("timezone")} className="mb-3" value={(config.timezone as string) ?? "Europe/Berlin"}
         onChange={(v) => onChange({ ...config, timezone: v })} />
 
-      <LocalePicker label="Display Language" className="mb-3" value={(config.locale as string) ?? "en"}
+      <LocalePicker label={t("locale")} className="mb-3" value={(config.locale as string) ?? "en"}
         onChange={(v) => onChange({ ...config, locale: v })} />
 
-      <label className="block text-sm font-medium text-label-secondary mb-1">Date Format</label>
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("dateFormat")}</label>
       <select className={`${selectCls} mb-3`} value={(config.dateFormat as string) ?? "PPPP"}
         onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}>
         <option value="PPPP">Sonntag, 3. Mai 2026</option>
@@ -206,46 +206,46 @@ function RoomBookingEditor({ config, onChange, providers }: {
         <option value="P">03.05.26</option>
       </select>
 
-      <label className="block text-sm font-medium text-label-secondary mb-1">Layout</label>
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("layout")}</label>
       <select className={`${selectCls} mb-3`} value={(config.layout as string) ?? "timeline"}
         onChange={(e) => onChange({ ...config, layout: e.target.value })}>
-        <option value="timeline">Zeitleiste (Timeline)</option>
-        <option value="stacked">Gestapelt (Stacked)</option>
+        <option value="timeline">{t("timeline")}</option>
+        <option value="stacked">{t("stacked")}</option>
       </select>
 
-      <label className="block text-sm font-medium text-label-secondary mb-1">Privacy Policy</label>
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("policy")}</label>
       <select className={`${selectCls} mb-3`} value={(config.policy as string) ?? "Show All"}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}>
         {ROOM_POLICIES.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
 
       <div className="border-t border-separator pt-3 mt-1 mb-3">
-        <label className="block text-sm font-semibold text-label mb-1">Booking QR code</label>
-        <p className="text-xs text-label-tertiary mb-2">Shows a public booking link on the display. It is never shown when the calendar is unavailable.</p>
-        <label className="block text-sm font-medium text-label-secondary mb-1">Show QR code</label>
+        <label className="block text-sm font-semibold text-label mb-1">{t("bookingQr")}</label>
+        <p className="text-xs text-label-tertiary mb-2">{t("bookingQrHint")}</p>
+        <label className="block text-sm font-medium text-label-secondary mb-1">{t("bookingQrVisibility")}</label>
         <select className={`${selectCls} mb-2`} value={bookingQr.visibility ?? "never"}
           onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, visibility: e.target.value } })}>
-          <option value="never">Never</option>
-          <option value="always">Always</option>
-          <option value="free">Only when room is free</option>
+          <option value="never">{t("bookingQrNever")}</option>
+          <option value="always">{t("bookingQrAlways")}</option>
+          <option value="free">{t("bookingQrWhenFree")}</option>
         </select>
 
-        <label className="block text-sm font-medium text-label-secondary mb-1">Booking link</label>
+        <label className="block text-sm font-medium text-label-secondary mb-1">{t("bookingQrLink")}</label>
         <select className={`${selectCls} mb-2`} value={bookingQr.source ?? "provider"}
           onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, source: e.target.value } })}>
-          <option value="provider">Use provider link{isAnny && roomConfig.bookingUrl ? " (available)" : ""}</option>
-          <option value="custom">Use custom URL</option>
+          <option value="provider">{isAnny && roomConfig.bookingUrl ? t("bookingQrProviderAvailable") : t("bookingQrProvider")}</option>
+          <option value="custom">{t("bookingQrCustom")}</option>
         </select>
         {bookingQr.source === "custom" && (
-          <Input type="url" placeholder="https://booking.example.com/room" value={bookingQr.customUrl ?? ""}
+          <Input type="url" placeholder={t("bookingQrCustomPlaceholder")} value={bookingQr.customUrl ?? ""}
             onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, customUrl: e.target.value } })} />
         )}
         {bookingQr.source !== "custom" && !roomConfig.bookingUrl && (
-          <p className="text-xs text-label-tertiary">This provider has no verified booking link for the selected room. Add a custom URL to enable the QR code.</p>
+          <p className="text-xs text-label-tertiary">{t("bookingQrUnavailable")}</p>
         )}
       </div>
 
-      <label className="block text-sm font-medium text-label-secondary mb-1">Cache TTL (seconds)</label>
+      <label className="block text-sm font-medium text-label-secondary mb-1">{t("cacheTtl")}</label>
       <Input type="number" className="mb-3" min={0} step={30}
         placeholder="120"
         value={(config.cacheTtlS as number) ?? 120}
@@ -314,14 +314,14 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
       {/* Header */}
       <div className="flex flex-wrap items-end gap-4 mb-6">
         <div className="flex-1 min-w-0">
-          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">Content Instances</h1>
-          <p className="text-[15px] text-label-secondary mt-1.5">Configure what each display shows</p>
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
+          <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search content..." className="pl-9" aria-label="Search content" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("search")} className="pl-9" aria-label={t("search")} />
         </div>
-        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>New Content</Button>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>{t("add")}</Button>
       </div>
 
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
@@ -334,23 +334,23 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
             <div className="flex items-center gap-2 shrink-0">
               {(() => {
                 const r = testResults[inst.id];
-                if (r === "loading") return <span className="text-xs text-label-tertiary animate-pulse">Testing…</span>;
+                if (r === "loading") return <span className="text-xs text-label-tertiary animate-pulse">{t("test")}…</span>;
                 if (r && r.ok) return <span className="inline-flex items-center gap-1 text-xs text-green"><Check size={13} aria-hidden="true" />{r.message}</span>;
                 if (r && !r.ok) return <span className="inline-flex items-center gap-1 text-xs text-red max-w-48 truncate" title={r.message}><X size={13} aria-hidden="true" className="shrink-0" />{r.message}</span>;
                 return null;
               })()}
-              <Button size="sm" variant="plain" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>Test</Button>
-              <Button size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>Preview</Button>
-              <Button size="sm" variant="gray" onClick={() => startEdit(inst)}>Edit</Button>
-              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(inst.id)}>Delete</Button>
+              <Button size="sm" variant="plain" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>{t("test")}</Button>
+              <Button size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>{t("preview")}</Button>
+              <Button size="sm" variant="gray" onClick={() => startEdit(inst)}>{t("edit")}</Button>
+              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(inst.id)}>{t("delete")}</Button>
             </div>
           </div>
         ))}
         {filteredInstances.length === 0 && (
           <EmptyState
             icon={instances.length === 0 ? <FileText size={24} aria-hidden="true" /> : <Search size={24} aria-hidden="true" />}
-            title={instances.length === 0 ? "No content instances" : "No content matches your search"}
-            description={instances.length === 0 ? "Create one and assign it to a device to display content." : undefined}
+            title={instances.length === 0 ? t("noContent") : t("noMatch")}
+            description={instances.length === 0 ? t("noContentHint") : undefined}
           />
         )}
       </div>
@@ -362,14 +362,14 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         wide={typeSlug === "door-sign" || typeSlug === "door-sign-multi"}
         footer={
           <>
-            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>{t("cancel")}</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>{t("save")}</Button>
           </>
         }
       >
         {editing === "new" && (
           <>
-            <label className="block text-sm font-medium text-label-secondary mb-1">Content Type</label>
+            <label className="block text-sm font-medium text-label-secondary mb-1">{t("contentType")}</label>
             <select className={`${selectCls} mb-3`} value={typeSlug}
               onChange={(e) => setTypeSlug(e.target.value)}>
               {types.map((t) => <option key={t.slug} value={t.slug}>{tc(t.slug as string)}</option>)}
@@ -377,8 +377,8 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
           </>
         )}
 
-        <label className="block text-sm font-medium text-label-secondary mb-1">Name</label>
-        <Input className="mb-3" placeholder="e.g. Besprechungsraum EG"
+        <label className="block text-sm font-medium text-label-secondary mb-1">{t("name")}</label>
+        <Input className="mb-3" placeholder={t("namePlaceholder")}
           value={name} onChange={(e) => setName(e.target.value)} />
 
         {typeSlug === "room-booking" && (

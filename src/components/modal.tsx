@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ModalProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, footer, onSubmit, wide }: ModalProps) {
+  const t = useTranslations("common");
   const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export function Modal({ open, onClose, title, children, footer, onSubmit, wide }
       <div role="dialog" aria-modal="true" aria-label={title} className={`bg-surface rounded-xl shadow-e2 border border-separator w-full max-h-[90vh] flex flex-col ${wide ? "max-w-5xl" : "max-w-lg"}`} onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center px-6 py-4 border-b border-separator">
           <h2 className="text-lg font-bold text-label">{title}</h2>
-          <button aria-label="Close" onClick={onClose} className="text-label-secondary hover:text-label leading-none rounded-md focus-ring">
+          <button aria-label={t("close")} onClick={onClose} className="text-label-secondary hover:text-label leading-none rounded-md focus-ring">
             <X size={18} aria-hidden="true" />
           </button>
         </div>

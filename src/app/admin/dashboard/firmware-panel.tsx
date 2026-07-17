@@ -5,8 +5,10 @@
 import { Cpu, PackageX } from "lucide-react";
 import { DashCard } from "./card";
 import type { DashboardData } from "../dashboard-data";
+import { useTranslations } from "next-intl";
 
 export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"] }) {
+  const t = useTranslations("dashboard");
   const { latestStable, latestBeta, upToDate, behind, unknown, byVersion } = firmware;
 
   const rated = upToDate + behind + unknown;
@@ -21,20 +23,20 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
   const maxVersionCount = hasVersions ? Math.max(...byVersion.map((v) => v.count)) : 0;
 
   return (
-    <DashCard title="Firmware" icon={<Cpu size={16} />} action={{ label: "Manage", href: "/admin/firmware" }}>
+    <DashCard title="Firmware" icon={<Cpu size={16} />} action={{ label: t("manage"), href: "/admin/firmware" }}>
       {isEmpty ? (
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
           <span className="size-10 rounded-full bg-surface-secondary text-label-tertiary grid place-items-center" aria-hidden="true">
             <PackageX size={18} />
           </span>
-          <p className="text-sm text-label-secondary">No firmware data yet</p>
+          <p className="text-sm text-label-secondary">{t("firmwareData")}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-5">
           {/* Latest versions */}
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-label-secondary">Latest stable</span>
+              <span className="text-xs font-medium text-label-secondary">{t("latestStable")}</span>
               {latestStable ? (
                 <span className="font-mono text-label bg-surface-secondary rounded-md px-2 py-0.5 text-[15px] leading-snug w-fit">
                   {latestStable}
@@ -45,7 +47,7 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
             </div>
             {latestBeta && (
               <div className="flex flex-col gap-1.5 items-start sm:items-end">
-                <span className="text-xs font-medium text-label-tertiary">Latest beta</span>
+                <span className="text-xs font-medium text-label-tertiary">{t("latestBeta")}</span>
                 <span className="font-mono text-label-secondary bg-surface-secondary rounded-md px-2 py-0.5 text-xs leading-snug w-fit">
                   {latestBeta}
                 </span>
@@ -69,16 +71,16 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
             </div>
 
             <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-label-secondary">
-              <LegendItem dotClass="bg-green" count={upToDate} label="up to date" />
-              <LegendItem dotClass="bg-orange" count={behind} label="behind" />
-              <LegendItem dotClass="bg-surface-secondary ring-1 ring-separator" count={unknown} label="unknown" />
+              <LegendItem dotClass="bg-green" count={upToDate} label={t("upToDate")} />
+              <LegendItem dotClass="bg-orange" count={behind} label={t("behind")} />
+              <LegendItem dotClass="bg-surface-secondary ring-1 ring-separator" count={unknown} label={t("unknown")} />
             </ul>
           </div>
 
           {/* By version */}
           {hasVersions && (
             <div className="flex flex-col gap-2.5 border-t border-separator/60 pt-4">
-              <span className="text-xs font-medium text-label-secondary">By version</span>
+              <span className="text-xs font-medium text-label-secondary">{t("byVersion")}</span>
               <ul className="flex flex-col gap-2">
                 {byVersion.map((v) => (
                   <li key={v.version} className="flex items-center gap-3">

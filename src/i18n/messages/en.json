@@ -1,5 +1,6 @@
 {
   "nav": {
+    "language": "Language",
     "title": "Vellum Console",
     "overview": "Overview",
     "devices": "Devices",
@@ -10,7 +11,7 @@
     "firmware": "Firmware",
     "logout": "Logout",
     "lightMode": "Light mode",
-    "darkMode": "Dark mode"
+    "darkMode": "Dark mode", "systemMode": "System", "appearance": "Appearance"
   },
   "devices": {
     "title": "Devices",
@@ -54,6 +55,8 @@
     "portrait": "Portrait",
     "deleteTitle": "Delete Device",
     "deleteMsg": "Remove this device? It will need to be re-approved.",
+    "noTelemetry": "No telemetry data yet.", "noDisplayCaps": "Display capabilities not reported yet.", "voltage": "Voltage", "capacity": "Capacity", "days": "{count} days", "dataPoints": "data points", "loadingData": "Loading…", "noData": "No data", "prediction": "Forecast: ~{days} days remaining (at current consumption)",
+    "telemetry": "Telemetry", "display": "Display", "timeline": "Timeline", "registered": "Registered", "approvedAt": "Approved", "lastSeen": "Last seen", "contentAssignment": "Content assignment", "themeAssignment": "Theme assignment", "refreshProfile": "Refresh profile", "telemetryHistory": "Telemetry history", "time": "Time", "battery": "Battery", "rssi": "RSSI", "wifiRssi": "Wi-Fi RSSI", "firmware": "Firmware", "model": "Model", "resolution": "Resolution", "quantize": "Quantize", "recentReports": "Recent reports",
     "connectivity": {
       "online": "Online",
       "late": "Late",
@@ -62,6 +65,7 @@
     }
   },
   "content": {
+    "removeProperty": "Remove property", "add": "Add", "layout": "Layout", "timeline": "Timeline", "stacked": "Stacked", "cancel": "Cancel", "save": "Save", "contentType": "Content type", "name": "Name", "namePlaceholder": "e.g. Meeting room",
     "title": "Content Instances",
     "description": "Configure what each display shows",
     "add": "New Content",
@@ -81,6 +85,18 @@
     "locale": "Display Language",
     "policy": "Privacy Policy",
     "cacheTtl": "Cache TTL (seconds)",
+    "bookingQr": "Booking QR code",
+    "bookingQrHint": "Shows a public booking link on the display. It is never shown when calendar data is unavailable.",
+    "bookingQrVisibility": "Show QR code",
+    "bookingQrNever": "Never",
+    "bookingQrAlways": "Always",
+    "bookingQrWhenFree": "Only when room is free",
+    "bookingQrLink": "Booking link",
+    "bookingQrProvider": "Use provider link",
+    "bookingQrProviderAvailable": "Use provider link (available)",
+    "bookingQrCustom": "Use custom URL",
+    "bookingQrCustomPlaceholder": "https://booking.example.com/room",
+    "bookingQrUnavailable": "This provider has no verified booking link for the selected room. Add a custom URL to enable the QR code.",
     "timelineShift": "Timeline Shift (hours)",
     "dateFormat": "Date Format",
     "search": "Search content...",
@@ -99,6 +115,7 @@
     "deleteMessage": "Delete this content instance? Devices using it will show no content.",
     "previewTitle": "Content Preview",
     "doorSign": {
+      "loading": "Loading…", "header": "Header",
       "resource": "Resource (Room/Desk)",
       "customProperties": "Custom Properties",
       "customPropertiesHint": "Define static values available as template variables",
@@ -131,6 +148,7 @@
     "emptyDesc": "Create one and assign it to a device to display content."
   },
   "providers": {
+    "clearSearch": "Clear search",
     "title": "Data Providers",
     "description": "Connect calendar and data sources",
     "add": "Add Provider",
@@ -170,24 +188,29 @@
     "emptyDesc": "Add a provider to connect calendar or other data sources."
   },
   "themes": {
+    "created": "Theme created", "updated": "Theme updated", "saveFailed": "Failed to save theme", "deleted": "Theme deleted", "deleteFailed": "Failed to delete theme", "default": "default", "newTheme": "New theme", "editTheme": "Edit theme", "name": "Name",
+    "preview": "Preview", "deleteThemeTitle": "Delete theme", "deleteThemeMessage": "Delete this theme? Devices using it will fall back to the default.", "colorHeaderBg": "Header background", "colorHeaderText": "Header text", "colorFreeBadge": "FREE badge", "colorBusyBadge": "BUSY badge", "colorBadgeText": "Badge text", "colorBackground": "Background", "colorEventBg": "Event block", "colorSlotText": "Event text", "colorSlotSecondary": "Secondary text", "colorFooterText": "Footer text",
     "title": "Themes",
     "description": "Customize display appearance",
     "add": "Add Theme",
     "edit": "Edit",
     "delete": "Delete",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel", "search": "Search…", "defaultIntervals": "Default intervals", "scheduleRules": "Schedule rules", "refreshInterval": "Refresh interval", "moveUp": "Move up", "moveDown": "Move down", "overnight": "Overnight rule (wraps past midnight)", "deleteTitle": "Delete profile", "deleteMessage": "Delete this refresh profile? Devices using it will fall back to defaults."
   },
   "profiles": {
+    "overlapHint": "This rule overlaps with another rule. First match wins.",
+    "all": "All", "weekdays": "Weekdays", "weekend": "Weekend", "custom": "Custom", "seconds": "seconds", "name": "Name", "namePlaceholder": "e.g. Office Standard", "remove": "Remove", "ruleName": "Rule name", "days": "Days", "from": "From", "until": "Until",
     "title": "Refresh Profiles",
     "description": "Configure display refresh schedules",
     "add": "Add Profile",
     "edit": "Edit",
     "delete": "Delete",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel", "search": "Search…", "defaultIntervals": "Default intervals", "scheduleRules": "Schedule rules", "refreshInterval": "Refresh interval", "moveUp": "Move up", "moveDown": "Move down", "overnight": "Overnight rule (wraps past midnight)", "deleteTitle": "Delete profile", "deleteMessage": "Delete this refresh profile? Devices using it will fall back to defaults."
   },
   "firmware": {
+    "rolloutAdoption": "devices currently running this version", "rolloutState": "Rollout state for {version}", "rolloutPercent": "Rollout percent for {version}", "halt": "Halt {version}", "stateFull": "full", "stateCanary": "canary", "statePercent": "percent", "statePaused": "paused", "stateHalted": "halted", "rolloutUpdated": "Rollout: {version} → {state}{percent}", "rolloutUpdateFailed": "Failed to update rollout",
     "title": "Firmware",
     "description": "OTA firmware updates via GitHub Releases",
     "flash": "Flash Device",
@@ -211,7 +234,7 @@
     "flashDesc": "Flash firmware directly from the browser via USB",
     "failedUpdate": "Failed to update",
     "autoPollDesc": "Server checks GitHub for new releases automatically",
-    "manualPollDesc": "Only checks when admin page is opened"
+    "manualPollDesc": "Only checks when admin page is opened", "rollouts": "Rollouts", "rolloutHint": "The rollout — not the newest build — decides what ships", "noFirmwareVersions": "No firmware versions yet.", "recentOta": "Recent OTA events", "noOta": "No OTA reports yet."
   },
   "flash": {
     "title": "Flash Firmware",
@@ -240,9 +263,10 @@
     "username": "Username",
     "password": "Password",
     "submit": "Sign in",
-    "error": "Invalid credentials"
+    "error": "Invalid credentials", "subtitle": "E-Ink display management", "signingIn": "Signing in…"
   },
   "common": {
+    "databaseUnavailable": "Database unavailable", "databaseHalted": "The system has halted database operations after repeated failures.", "databaseRetrying": "Unable to reach the database. Retrying automatically...", "status": "Status", "failures": "Failures", "errorLabel": "Error", "reconnecting": "Reconnecting…",
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
@@ -258,7 +282,7 @@
     "failed": "Failed",
     "create": "Create",
     "retry": "Retry",
-    "confirmDelete": "Are you sure?"
+    "confirmDelete": "Are you sure?", "selectTimezone": "Select timezone…", "clearSearch": "Clear search"
   },
   "contentTypes": {
     "room-booking": "Room Booking",
@@ -272,6 +296,12 @@
     "unexpected": "An unexpected error occurred.",
     "retry": "Retry"
   },
+  "dashboard": {
+    "overview": "Overview", "subtitle": "Your Vellum fleet at a glance", "fleetHealth": "Fleet health", "noDevices": "No devices yet", "fleetHint": "Fleet health appears once devices check in.", "online": "online", "late": "late", "offline": "offline", "neverSeen": "never seen", "averageBattery": "Avg battery", "lowBattery": "Low battery", "weakSignal": "Weak signal", "checkinActivity": "Check-in activity", "lastDays": "Last {count} days", "totalCheckins": "Total check-ins", "peakPerDay": "Peak / day", "noCheckins": "No check-ins yet", "checkinHint": "Activity will appear once devices report in.", "recentActivity": "Recent activity", "noRecentActivity": "No recent activity yet", "latestCheckins": "Latest check-ins", "reports": "Reports", "noDetail": "(no detail)", "needsAttention": "Needs attention", "allDevices": "All devices", "healthy": "Everything looks healthy", "attentionHint": "No devices need attention right now.", "firmwareData": "No firmware data yet", "manage": "Manage", "latestStable": "Latest stable", "latestBeta": "Latest beta", "upToDate": "up to date", "behind": "behind", "unknown": "unknown", "byVersion": "By version"
+  },
+  "resourcePicker": { "change": "Change", "search": "Search rooms…", "loading": "Loading…", "noResults": "No rooms found", "noResources": "No resources" },
+  "provision": { "title": "Provision over USB", "description": "Push Wi-Fi and the server URL to a device over USB — no SoftAP setup.", "unsupported": "Web Serial isn’t available in this browser. Use Chrome or Edge on desktop, over HTTPS or localhost.", "ssid": "Wi-Fi network (SSID)", "scanHint": "Type it, or Scan to list networks the device can see.", "scan": "Scan", "password": "Wi-Fi password", "openHint": "Leave empty for an open network.", "serverUrl": "Server URL", "serverHint": "Where the device reports in. Prefilled from this admin’s address.", "zeroTouch": "Zero-touch (pre-authorize)", "provisioning": "Provisioning…", "button": "Provision over USB", "done": "Done.", "failed": "Failed.", "unknown": "Unknown error.", "instructions": "Instructions", "step1": "Connect the device via USB-C and power it on.", "step2": "Enter the Wi-Fi details (the server URL is prefilled).", "step3": "Click “Provision over USB” and pick the device’s serial port.", "step4": "Wait for “Device joined Wi-Fi”, then approve it under Devices." },
+  "provisionExtras": { "ssidPlaceholder": "e.g. OfficeWiFi", "serverPlaceholder": "https://vellum.example.com", "requirements": "Requires Chrome/Edge 89+ with Web Serial support. Credentials travel over USB only.", "connecting": "Opening serial port…", "sending": "Sending profile to the device…", "provisioning": "Device is joining Wi-Fi…", "provisioned": "Device joined Wi-Fi.", "error": "Provisioning failed." },
   "wizard": {
     "progress": "Setup Progress",
     "stepOf": "Step {current} of {total}"

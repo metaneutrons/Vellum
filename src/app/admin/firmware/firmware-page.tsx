@@ -43,29 +43,29 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
 
   function toggleAutoPoll() {
     startTransition(async () => {
-      try { await updateSetting("firmware.autoPoll", !autoPoll); toast("success", "Updated"); }
-      catch { toast("error", "Failed to update"); }
+      try { await updateSetting("firmware.autoPoll", !autoPoll); toast("success", t("updated")); }
+      catch { toast("error", t("failedUpdate")); }
     });
   }
 
   function setPollInterval(s: number) {
     startTransition(async () => {
-      try { await updateSetting("firmware.pollIntervalS", s); toast("success", "Updated"); }
-      catch { toast("error", "Failed to update"); }
+      try { await updateSetting("firmware.pollIntervalS", s); toast("success", t("updated")); }
+      catch { toast("error", t("failedUpdate")); }
     });
   }
 
   function setChannel(mac: string, channel: string) {
     startTransition(async () => {
-      try { await updateDevice(mac, { firmwareChannel: channel }); toast("success", "Updated"); }
-      catch { toast("error", "Failed to update"); }
+      try { await updateDevice(mac, { firmwareChannel: channel }); toast("success", t("updated")); }
+      catch { toast("error", t("failedUpdate")); }
     });
   }
 
   function pinVersion(mac: string, version: string | null) {
     startTransition(async () => {
-      try { await updateDevice(mac, { firmwarePinVersion: version }); toast("success", "Updated"); }
-      catch { toast("error", "Failed to update"); }
+      try { await updateDevice(mac, { firmwarePinVersion: version }); toast("success", t("updated")); }
+      catch { toast("error", t("failedUpdate")); }
     });
   }
 
@@ -97,14 +97,14 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 px-4 py-4 mb-8 flex items-center gap-6 flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={autoPoll} onChange={toggleAutoPoll}
-            className="size-4 rounded accent-accent focus-ring" aria-label="Enable auto-poll" />
+            className="size-4 rounded accent-accent focus-ring" aria-label={t("backgroundPolling")} />
           <span className="text-sm text-label">{t("backgroundPolling")}</span>
         </label>
         {autoPoll && (
           <label className="flex items-center gap-2 text-sm text-label-secondary">
-            Interval:
+            {t("interval")}:
             <select className={selectCls} value={pollIntervalS}
-              aria-label="Poll interval"
+              aria-label={t("interval")}
               onChange={(e) => setPollInterval(Number(e.target.value))}>
               <option value={300}>5 min</option>
               <option value={900}>15 min</option>
@@ -144,7 +144,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
         {devices.length === 0 && (
           <EmptyState
             icon={<Cpu size={24} aria-hidden="true" />}
-            title="No devices"
+          title={t("device")}
           />
         )}
         {devices.map((d) => {
@@ -157,16 +157,16 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
                 <a href={`/admin/devices/${d.mac}`} className="font-mono text-sm font-semibold text-accent hover:underline focus-ring rounded">{d.mac}</a>
                 <span className="text-xs text-label-secondary">{caps?.model ?? "—"}</span>
               </div>
-              <label className="flex items-center gap-1.5 text-[13px] text-label-secondary">Channel
-                <select className={selectCls} aria-label="Firmware channel"
+              <label className="flex items-center gap-1.5 text-[13px] text-label-secondary">{t("channel")}
+                <select className={selectCls} aria-label={t("channel")}
                   value={channel}
                   onChange={(e) => setChannel(d.mac, e.target.value)}>
                   <option value="stable">stable</option>
                   <option value="beta">beta</option>
                 </select>
               </label>
-              <label className="flex items-center gap-1.5 text-[13px] text-label-secondary">Pin Version
-                <select className={selectCls} aria-label="Pin version"
+              <label className="flex items-center gap-1.5 text-[13px] text-label-secondary">{t("pinVersion")}
+                <select className={selectCls} aria-label={t("pinVersion")}
                   value={d.firmwarePinVersion ?? ""}
                   onChange={(e) => pinVersion(d.mac, e.target.value || null)}>
                   <option value="">— latest —</option>

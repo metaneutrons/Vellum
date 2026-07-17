@@ -1,5 +1,6 @@
 {
   "nav": {
+    "language": "Sprache",
     "title": "Vellum Console",
     "overview": "Übersicht",
     "devices": "Geräte",
@@ -10,7 +11,7 @@
     "firmware": "Firmware",
     "logout": "Abmelden",
     "lightMode": "Heller Modus",
-    "darkMode": "Dunkler Modus"
+    "darkMode": "Dunkler Modus", "systemMode": "System", "appearance": "Darstellung"
   },
   "devices": {
     "title": "Geräte",
@@ -54,6 +55,8 @@
     "portrait": "Hochformat",
     "deleteTitle": "Gerät entfernen",
     "deleteMsg": "Dieses Gerät entfernen? Es muss erneut genehmigt werden.",
+    "noTelemetry": "Noch keine Telemetriedaten.", "noDisplayCaps": "Noch keine Display-Fähigkeiten gemeldet.", "voltage": "Spannung", "capacity": "Kapazität", "days": "{count} Tage", "dataPoints": "Datenpunkte", "loadingData": "Laden…", "noData": "Keine Daten", "prediction": "Prognose: Noch ~{days} Tage (bei aktuellem Verbrauch)",
+    "telemetry": "Telemetrie", "display": "Display", "timeline": "Zeitverlauf", "registered": "Registriert", "approvedAt": "Freigegeben", "lastSeen": "Zuletzt gesehen", "contentAssignment": "Content-Zuweisung", "themeAssignment": "Theme-Zuweisung", "refreshProfile": "Aktualisierungsprofil", "telemetryHistory": "Telemetrieverlauf", "time": "Zeit", "battery": "Akku", "rssi": "RSSI", "wifiRssi": "WLAN-RSSI", "firmware": "Firmware", "model": "Modell", "resolution": "Auflösung", "quantize": "Quantisierung", "recentReports": "Letzte Meldungen",
     "connectivity": {
       "online": "Online",
       "late": "Verspätet",
@@ -62,6 +65,7 @@
     }
   },
   "content": {
+    "removeProperty": "Eigenschaft entfernen", "add": "Hinzufügen", "layout": "Layout", "timeline": "Zeitleiste", "stacked": "Gestapelt", "cancel": "Abbrechen", "save": "Speichern", "contentType": "Content-Typ", "name": "Name", "namePlaceholder": "z. B. Besprechungsraum",
     "title": "Inhaltsinstanzen",
     "description": "Konfigurieren, was jedes Display anzeigt",
     "add": "Neuer Inhalt",
@@ -81,6 +85,18 @@
     "locale": "Anzeigesprache",
     "policy": "Datenschutz",
     "cacheTtl": "Cache-Dauer (Sekunden)",
+    "bookingQr": "Buchungs-QR-Code",
+    "bookingQrHint": "Zeigt einen öffentlichen Buchungslink auf dem Display. Bei nicht verfügbaren Kalenderdaten wird er nie angezeigt.",
+    "bookingQrVisibility": "QR-Code anzeigen",
+    "bookingQrNever": "Nie",
+    "bookingQrAlways": "Immer",
+    "bookingQrWhenFree": "Nur wenn der Raum frei ist",
+    "bookingQrLink": "Buchungslink",
+    "bookingQrProvider": "Anbieter-Link verwenden",
+    "bookingQrProviderAvailable": "Anbieter-Link verwenden (verfügbar)",
+    "bookingQrCustom": "Eigene URL verwenden",
+    "bookingQrCustomPlaceholder": "https://buchung.beispiel.de/raum",
+    "bookingQrUnavailable": "Dieser Anbieter hat keinen verifizierten Buchungslink für den ausgewählten Raum. Hinterlege eine eigene URL, um den QR-Code zu aktivieren.",
     "timelineShift": "Zeitachsenverschiebung (Stunden)",
     "dateFormat": "Datumsformat",
     "search": "Inhalte suchen...",
@@ -99,6 +115,7 @@
     "deleteMessage": "Diese Inhaltsinstanz löschen? Geräte, die sie verwenden, zeigen keinen Inhalt mehr an.",
     "previewTitle": "Inhaltsvorschau",
     "doorSign": {
+      "loading": "Laden…", "header": "Kopfbereich",
       "resource": "Ressource (Raum/Arbeitsplatz)",
       "customProperties": "Benutzerdefinierte Eigenschaften",
       "customPropertiesHint": "Statische Werte als Template-Variablen definieren",
@@ -131,6 +148,7 @@
     "emptyDesc": "Erstellen Sie einen Inhalt und weisen Sie ihn einem Gerät zu."
   },
   "providers": {
+    "clearSearch": "Suche löschen",
     "title": "Datenanbieter",
     "description": "Kalender- und Buchungsdatenquellen konfigurieren",
     "add": "Anbieter hinzufügen",
@@ -170,24 +188,29 @@
     "emptyDesc": "Fügen Sie einen Anbieter hinzu um Kalender oder andere Datenquellen zu verbinden."
   },
   "themes": {
+    "created": "Design erstellt", "updated": "Design aktualisiert", "saveFailed": "Design konnte nicht gespeichert werden", "deleted": "Design gelöscht", "deleteFailed": "Design konnte nicht gelöscht werden", "default": "Standard", "newTheme": "Neues Design", "editTheme": "Design bearbeiten", "name": "Name",
+    "preview": "Vorschau", "deleteThemeTitle": "Design löschen", "deleteThemeMessage": "Dieses Design löschen? Geräte verwenden danach das Standarddesign.", "colorHeaderBg": "Kopfhintergrund", "colorHeaderText": "Kopftext", "colorFreeBadge": "FREI-Badge", "colorBusyBadge": "BELEGT-Badge", "colorBadgeText": "Badge-Text", "colorBackground": "Hintergrund", "colorEventBg": "Terminblock", "colorSlotText": "Termintext", "colorSlotSecondary": "Sekundärtext", "colorFooterText": "Fußtext",
     "title": "Designs",
     "description": "Darstellung der Displays anpassen",
     "add": "Design hinzufügen",
     "edit": "Bearbeiten",
     "delete": "Löschen",
     "save": "Speichern",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen", "search": "Suchen…", "defaultIntervals": "Standardintervalle", "scheduleRules": "Zeitplanregeln", "refreshInterval": "Aktualisierungsintervall", "moveUp": "Nach oben", "moveDown": "Nach unten", "overnight": "Übernachtregel (über Mitternacht)", "deleteTitle": "Profil löschen", "deleteMessage": "Dieses Aktualisierungsprofil löschen? Geräte wechseln zu den Standardwerten."
   },
   "profiles": {
+    "overlapHint": "Diese Regel überschneidet sich mit einer anderen. Die erste Übereinstimmung gewinnt.",
+    "all": "Alle", "weekdays": "Werktage", "weekend": "Wochenende", "custom": "Benutzerdefiniert", "seconds": "Sekunden", "name": "Name", "namePlaceholder": "z. B. Bürostandard", "remove": "Entfernen", "ruleName": "Regelname", "days": "Tage", "from": "Von", "until": "Bis",
     "title": "Aktualisierungsprofile",
     "description": "Aktualisierungszeitpläne konfigurieren",
     "add": "Profil hinzufügen",
     "edit": "Bearbeiten",
     "delete": "Löschen",
     "save": "Speichern",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen", "search": "Suchen…", "defaultIntervals": "Standardintervalle", "scheduleRules": "Zeitplanregeln", "refreshInterval": "Aktualisierungsintervall", "moveUp": "Nach oben", "moveDown": "Nach unten", "overnight": "Übernachtregel (über Mitternacht)", "deleteTitle": "Profil löschen", "deleteMessage": "Dieses Aktualisierungsprofil löschen? Geräte wechseln zu den Standardwerten."
   },
   "firmware": {
+    "rolloutAdoption": "Geräte mit dieser Version", "rolloutState": "Rollout-Status für {version}", "rolloutPercent": "Rollout-Prozent für {version}", "halt": "{version} anhalten", "stateFull": "vollständig", "stateCanary": "Canary", "statePercent": "Prozent", "statePaused": "pausiert", "stateHalted": "angehalten", "rolloutUpdated": "Rollout: {version} → {state}{percent}", "rolloutUpdateFailed": "Rollout konnte nicht aktualisiert werden",
     "title": "Firmware",
     "description": "OTA-Firmware-Updates über GitHub Releases",
     "flash": "Gerät flashen",
@@ -211,7 +234,7 @@
     "flashDesc": "Firmware direkt über USB im Browser flashen",
     "failedUpdate": "Aktualisierung fehlgeschlagen",
     "autoPollDesc": "Server prüft GitHub automatisch auf neue Releases",
-    "manualPollDesc": "Prüft nur beim Öffnen der Admin-Seite"
+    "manualPollDesc": "Prüft nur beim Öffnen der Admin-Seite", "rollouts": "Rollouts", "rolloutHint": "Der Rollout — nicht der neueste Build — entscheidet, was ausgeliefert wird", "noFirmwareVersions": "Noch keine Firmware-Versionen.", "recentOta": "Letzte OTA-Ereignisse", "noOta": "Noch keine OTA-Berichte."
   },
   "flash": {
     "title": "Firmware flashen",
@@ -240,9 +263,10 @@
     "username": "Benutzername",
     "password": "Passwort",
     "submit": "Anmelden",
-    "error": "Ungültige Anmeldedaten"
+    "error": "Ungültige Anmeldedaten", "subtitle": "E-Ink-Displayverwaltung", "signingIn": "Anmeldung läuft…"
   },
   "common": {
+    "databaseUnavailable": "Datenbank nicht verfügbar", "databaseHalted": "Das System hat Datenbankoperationen nach wiederholten Fehlern angehalten.", "databaseRetrying": "Datenbank nicht erreichbar. Automatischer Wiederholungsversuch…", "status": "Status", "failures": "Fehler", "errorLabel": "Fehler", "reconnecting": "Wiederverbindung…",
     "loading": "Laden...",
     "error": "Fehler",
     "success": "Erfolg",
@@ -258,7 +282,7 @@
     "failed": "Fehlgeschlagen",
     "create": "Erstellen",
     "retry": "Erneut versuchen",
-    "confirmDelete": "Sind Sie sicher?"
+    "confirmDelete": "Sind Sie sicher?", "selectTimezone": "Zeitzone auswählen…", "clearSearch": "Suche leeren"
   },
   "contentTypes": {
     "room-booking": "Raumbelegung",
@@ -272,6 +296,12 @@
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten.",
     "retry": "Erneut versuchen"
   },
+  "dashboard": {
+    "overview": "Übersicht", "subtitle": "Deine Vellum-Flotte auf einen Blick", "fleetHealth": "Flottenzustand", "noDevices": "Noch keine Geräte", "fleetHint": "Der Flottenzustand erscheint, sobald Geräte einchecken.", "online": "online", "late": "verspätet", "offline": "offline", "neverSeen": "nie gesehen", "averageBattery": "Ø Batterie", "lowBattery": "Niedriger Akkustand", "weakSignal": "Schwaches Signal", "checkinActivity": "Check-in-Aktivität", "lastDays": "Letzte {count} Tage", "totalCheckins": "Check-ins gesamt", "peakPerDay": "Maximum / Tag", "noCheckins": "Noch keine Check-ins", "checkinHint": "Aktivität erscheint, sobald Geräte Daten melden.", "recentActivity": "Letzte Aktivität", "noRecentActivity": "Noch keine Aktivität", "latestCheckins": "Letzte Check-ins", "reports": "Meldungen", "noDetail": "(keine Details)", "needsAttention": "Benötigt Aufmerksamkeit", "allDevices": "Alle Geräte", "healthy": "Alles sieht gut aus", "attentionHint": "Aktuell benötigt kein Gerät Aufmerksamkeit.", "firmwareData": "Noch keine Firmware-Daten", "manage": "Verwalten", "latestStable": "Letzte stabile", "latestBeta": "Letzte Beta", "upToDate": "aktuell", "behind": "veraltet", "unknown": "unbekannt", "byVersion": "Nach Version"
+  },
+  "resourcePicker": { "change": "Ändern", "search": "Räume suchen…", "loading": "Laden…", "noResults": "Keine Räume gefunden", "noResources": "Keine Ressourcen" },
+  "provision": { "title": "Über USB provisionieren", "description": "WLAN und Server-URL per USB auf ein Gerät übertragen — ohne SoftAP-Einrichtung.", "unsupported": "Web Serial ist in diesem Browser nicht verfügbar. Nutze Chrome oder Edge auf dem Desktop über HTTPS oder localhost.", "ssid": "WLAN-Netzwerk (SSID)", "scanHint": "Eingeben oder scannen, um sichtbare Netzwerke aufzulisten.", "scan": "Scannen", "password": "WLAN-Passwort", "openHint": "Für ein offenes Netzwerk leer lassen.", "serverUrl": "Server-URL", "serverHint": "Ziel für Gerätemeldungen. Mit der Adresse dieser Admin-Seite vorausgefüllt.", "zeroTouch": "Zero-Touch (vorab autorisieren)", "provisioning": "Provisionierung läuft…", "button": "Über USB provisionieren", "done": "Fertig.", "failed": "Fehlgeschlagen.", "unknown": "Unbekannter Fehler.", "instructions": "Anleitung", "step1": "Gerät per USB-C verbinden und einschalten.", "step2": "WLAN-Daten eingeben (Server-URL ist vorausgefüllt).", "step3": "„Über USB provisionieren“ klicken und den seriellen Port auswählen.", "step4": "Auf „Gerät ist beigetreten“ warten und es anschließend unter Geräte freigeben." },
+  "provisionExtras": { "ssidPlaceholder": "z. B. OfficeWiFi", "serverPlaceholder": "https://vellum.example.com", "requirements": "Erfordert Chrome/Edge 89+ mit Web-Serial-Unterstützung. Zugangsdaten werden nur über USB übertragen.", "connecting": "Seriellen Anschluss wird geöffnet…", "sending": "Profil wird an das Gerät gesendet…", "provisioning": "Gerät tritt dem WLAN bei…", "provisioned": "Gerät ist dem WLAN beigetreten.", "error": "Provisionierung fehlgeschlagen." },
   "wizard": {
     "progress": "Einrichtungsfortschritt",
     "stepOf": "Schritt {current} von {total}"

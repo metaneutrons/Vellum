@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -20,6 +21,7 @@ interface DbHealth {
 }
 
 export function DbDisconnectOverlay() {
+  const t = useTranslations("common");
   const [health, setHealth] = useState<DbHealth | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -77,21 +79,21 @@ export function DbDisconnectOverlay() {
         </div>
 
         <h2 className="text-xl font-semibold text-white mb-2">
-          Database Unavailable
+          {t("databaseUnavailable")}
         </h2>
 
         <p className="text-gray-400 text-sm mb-4">
           {circuit === "open"
-            ? "The system has halted database operations after repeated failures."
-            : "Unable to reach the database. Retrying automatically..."}
+            ? t("databaseHalted")
+            : t("databaseRetrying")}
         </p>
 
         {/* Status details */}
         <div className="bg-gray-800/50 rounded-lg p-4 text-left text-xs font-mono text-gray-500 space-y-1 mb-4">
-          <div>Status: <span className="text-red-400">{circuit}</span></div>
-          <div>Failures: <span className="text-yellow-400">{failures}</span></div>
+          <div>{t("status")}: <span className="text-red-400">{circuit}</span></div>
+          <div>{t("failures")}: <span className="text-yellow-400">{failures}</span></div>
           {lastError && (
-            <div className="truncate">Error: <span className="text-gray-400">{lastError.split(":").slice(-1)[0].trim()}</span></div>
+            <div className="truncate">{t("errorLabel")}: <span className="text-gray-400">{lastError.split(":").slice(-1)[0].trim()}</span></div>
           )}
         </div>
 

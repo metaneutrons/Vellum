@@ -111,13 +111,13 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
       <div className="flex flex-wrap items-end gap-4 mb-6">
         <div className="flex-1 min-w-0">
           <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
-          <p className="text-[15px] text-label-secondary mt-1.5">Connect calendar and data sources</p>
+          <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search providers..." className="pl-9 pr-9" aria-label="Search providers..." />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("search")} className="pl-9 pr-9" aria-label={t("search")} />
           {search && (
-            <button onClick={() => setSearch("")} aria-label="Clear search"
+            <button onClick={() => setSearch("")} aria-label={t("clearSearch")}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-label-tertiary hover:text-label focus-ring rounded">
               <X size={15} aria-hidden="true" />
             </button>
@@ -158,15 +158,15 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
               })()}
               <Button size="sm" variant="plain" onClick={() => testProvider(p.id)}>{t("test")}</Button>
               <Button size="sm" variant="plain" onClick={() => startEdit(p)}>{t("edit")}</Button>
-              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(p.id)}>Delete</Button>
+              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(p.id)}>{t("delete")}</Button>
             </div>
           </div>
         ))}
         {filteredProviders.length === 0 && (
           <EmptyState
             icon={providers.length === 0 ? <Plug size={24} aria-hidden="true" /> : <Search size={24} aria-hidden="true" />}
-            title={providers.length === 0 ? "No data providers" : "No providers match your search"}
-            description={providers.length === 0 ? "Add a provider to connect calendar or other data sources." : undefined}
+            title={providers.length === 0 ? t("noProviders") : t("noMatch")}
+            description={providers.length === 0 ? t("noProvidersHint") : undefined}
           />
         )}
       </div>
@@ -178,16 +178,16 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
         title={editing === "new" ? t("addTitle") : t("editTitle")}
         footer={
           <>
-            <Button variant="gray" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={save} disabled={!name} loading={pending}>Save</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>{t("cancel")}</Button>
+            <Button onClick={save} disabled={!name} loading={pending}>{t("save")}</Button>
           </>
         }
       >
-        {loading && <p className="text-[13px] text-label-tertiary mb-4">Loading credentials...</p>}
+        {loading && <p className="text-[13px] text-label-tertiary mb-4">{t("loadingCredentials")}</p>}
 
         {editing === "new" && (
           <>
-            <label className="block text-sm font-medium text-label-secondary mb-1">Type</label>
+            <label className="block text-sm font-medium text-label-secondary mb-1">{t("type")}</label>
             <select className={`${selectCls} mb-3`} value={type}
               onChange={(e) => { setType(e.target.value as ProviderType); setCreds({}); }}>
               {Object.entries(PROVIDER_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -195,8 +195,8 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
           </>
         )}
 
-        <label className="block text-sm font-medium text-label-secondary mb-1">Name</label>
-        <Input className="mb-3" placeholder="e.g. My M365 Provider"
+        <label className="block text-sm font-medium text-label-secondary mb-1">{t("name")}</label>
+        <Input className="mb-3" placeholder={t("namePlaceholder")}
           value={name} onChange={(e) => setName(e.target.value)} />
 
         {PROVIDER_TYPES[type].fields.map((f) => (

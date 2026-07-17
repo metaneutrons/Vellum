@@ -4,6 +4,7 @@
 
 import { Activity, Battery, BatteryLow, WifiOff, MonitorSmartphone } from "lucide-react";
 import { DashCard } from "./card";
+import { useTranslations } from "next-intl";
 import type { DashboardData } from "../dashboard-data";
 
 /** Geometry for the donut — a single SVG circle styled with stroke-dasharray. */
@@ -43,6 +44,7 @@ function MiniStat({ icon, label, value, tone }: MiniStatProps) {
 }
 
 export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
+  const t = useTranslations("dashboard");
   const { total, online, late, offline, never, avgBattery, lowBattery, weakSignal } = fleet;
   const hasDevices = total > 0;
 
@@ -67,16 +69,16 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
     avgBattery === null ? "muted" : avgBattery < 20 ? "red" : avgBattery < 40 ? "orange" : "green";
 
   return (
-    <DashCard title="Fleet health" icon={<Activity size={16} />}>
+    <DashCard title={t("fleetHealth")} icon={<Activity size={16} />}>
       {!hasDevices ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <span className="size-12 rounded-full bg-accent-soft text-accent grid place-items-center" aria-hidden="true">
             <MonitorSmartphone size={22} />
           </span>
           <div>
-            <p className="text-[15px] font-semibold text-label">No devices yet</p>
+            <p className="text-[15px] font-semibold text-label">{t("noDevices")}</p>
             <p className="text-[13px] text-label-secondary mt-0.5">
-              Fleet health appears once devices check in.
+              {t("fleetHint")}
             </p>
           </div>
         </div>

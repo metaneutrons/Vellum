@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/field";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { AppFooter } from "@/components/app-footer";
+import { useTranslations } from "next-intl";
 
 export default function LoginPage() {
+  const t = useTranslations("login");
   const [state, formAction, pending] = useActionState(loginAction, null);
 
   return (
@@ -20,7 +22,7 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px]">
         <div className="flex flex-col items-center gap-3 mb-8">
           <img src="/vellum-logo.svg" alt="Vellum" width={160} height={160} className="dark:invert" />
-          <p className="text-[15px] text-label-secondary">E-Ink display management</p>
+          <p className="text-[15px] text-label-secondary">{t("subtitle")}</p>
         </div>
 
         <form action={formAction} className="bg-surface rounded-2xl shadow-e2 border border-separator/60 p-7 flex flex-col gap-4">
@@ -30,16 +32,16 @@ export default function LoginPage() {
             </div>
           )}
 
-          <Field label="Username" htmlFor="user">
+          <Field label={t("username")} htmlFor="user">
             <Input id="user" name="user" type="text" required autoFocus autoComplete="username" />
           </Field>
 
-          <Field label="Password" htmlFor="pass">
+          <Field label={t("password")} htmlFor="pass">
             <Input id="pass" name="pass" type="password" required autoComplete="current-password" />
           </Field>
 
           <Button type="submit" loading={pending} size="lg" className="w-full mt-1">
-            {pending ? "Signing in…" : "Sign in"}
+            {pending ? t("signingIn") : t("submit")}
           </Button>
         </form>
 

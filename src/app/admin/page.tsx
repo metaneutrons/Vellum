@@ -8,19 +8,21 @@ import { FirmwarePanel } from "./dashboard/firmware-panel";
 import { CatalogPanel } from "./dashboard/catalog-panel";
 import { AttentionList } from "./dashboard/attention-list";
 import { ActivityFeed } from "./dashboard/activity-feed";
+import { getTranslations } from "next-intl/server";
 
 // Live fleet data — never serve a stale cached snapshot.
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
+  const t = await getTranslations("dashboard");
   const data = await getDashboardData();
   const now = Date.parse(data.generatedAt);
 
   return (
     <div className="mx-auto max-w-6xl">
       <header className="mb-6">
-        <h1 className="text-[28px] font-semibold tracking-tight text-label">Overview</h1>
-        <p className="text-label-secondary">Your Vellum fleet at a glance</p>
+        <h1 className="text-[28px] font-semibold tracking-tight text-label">{t("overview")}</h1>
+        <p className="text-label-secondary">{t("subtitle")}</p>
       </header>
 
       <div className="space-y-4">

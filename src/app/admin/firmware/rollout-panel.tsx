@@ -8,6 +8,7 @@ import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Rocket, OctagonX, History, AlertCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 type RolloutState = "full" | "canary" | "percent" | "paused" | "halted";
 const STATES: RolloutState[] = ["paused", "canary", "percent", "full", "halted"];
@@ -44,6 +45,7 @@ function RolloutRow({
   adoption: number;
   health: { confirmed: number; failed: number; applied: number };
 }) {
+  const t = useTranslations("firmware");
   const { toast } = useToast();
   const [pending, start] = useTransition();
   const [state, setState] = useState<RolloutState>(current.state);
@@ -56,9 +58,9 @@ function RolloutRow({
     start(async () => {
       try {
         await setRollout(v.version, v.channel, next, pct);
-        toast("success", `Rollout: ${v.version} → ${next}${next === "canary" || next === "percent" ? ` ${pct}%` : ""}`);
+        toast("success", t("rolloutUpdated", { version: v.version, state: t(`state${next[0].toUpperCase()}${next.slice(1)}` as "stateFull"), percent: next === "canary" || next === "percent" ? ` ${pct}%` : "" }));
       } catch {
-        toast("error", "Failed to update rollout");
+        toast("error", t("rolloutUpdateFailed"));
       }
     });
   }
@@ -71,7 +73,7 @@ function RolloutRow({
       </div>
 
       <div className="flex items-center gap-2 text-xs text-label-tertiary tabular-nums">
-        <span title="devices currently running this version">{adoption} on</span>
+        <span title={t("rolloutAdoption")}>{adoption} on</span>
         {(health.confirmed > 0 || health.failed > 0) && (
           <span className="flex items-center gap-1.5">
             <span className="text-green">{health.confirmed}✓</span>
@@ -81,15 +83,15 @@ function RolloutRow({
       </div>
 
       <div className="flex items-center gap-2">
-        <StatusPill tone={stateTone(state)} dot>{state}</StatusPill>
+        <StatusPill tone={stateTone(state)} dot>{t(`state${state[0].toUpperCase()}${state.slice(1)}` as "stateFull")}</StatusPill>
         <select
           className={selectCls}
           value={state}
-          aria-label={`Rollout state for ${v.version}`}
+          aria-label={t("rolloutState", { version: v.version })}
           onChange={(e) => apply(e.target.value as RolloutState, percent)}
         >
           {STATES.map((s) => (
-            <option key={s} value={s}>{s}</option>
+          <option key={s} value={s}>{t(`state${s[0].toUpperCase()}${s.slice(1)}` as "stateFull")}</option>
           ))}
         </select>
         {showPct && (
@@ -98,7 +100,7 @@ function RolloutRow({
             min={0}
             max={100}
             value={percent}
-            aria-label={`Rollout percent for ${v.version}`}
+            aria-label={t("rolloutPercent", { version: v.version })}
             onChange={(e) => setPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
             onBlur={() => apply(state, percent)}
             className={`${selectCls} w-16 tabular-nums`}
@@ -108,7 +110,7 @@ function RolloutRow({
           size="sm"
           variant="plain"
           className="text-red px-2"
-          aria-label={`Halt ${v.version}`}
+          aria-label={t("halt", { version: v.version })}
           disabled={state === "halted"}
           onClick={() => apply("halted", 0)}
         >
@@ -120,6 +122,7 @@ function RolloutRow({
 }
 
 export function RolloutPanel({ overview, versions }: Props) {
+  const t = useTranslations("firmware");
   const rolloutOf = (version: string, channel: string) => {
     const r = overview.rollouts.find((x) => x.version === version && x.channel === channel);
     return { state: (r?.state as RolloutState) ?? "full", percent: r?.percent ?? 0 };
@@ -143,15 +146,15 @@ export function RolloutPanel({ overview, versions }: Props) {
     <section className="mt-10">
       <div className="flex items-center gap-2 mb-3">
         <Rocket size={16} className="text-label-secondary" aria-hidden="true" />
-        <h2 className="text-[15px] font-semibold text-label">Rollouts</h2>
+        <h2 className="text-[15px] font-semibold text-label">{t("rollouts")}</h2>
         <span className="text-xs text-label-tertiary">
-          the rollout — not the newest build — decides what ships
+          {t("rolloutHint")}
         </span>
       </div>
 
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden mb-6 divide-y divide-separator">
         {shown.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-label-secondary">No firmware versions yet.</div>
+          <div className="px-4 py-6 text-sm text-label-secondary">{t("noFirmwareVersions")}</div>
         ) : (
           shown.map((v) => (
             <RolloutRow
@@ -168,13 +171,13 @@ export function RolloutPanel({ overview, versions }: Props) {
       {/* Recent OTA events */}
       <div className="flex items-center gap-2 mb-3">
         <History size={16} className="text-label-secondary" aria-hidden="true" />
-        <h3 className="text-[14px] font-semibold text-label">Recent OTA events</h3>
+        <h3 className="text-[14px] font-semibold text-label">{t("recentOta")}</h3>
       </div>
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
         {overview.recentEvents.length === 0 ? (
           <div className="px-4 py-6 text-sm text-label-secondary flex items-center gap-2">
             <AlertCircle size={15} className="text-label-tertiary" aria-hidden="true" />
-            No OTA reports yet — devices report once they run firmware with OTA reporting.
+            {t("noOta")}
           </div>
         ) : (
           overview.recentEvents.slice(0, 20).map((e, i) => (
