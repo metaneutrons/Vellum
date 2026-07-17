@@ -82,6 +82,12 @@
     "cacheTtl": "Duración de caché (segundos)",
     "timelineShift": "Desplazamiento de línea temporal (horas)",
     "locale": "Idioma",
+    "dateFormat": "Formato de fecha",
+    "search": "Buscar contenido...",
+    "namePlaceholder": "p. ej. Sala de reuniones PB",
+    "noContent": "Sin instancias de contenido",
+    "noContentHint": "Cree una y asígnela a un dispositivo para mostrar contenido.",
+    "deleteMessage": "¿Eliminar esta instancia de contenido? Los dispositivos que la usan no mostrarán contenido.",
     "doorSign": {
       "resource": "Recurso (Sala/Escritorio)",
       "customProperties": "Propiedades personalizadas",
@@ -136,6 +142,14 @@
     "cancel": "Cancelar",
     "name": "Nombre",
     "type": "Tipo",
+    "search": "Buscar proveedores...",
+    "namePlaceholder": "p. ej. Mi proveedor M365",
+    "keepCurrent": "(dejar vacío para conservar el actual)",
+    "loadingCredentials": "Cargando credenciales...",
+    "noProviders": "Sin proveedores de datos",
+    "noProvidersHint": "Añada un proveedor para conectar el calendario u otras fuentes de datos.",
+    "deleteMessage": "¿Eliminar este proveedor? Las instancias de contenido que lo usan dejarán de funcionar.",
+    "icalHint": "Los proveedores iCal no necesitan credenciales. La URL se configura en cada instancia de contenido.",
     "types": {
       "microsoft365": "Microsoft 365 — Calendario",
       "google": "Google — Calendario",
@@ -202,17 +216,24 @@
   "flash": {
     "title": "Flashear firmware",
     "description": "Flashear firmware directamente vía USB en el navegador",
+    "back": "← Volver a Firmware",
     "model": "Modelo de pantalla",
     "channel": "Canal",
+    "stable": "Estable",
+    "beta": "Beta",
     "connect": "⚡ Conectar y flashear",
     "unsupported": "Web Serial no es compatible con este navegador. Use Chrome o Edge.",
+    "denied": "Se denegó el acceso al puerto serie. Compruebe los permisos del navegador.",
+    "loading": "Cargando herramientas de flasheo…",
     "instructions": {
       "title": "Instrucciones:",
       "step1": "Conectar el dispositivo mediante cable USB-C",
       "step2": "Encender el dispositivo (interruptor en la parte trasera)",
       "step3": "Hacer clic en \"Conectar y flashear\" y seleccionar el puerto serie",
       "step4": "Esperar a que finalice el flash — no desconectar"
-    }
+    },
+    "requirements": "Requiere Chrome 89+ o Edge 89+ con compatibilidad para Web Serial API.",
+    "proxy": "El binario de firmware se descarga de GitHub Releases mediante un proxy local."
   },
   "login": {
     "title": "Iniciar sesión en Vellum Console",
