@@ -392,8 +392,25 @@ void app_main(void)
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
         display_show_error("Low Battery");
         display_sleep();
-        sleep_manager_enter_permanent(buttons_get_wake_mask());
-        /* does not return */
+        /* Re-check periodically instead of entering permanent sleep. A
+         * permanent sleep leaves the low-battery frame on e-paper forever
+         * after the device is charged, because charging cannot wake every
+         * board through the button wake source. The fallback interval keeps
+         * the brownout protection while allowing the next boot to clear the
+         * stale warning and surface newer states such as Wi-Fi failures. */
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+        /* LCD sleep returns after its bounded retry delay. Keep the panel in
+         * that low-power loop until charging (or a healthy battery) is seen;
+         * restarting every cycle would flash the boot screen, beep, and waste
+         * power without improving the battery measurement. */
+        while (board_battery_level() < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
+               !board_is_usb_powered()) {
+            sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+        }
+#else
+        /* Deep-sleep panels wake on the timer and re-check on the next boot. */
+        sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+#endif
     }
 
     /* 3. Connect to Wi-Fi or enter SoftAP */
