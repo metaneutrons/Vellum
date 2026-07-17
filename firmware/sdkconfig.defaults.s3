@@ -1,6 +1,13 @@
 # Vellum Firmware — ESP32-S3 (E-Paper: E1001, E1002, E1003)
 CONFIG_IDF_TARGET="esp32s3"
 
+# Console → native USB-Serial-JTAG (the USB port the browser connects to for
+# Improv provisioning). Without this, S3 defaults to UART0 as the PRIMARY console,
+# so vellum_serial (which reads fgetc(stdin)) never sees the browser's
+# WIFI_SETTINGS frame and provisioning TIMES OUT — even though the device is fine
+# and ROM-level flashing works. P4 (sdkconfig.defaults.p4) already sets this.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
 # Flash / partition
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
