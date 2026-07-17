@@ -89,6 +89,22 @@ design calls:
 - [ ] **Move rate limiting to a shared store** (e.g. Redis) so limits hold across
       multiple server instances — the current limiter is in-memory / per-process.
 
+## Build / tooling
+
+- [ ] **Migrate the package manager npm → pnpm.** npm is currently pinned to
+      `npm@10.9.8` (`package.json` `packageManager` + `corepack enable` in CI) to
+      stop the recurring cross-version lockfile drift (npm-11-authored lockfiles
+      fail CI's npm-10 `npm ci` with `Missing @esbuild/<platform>`). pnpm removes
+      that class entirely (single lockfile, Corepack-pinned) and adds stricter dep
+      resolution + a cleaner build-script allowlist. Not a flag flip — it's a
+      migration: rework the `Dockerfile` (`npm ci --ignore-scripts` +
+      `npm rebuild @napi-rs/canvas` → pnpm with `onlyBuiltDependencies`), verify
+      `output: "standalone"` + `@vercel/nft` still trace the native
+      `@napi-rs/canvas` under pnpm's symlinked store (likely needs
+      `node-linker=hoisted` / `outputFileTracingRoot`), convert all CI workflows,
+      and update the docs. **Gate the whole thing on a green multi-arch Docker
+      build** before committing.
+
 ## Path to 100 — enterprise scorecard
 
 Follow-through from the enterprise audit (24 findings remediated across #50–#58;
