@@ -8,6 +8,7 @@
     "url": "git+https://github.com/metaneutrons/Vellum.git"
   },
   "homepage": "https://github.com/metaneutrons/Vellum",
+  "packageManager": "npm@10.9.8",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

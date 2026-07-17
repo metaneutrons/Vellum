@@ -24,6 +24,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
+      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
       - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm run lint
 
@@ -36,6 +37,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
+      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
       - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npx tsc --noEmit
 
@@ -48,6 +50,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
+      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
       - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       # Runs the suite AND enforces the coverage ratchet (vitest.config.ts
       # thresholds). A drop below the floor fails the required "Test" check.
@@ -62,5 +65,6 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
+      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
       - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
       - run: npm run build
