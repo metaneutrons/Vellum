@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/metaneutrons/Vellum/compare/v1.5.0...v1.6.0) (2026-07-17)
+
+
+### Features
+
+* add configurable booking QR codes ([#96](https://github.com/metaneutrons/Vellum/issues/96)) ([d91f2f4](https://github.com/metaneutrons/Vellum/commit/d91f2f49140d8250c258e97935c82f75e7b86353))
+* complete i18n migration ([e44b57f](https://github.com/metaneutrons/Vellum/commit/e44b57f4c76ba57a2482f8450b092bfed3879584))
+
 ## [1.5.0](https://github.com/metaneutrons/Vellum/compare/v1.4.0...v1.5.0) (2026-07-15)
 
 
