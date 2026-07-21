@@ -58,6 +58,9 @@ menu "Vellum Configuration"
             default 1
         config VELLUM_BATTERY_EN_GPIO
             int "Battery monitoring enable GPIO"
+            # The E1003 routes the battery monitor enable to GPIO40. GPIO21 is
+            # ITE_VCC_EN on that board and must never be driven as VBAT_EN.
+            default 40 if VELLUM_PANEL_E1003
             default 21
     endmenu
 

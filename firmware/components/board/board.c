@@ -78,12 +78,25 @@ float board_battery_voltage(void)
     gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 1);
     vTaskDelay(pdMS_TO_TICKS(BATTERY_SETTLE_MS));
 
+    /* GPIO1 is VBAT_ADC on E1003. Take a few samples after the enable
+     * transition so one ADC outlier cannot put a healthy device into the
+     * low-battery recovery path. */
     int raw = 0;
-    if (s_adc_handle) adc_oneshot_read(s_adc_handle, ADC_CHANNEL_0, &raw);
-#if !defined(CONFIG_VELLUM_PANEL_E1003)
-    /* Don't disable on E1003 — GPIO21 is shared with IT8951 ITE_ENABLE */
+    if (s_adc_handle) {
+        int sum = 0;
+        int valid_samples = 0;
+        int sample = 0;
+        for (int i = 0; i < 3; ++i) {
+            if (adc_oneshot_read(s_adc_handle, ADC_CHANNEL_0, &sample) == ESP_OK) {
+                sum += sample;
+                valid_samples++;
+            }
+            if (i < 2) vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        if (valid_samples > 0) raw = sum / valid_samples;
+    }
+    /* The enable pin is a dedicated VBAT_EN on E1003 (GPIO40). */
     gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 0);
-#endif
 
     float v;
     if (s_adc_cali) {
@@ -119,7 +132,10 @@ bool board_is_usb_powered(void)
      * the reTerminal, USB detection is independent of the battery voltage. */
     return d1001_usb_voltage() > 4000;
 #endif
-    return board_battery_voltage() > 4.5f;
+    /* E-Series hardware exposes VBAT_ADC but no MCU-readable VBUS sense. USB
+     * power must therefore not be inferred from the battery node: the charger
+     * holds the Li-ion cell at <=4.2 V even while USB powers the system. */
+    return false;
 }
 
 /* ── Status LED (active-low) ──────────────────────────────────── */
