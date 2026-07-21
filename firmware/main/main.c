@@ -384,16 +384,26 @@ void app_main(void)
     /* 0% is the DEEPEST discharge, not an "ignore me" sentinel — the old
      * `battery > 0` guard skipped exactly the most-critical case, letting the
      * device keep running WiFi + a full refresh on a near-dead cell and brown out
-     * mid-write (corrupting NVS or a staged OTA slot → brick). Treat any sub-
-     * critical reading as critical unless we're on USB power (where a working ADC
-     * reads well above the divider and is_usb_powered() is true). */
+     * mid-write (corrupting NVS or a staged OTA slot → brick). Treat any stable
+     * sub-critical reading as critical; boards with dedicated VBUS sense may
+     * explicitly bypass this gate while externally powered. */
     if (battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !board_is_usb_powered()) {
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
         display_show_error("Low Battery");
-        display_sleep();
-        sleep_manager_enter_permanent(buttons_get_wake_mask());
-        /* does not return */
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+        /* LCD mode returns after a bounded delay and re-checks the battery. */
+        while (board_battery_level() < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
+               !board_is_usb_powered()) {
+            sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+        }
+#else
+        /* Never use permanent deep sleep here. A transient ADC under-read
+         * would otherwise leave an otherwise healthy e-paper device appearing
+         * dead until a manual reset. Timed sleep preserves brownout safety,
+         * allows a fresh ADC sample, and permits button/USB wake for recovery. */
+        sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+#endif
     }
 
     /* 3. Connect to Wi-Fi or enter SoftAP */
