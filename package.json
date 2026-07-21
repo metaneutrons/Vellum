@@ -1,6 +1,6 @@
 {
   "name": "vellum",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "repository": {
@@ -29,28 +29,28 @@
     "@date-fns/tz": "1.5.0",
     "@microsoft/microsoft-graph-client": "3.0.7",
     "@napi-rs/canvas": "1.0.2",
-    "@tailwindcss/postcss": "4.3.2",
+    "@tailwindcss/postcss": "4.3.3",
     "date-fns": "4.4.0",
     "drizzle-orm": "0.45.2",
-    "esp-web-tools": "^10.2.1",
-    "lucide-react": "^1.24.0",
+    "esp-web-tools": "^10.4.0",
+    "lucide-react": "^1.25.0",
     "multicast-dns": "^7.2.5",
     "next": "16.2.10",
     "next-intl": "4.13.2",
     "pg": "8.22.0",
-    "postcss": "8.5.17",
+    "postcss": "8.5.20",
     "qrcode": "^1.5.4",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-rnd": "^10.5.3",
-    "tailwindcss": "4.3.2",
+    "tailwindcss": "4.3.3",
     "undici": "8.7.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "26.1.1",
     "@types/pg": "8.20.0",
-    "@types/qrcode": "^1.5.5",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitest/coverage-v8": "4.1.10",
@@ -59,7 +59,7 @@
     "eslint-config-next": "16.2.10",
     "fast-check": "4.9.0",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.63.0",
+    "typescript-eslint": "8.64.0",
     "vitest": "4.1.10"
   }
 }

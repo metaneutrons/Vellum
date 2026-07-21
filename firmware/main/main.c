@@ -391,6 +391,7 @@ void app_main(void)
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
         display_show_error("Low Battery");
+        display_sleep();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
         /* LCD mode returns after a bounded delay and re-checks the battery. */
         while (board_battery_level() < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
