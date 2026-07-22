@@ -1,4 +1,4 @@
-set(board_requires esp_adc esp_driver_ledc esp_driver_gpio)
+set(board_requires esp_adc esp_driver_ledc esp_driver_gpio esp_driver_usb_serial_jtag)
 if("${IDF_TARGET}" STREQUAL "esp32p4")
     # D1001 (ESP32-P4): the board_* battery/USB accessors delegate to the P4
     # board support (d1001_board), which owns the P4 ADC. esp_io_expander is

@@ -15,6 +15,7 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "driver/ledc.h"
 #include "driver/gpio.h"
+#include "driver/usb_serial_jtag.h"
 #include "sdkconfig.h"
 #if CONFIG_VELLUM_PANEL_D1001
 /* D1001 (ESP32-P4) battery/USB sensing. board REQUIRES d1001_board (+ its
@@ -132,10 +133,20 @@ bool board_is_usb_powered(void)
      * the reTerminal, USB detection is independent of the battery voltage. */
     return d1001_usb_voltage() > 4000;
 #endif
-    /* E-Series hardware exposes VBAT_ADC but no MCU-readable VBUS sense. USB
-     * power must therefore not be inferred from the battery node: the charger
-     * holds the Li-ion cell at <=4.2 V even while USB powers the system. */
-    return false;
+    /* E-Series hardware exposes VBAT_ADC but no MCU-readable VBUS sense, so USB
+     * power cannot be inferred from the battery node (the charger holds the
+     * Li-ion cell at <=4.2 V even while USB powers the system). Instead, use the
+     * ESP32-S3 native USB-Serial-JTAG host-presence signal: it reports connected
+     * whenever a USB *data* host (the provisioning/OTA browser, or any serial
+     * monitor) is sending SOF packets — which is exactly when the device is
+     * externally powered and must NOT deep-sleep at the low-battery gate. This
+     * restores the "externally powered" bypass main.c's battery check relies on;
+     * without it, a bench unit being provisioned over USB with a flat/absent
+     * cell reads low, cannot tell it is on USB, and deep-sleeps mid-provision
+     * (killing the serial task → the browser "connection times out"). A dumb
+     * power bank sends no SOF and correctly reads as not-connected, so battery
+     * brown-out protection is preserved for the on-battery case. */
+    return usb_serial_jtag_is_connected();
 }
 
 /* ── Status LED (active-low) ──────────────────────────────────── */

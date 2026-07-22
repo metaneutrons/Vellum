@@ -4,7 +4,9 @@
  * @file vellum_serial.c
  * @brief Improv WiFi Serial protocol + interactive console.
  *
- * Runs on the USB-UART serial port. Handles:
+ * Runs on the primary console (USB-Serial-JTAG on S3/P4). One byte stream
+ * carries two things, so line-ending translation MUST be disabled (see
+ * serial_task) or the binary frames get corrupted:
  * - Improv WiFi protocol (binary packets) for browser-based WiFi config
  * - Text console commands for developer/power-user config
  */
@@ -20,6 +22,11 @@
 #include "esp_console.h"
 #include "esp_vfs_dev.h"
 #include "driver/uart.h"
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+#include "driver/usb_serial_jtag_vfs.h"
+#elif CONFIG_ESP_CONSOLE_UART
+#include "driver/uart_vfs.h"
+#endif
 #include "linenoise/linenoise.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -414,8 +421,23 @@ static void serial_task(void *arg)
     register_console_commands();
     esp_console_register_help_command();
 
-    /* Configure UART for console */
     setvbuf(stdin, NULL, _IONBF, 0);
+
+    /* CRITICAL for Improv: this one stream carries BINARY Improv frames, but the
+     * stdio console VFS otherwise translates line endings (CR->LF on input,
+     * LF->CRLF on output). That silently corrupts any frame byte that happens to
+     * be 0x0D or 0x0A — e.g. a length or checksum byte — so the device fails the
+     * frame checksum, drops the browser's WIFI_SETTINGS frame, stays silent, and
+     * provisioning "times out". Force raw passthrough so binary frames survive
+     * byte-exact in both directions. The text console still works: console_feed()
+     * already accepts both '\r' and '\n' as line terminators. */
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_LF);
+    usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_LF);
+#elif CONFIG_ESP_CONSOLE_UART
+    uart_vfs_dev_port_set_rx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_LF);
+    uart_vfs_dev_port_set_tx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_LF);
+#endif
 
     ESP_LOGI(TAG, "Vellum Console ready. Type 'help' for commands.");
 
