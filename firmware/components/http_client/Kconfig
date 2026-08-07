@@ -1,0 +1,14 @@
+menu "Vellum HTTP client"
+
+    config VELLUM_ALLOW_INSECURE_PRIVATE_HTTP
+        bool "Allow plaintext HTTP to private IPv4 addresses (development only)"
+        default n
+        help
+            Permit backend requests to RFC1918 IPv4 literals over http://.
+            This is intended only for a locally flashed development device.
+            Credentials, device tokens, telemetry, and display content can be
+            observed or modified by anyone on the local network. Production and
+            release builds must leave this disabled; HTTPS remains mandatory for
+            hostnames, public addresses, and all OTA downloads.
+
+endmenu

@@ -1,0 +1,4 @@
+# Vellum local development overlay — NEVER use for a release build.
+# Allows only RFC1918 IPv4 literals over HTTP; hostnames, public addresses, and
+# OTA images remain HTTPS-only.
+CONFIG_VELLUM_ALLOW_INSECURE_PRIVATE_HTTP=y

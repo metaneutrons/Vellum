@@ -32,6 +32,11 @@ jobs:
             target: esp32s3
             base: sdkconfig.defaults.s3
             panel: CONFIG_VELLUM_PANEL_GDEY075T7=y
+          - model: e1003
+            target: esp32s3
+            base: sdkconfig.defaults.s3
+            overlay: sdkconfig.defaults.e1003
+            panel: CONFIG_VELLUM_PANEL_E1003=y
           - model: d1001
             target: esp32p4
             base: sdkconfig.defaults.p4
@@ -49,9 +54,13 @@ jobs:
           . $IDF_PATH/export.sh
           # Mirror firmware.yml's config injection; the version is a placeholder
           # (this build is never released, only compiled).
-          cp ${{ matrix.base }} sdkconfig.defaults
-          echo 'CONFIG_VELLUM_FIRMWARE_VERSION="0.0.0-pr"' >> sdkconfig.defaults
-          echo '${{ matrix.panel }}' >> sdkconfig.defaults
+          DEFAULTS="${{ matrix.base }}"
+          OVERLAY="${{ matrix.overlay }}"
+          if [ -n "$OVERLAY" ]; then DEFAULTS="$DEFAULTS;$OVERLAY"; fi
+          printf 'CONFIG_VELLUM_FIRMWARE_VERSION="0.0.0-pr"\n%s\n' \
+            '${{ matrix.panel }}' > sdkconfig.ci
           echo "0.0.0-pr" > version.txt
-          idf.py -DVELLUM_MODEL=${{ matrix.model }} set-target ${{ matrix.target }}
+          idf.py -DVELLUM_MODEL=${{ matrix.model }} \
+            -DSDKCONFIG_DEFAULTS="$DEFAULTS;sdkconfig.ci" \
+            set-target ${{ matrix.target }}
           idf.py -DVELLUM_MODEL=${{ matrix.model }} build

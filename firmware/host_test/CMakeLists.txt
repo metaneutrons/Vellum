@@ -24,8 +24,16 @@ add_executable(host_tests
   test_ota_signature.c
   test_secure_channel.c
   test_key_revocation.c
+  test_e1003_power.c
+  test_transport_policy.c
   version_compare.c
   revocation.c
+  ../components/board/e1003_power.c
+  ../components/http_client/transport_policy.c
+)
+target_include_directories(host_tests PRIVATE
+  ../components/board/include
+  ../components/http_client/include
 )
 target_link_libraries(host_tests PRIVATE OpenSSL::Crypto)
 

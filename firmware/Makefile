@@ -18,6 +18,9 @@ SHELL := /bin/bash
 PORT ?= $(shell ls /dev/cu.usbserial-* /dev/cu.wchusbserial* /dev/cu.usbmodem* 2>/dev/null | head -1)
 BAUD ?= 460800
 MODEL ?= e1002
+MODEL_DEFAULTS =
+DEV_HTTP ?= 0
+DEV_DEFAULTS =
 
 # ── Secure Boot / signed-verify build profiles (OPT-IN — SECURE=1) ──────────
 # The default `make build` is byte-unchanged (unsigned, reflashable). SECURE=1
@@ -49,10 +52,20 @@ else ifeq ($(MODEL),e1002)
 else ifeq ($(MODEL),e1003)
   TARGET_CHIP = esp32s3
   SDKCONFIG_DEFAULTS = sdkconfig.defaults.s3
+  MODEL_DEFAULTS = sdkconfig.defaults.e1003
   PANEL_CONFIG = CONFIG_VELLUM_PANEL_E1003=y
 else
   $(error Unknown MODEL=$(MODEL). Use d1001, e1001, e1002, or e1003)
 endif
+
+ifeq ($(DEV_HTTP),1)
+  DEV_DEFAULTS = sdkconfig.defaults.dev-http
+endif
+
+# Common target defaults plus an optional model-specific hardware overlay.
+# sdkconfig.panel remains generated because the selected display is a build
+# input, not persistent source configuration.
+SDKCONFIG_CHAIN = $(SDKCONFIG_DEFAULTS)$(if $(MODEL_DEFAULTS),;$(MODEL_DEFAULTS))$(if $(DEV_DEFAULTS),;$(DEV_DEFAULTS))
 
 # ESP-IDF environment
 IDF_ACTIVATE := source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1
@@ -70,7 +83,7 @@ ifeq ($(SECURE),1)
 	@printf '%s\n' "$(PANEL_CONFIG)" > sdkconfig.panel
 	@rm -f sdkconfig   # force a fresh reconfigure so secure flags can't silently stay off
 	@$(IDF_ACTIVATE) && $(IDF_ENV) && \
-		CHAIN="$(SDKCONFIG_DEFAULTS);sdkconfig.panel;sdkconfig.defaults.$(SECURE_PROFILE)"; \
+		CHAIN="$(SDKCONFIG_CHAIN);sdkconfig.panel;sdkconfig.defaults.$(SECURE_PROFILE)"; \
 		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -DSDKCONFIG_DEFAULTS="$$CHAIN" set-target $(TARGET_CHIP) && \
 		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) build; \
 		rc=$$?; rm -f sdkconfig.panel; [ $$rc -eq 0 ] || exit $$rc   # clean up even on failure
@@ -79,12 +92,11 @@ ifeq ($(SECURE),1)
 	@echo "SECURE build OK — image is NOT yet signed; sign out-of-band before flashing (see runbook)."
 else
 	@echo "Building for $(MODEL) ($(TARGET_CHIP))..."
-	@rm -f sdkconfig.panel   # drop any leftover from an interrupted SECURE build
+	@rm -f sdkconfig sdkconfig.panel
+	@printf '%s\n' "$(PANEL_CONFIG)" > sdkconfig.panel
 	@$(IDF_ACTIVATE) && $(IDF_ENV) && \
-		cp $(SDKCONFIG_DEFAULTS) sdkconfig.defaults && \
-		grep -q "$(PANEL_CONFIG)" sdkconfig.defaults 2>/dev/null || echo "$(PANEL_CONFIG)" >> sdkconfig.defaults && \
-		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -DSDKCONFIG_DEFAULTS=sdkconfig.defaults set-target $(TARGET_CHIP) && \
-		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) build
+		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -DSDKCONFIG_DEFAULTS="$(SDKCONFIG_CHAIN);sdkconfig.panel" set-target $(TARGET_CHIP) && \
+		python $$IDF_PATH/tools/idf.py -DVELLUM_MODEL=$(MODEL) -DSDKCONFIG_DEFAULTS="$(SDKCONFIG_CHAIN);sdkconfig.panel" build
 endif
 
 flash: check-port

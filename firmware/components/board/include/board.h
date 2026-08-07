@@ -21,7 +21,7 @@ float board_battery_voltage(void);
 /** Battery charge level, clamped to 0-100%. */
 int board_battery_level(void);
 
-/** True when running on USB power (only available on boards with VBUS sense). */
+/** True when external USB power is present on hardware that can detect it. */
 bool board_is_usb_powered(void);
 
 /** Status LED (active-low). */
