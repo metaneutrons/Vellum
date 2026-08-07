@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/metaneutrons/Vellum/compare/v1.6.0...v1.6.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **firmware:** support E1003 USB-C provisioning ([#119](https://github.com/metaneutrons/Vellum/issues/119)) ([2994990](https://github.com/metaneutrons/Vellum/commit/2994990dcdeb36156411dbba8fe900d2afdaba15))
+* **i18n:** add device firmware channel label ([#121](https://github.com/metaneutrons/Vellum/issues/121)) ([39c026a](https://github.com/metaneutrons/Vellum/commit/39c026ac7cf777a5430bd22a0dc9ae85e10f76f8))
+
 ## [1.6.0](https://github.com/metaneutrons/Vellum/compare/v1.5.0...v1.6.0) (2026-07-17)
 
 
