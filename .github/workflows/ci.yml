@@ -20,63 +20,64 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version-file: '.nvmrc'
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npm run i18n:check
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm i18n:check
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version-file: '.nvmrc'
-          cache: npm
-      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
-      - run: npm run lint
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
 
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version-file: '.nvmrc'
-          cache: npm
-      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
-      - run: npx tsc --noEmit
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
 
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version-file: '.nvmrc'
-          cache: npm
-      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # Runs the suite AND enforces the coverage ratchet (vitest.config.ts
       # thresholds). A drop below the floor fails the required "Test" check.
-      - run: npm run test:coverage
+      - run: pnpm test:coverage
 
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version-file: '.nvmrc'
-          cache: npm
-      - run: corepack enable          # honor packageManager (npm@10.9.8) so CI matches the lockfile author
-      - run: npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
-      - run: npm run build
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build

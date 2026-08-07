@@ -68,7 +68,8 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 22.13+
+- pnpm 11.20.0 (the repository pins the exact version in `package.json`)
 - PostgreSQL 15+
 - A calendar provider (Microsoft 365, Google, anny, or any iCal URL)
 
@@ -77,7 +78,7 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 ```bash
 git clone <your-repo-url>
 cd vellum
-npm install
+pnpm install --frozen-lockfile
 
 # Configure environment
 cp .env.example .env
@@ -85,10 +86,10 @@ cp .env.example .env
 
 # Create database and run migrations (idempotent — safe to re-run on upgrades)
 createdb vellum
-npm run db:migrate
+pnpm db:migrate
 
 # Start with mDNS auto-discovery
-npm run dev:mdns
+pnpm dev:mdns
 ```
 
 Open **<http://localhost:3000/admin>** and log in.
@@ -197,11 +198,11 @@ Provision the device over the USB cable — no phone or hotspot needed:
 ## Development
 
 ```bash
-npm run dev          # Start Next.js dev server
-npm run dev:mdns     # Start with mDNS announcement
-npm test             # Run tests (~20 vitest suites)
-npm run lint         # ESLint
-npx tsc --noEmit     # Type check
+pnpm dev              # Start Next.js dev server
+pnpm dev:mdns         # Start with mDNS announcement
+pnpm test             # Run tests (~20 vitest suites)
+pnpm lint             # ESLint
+pnpm exec tsc --noEmit # Type check
 ```
 
 ### Device Simulator

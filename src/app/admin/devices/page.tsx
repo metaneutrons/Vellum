@@ -18,7 +18,7 @@ export default async function DevicesPage() {
   // Devices + latest telemetry. The primary query includes expected_interval_s
   // (the connectivity cadence). If that column isn't migrated yet, fall back to
   // a query without it so the page degrades gracefully instead of 500ing —
-  // connectivity then uses the default cadence until `npm run db:migrate` runs.
+  // connectivity then uses the default cadence until `pnpm db:migrate` runs.
   let deviceRows: Record<string, unknown>[];
   try {
     deviceRows = (await db.execute(sql`

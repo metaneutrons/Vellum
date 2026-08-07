@@ -3,22 +3,26 @@
 # node:26-alpine (resolve a new digest with: docker buildx imagetools inspect node:26-alpine)
 FROM node:26-alpine@sha256:e88a35be04478413b7c71c455cd9865de9b9360e1f43456be5951032d7ac1a66 AS base
 
+# Node 26 no longer bundles Corepack. Bootstrap the exact pnpm version in a
+# build-only stage so pnpm and its global install layer stay out of the runtime
+# image.
+FROM base AS package-manager
+RUN npm install --global --ignore-scripts pnpm@11.20.0
+
 # ── Dependencies (reproducible install from the lockfile) ───────────────────
-FROM base AS deps
+FROM package-manager AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-# `npm ci` installs the EXACT lockfile tree (fails if package.json drifts) — the
-# reproducible counterpart to `npm install`. --ignore-scripts blocks ALL install
-# lifecycle hooks (supply-chain hardening). We then rebuild ONLY the single native
-# addon we ship (@napi-rs/canvas) — a bare `npm rebuild` would re-run every
-# transitive dependency's install/postinstall, reopening exactly the surface
-# --ignore-scripts just closed. Docker's layer cache keeps this step reusable
-# when package.json and package-lock.json do not change; avoiding a BuildKit-only
-# cache mount also keeps the image buildable on standard Docker daemons.
-RUN npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY scripts/setup-git-hooks.mjs ./scripts/setup-git-hooks.mjs
+# Frozen install gives exact-lockfile reproducibility. pnpm-workspace.yaml keeps
+# dependency build scripts denied by default and explicitly permits only the
+# reviewed native/tooling packages. Standard Docker layer caching keeps this
+# reusable without requiring BuildKit support on the deployment host.
+RUN pnpm config set store-dir /pnpm/store --global && \
+    pnpm install --frozen-lockfile
 
 # ── Build ───────────────────────────────────────────────────────────────────
-FROM base AS builder
+FROM package-manager AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -35,7 +39,7 @@ RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
     ADMIN_API_KEY=build-time-placeholder-at-least-32-chars \
     ADMIN_USER=build \
     ADMIN_PASS=build-placeholder \
-    npm run build
+    pnpm build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
 FROM base AS runner

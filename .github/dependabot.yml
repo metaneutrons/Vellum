@@ -1,11 +1,11 @@
 # Dependabot version updates.
-# Routine minor/patch bumps are GROUPED into one PR per ecosystem (npm split
+# Routine minor/patch bumps are GROUPED into one PR per ecosystem (JavaScript split
 # into production vs development). MAJOR updates are intentionally left UNgrouped
 # so each lands as its own review PR and is never auto-merged.
 # Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 version: 2
 updates:
-  # ── npm — Next.js app (repo root, package-lock.json) ───────────────
+  # ── pnpm lockfile — Next.js app (Dependabot ecosystem remains "npm") ──
   - package-ecosystem: "npm"
     directory: "/"
     target-branch: "main"
@@ -14,10 +14,10 @@ updates:
     open-pull-requests-limit: 5
     versioning-strategy: increase
     groups:
-      npm-production:
+      pnpm-production:
         dependency-type: "production"
         update-types: ["minor", "patch"]
-      npm-development:
+      pnpm-development:
         dependency-type: "development"
         update-types: ["minor", "patch"]
 
