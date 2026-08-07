@@ -97,6 +97,9 @@ static lv_display_t *s_disp = NULL;
 
 /* ── IT8951 LVGL flush ────────────────────────────────────────── */
 #if defined(CONFIG_VELLUM_PANEL_E1003)
+static lv_area_t s_dirty_area;
+static bool s_dirty_area_valid = false;
+
 static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
     /* Convert L8 (8bpp grayscale) to 4bpp for IT8951 */
@@ -115,8 +118,22 @@ static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t
         it8951_load_image_4bpp(buf, area->x1, area->y1, w, h);
         heap_caps_free(buf);
     }
+    if (!s_dirty_area_valid) {
+        s_dirty_area = *area;
+        s_dirty_area_valid = true;
+    } else {
+        s_dirty_area.x1 = LV_MIN(s_dirty_area.x1, area->x1);
+        s_dirty_area.y1 = LV_MIN(s_dirty_area.y1, area->y1);
+        s_dirty_area.x2 = LV_MAX(s_dirty_area.x2, area->x2);
+        s_dirty_area.y2 = LV_MAX(s_dirty_area.y2, area->y2);
+    }
     if (lv_display_flush_is_last(disp)) {
-        it8951_display_area(0, 0, PANEL_WIDTH, PANEL_HEIGHT, 2);
+        if (s_dirty_area_valid) {
+            it8951_display_area(s_dirty_area.x1, s_dirty_area.y1,
+                                s_dirty_area.x2 - s_dirty_area.x1 + 1,
+                                s_dirty_area.y2 - s_dirty_area.y1 + 1, 2);
+            s_dirty_area_valid = false;
+        }
     }
     lv_display_flush_ready(disp);
 }
@@ -183,7 +200,6 @@ static void ep_refresh(void)
 {
     if (!s_disp) return;
 #if defined(CONFIG_VELLUM_PANEL_E1003)
-    lv_obj_invalidate(lv_screen_active());
     lv_tick_inc(100);
     lv_timer_handler();
 #else
