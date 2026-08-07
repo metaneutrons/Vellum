@@ -15,6 +15,8 @@ import {
   ImprovType,
   ImprovCmd,
   ImprovState,
+  ImprovError,
+  improvErrorMessage,
 } from "../improv-serial";
 
 /**
@@ -161,6 +163,12 @@ describe("WIFI_SETTINGS payload-size guard", () => {
 });
 
 describe("ImprovParser (device → browser)", () => {
+  it("explains a production firmware rejection without implying settings changed", () => {
+    expect(improvErrorMessage(ImprovError.INSECURE_URL)).toBe(
+      "This production firmware requires an https:// server URL. No settings were changed.",
+    );
+  });
+
   it("extracts a state frame surrounded by console text noise", () => {
     const stateFrame = encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.PROVISIONED]);
     const noise = new TextEncoder().encode("vellum> Improv: WiFi connected\r\n");

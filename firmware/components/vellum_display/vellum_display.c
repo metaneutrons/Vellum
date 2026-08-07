@@ -26,6 +26,10 @@ static const char *TAG = "display";
 
 static lv_display_t *s_lvgl_disp = NULL;
 static char s_last_screen[64] = {0};
+static lv_obj_t *s_ota_title = NULL;
+static lv_obj_t *s_ota_bar = NULL;
+static lv_obj_t *s_ota_percent = NULL;
+static lv_obj_t *s_ota_warning = NULL;
 
 static void lvgl_tick_cb(void *arg) { (void)arg; lv_tick_inc(5); }
 
@@ -272,33 +276,62 @@ void display_show_ota_progress(uint8_t percent)
     lv_obj_t *scr = lv_screen_active();
 
     if (p->fast_refresh) {
-        lv_obj_clean(scr);
-        lv_obj_set_style_bg_color(scr, p->bg, 0);
-        lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-        lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_row(scr, 20, 0);
+        if (!s_ota_title || !lv_obj_is_valid(s_ota_title) ||
+            !s_ota_bar || !lv_obj_is_valid(s_ota_bar) ||
+            !s_ota_percent || !lv_obj_is_valid(s_ota_percent)) {
+            lv_obj_clean(scr);
+            lv_obj_set_style_bg_color(scr, p->bg, 0);
+            lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+            lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+            /* Keep the complete status group centred. START pinned the logo to
+             * y=0 on the tall E1003 panel. */
+            lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                                  LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_style_pad_row(scr, p->height > 1000 ? 32 : 12, 0);
 
-        add_logo(scr);
+            add_logo(scr);
 
-        lv_obj_t *title = lv_label_create(scr);
-        lv_label_set_text(title, "Updating firmware...");
-        lv_obj_set_style_text_font(title, p->font_md, 0);
-        lv_obj_set_style_text_color(title, p->fg, 0);
+            s_ota_title = lv_label_create(scr);
+            lv_obj_set_width(s_ota_title, p->width / 2);
+            lv_obj_set_style_text_align(s_ota_title, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_bg_color(s_ota_title, p->bg, 0);
+            lv_obj_set_style_bg_opa(s_ota_title, LV_OPA_COVER, 0);
+            lv_label_set_text(s_ota_title, "Updating firmware...");
+            lv_obj_set_style_text_font(s_ota_title, p->font_md, 0);
+            lv_obj_set_style_text_color(s_ota_title, p->fg, 0);
 
-        lv_obj_t *bar = lv_bar_create(scr);
-        lv_obj_set_size(bar, p->width / 2, 30);
-        lv_bar_set_value(bar, percent, LV_ANIM_OFF);
+            s_ota_bar = lv_bar_create(scr);
+            lv_obj_set_size(s_ota_bar, p->width / 2, p->height > 1000 ? 40 : 24);
 
-        lv_obj_t *pct = lv_label_create(scr);
-        lv_label_set_text_fmt(pct, "%d%%", percent);
-        lv_obj_set_style_text_font(pct, p->font_md, 0);
-        lv_obj_set_style_text_color(pct, p->fg, 0);
+            s_ota_percent = lv_label_create(scr);
+            /* Fixed opaque bounds are important on e-paper: variable-width
+             * strings such as "5%" -> "10%" otherwise leave stale glyph pixels
+             * behind during a partial refresh. */
+            lv_obj_set_width(s_ota_percent, p->height > 1000 ? 240 : 120);
+            lv_obj_set_style_text_align(s_ota_percent, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_bg_color(s_ota_percent, p->bg, 0);
+            lv_obj_set_style_bg_opa(s_ota_percent, LV_OPA_COVER, 0);
+            lv_obj_set_style_text_font(s_ota_percent, p->font_md, 0);
+            lv_obj_set_style_text_color(s_ota_percent, p->fg, 0);
 
-        lv_obj_t *warn = lv_label_create(scr);
-        lv_label_set_text(warn, "Do not power off");
-        lv_obj_set_style_text_font(warn, p->font_xs, 0);
-        lv_obj_set_style_text_color(warn, p->muted, 0);
+            s_ota_warning = lv_label_create(scr);
+            lv_obj_set_width(s_ota_warning, p->width / 2);
+            lv_obj_set_style_text_align(s_ota_warning, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_bg_color(s_ota_warning, p->bg, 0);
+            lv_obj_set_style_bg_opa(s_ota_warning, LV_OPA_COVER, 0);
+            lv_label_set_text(s_ota_warning, "Do not power off");
+            lv_obj_set_style_text_font(s_ota_warning, p->font_xs, 0);
+            lv_obj_set_style_text_color(s_ota_warning, p->muted, 0);
+        }
+
+        lv_bar_set_value(s_ota_bar, percent, LV_ANIM_OFF);
+        lv_label_set_text_fmt(s_ota_percent, "%d%%", percent);
+        if (percent == 100) {
+            lv_label_set_text(s_ota_title, "Firmware updated");
+            if (s_ota_warning && lv_obj_is_valid(s_ota_warning)) {
+                lv_label_set_text(s_ota_warning, "Restarting...");
+            }
+        }
 
         lvgl_refresh();
     } else {
@@ -310,7 +343,7 @@ void display_show_ota_progress(uint8_t percent)
         lv_obj_set_style_bg_color(scr, p->bg, 0);
         lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
         lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_row(scr, 20, 0);
 
         add_logo(scr);

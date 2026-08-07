@@ -7,6 +7,7 @@
 
 #include "wifi_manager.h"
 #include "nvs_manager.h"
+#include "transport_policy.h"
 
 #include "cJSON.h"
 #include <string.h>
@@ -148,6 +149,26 @@ static const char PORTAL_ERROR_HTML[] =
     "<p>Network name is required.<br><a href=\"/\">Try again</a></p>"
     "</div></body></html>";
 
+static const char PORTAL_INSECURE_URL_HTML[] =
+    "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+    "<title>Vellum</title><style>"
+    "body{font-family:-apple-system,sans-serif;background:#0a0a0f;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}"
+    "h1{color:#ef4444;font-size:22px;margin-bottom:10px}p{color:#94a3b8;font-size:15px;line-height:1.5}"
+    "a{color:#e9177b;text-decoration:none;font-weight:500}</style></head><body><div>"
+    "<h1>Secure server required</h1>"
+    "<p>This production firmware only accepts an <strong>https://</strong> server URL.<br>"
+    "Your Wi-Fi and server settings were not changed.<br><a href=\"/\">Try again</a></p>"
+    "</div></body></html>";
+
+static bool provisioning_url_allowed(const char *url)
+{
+    bool allow_private_http = false;
+#ifdef CONFIG_VELLUM_ALLOW_INSECURE_PRIVATE_HTTP
+    allow_private_http = true;
+#endif
+    return !url || !url[0] || vellum_transport_url_allowed(url, allow_private_http);
+}
+
 /* ---- Wi-Fi event handler ----------------------------------------------- */
 
 static void wifi_event_handler(void *arg, esp_event_base_t base,
@@ -253,6 +274,14 @@ static esp_err_t portal_save_handler(httpd_req_t *req)
         httpd_resp_set_status(req, "400 Bad Request");
         httpd_resp_set_type(req, "text/html");
         return httpd_resp_send(req, PORTAL_ERROR_HTML, HTTPD_RESP_USE_STRLEN);
+    }
+
+    if (!provisioning_url_allowed(server)) {
+        /* Do not log the supplied URL: it may contain userinfo or tokens. */
+        ESP_LOGW(TAG, "Portal: server URL rejected by build policy");
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_set_type(req, "text/html");
+        return httpd_resp_send(req, PORTAL_INSECURE_URL_HTML, HTTPD_RESP_USE_STRLEN);
     }
 
     esp_err_t err = nvs_manager_store_wifi(ssid, pass);

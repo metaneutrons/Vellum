@@ -46,6 +46,7 @@ export const ImprovError = {
   INVALID_RPC: 0x01,
   UNKNOWN_CMD: 0x02,
   UNABLE_CONNECT: 0x03,
+  INSECURE_URL: 0x04,
 } as const;
 
 // Firmware buffer limits (vellum_serial.c improv_handle_wifi_settings).
@@ -262,7 +263,14 @@ const ERROR_TEXT: Record<number, string> = {
   [ImprovError.INVALID_RPC]: "Device rejected the request (invalid RPC).",
   [ImprovError.UNKNOWN_CMD]: "Device does not support this command.",
   [ImprovError.UNABLE_CONNECT]: "Device could not join the Wi-Fi network (check SSID/password).",
+  [ImprovError.INSECURE_URL]:
+    "This production firmware requires an https:// server URL. No settings were changed.",
 };
+
+/** Convert a device-side Improv error code into a user-facing explanation. */
+export function improvErrorMessage(error: number): string {
+  return ERROR_TEXT[error] ?? `Device error 0x${error.toString(16)}.`;
+}
 
 /**
  * Provision a Vellum device over USB via Web Serial. Prompts the user for a
@@ -345,7 +353,7 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
           } else if (frame.type === ImprovType.ERROR_STATE) {
             const err = frame.payload[0];
             if (err !== ImprovError.NONE) {
-              const msg = ERROR_TEXT[err] ?? `Device error 0x${err.toString(16)}.`;
+              const msg = improvErrorMessage(err);
               onPhase("error", msg);
               finish({ ok: false, error: msg });
             }

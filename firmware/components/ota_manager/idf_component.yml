@@ -1,0 +1,5 @@
+dependencies:
+  # ESP-IDF 6.0 exposes the PSA EdDSA constants but its bundled crypto
+  # implementation cannot import/verify Ed25519 keys.  Pin Espressif's port so
+  # OTA signature verification is present on every supported target.
+  espressif/libsodium: "==1.0.22~1"

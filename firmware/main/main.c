@@ -42,6 +42,28 @@
 
 static const char *TAG = "vellum_main";
 
+/** Build a display-safe server URL. Credentials are never expected in Vellum
+ * URLs, but redact RFC 3986 userinfo defensively before putting it on a public
+ * room display. */
+static void display_server_url(char *out, size_t out_len)
+{
+    char url[NVS_MAX_URL_LEN] = {0};
+    if (nvs_manager_get_server_url(url, sizeof(url)) != ESP_OK || !url[0]) {
+        strlcpy(url, CONFIG_VELLUM_DEFAULT_SERVER_URL, sizeof(url));
+    }
+
+    const char *scheme = strstr(url, "://");
+    const char *authority = scheme ? scheme + 3 : url;
+    const char *at = strchr(authority, '@');
+    const char *path = strchr(authority, '/');
+    if (at && (!path || at < path)) {
+        size_t prefix_len = (size_t)(authority - url);
+        snprintf(out, out_len, "%.*s***@%s", (int)prefix_len, url, at + 1);
+    } else {
+        strlcpy(out, url, out_len);
+    }
+}
+
 static vellum_telemetry_t gather_telemetry(void)
 {
     vellum_telemetry_t t = {
@@ -173,7 +195,11 @@ static uint32_t perform_render(bool *render_ok)
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Render request failed: %s", esp_err_to_name(err));
-        display_show_error("Server Unavailable");
+        char safe_url[NVS_MAX_URL_LEN];
+        char message[NVS_MAX_URL_LEN + 32];
+        display_server_url(safe_url, sizeof(safe_url));
+        snprintf(message, sizeof(message), "Server unavailable\n%s", safe_url);
+        display_show_error(message);
         http_client_free_response(&resp);
         return sleep_sec;
     }

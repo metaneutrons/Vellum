@@ -15,6 +15,7 @@
 #include "vellum_serial.h"
 #include "nvs_manager.h"
 #include "wifi_manager.h"
+#include "transport_policy.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -62,8 +63,19 @@ static const char *TAG = "serial";
 #define IMPROV_ERROR_INVALID_RPC  0x01
 #define IMPROV_ERROR_UNKNOWN_CMD  0x02
 #define IMPROV_ERROR_UNABLE_CONNECT 0x03
+/* Vellum protocol extension: the firmware build policy rejected server URL. */
+#define IMPROV_ERROR_INSECURE_URL   0x04
 
 static uint8_t s_improv_state = IMPROV_STATE_READY;
+
+static bool provisioning_url_allowed(const char *url)
+{
+    bool allow_private_http = false;
+#ifdef CONFIG_VELLUM_ALLOW_INSECURE_PRIVATE_HTTP
+    allow_private_http = true;
+#endif
+    return !url || !url[0] || vellum_transport_url_allowed(url, allow_private_http);
+}
 
 static void improv_send_packet(uint8_t type, const uint8_t *data, uint8_t len)
 {
@@ -140,21 +152,24 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
      * Optional fourth string: a pre-provisioning device token (zero-touch
      * enrolment) — the server auto-approves the first device to present it. */
     char redirect[NVS_MAX_URL_LEN] = {0};
+    char supplied_url[NVS_MAX_URL_LEN] = {0};
     size_t pos = (size_t)2 + ssid_len + pass_len;
     if (pos < len) {
         uint8_t url_len = data[pos];
         if (pos + 1 + url_len <= (size_t)len) {
             if (url_len > 0) {
-                char url[NVS_MAX_URL_LEN] = {0};
                 /* url_len is uint8_t (<=255) and NVS_MAX_URL_LEN is 256, so a full
                  * copy always leaves room for the NUL — a `url_len >= NVS_MAX_URL_LEN`
                  * clamp is provably always-false and trips -Werror=type-limits. Assert
                  * the invariant so shrinking the buffer can't silently overflow. */
                 _Static_assert(NVS_MAX_URL_LEN >= 256, "url buffer must hold any uint8_t-length value + NUL");
-                memcpy(url, &data[pos + 1], url_len);
-                nvs_manager_store_server_url(url);
-                snprintf(redirect, sizeof(redirect), "%s", url);
-                ESP_LOGI(TAG, "Improv: Server URL: %s", url);
+                memcpy(supplied_url, &data[pos + 1], url_len);
+                if (!provisioning_url_allowed(supplied_url)) {
+                    /* Do not log the supplied URL: it may contain userinfo or tokens. */
+                    ESP_LOGW(TAG, "Improv: server URL rejected by build policy");
+                    improv_send_error(IMPROV_ERROR_INSECURE_URL);
+                    return; /* Store neither Wi-Fi nor URL from a rejected profile. */
+                }
             }
             pos += 1 + url_len; /* advance past the URL string (even if empty) */
 
@@ -178,7 +193,11 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
 
     /* Store and connect */
     nvs_manager_store_wifi(ssid, pass);
-    
+    if (supplied_url[0]) {
+        nvs_manager_store_server_url(supplied_url);
+        snprintf(redirect, sizeof(redirect), "%s", supplied_url);
+        ESP_LOGI(TAG, "Improv: Server URL: %s", supplied_url);
+    }
 
     if (wifi_manager_connect_station() == WIFI_RESULT_CONNECTED) {
         s_improv_state = IMPROV_STATE_PROVISIONED;
@@ -294,6 +313,10 @@ static int cmd_wifi(int argc, char **argv)
         printf("Usage: wifi <ssid> <password> [server-url]\n");
         return 1;
     }
+    if (argc >= 4 && !provisioning_url_allowed(argv[3])) {
+        printf("Error: this firmware requires an https:// server URL. No settings were changed.\n");
+        return 1;
+    }
     nvs_manager_store_wifi(argv[1], argv[2]);
     printf("WiFi credentials stored.\n");
     if (argc >= 4) {
@@ -314,6 +337,10 @@ static int cmd_server(int argc, char **argv)
             printf("Server: (not set, using mDNS discovery)\n");
         }
         return 0;
+    }
+    if (!provisioning_url_allowed(argv[1])) {
+        printf("Error: this firmware requires an https:// server URL. No settings were changed.\n");
+        return 1;
     }
     nvs_manager_store_server_url(argv[1]);
     printf("Server URL stored: %s\n", argv[1]);

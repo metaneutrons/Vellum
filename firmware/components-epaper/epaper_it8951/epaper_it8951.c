@@ -288,38 +288,12 @@ esp_err_t it8951_get_info(it8951_dev_info_t *info)
 
 esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
-    /* Ensure TCON is ready (may still be refreshing from previous update) */
-    ESP_LOGI(TAG, "Waking TCON (BUSY pin=%d)", gpio_get_level(s_busy_pin));
+    /* The controller is initialised once in it8951_init() and remains awake for
+     * the render. Resetting it for every LVGL chunk made one E1003 frame take
+     * tens of seconds and prevented useful OTA progress updates. */
+    wait_busy();
 
-    /* Re-assert power enable pins (sleep/WiFi may have changed them) */
-    gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_21, 1); /* ITE_ENABLE */
-    gpio_set_direction(GPIO_NUM_11, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_11, 1); /* TFT_ENABLE */
-    vTaskDelay(pdMS_TO_TICKS(50));
-
-    /* Hardware reset */
-    gpio_set_level(s_rst_pin, 0);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    gpio_set_level(s_rst_pin, 1);
-    vTaskDelay(pdMS_TO_TICKS(200));
-
-    /* Wait for TCON to become ready after reset */
-    int retries = 3000;
-    while (gpio_get_level(s_busy_pin) == 0 && retries-- > 0) {
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-    ESP_LOGI(TAG, "After reset: BUSY pin=%d (waited %dms)", gpio_get_level(s_busy_pin), 3000 - retries);
-
-    /* Re-enable packed pixel mode */
-    write_reg(IT8951_REG_I80CPCR, 0x0001);
-
-    /* Re-set temperature for waveform */
-    write_cmd(0x0040);
-    write_data(0x0001);
-    write_data(25);
-
-    /* Set image buffer base address (high word first, then low) */
+    /* Select the image buffer base address for this load. */
     write_reg(IT8951_REG_LISAR + 2, (s_img_buf_addr >> 16) & 0xFFFF);
     write_reg(IT8951_REG_LISAR, s_img_buf_addr & 0xFFFF);
 

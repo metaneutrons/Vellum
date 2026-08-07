@@ -11,4 +11,5 @@ idf_component_register(
         esp_app_format
         esp-tls
         espressif__cjson
+        espressif__libsodium
 )

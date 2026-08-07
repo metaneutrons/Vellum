@@ -39,7 +39,7 @@
 #include "esp_https_ota.h"
 #include "esp_crt_bundle.h"
 #include "mbedtls/base64.h"
-#include "psa/crypto.h"
+#include "sodium/crypto_sign.h"
 
 #include "http_client.h"
 #include "vellum_display.h"
@@ -83,8 +83,8 @@ static bool key_is_revoked(const char *key_id)
 
 /**
  * Verify the 64-byte Ed25519 `sig` over `digest` under ONE base64 public key.
- * @return true on a valid PURE-EdDSA signature; false on decode/import/verify
- *         failure. Isolated so the trust store can try each key in turn.
+ * @return true on a valid Ed25519 signature; false on decode/verify failure.
+ *         Isolated so the trust store can try each key in turn.
  */
 static bool verify_one_key(const char *pubkey_b64, const uint8_t digest[32],
                            const uint8_t *sig, size_t sig_len)
@@ -98,21 +98,12 @@ static bool verify_one_key(const char *pubkey_b64, const uint8_t digest[32],
         return false;
     }
 
-    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
-    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_VERIFY_MESSAGE);
-    psa_set_key_algorithm(&attr, PSA_ALG_PURE_EDDSA);
-    psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_TWISTED_EDWARDS));
-    psa_set_key_bits(&attr, 255);
-
-    psa_key_id_t key;
-    if (psa_import_key(&attr, pubkey, pubkey_len, &key) != PSA_SUCCESS) {
-        ESP_LOGE(TAG, "psa_import_key (Ed25519) failed");
+    if (sig_len != crypto_sign_BYTES) {
+        ESP_LOGE(TAG, "Bad OTA signature length: %u", (unsigned)sig_len);
         return false;
     }
 
-    psa_status_t st = psa_verify_message(key, PSA_ALG_PURE_EDDSA, digest, 32, sig, sig_len);
-    psa_destroy_key(key);
-    return st == PSA_SUCCESS;
+    return crypto_sign_verify_detached(sig, digest, 32, pubkey) == 0;
 }
 
 /**
@@ -416,9 +407,23 @@ void ota_manager_check_and_apply(void)
         return;
     }
 
-    /* Download the image into the inactive slot (not yet bootable). */
+    /* Download the image into the inactive slot (not yet bootable).  IDF's
+     * perform call returns after each received chunk, which lets us expose
+     * honest byte progress instead of leaving the display at the initial 0%. */
+    uint8_t displayed_percent = 0;
     do {
         err = esp_https_ota_perform(handle);
+        int64_t total = esp_https_ota_get_image_size(handle);
+        int64_t received = esp_https_ota_get_image_len_read(handle);
+        if (total > 0 && received >= 0) {
+            int calculated = (int)((received * 100) / total);
+            if (calculated > 99) calculated = 99; /* 100 means verified/applied */
+            uint8_t percent = (uint8_t)calculated;
+            if (percent >= displayed_percent + 10) {
+                displayed_percent = percent;
+                display_show_ota_progress(percent);
+            }
+        }
     } while (err == ESP_ERR_HTTPS_OTA_IN_PROGRESS);
 
     bool ok = (err == ESP_OK) && esp_https_ota_is_complete_data_received(handle);
@@ -467,7 +472,8 @@ void ota_manager_check_and_apply(void)
         ESP_LOGE(TAG, "OTA verification failed — aborting (image not booted)");
         ota_report(to_ver, "verify_fail", "verify");
         esp_https_ota_abort(handle);
-        board_buzzer_beep(300, 500);
+        display_show_error("Firmware update failed\nWill retry later");
+        board_buzzer_beep(500, 500);
         cJSON_Delete(root);
         http_client_free_response(&resp);
         return;
@@ -480,11 +486,13 @@ void ota_manager_check_and_apply(void)
 
     if (fin != ESP_OK) {
         ESP_LOGE(TAG, "esp_https_ota_finish failed: %s", esp_err_to_name(fin));
-        board_buzzer_beep(300, 500);
+        display_show_error("Firmware update failed\nWill retry later");
+        board_buzzer_beep(500, 500);
         return;
     }
 
     ESP_LOGI(TAG, "OTA verified + applied — restarting");
+    display_show_ota_progress(100);
     ota_report(to_ver, "applied", NULL);
     board_buzzer_beep(2000, 100); vTaskDelay(pdMS_TO_TICKS(100)); board_buzzer_beep(2000, 100);
     esp_restart();
