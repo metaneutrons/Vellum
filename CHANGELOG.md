@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/metaneutrons/Vellum/compare/v1.6.1...v1.6.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **firmware:** make E1003 OTA updates reliable ([#122](https://github.com/metaneutrons/Vellum/issues/122)) ([72f7552](https://github.com/metaneutrons/Vellum/commit/72f7552b1e967ccec8468eedb8adbb7056c99518))
+
 ## [1.6.1](https://github.com/metaneutrons/Vellum/compare/v1.6.0...v1.6.1) (2026-08-07)
 
 
