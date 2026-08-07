@@ -226,8 +226,8 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                   <span className="text-separator">|</span>
                   <label className="flex items-center gap-1.5">{t("firmware")}
                     <select className={selectCls} value={channel} aria-label={t("channel")} onChange={(e) => update(d.mac, { firmwareChannel: e.target.value })}>
-                      <option value="stable">stable</option>
-                      <option value="beta">beta</option>
+                      <option value="stable">{t("stable")}</option>
+                      <option value="beta">{t("beta")}</option>
                     </select>
                   </label>
                   <label className="flex items-center gap-1.5">{t("pin")}

@@ -31,6 +31,7 @@
     "theme": "Thème",
     "profile": "Profil",
     "firmware": "FW",
+    "channel": "Canal",
     "pin": "Version",
     "latest": "dernière",
     "default": "défaut",

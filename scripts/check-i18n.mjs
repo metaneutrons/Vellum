@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 
 const messagesDir = path.resolve("src/i18n/messages");
+const sourceDir = path.resolve("src");
 const canonicalFile = "en.json";
 
 function flatten(value, prefix = "", keys = new Set()) {
@@ -27,6 +28,14 @@ function load(file) {
   }
 }
 
+function sourceFiles(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(fullPath);
+    return /\.[jt]sx?$/.test(entry.name) ? [fullPath] : [];
+  });
+}
+
 const canonical = load(canonicalFile);
 for (const file of fs.readdirSync(messagesDir).filter((name) => name.endsWith(".json")).sort()) {
   const keys = load(file);
@@ -40,4 +49,31 @@ for (const file of fs.readdirSync(messagesDir).filter((name) => name.endsWith(".
   }
 }
 
-if (!process.exitCode) console.log("i18n message schemas are in sync.");
+// Schema parity alone cannot catch a key that is absent from every locale.
+// Verify literal calls made through a statically namespaced translation hook
+// against the canonical English catalogue as well.
+const missingUsages = new Set();
+for (const file of sourceFiles(sourceDir)) {
+  const source = fs.readFileSync(file, "utf8");
+  const bindingPattern = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*["']([^"']+)["']\s*\)/g;
+  let binding;
+  while ((binding = bindingPattern.exec(source)) !== null) {
+    const [, translator, namespace] = binding;
+    const callPattern = new RegExp(`\\b${translator}\\(\\s*["']([^"']+)["']`, "g");
+    let call;
+    while ((call = callPattern.exec(source)) !== null) {
+      const fullKey = `${namespace}.${call[1]}`;
+      if (!canonical.has(fullKey)) {
+        missingUsages.add(`${path.relative(process.cwd(), file)}: ${fullKey}`);
+      }
+    }
+  }
+}
+
+if (missingUsages.size) {
+  process.exitCode = 1;
+  console.error("\nTranslation keys used in source but missing from en.json:");
+  for (const usage of [...missingUsages].sort()) console.error(`  ${usage}`);
+}
+
+if (!process.exitCode) console.log("i18n message schemas and static source usages are in sync.");
