@@ -112,6 +112,7 @@ jobs:
           - model: e1003
             target: esp32s3
             base: sdkconfig.defaults.s3
+            overlay: sdkconfig.defaults.e1003
             panel: CONFIG_VELLUM_PANEL_E1003=y
           - model: d1001
             target: esp32p4
@@ -127,15 +128,19 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           VERSION="${{ needs.version.outputs.version }}"
-          cp ${{ matrix.base }} sdkconfig.defaults
-          echo "CONFIG_VELLUM_FIRMWARE_VERSION=\"${VERSION}\"" >> sdkconfig.defaults
-          echo "${{ matrix.panel }}" >> sdkconfig.defaults
+          DEFAULTS="${{ matrix.base }}"
+          OVERLAY="${{ matrix.overlay }}"
+          if [ -n "$OVERLAY" ]; then DEFAULTS="$DEFAULTS;$OVERLAY"; fi
+          printf 'CONFIG_VELLUM_FIRMWARE_VERSION="%s"\n%s\n' \
+            "$VERSION" "${{ matrix.panel }}" > sdkconfig.ci
           # Make esp_app_get_description()->version match the release version too
           # (ESP-IDF reads version.txt for PROJECT_VER; APP_PROJECT_VER_FROM_CONFIG=n).
           echo "${VERSION}" > version.txt
           # -DVELLUM_MODEL bakes the model into the app-descriptor project_name
           # (vellum-<model>) so the OTA client can reject a wrong-model image.
-          idf.py -DVELLUM_MODEL=${{ matrix.model }} set-target ${{ matrix.target }}
+          idf.py -DVELLUM_MODEL=${{ matrix.model }} \
+            -DSDKCONFIG_DEFAULTS="$DEFAULTS;sdkconfig.ci" \
+            set-target ${{ matrix.target }}
 
       - name: Build
         run: |

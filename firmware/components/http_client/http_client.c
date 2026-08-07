@@ -7,6 +7,7 @@
 
 #include "http_client.h"
 #include "nvs_manager.h"
+#include "transport_policy.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -31,10 +32,9 @@ static void load_etag(void);
 static void save_etag(const char *etag);
 static vellum_telemetry_t s_telemetry = {0};
 
-/* True only when the configured server URL uses https://. Enterprise builds
- * refuse to transmit the device token or fetch content over plaintext HTTP,
- * so the encrypted-token handshake is never undermined by a cleartext channel. */
-static bool s_base_url_is_https = false;
+/* Release builds only allow HTTPS. A deliberately local development build may
+ * additionally allow HTTP to an RFC1918 IPv4 literal; OTA remains HTTPS-only. */
+static bool s_base_url_transport_allowed = false;
 
 /* ---- internal helpers -------------------------------------------------- */
 
@@ -119,9 +119,16 @@ void http_client_init(const char *server_base_url, const char *mac)
     if (len > 0 && s_base_url[len - 1] == '/') {
         s_base_url[len - 1] = '\0';
     }
-    s_base_url_is_https = (strncmp(s_base_url, "https://", 8) == 0);
-    if (!s_base_url_is_https) {
-        ESP_LOGE(TAG, "Insecure server URL rejected (https:// required): %s", s_base_url);
+    bool allow_private_http = false;
+#ifdef CONFIG_VELLUM_ALLOW_INSECURE_PRIVATE_HTTP
+    allow_private_http = true;
+#endif
+    s_base_url_transport_allowed =
+        vellum_transport_url_allowed(s_base_url, allow_private_http);
+    if (!s_base_url_transport_allowed) {
+        ESP_LOGE(TAG, "Server URL rejected by transport policy: %s", s_base_url);
+    } else if (strncmp(s_base_url, "http://", 7) == 0) {
+        ESP_LOGW(TAG, "DEVELOPMENT ONLY: plaintext private-LAN backend: %s", s_base_url);
     }
     strncpy(s_mac, mac, sizeof(s_mac) - 1);
     s_token[0] = '\0';
@@ -162,8 +169,8 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
-    if (!s_base_url_is_https) {
-        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+    if (!s_base_url_transport_allowed) {
+        ESP_LOGE(TAG, "Refusing request: server URL violates transport policy");
         return ESP_ERR_NOT_SUPPORTED;
     }
 
@@ -314,8 +321,8 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
-    if (!s_base_url_is_https) {
-        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+    if (!s_base_url_transport_allowed) {
+        ESP_LOGE(TAG, "Refusing request: server URL violates transport policy");
         return ESP_ERR_NOT_SUPPORTED;
     }
 
@@ -396,8 +403,8 @@ esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
-    if (!s_base_url_is_https) {
-        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+    if (!s_base_url_transport_allowed) {
+        ESP_LOGE(TAG, "Refusing request: server URL violates transport policy");
         return ESP_ERR_NOT_SUPPORTED;
     }
 
@@ -456,8 +463,8 @@ esp_err_t http_client_ota_report(const char *model, const char *from_version,
                                  const char *to_version, const char *phase,
                                  const char *error_code)
 {
-    if (!s_base_url_is_https) {
-        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+    if (!s_base_url_transport_allowed) {
+        ESP_LOGE(TAG, "Refusing request: server URL violates transport policy");
         return ESP_ERR_NOT_SUPPORTED;
     }
 
@@ -511,8 +518,8 @@ esp_err_t http_client_config(vellum_http_response_t *resp)
     memset(resp, 0, sizeof(*resp));
     resp->status_code = -1;
 
-    if (!s_base_url_is_https) {
-        ESP_LOGE(TAG, "Refusing request over insecure transport (https:// required)");
+    if (!s_base_url_transport_allowed) {
+        ESP_LOGE(TAG, "Refusing request: server URL violates transport policy");
         return ESP_ERR_NOT_SUPPORTED;
     }
 

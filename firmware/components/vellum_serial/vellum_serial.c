@@ -4,9 +4,10 @@
  * @file vellum_serial.c
  * @brief Improv WiFi Serial protocol + interactive console.
  *
- * Runs on the primary console (USB-Serial-JTAG on S3/P4). One byte stream
- * carries two things, so line-ending translation MUST be disabled (see
- * serial_task) or the binary frames get corrupted:
+ * Runs on the model's primary console (native USB-Serial-JTAG on E1001/E1002
+ * and D1001; UART0 through the onboard CH340K on E1003). One byte stream carries
+ * two things, so line-ending translation MUST be disabled (see serial_task) or
+ * the binary frames get corrupted:
  * - Improv WiFi protocol (binary packets) for browser-based WiFi config
  * - Text console commands for developer/power-user config
  */
