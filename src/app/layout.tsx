@@ -20,7 +20,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Vellum",
   description: "E-Ink meeting room display system",
-  icons: { icon: "/vellum-icon.svg" },
 };
 
 export default async function RootLayout({
