@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3](https://github.com/metaneutrons/Vellum/compare/v1.6.2...v1.6.3) (2026-08-08)
+
+
+### Bug Fixes
+
+* **web:** add Vellum favicon ([#124](https://github.com/metaneutrons/Vellum/issues/124)) ([6a03e8a](https://github.com/metaneutrons/Vellum/commit/6a03e8a381ba2f895e58709d8a35cf71a8de452f))
+
 ## [1.6.2](https://github.com/metaneutrons/Vellum/compare/v1.6.1...v1.6.2) (2026-08-07)
 
 
