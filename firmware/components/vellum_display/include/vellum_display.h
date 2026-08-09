@@ -43,6 +43,8 @@ esp_err_t display_get_info(display_info_t *info);
 void display_show_boot(const char *version);
 void display_show_wifi_setup(const char *ssid, const char *url);
 void display_show_connecting(const char *ssid);
+/** Show a public-safe Wi-Fi failure screen and automatic retry timing. */
+void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds);
 void display_show_ota_progress(uint8_t percent);
 void display_show_error(const char *message);
 void display_show_low_battery(void);

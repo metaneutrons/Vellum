@@ -37,6 +37,7 @@
     "multicast-dns": "^7.2.5",
     "next": "16.3.0",
     "next-intl": "4.13.5",
+    "openid-client": "^6.8.4",
     "pg": "8.22.0",
     "postcss": "8.5.26",
     "qrcode": "^1.5.4",

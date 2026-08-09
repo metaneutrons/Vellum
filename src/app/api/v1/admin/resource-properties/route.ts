@@ -4,12 +4,14 @@ import { NextRequest } from "next/server";
 import { getProviderWithCredentials } from "@/lib/providers";
 import { extractOrgFromToken } from "@/lib/calendar/providers/anny";
 import { UUID_RE } from "@/lib/validation";
+import { requestHasPermission } from "@/lib/access";
 
 /**
  * Resolve resource properties from anny for a given provider + resource.
  * Called at config time (editor save), not at render time.
  */
 export async function GET(request: NextRequest) {
+  if (!(await requestHasPermission(request, "providers.manage_secrets"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const providerId = request.nextUrl.searchParams.get("providerId");
   const resourceId = request.nextUrl.searchParams.get("resourceId");
 

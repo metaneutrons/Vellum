@@ -5,12 +5,10 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
-import { constantTimeEqual } from "@/lib/constant-time";
-import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { SESSION_COOKIE } from "@/lib/session";
 import { loginLimiter, getClientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
-
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+import { authenticateLocalUser, createUserSession } from "@/lib/access";
 
 export async function loginAction(_prev: unknown, formData: FormData) {
   // Rate-limit by client IP to blunt brute-force attempts.
@@ -23,17 +21,23 @@ export async function loginAction(_prev: unknown, formData: FormData) {
   const user = formData.get("user") as string;
   const pass = formData.get("pass") as string;
 
-  if (!user || !pass || user !== env.ADMIN_USER || !constantTimeEqual(env.ADMIN_PASS, pass)) {
+  const identity = user?.trim();
+  const principal = identity && pass ? await authenticateLocalUser(identity, pass) : null;
+  if (!principal) {
     log.warn("Failed admin login", { ip });
     return { error: "Invalid credentials" };
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, await createSessionToken(SESSION_TTL_MS), {
+  const token = await createUserSession(principal.id, {
+    ip,
+    userAgent: (await headers()).get("user-agent") ?? undefined,
+  });
+  cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: SESSION_TTL_MS / 1000,
+    maxAge: 8 * 60 * 60,
     path: "/",
   });
 

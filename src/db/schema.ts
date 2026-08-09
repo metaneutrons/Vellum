@@ -80,6 +80,164 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/* ── Enterprise identity & access ─────────────────────────────── */
+
+/**
+ * Human identities are deliberately separate from device credentials.  The
+ * initial ADMIN_USER is migrated lazily into the first owner on successful
+ * login; afterwards all access is represented here.
+ */
+export const adminUsers = pgTable(
+  "admin_users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(),
+    displayName: text("display_name").notNull(),
+    passwordHash: text("password_hash"),
+    status: text("status").notNull().default("active"), // active | invited | suspended
+    mfaRequired: boolean("mfa_required").notNull().default(false),
+    mfaEnrolledAt: timestamp("mfa_enrolled_at"),
+    lastLoginAt: timestamp("last_login_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("admin_users_email_ci_idx").on(t.email)],
+);
+
+/** System roles are seeded in code; custom roles use the same permission rows. */
+export const accessRoles = pgTable("access_roles", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  isSystem: boolean("is_system").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    id: serial("id").primaryKey(),
+    roleId: text("role_id").notNull().references(() => accessRoles.id, { onDelete: "cascade" }),
+    permission: text("permission").notNull(),
+  },
+  (t) => [uniqueIndex("role_permissions_role_permission_idx").on(t.roleId, t.permission)],
+);
+
+/** A role can be global (workspace) or restricted to a future site/fleet/device scope. */
+export const userRoleAssignments = pgTable(
+  "user_role_assignments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    roleId: text("role_id").notNull().references(() => accessRoles.id, { onDelete: "restrict" }),
+    scopeType: text("scope_type").notNull().default("workspace"),
+    scopeId: text("scope_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("user_role_assignments_user_idx").on(t.userId)],
+);
+
+/** Opaque, revocable server-side sessions. Only a SHA-256 token digest is stored. */
+export const adminSessions = pgTable(
+  "admin_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("admin_sessions_token_hash_idx").on(t.tokenHash), index("admin_sessions_user_idx").on(t.userId)],
+);
+
+export const adminInvitations = pgTable(
+  "admin_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(),
+    displayName: text("display_name").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    roleId: text("role_id").notNull().references(() => accessRoles.id, { onDelete: "restrict" }),
+    scopeType: text("scope_type").notNull().default("workspace"),
+    scopeId: text("scope_id"),
+    expiresAt: timestamp("expires_at").notNull(),
+    acceptedAt: timestamp("accepted_at"),
+    createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("admin_invitations_token_hash_idx").on(t.tokenHash), index("admin_invitations_email_idx").on(t.email)],
+);
+
+/** Immutable, issuer-bound SSO identities. Email is metadata, never the key. */
+export const oidcIdentities = pgTable(
+  "oidc_identities",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    issuer: text("issuer").notNull(),
+    subject: text("subject").notNull(),
+    tenantId: text("tenant_id").notNull(),
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastLoginAt: timestamp("last_login_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("oidc_identities_issuer_subject_idx").on(t.issuer, t.subject), index("oidc_identities_user_idx").on(t.userId)],
+);
+
+/** Non-human automation identities replace the global ADMIN_API_KEY over time. */
+export const serviceAccounts = pgTable(
+  "service_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    tokenPrefix: text("token_prefix").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    status: text("status").notNull().default("active"),
+    expiresAt: timestamp("expires_at"),
+    lastUsedAt: timestamp("last_used_at"),
+    createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("service_accounts_token_hash_idx").on(t.tokenHash)],
+);
+
+export const serviceAccountPermissions = pgTable(
+  "service_account_permissions",
+  {
+    id: serial("id").primaryKey(),
+    serviceAccountId: uuid("service_account_id").notNull().references(() => serviceAccounts.id, { onDelete: "cascade" }),
+    permission: text("permission").notNull(),
+    scopeType: text("scope_type").notNull().default("workspace"),
+    scopeId: text("scope_id"),
+  },
+  (t) => [index("service_account_permissions_account_idx").on(t.serviceAccountId)],
+);
+
+/** Append-only security record. Secret material is intentionally never stored here. */
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: serial("id").primaryKey(),
+    actorType: text("actor_type").notNull(), // user | service_account | bootstrap
+    actorId: text("actor_id"),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id"),
+    scopeType: text("scope_type").notNull().default("workspace"),
+    scopeId: text("scope_id"),
+    outcome: text("outcome").notNull().default("success"),
+    metadata: jsonb("metadata").notNull().default({}),
+    ip: text("ip"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("audit_logs_created_at_idx").on(t.createdAt), index("audit_logs_actor_idx").on(t.actorId)],
+);
+
 /* ── Devices ──────────────────────────────────────────────────── */
 
 export const devices = pgTable("devices", {

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { getManifestsByChannel, type FirmwareChannel } from "@/lib/firmware";
+import { requestHasPermission } from "@/lib/access";
 
 /**
  * ESP Web Tools compatible manifest for browser-based flashing.
@@ -28,6 +29,7 @@ function getChipFamily(model: string): "ESP32-S3" | "ESP32-P4" | undefined {
 }
 
 export async function GET(request: NextRequest) {
+  if (!(await requestHasPermission(request, "firmware.flash"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const model = request.nextUrl.searchParams.get("model") ?? "e1002";
   const channel = (request.nextUrl.searchParams.get("channel") ?? "stable") as FirmwareChannel;
   const version = request.nextUrl.searchParams.get("version");

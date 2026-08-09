@@ -6,12 +6,14 @@ import { db, withDb } from "@/db";
 import { dataProviders } from "@/db/schema";
 import { decryptCredentials } from "@/lib/encryption";
 import { fetchAnnyResources } from "@/lib/calendar/providers/anny";
+import { requestHasPermission } from "@/lib/access";
 
 /**
  * Fetch anny resources (rooms) for the searchable dropdown.
  * Query params: providerId, organizationId, search (optional), page (optional)
  */
 export async function GET(request: NextRequest) {
+  if (!(await requestHasPermission(request, "providers.manage_secrets"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const providerId = request.nextUrl.searchParams.get("providerId");
   
   const search = request.nextUrl.searchParams.get("search") ?? undefined;

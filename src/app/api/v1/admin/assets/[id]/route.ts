@@ -4,8 +4,10 @@ import { db, withDb } from "@/db";
 import { assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { UUID_RE } from "@/lib/validation";
+import { requestHasPermission } from "@/lib/access";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requestHasPermission(request, "content.read"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   if (!UUID_RE.test(id)) return Response.json({ error: "Invalid asset ID" }, { status: 400 });
 

@@ -9,12 +9,27 @@ import { db, withDb } from "@/db";
 import { settings } from "@/db/schema";
 
 /** All known settings with their defaults. */
-const DEFAULTS = {
+type SettingsMap = {
+  "firmware.autoPoll": boolean;
+  "firmware.pollIntervalS": number;
+  "access.oidcAutoProvision": boolean;
+  "access.oidcDefaultRole": string;
+  "access.oidcGroupRoleMap": Record<string, string>;
+  "access.passkeyPolicy": "recommended" | "required";
+  "access.rememberDeviceDays": number;
+  "access.fourEyesRequired": boolean;
+};
+
+const DEFAULTS: SettingsMap = {
   "firmware.autoPoll": false,
   "firmware.pollIntervalS": 900,
-} as const;
-
-type SettingsMap = typeof DEFAULTS;
+  "access.oidcAutoProvision": false,
+  "access.oidcDefaultRole": "viewer",
+  "access.oidcGroupRoleMap": {} as Record<string, string>,
+  "access.passkeyPolicy": "recommended",
+  "access.rememberDeviceDays": 30,
+  "access.fourEyesRequired": false,
+};
 type SettingKey = keyof SettingsMap;
 
 /** In-memory cache (populated on first read). */

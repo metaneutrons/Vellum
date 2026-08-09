@@ -26,14 +26,17 @@ add_executable(host_tests
   test_key_revocation.c
   test_sy6974b_power.c
   test_transport_policy.c
+  test_wifi_failure.c
   version_compare.c
   revocation.c
   ../components/board/sy6974b_power.c
   ../components/http_client/transport_policy.c
+  ../components/wifi_manager/wifi_failure.c
 )
 target_include_directories(host_tests PRIVATE
   ../components/board/include
   ../components/http_client/include
+  ../components/wifi_manager/include
 )
 target_link_libraries(host_tests PRIVATE OpenSSL::Crypto)
 

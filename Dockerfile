@@ -12,9 +12,10 @@ COPY package.json package-lock.json ./
 # lifecycle hooks (supply-chain hardening). We then rebuild ONLY the single native
 # addon we ship (@napi-rs/canvas) — a bare `npm rebuild` would re-run every
 # transitive dependency's install/postinstall, reopening exactly the surface
-# --ignore-scripts just closed. The cache mount keeps npm's download cache warm.
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
+# --ignore-scripts just closed. Docker's layer cache keeps this step reusable
+# when package.json and package-lock.json do not change; avoiding a BuildKit-only
+# cache mount also keeps the image buildable on standard Docker daemons.
+RUN npm ci --ignore-scripts && npm rebuild @napi-rs/canvas
 
 # ── Build ───────────────────────────────────────────────────────────────────
 FROM base AS builder

@@ -6,6 +6,7 @@
  */
 
 #include "wifi_manager.h"
+#include "wifi_failure.h"
 #include "nvs_manager.h"
 #include "transport_policy.h"
 
@@ -57,6 +58,8 @@ static esp_netif_t *s_sta_netif = NULL;
 static esp_netif_t *s_ap_netif = NULL;
 static SemaphoreHandle_t s_wifi_mutex = NULL;
 static volatile bool s_credentials_received = false;
+static uint8_t s_last_disconnect_reason = 0;
+static wifi_failure_kind_t s_last_failure = WIFI_FAILURE_UNKNOWN;
 
 /* ---- Captive portal HTML (embedded) ------------------------------------ */
 
@@ -185,7 +188,10 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
     } else if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         const wifi_event_sta_disconnected_t *event =
             (const wifi_event_sta_disconnected_t *)event_data;
-        ESP_LOGW(TAG, "Station disconnected (reason=%u)", event ? event->reason : 0);
+        s_last_disconnect_reason = event ? event->reason : 0;
+        s_last_failure = wifi_failure_from_disconnect_reason(s_last_disconnect_reason);
+        ESP_LOGW(TAG, "Station disconnected (reason=%u, %s)",
+                 s_last_disconnect_reason, wifi_failure_message(s_last_failure));
         if (s_retry_count < CONFIG_VELLUM_WIFI_MAX_RETRIES) {
             s_retry_count++;
             ESP_LOGI(TAG, "Retry %d/%d", s_retry_count, CONFIG_VELLUM_WIFI_MAX_RETRIES);
@@ -496,6 +502,17 @@ int wifi_manager_get_rssi(void)
     return 0;
 }
 
+bool wifi_manager_is_connected(void)
+{
+    wifi_ap_record_t info;
+    return esp_wifi_sta_get_ap_info(&info) == ESP_OK;
+}
+
+const char *wifi_manager_get_last_failure_message(void)
+{
+    return wifi_failure_message(s_last_failure);
+}
+
 wifi_result_t wifi_manager_connect_station(void)
 {
     wifi_manager_init();
@@ -529,6 +546,8 @@ wifi_result_t wifi_manager_connect_station(void)
 
     s_wifi_event_group = xEventGroupCreate();
     s_retry_count = 0;
+    s_last_disconnect_reason = 0;
+    s_last_failure = WIFI_FAILURE_TIMED_OUT;
 
     esp_event_handler_instance_t inst_any_id, inst_got_ip;
     ESP_ERROR_CHECK(esp_event_handler_instance_register(
@@ -576,7 +595,8 @@ wifi_result_t wifi_manager_connect_station(void)
         return WIFI_RESULT_CONNECTED;
     }
 
-    ESP_LOGW(TAG, "All connection attempts failed");
+    ESP_LOGW(TAG, "All connection attempts failed (%s)",
+             wifi_manager_get_last_failure_message());
     if (was_started) {
         esp_wifi_disconnect();
         esp_wifi_set_mode(prev_mode); /* keep an existing captive portal alive */

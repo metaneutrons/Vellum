@@ -12,6 +12,7 @@ debug in the field once an image is signed and shipped:
 | `test_key_revocation.c` | `ota_manager.c` `csv_contains_token` / `key_is_revoked` | OTA signing-key revocation CSV membership — exact-length match (no `key1`↔`key10` substring false-match), whitespace/empty/odd-separator handling |
 | `test_sy6974b_power.c` | E1002/E1003 charger status handling | External-power detection accepts charger input, rejects no-input/OTG states, and requires power-good |
 | `test_transport_policy.c` | `http_client.c` backend transport gate | HTTPS is always allowed; development HTTP requires explicit opt-in and a strict RFC1918 IPv4 literal |
+| `test_wifi_failure.c` | `wifi_manager.c` disconnect reporting | ESP-IDF reasons map to clear, public-safe Wi-Fi recovery guidance |
 
 ## Why host-native, not ESP-IDF `set-target linux`
 

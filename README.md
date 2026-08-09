@@ -114,6 +114,31 @@ The container **applies pending database migrations on startup** (idempotent; fa
 
 Multi-arch image available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
 
+### Microsoft Entra ID sign-in
+
+Vellum supports local break-glass accounts alongside Microsoft Entra ID OIDC.
+When Entra is enabled, set a single canonical HTTPS origin and let Vellum derive
+the callback path; do not configure the callback as a separate application
+setting:
+
+```dotenv
+VELLUM_PUBLIC_URL=https://vellum.example.com
+ENTRA_TENANT_ID=your-tenant-id
+ENTRA_CLIENT_ID=your-app-client-id
+ENTRA_CLIENT_SECRET=store-this-in-your-secret-manager
+```
+
+Register this exact **Web** redirect URI in the Entra app registration:
+
+```text
+https://vellum.example.com/api/auth/oidc/entra/callback
+```
+
+`VELLUM_PUBLIC_URL` must be an HTTPS origin only: no path, query string, or
+fragment. The callback path is deliberately fixed so the OIDC client,
+authorization-code exchange, and post-login redirects cannot diverge. Keep the
+local owner account as a break-glass recovery path.
+
 ### First-Time Setup (Admin Dashboard)
 
 1. **Data Providers** → Add your Microsoft 365 / Google / anny / iCal credentials
