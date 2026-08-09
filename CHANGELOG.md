@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5](https://github.com/metaneutrons/Vellum/compare/v1.6.4...v1.6.5) (2026-08-09)
+
+
+### Bug Fixes
+
+* avoid global pnpm config in Docker build ([#136](https://github.com/metaneutrons/Vellum/issues/136)) ([48fc7f3](https://github.com/metaneutrons/Vellum/commit/48fc7f399224c952c93adce874c07566f19260e3))
+
 ## [1.6.4](https://github.com/metaneutrons/Vellum/compare/v1.6.3...v1.6.4) (2026-08-09)
 
 
