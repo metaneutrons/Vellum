@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   // only the query parameters from the request and use that canonical URI.
   const callbackUrl = new URL(entraRedirectUri());
   callbackUrl.search = request.nextUrl.search;
-  const appOrigin = new URL(env.VELLUM_PUBLIC_URL!);
+  const appOrigin = new URL(entraRedirectUri()).origin;
   try {
     const identity = await completeEntraLogin(callbackUrl, request.cookies.get(TX_COOKIE)?.value);
     const user = identity ? await resolveEntraUser(identity) : null;

@@ -10,7 +10,7 @@ import { db, withDb } from "@/db";
 import { adminUsers, auditLogs, oidcIdentities, userRoleAssignments } from "@/db/schema";
 import { env } from "@/lib/env";
 import { getSetting } from "@/lib/settings";
-import { SYSTEM_ROLES, createUserSession } from "@/lib/access";
+import { SYSTEM_ROLES } from "@/lib/access";
 
 const TX_COOKIE = "vellum_oidc_transaction";
 const TX_TTL_SECONDS = 10 * 60;
@@ -32,10 +32,14 @@ export function entraRedirectUri(): string {
 
 function config() {
   if (!isEntraConfigured()) throw new Error("Microsoft Entra OIDC is not configured");
+  const tenantId = env.ENTRA_TENANT_ID;
+  const clientId = env.ENTRA_CLIENT_ID;
+  const clientSecret = env.ENTRA_CLIENT_SECRET;
+  if (!tenantId || !clientId || !clientSecret) throw new Error("Microsoft Entra OIDC is not configured");
   if (!discovered) {
-    const issuer = new URL(`https://login.microsoftonline.com/${env.ENTRA_TENANT_ID}/v2.0`);
-    discovered = oidc.discovery(issuer, env.ENTRA_CLIENT_ID!, {
-      client_secret: env.ENTRA_CLIENT_SECRET!,
+    const issuer = new URL(`https://login.microsoftonline.com/${tenantId}/v2.0`);
+    discovered = oidc.discovery(issuer, clientId, {
+      client_secret: clientSecret,
       redirect_uris: [entraRedirectUri()],
       response_types: ["code"],
     });
