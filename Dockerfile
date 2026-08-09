@@ -18,7 +18,7 @@ COPY scripts/setup-git-hooks.mjs ./scripts/setup-git-hooks.mjs
 # dependency build scripts denied by default and explicitly permits only the
 # reviewed native/tooling packages. Standard Docker layer caching keeps this
 # reusable without requiring BuildKit support on the deployment host.
-RUN pnpm config set store-dir /pnpm/store --global && \
+RUN pnpm config set store-dir /pnpm/store && \
     pnpm install --frozen-lockfile
 
 # ── Build ───────────────────────────────────────────────────────────────────
