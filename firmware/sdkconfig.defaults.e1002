@@ -1,0 +1,11 @@
+# Vellum firmware — E1002 model overlay
+#
+# The E1002 USB-C connector terminates at a CH340C USB-to-UART bridge wired to
+# ESP32-S3 UART0. It does not expose the S3's native USB-Serial-JTAG controller.
+# Keep this model on UART0 so logs, the text console, and binary Improv frames
+# all use the physical USB-C port (/dev/tty.wch* on macOS).
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+# CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is not set
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+# CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG is not set
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200

@@ -22,6 +22,7 @@
 #include "lwip/ip4_addr.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 
 #if CONFIG_VELLUM_DISPLAY_IS_LCD
 extern uint8_t is_transport_tx_ready(void);
@@ -50,6 +51,11 @@ static void wait_for_wifi_transport(void)
 static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_count = 0;
 static bool s_netif_initialized = false;
+static bool s_wifi_initialized = false;
+static bool s_wifi_started = false;
+static esp_netif_t *s_sta_netif = NULL;
+static esp_netif_t *s_ap_netif = NULL;
+static SemaphoreHandle_t s_wifi_mutex = NULL;
 static volatile bool s_credentials_received = false;
 
 /* ---- Captive portal HTML (embedded) ------------------------------------ */
@@ -177,6 +183,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
     if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        const wifi_event_sta_disconnected_t *event =
+            (const wifi_event_sta_disconnected_t *)event_data;
+        ESP_LOGW(TAG, "Station disconnected (reason=%u)", event ? event->reason : 0);
         if (s_retry_count < CONFIG_VELLUM_WIFI_MAX_RETRIES) {
             s_retry_count++;
             ESP_LOGI(TAG, "Retry %d/%d", s_retry_count, CONFIG_VELLUM_WIFI_MAX_RETRIES);
@@ -308,13 +317,30 @@ int wifi_manager_scan(wifi_ap_info_t *out, int max)
 {
     if (!out || max <= 0) return 0;
 
+    wifi_manager_init();
+    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
+
     /* Scanning needs STA capability; APSTA keeps a running SoftAP portal alive.
      * Capture the current mode so we can restore it — otherwise a standalone
      * scan (Improv SCAN_WIFI with no following connect) strands the radio in
      * APSTA. */
     wifi_mode_t prev_mode = WIFI_MODE_NULL;
     esp_wifi_get_mode(&prev_mode);
-    esp_wifi_set_mode(WIFI_MODE_APSTA);
+    bool was_started = s_wifi_started;
+    wifi_mode_t scan_mode =
+        (prev_mode == WIFI_MODE_AP || prev_mode == WIFI_MODE_APSTA)
+            ? WIFI_MODE_APSTA : WIFI_MODE_STA;
+    if (esp_wifi_set_mode(scan_mode) != ESP_OK) {
+        xSemaphoreGive(s_wifi_mutex);
+        return 0;
+    }
+    if (!s_wifi_started) {
+        if (esp_wifi_start() != ESP_OK) {
+            xSemaphoreGive(s_wifi_mutex);
+            return 0;
+        }
+        s_wifi_started = true;
+    }
 
     int n = 0;
     wifi_scan_config_t scan_cfg = { .show_hidden = false };
@@ -340,12 +366,21 @@ int wifi_manager_scan(wifi_ap_info_t *out, int max)
         }
     }
 
-    esp_wifi_set_mode(prev_mode); /* restore — don't strand the radio in APSTA */
+    if (was_started) {
+        esp_wifi_set_mode(prev_mode); /* keep an existing SoftAP/station alive */
+    } else {
+        esp_wifi_stop();
+        s_wifi_started = false;
+        esp_wifi_set_mode(prev_mode); /* don't strand a scan-only radio in STA */
+    }
+    xSemaphoreGive(s_wifi_mutex);
     return n;
 }
 
 static esp_err_t portal_scan_handler(httpd_req_t *req)
 {
+    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
+
     /* Switch to APSTA mode for scanning */
     esp_wifi_set_mode(WIFI_MODE_APSTA);
 
@@ -356,12 +391,14 @@ static esp_err_t portal_scan_handler(httpd_req_t *req)
     esp_wifi_scan_get_ap_num(&count);
     if (count > 20) count = 20;
 
-    wifi_ap_record_t *records = malloc(count * sizeof(wifi_ap_record_t));
-    if (!records) {
+    wifi_ap_record_t *records = count ? malloc(count * sizeof(wifi_ap_record_t)) : NULL;
+    if (count && !records) {
+        esp_wifi_set_mode(WIFI_MODE_AP);
+        xSemaphoreGive(s_wifi_mutex);
         httpd_resp_send_500(req);
         return ESP_FAIL;
     }
-    esp_wifi_scan_get_ap_records(&count, records);
+    if (count) esp_wifi_scan_get_ap_records(&count, records);
 
     /* Build JSON response with cJSON so SSIDs are escaped — a crafted nearby
      * SSID (containing quotes/backslashes/control chars) must not be able to
@@ -387,6 +424,7 @@ static esp_err_t portal_scan_handler(httpd_req_t *req)
 
     free(records);
     esp_wifi_set_mode(WIFI_MODE_AP); /* back to AP only */
+    xSemaphoreGive(s_wifi_mutex);
     return ESP_OK;
 }
 
@@ -407,6 +445,29 @@ static void ensure_netif_init(void)
 }
 
 /* ---- Public API -------------------------------------------------------- */
+
+void wifi_manager_init(void)
+{
+    if (s_wifi_initialized) return;
+
+    ensure_netif_init();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    wait_for_wifi_transport();
+    s_wifi_mutex = xSemaphoreCreateMutex();
+    ESP_ERROR_CHECK(s_wifi_mutex ? ESP_OK : ESP_ERR_NO_MEM);
+    s_wifi_initialized = true;
+}
+
+static void ensure_sta_netif(void)
+{
+    if (!s_sta_netif) s_sta_netif = esp_netif_create_default_wifi_sta();
+}
+
+static void ensure_ap_netif(void)
+{
+    if (!s_ap_netif) s_ap_netif = esp_netif_create_default_wifi_ap();
+}
 
 void wifi_manager_get_mac(char *buf, size_t buf_len)
 {
@@ -437,26 +498,34 @@ int wifi_manager_get_rssi(void)
 
 wifi_result_t wifi_manager_connect_station(void)
 {
+    wifi_manager_init();
+    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
+
     if (!nvs_manager_has_wifi_credentials()) {
         ESP_LOGI(TAG, "No stored Wi-Fi credentials");
+        xSemaphoreGive(s_wifi_mutex);
         return WIFI_RESULT_NO_CREDENTIALS;
     }
 
-    wait_for_wifi_transport();
+    ensure_sta_netif();
+
+    /* Serial provisioning may have connected while app_main was still drawing
+     * the boot/setup screen. Treat the later app_main call as idempotent. */
+    wifi_ap_record_t current_ap;
+    if (esp_wifi_sta_get_ap_info(&current_ap) == ESP_OK) {
+        s_credentials_received = true;
+        xSemaphoreGive(s_wifi_mutex);
+        return WIFI_RESULT_CONNECTED;
+    }
 
     char ssid[NVS_MAX_SSID_LEN];
     char pass[NVS_MAX_PASS_LEN];
     if (nvs_manager_get_wifi_ssid(ssid, sizeof(ssid)) != ESP_OK ||
         nvs_manager_get_wifi_pass(pass, sizeof(pass)) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read Wi-Fi credentials from NVS");
+        xSemaphoreGive(s_wifi_mutex);
         return WIFI_RESULT_FAILED;
     }
-
-    ensure_netif_init();
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     s_wifi_event_group = xEventGroupCreate();
     s_retry_count = 0;
@@ -470,11 +539,23 @@ wifi_result_t wifi_manager_connect_station(void)
     wifi_config_t wifi_config = {0};
     strlcpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
     strlcpy((char *)wifi_config.sta.password, pass, sizeof(wifi_config.sta.password));
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    /* Improv and the captive portal both allow an empty password for open
+     * networks. Requiring WPA2 unconditionally makes those valid profiles
+     * impossible to join despite advertising them as open in scan results. */
+    wifi_config.sta.threshold.authmode = pass[0] ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    wifi_mode_t prev_mode = WIFI_MODE_NULL;
+    esp_wifi_get_mode(&prev_mode);
+    bool was_started = s_wifi_started;
+    wifi_mode_t connect_mode =
+        (prev_mode == WIFI_MODE_AP || prev_mode == WIFI_MODE_APSTA)
+            ? WIFI_MODE_APSTA : WIFI_MODE_STA;
+    ESP_ERROR_CHECK(esp_wifi_set_mode(connect_mode));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    if (!s_wifi_started) {
+        ESP_ERROR_CHECK(esp_wifi_start());
+        s_wifi_started = true;
+    }
 
     ESP_LOGI(TAG, "Connecting to '%s'...", ssid);
 
@@ -488,11 +569,23 @@ wifi_result_t wifi_manager_connect_station(void)
     vEventGroupDelete(s_wifi_event_group);
 
     if (bits & WIFI_CONNECTED_BIT) {
+        /* Releases wifi_manager_start_softap(), if it is active. It will serve
+         * its final response briefly and reboot into the normal station path. */
+        s_credentials_received = true;
+        xSemaphoreGive(s_wifi_mutex);
         return WIFI_RESULT_CONNECTED;
     }
 
     ESP_LOGW(TAG, "All connection attempts failed");
-    esp_wifi_stop();
+    if (was_started) {
+        esp_wifi_disconnect();
+        esp_wifi_set_mode(prev_mode); /* keep an existing captive portal alive */
+    } else {
+        esp_wifi_stop();
+        s_wifi_started = false;
+        esp_wifi_set_mode(prev_mode);
+    }
+    xSemaphoreGive(s_wifi_mutex);
     return WIFI_RESULT_FAILED;
 }
 
@@ -544,23 +637,19 @@ static void captive_dns_task(void *arg)
 
 void wifi_manager_start_softap(void)
 {
-    ensure_netif_init();
-    esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
+    wifi_manager_init();
+    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
+    ensure_ap_netif();
+    s_credentials_received = false;
 
     /* Set custom portal IP */
     esp_netif_ip_info_t ip_info = {0};
     esp_netif_str_to_ip4(CONFIG_VELLUM_PORTAL_IP, &ip_info.ip);
     esp_netif_str_to_ip4(CONFIG_VELLUM_PORTAL_IP, &ip_info.gw);
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
-    esp_netif_dhcps_stop(ap_netif);
-    esp_netif_set_ip_info(ap_netif, &ip_info);
-    esp_netif_dhcps_start(ap_netif);
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    /* On P4: wait for ESP-Hosted transport after wifi_init triggers it */
-    wait_for_wifi_transport();
+    esp_netif_dhcps_stop(s_ap_netif);
+    esp_netif_set_ip_info(s_ap_netif, &ip_info);
+    esp_netif_dhcps_start(s_ap_netif);
 
     char ap_ssid[32];
     wifi_manager_get_softap_ssid(ap_ssid, sizeof(ap_ssid));
@@ -585,7 +674,11 @@ void wifi_manager_start_softap(void)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    if (!s_wifi_started) {
+        ESP_ERROR_CHECK(esp_wifi_start());
+        s_wifi_started = true;
+    }
+    xSemaphoreGive(s_wifi_mutex);
 
     ESP_LOGI(TAG, "SoftAP started, launching captive portal");
 
@@ -617,7 +710,6 @@ void wifi_manager_start_softap(void)
     xTaskCreate(captive_dns_task, "dns", 4096, NULL, 5, NULL);
 
     /* Block until credentials are submitted */
-    s_credentials_received = false;
     while (!s_credentials_received) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }

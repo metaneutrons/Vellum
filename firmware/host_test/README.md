@@ -10,7 +10,7 @@ debug in the field once an image is signed and shipped:
 | `test_ota_signature.c` | `ota_manager.c` `verify_one_key` | Ed25519 (PURE-EdDSA, RFC 8032) verify over the 32-byte image digest — valid accepts, tampered digest/sig and wrong key reject |
 | `test_secure_channel.c` | `secure_channel.c` `secure_channel_decrypt_token` | X25519 ECDH → HKDF-SHA256 (info `vellum-token-v1`) → AES-256-GCM (`ct‖tag`) token decrypt — valid recovers, tampered/wrong-key/wrong-nonce reject |
 | `test_key_revocation.c` | `ota_manager.c` `csv_contains_token` / `key_is_revoked` | OTA signing-key revocation CSV membership — exact-length match (no `key1`↔`key10` substring false-match), whitespace/empty/odd-separator handling |
-| `test_e1003_power.c` | `board.c` SY6974B status handling | External-power detection accepts charger input, rejects no-input/OTG states, and requires power-good |
+| `test_sy6974b_power.c` | E1002/E1003 charger status handling | External-power detection accepts charger input, rejects no-input/OTG states, and requires power-good |
 | `test_transport_policy.c` | `http_client.c` backend transport gate | HTTPS is always allowed; development HTTP requires explicit opt-in and a strict RFC1918 IPv4 literal |
 
 ## Why host-native, not ESP-IDF `set-target linux`

@@ -8,7 +8,7 @@ if("${IDF_TARGET}" STREQUAL "esp32p4")
 endif()
 
 idf_component_register(
-    SRCS "board.c" "e1003_power.c"
+    SRCS "board.c" "sy6974b_power.c"
     INCLUDE_DIRS "include"
     REQUIRES ${board_requires}
 )
