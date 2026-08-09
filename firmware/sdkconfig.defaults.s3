@@ -1,10 +1,10 @@
 # Vellum Firmware — ESP32-S3 (E-Paper: E1001, E1002, E1003)
 CONFIG_IDF_TARGET="esp32s3"
 
-# Native-USB E-Series models use USB-Serial-JTAG for logs, the text console, and
-# Improv provisioning. E1003 is the exception: its USB-C port uses a CH340K
-# bridge connected to UART0, so sdkconfig.defaults.e1003 overrides this choice.
-# P4 (sdkconfig.defaults.p4) also uses native USB-Serial-JTAG.
+# E1001 uses USB-Serial-JTAG for logs, the text console, and Improv
+# provisioning. E1002 and E1003 expose UART0 through onboard CH34x bridges, so
+# their model overlays replace this default. P4 (sdkconfig.defaults.p4) also
+# uses native USB-Serial-JTAG.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 
 # Flash / partition

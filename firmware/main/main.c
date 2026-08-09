@@ -355,6 +355,10 @@ void app_main(void)
     }
 #endif
     display_init();
+    /* Improv scan/provision commands may arrive as soon as the serial task is
+     * visible to Web Serial. Initialize the shared Wi-Fi driver first so an
+     * early request cannot race app_main's later station/SoftAP setup. */
+    wifi_manager_init();
     vellum_serial_init();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     xTaskCreate(d1001_button_task, "d1001_btn", 4096, NULL, 5, NULL);

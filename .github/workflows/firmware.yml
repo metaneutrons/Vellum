@@ -108,6 +108,7 @@ jobs:
           - model: e1002
             target: esp32s3
             base: sdkconfig.defaults.s3
+            overlay: sdkconfig.defaults.e1002
             panel: CONFIG_VELLUM_PANEL_GDEP073E01=y
           - model: e1003
             target: esp32s3

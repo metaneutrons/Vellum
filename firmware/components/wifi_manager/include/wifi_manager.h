@@ -30,6 +30,12 @@ typedef struct {
 } wifi_ap_info_t;
 
 /**
+ * Initialize the shared Wi-Fi driver and network stack once. Safe to call
+ * repeatedly; no radio mode is started until scan/connect/SoftAP needs it.
+ */
+void wifi_manager_init(void);
+
+/**
  * Scan for nearby Wi-Fi networks (blocking). Fills up to @p max entries in
  * @p out and returns the number found (0 on error / if Wi-Fi isn't ready).
  */

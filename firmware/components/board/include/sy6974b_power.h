@@ -6,4 +6,4 @@
 #include <stdint.h>
 
 /** Decode SY6974B REG08 and report validated external input power. */
-bool e1003_charger_status_has_external_power(uint8_t status);
+bool sy6974b_status_has_external_power(uint8_t status);

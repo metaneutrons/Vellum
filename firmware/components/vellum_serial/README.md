@@ -2,8 +2,8 @@
 
 USB-serial provisioning for Vellum devices: **Improv Wi-Fi Serial over the
 model's USB-exposed serial transport**, plus an interactive text console on the
-same byte stream. E1001/E1002 and D1001 expose the MCU's native
-USB-Serial-JTAG; E1003 exposes UART0 through its onboard CH340K bridge.
+same byte stream. E1001 and D1001 expose the MCU's native USB-Serial-JTAG;
+E1002/E1003 expose UART0 through their onboard CH34x bridges.
 
 This is the component behind Vellum's **primary onboarding path** (shipped in
 `firmware-v1.2.1`). An operator flashes a device and then provisions it from the
@@ -111,7 +111,8 @@ read loop in `serial_task()` demultiplexes them without any framing escape:
 This is why the console and browser provisioning can coexist on the raw serial
 endpoint (the host client, `improv-serial.ts`, does the mirror of this: it scans
 the mixed stream for the `"IMPROV"` magic and ignores console noise). Native
-USB ignores the configured baud rate; E1003's CH340K/UART0 path uses 115200.
+USB ignores the configured baud rate; E1002/E1003's CH34x/UART0 paths use
+115200.
 
 ## Text console commands
 

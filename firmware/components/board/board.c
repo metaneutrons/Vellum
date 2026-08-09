@@ -6,7 +6,7 @@
  */
 
 #include "board.h"
-#include "e1003_power.h"
+#include "sy6974b_power.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -17,7 +17,7 @@
 #include "driver/ledc.h"
 #include "driver/gpio.h"
 #include "driver/usb_serial_jtag.h"
-#if CONFIG_VELLUM_PANEL_E1003
+#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
 #include "driver/i2c_master.h"
 #endif
 #include "sdkconfig.h"
@@ -33,71 +33,82 @@ static const char *TAG = "board";
 static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_cali_handle_t s_adc_cali = NULL;
 
-#if CONFIG_VELLUM_PANEL_E1003
-/* E1003's USB-C VBUS feeds the SY6974B charger. Unlike the native-USB boards,
- * the data path goes through a CH340K and usb_serial_jtag_is_connected() can
- * never observe it. REG08 exposes both BUS_STAT and power-good over I2C. */
-#define E1003_CHARGER_I2C_PORT       0
-#define E1003_CHARGER_I2C_SDA_GPIO   19
-#define E1003_CHARGER_I2C_SCL_GPIO   20
-#define E1003_CHARGER_I2C_ADDRESS    0x6B
-#define E1003_CHARGER_STATUS_REG     0x08
-#define E1003_CHARGER_READ_RETRIES   3
-#define E1003_CHARGER_TIMEOUT_MS     50
+#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+/* E1002/E1003 USB-C VBUS feeds an SY6974B charger. Their data paths go through
+ * CH34x UART bridges, so usb_serial_jtag_is_connected() cannot observe host
+ * power. REG08 exposes both BUS_STAT and power-good over model-specific I2C
+ * pins (see the respective Seeed schematics). */
+#define CHARGER_I2C_PORT       0
+#define CHARGER_I2C_ADDRESS    0x6B
+#define CHARGER_STATUS_REG     0x08
+#define CHARGER_READ_RETRIES   3
+#define CHARGER_TIMEOUT_MS     50
+
+#if CONFIG_VELLUM_PANEL_GDEP073E01
+#define CHARGER_I2C_SDA_GPIO   39
+#define CHARGER_I2C_SCL_GPIO   40
+#else
+#define CHARGER_I2C_SDA_GPIO   19
+#define CHARGER_I2C_SCL_GPIO   20
+#endif
 
 static i2c_master_bus_handle_t s_charger_bus = NULL;
 static i2c_master_dev_handle_t s_charger = NULL;
 
-static void e1003_charger_init(void)
+static void charger_init(void)
 {
     i2c_master_bus_config_t bus_cfg = {
-        .i2c_port = E1003_CHARGER_I2C_PORT,
-        .sda_io_num = E1003_CHARGER_I2C_SDA_GPIO,
-        .scl_io_num = E1003_CHARGER_I2C_SCL_GPIO,
+        .i2c_port = CHARGER_I2C_PORT,
+        .sda_io_num = CHARGER_I2C_SDA_GPIO,
+        .scl_io_num = CHARGER_I2C_SCL_GPIO,
         .clk_source = I2C_CLK_SRC_DEFAULT,
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
     };
     esp_err_t err = i2c_new_master_bus(&bus_cfg, &s_charger_bus);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "E1003 charger I2C init failed: %s", esp_err_to_name(err));
+        ESP_LOGW(TAG, "%s charger I2C init failed: %s",
+                 CONFIG_VELLUM_DISPLAY_MODEL, esp_err_to_name(err));
         s_charger_bus = NULL;
         return;
     }
 
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = E1003_CHARGER_I2C_ADDRESS,
+        .device_address = CHARGER_I2C_ADDRESS,
         .scl_speed_hz = 100000,
     };
     err = i2c_master_bus_add_device(s_charger_bus, &dev_cfg, &s_charger);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "E1003 charger device init failed: %s", esp_err_to_name(err));
+        ESP_LOGW(TAG, "%s charger device init failed: %s",
+                 CONFIG_VELLUM_DISPLAY_MODEL, esp_err_to_name(err));
         i2c_del_master_bus(s_charger_bus);
         s_charger_bus = NULL;
         s_charger = NULL;
     }
 }
 
-static bool e1003_charger_reports_usb_power(void)
+static bool charger_reports_usb_power(void)
 {
     if (!s_charger) return false;
 
-    const uint8_t reg = E1003_CHARGER_STATUS_REG;
-    for (int attempt = 0; attempt < E1003_CHARGER_READ_RETRIES; ++attempt) {
+    const uint8_t reg = CHARGER_STATUS_REG;
+    for (int attempt = 0; attempt < CHARGER_READ_RETRIES; ++attempt) {
         uint8_t status = 0;
         esp_err_t err = i2c_master_transmit_receive(
             s_charger, &reg, sizeof(reg), &status, sizeof(status),
-            E1003_CHARGER_TIMEOUT_MS);
+            CHARGER_TIMEOUT_MS);
         if (err == ESP_OK) {
             uint8_t bus = (status >> 5) & 0x07;
             bool externally_powered =
-                e1003_charger_status_has_external_power(status);
-            ESP_LOGI(TAG, "E1003 charger REG08=0x%02x (bus=%u, USB=%s)",
-                     status, bus, externally_powered ? "yes" : "no");
+                sy6974b_status_has_external_power(status);
+            ESP_LOGI(TAG, "%s charger REG08=0x%02x (bus=%u, USB=%s)",
+                     CONFIG_VELLUM_DISPLAY_MODEL, status, bus,
+                     externally_powered ? "yes" : "no");
             if (externally_powered || bus != 0) return externally_powered;
-        } else if (attempt == E1003_CHARGER_READ_RETRIES - 1) {
-            ESP_LOGW(TAG, "E1003 charger status read failed: %s", esp_err_to_name(err));
+        } else if (attempt == CHARGER_READ_RETRIES - 1) {
+            ESP_LOGW(TAG, "%s charger status read failed: %s",
+                     CONFIG_VELLUM_DISPLAY_MODEL, esp_err_to_name(err));
         }
         vTaskDelay(pdMS_TO_TICKS(20));
     }
@@ -155,7 +166,7 @@ float board_battery_voltage(void)
     gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 1);
     vTaskDelay(pdMS_TO_TICKS(BATTERY_SETTLE_MS));
 
-    /* GPIO1 is VBAT_ADC on E1003. Take a few samples after the enable
+    /* GPIO1 is VBAT_ADC on the E-Series boards. Take a few samples after the enable
      * transition so one ADC outlier cannot put a healthy device into the
      * low-battery recovery path. */
     int raw = 0;
@@ -172,7 +183,7 @@ float board_battery_voltage(void)
         }
         if (valid_samples > 0) raw = sum / valid_samples;
     }
-    /* The enable pin is a dedicated VBAT_EN on E1003 (GPIO40). */
+    /* The enable pin is model-specific (E1001/E1002 GPIO21, E1003 GPIO40). */
     gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 0);
 
     float v;
@@ -209,10 +220,10 @@ bool board_is_usb_powered(void)
      * the reTerminal, USB detection is independent of the battery voltage. */
     return d1001_usb_voltage() > 4000;
 #endif
-#if CONFIG_VELLUM_PANEL_E1003
-    return e1003_charger_reports_usb_power();
+#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+    return charger_reports_usb_power();
 #else
-    /* Native-USB E-Series boards expose host presence directly through the
+    /* Native-USB models expose host presence directly through the
      * ESP32-S3 USB-Serial-JTAG controller. */
     return usb_serial_jtag_is_connected();
 #endif
@@ -254,12 +265,12 @@ void board_buzzer_beep(uint32_t freq, uint32_t ms)
 void board_init(void)
 {
     battery_adc_init();
-#if CONFIG_VELLUM_PANEL_E1003
-    e1003_charger_init();
+#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+    charger_init();
     /* Read once at boot even when the battery is healthy. Besides priming the
      * hardware path, the REG08 log makes field diagnostics distinguish a bad
      * cable/charger from an ADC or low-battery-gate problem. */
-    (void)e1003_charger_reports_usb_power();
+    (void)charger_reports_usb_power();
 #endif
     led_init();
     buzzer_init();

@@ -3,11 +3,9 @@ name: Firmware PR Build
 # Compile-only smoke test for firmware changes on PRs. The full signed matrix in
 # firmware.yml runs ONLY on a `firmware-v*` release, so a -Werror break (e.g. the
 # always-false `-Werror=type-limits` that failed the v1.2.0 firmware release)
-# would otherwise surface only at release time. We build ONE model per chip /
-# display backend — e1001 (ESP32-S3 / e-paper) and d1001 (ESP32-P4 / MIPI LCD) —
-# because a P4-only break (LCD driver, esp-hosted Wi-Fi, `esp32p4` #if branches)
-# compiles clean on S3 and would otherwise slip to release. Still far cheaper
-# than the full 4-model signed release build.
+# would otherwise surface only at release time. Build every model because E1002
+# and E1003 carry distinct USB-UART/power overlays, while D1001 has an entirely
+# separate ESP32-P4/LCD backend. This remains compile-only and unsigned.
 
 on:
   pull_request:
@@ -32,6 +30,11 @@ jobs:
             target: esp32s3
             base: sdkconfig.defaults.s3
             panel: CONFIG_VELLUM_PANEL_GDEY075T7=y
+          - model: e1002
+            target: esp32s3
+            base: sdkconfig.defaults.s3
+            overlay: sdkconfig.defaults.e1002
+            panel: CONFIG_VELLUM_PANEL_GDEP073E01=y
           - model: e1003
             target: esp32s3
             base: sdkconfig.defaults.s3
@@ -51,7 +54,7 @@ jobs:
 
       - name: Configure + compile (${{ matrix.model }} / ${{ matrix.target }}, compile-only)
         run: |
-          . $IDF_PATH/export.sh
+          . "$IDF_PATH/export.sh"
           # Mirror firmware.yml's config injection; the version is a placeholder
           # (this build is never released, only compiled).
           DEFAULTS="${{ matrix.base }}"

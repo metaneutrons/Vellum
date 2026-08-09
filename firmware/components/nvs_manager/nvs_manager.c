@@ -68,7 +68,7 @@ static esp_err_t write_str(const char *key, const char *value)
     return err;
 }
 
-static bool key_exists(const char *key)
+static bool key_has_string(const char *key, bool allow_empty)
 {
     nvs_handle_t h;
     if (open_nvs(&h, NVS_READONLY) != ESP_OK) return false;
@@ -76,7 +76,10 @@ static bool key_exists(const char *key)
     size_t len = 0;
     esp_err_t err = nvs_get_str(h, key, NULL, &len);
     nvs_close(h);
-    return (err == ESP_OK && len > 1);
+    /* NVS reports string length including the trailing NUL. An empty but
+     * present string therefore has len==1; this is valid for an open Wi-Fi
+     * network's password, but not for tokens, SSIDs, or key material. */
+    return err == ESP_OK && (allow_empty ? len >= 1 : len > 1);
 }
 
 /* ---- public API -------------------------------------------------------- */
@@ -97,12 +100,13 @@ esp_err_t nvs_manager_init(void)
 
 bool nvs_manager_has_wifi_credentials(void)
 {
-    return key_exists(KEY_WIFI_SSID) && key_exists(KEY_WIFI_PASS);
+    return key_has_string(KEY_WIFI_SSID, false) &&
+           key_has_string(KEY_WIFI_PASS, true);
 }
 
 bool nvs_manager_has_device_token(void)
 {
-    return key_exists(KEY_TOKEN);
+    return key_has_string(KEY_TOKEN, false);
 }
 
 esp_err_t nvs_manager_get_wifi_ssid(char *buf, size_t buf_len)
@@ -170,7 +174,8 @@ esp_err_t nvs_manager_store_keypair(const char *private_key, const char *public_
 
 bool nvs_manager_has_keypair(void)
 {
-    return key_exists(KEY_PRIV_KEY) && key_exists(KEY_PUB_KEY);
+    return key_has_string(KEY_PRIV_KEY, false) &&
+           key_has_string(KEY_PUB_KEY, false);
 }
 
 esp_err_t nvs_manager_clear_all(void)
