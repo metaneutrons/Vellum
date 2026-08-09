@@ -89,6 +89,11 @@ export function encodeScanWifi(): Uint8Array {
   return encodeRpcCommand(ImprovCmd.SCAN_WIFI, []);
 }
 
+/** Request the current Improv state without changing device configuration. */
+export function encodeGetState(): Uint8Array {
+  return encodeRpcCommand(ImprovCmd.GET_STATE, []);
+}
+
 export function encodeWifiSettings(
   ssid: string,
   password: string,
@@ -219,6 +224,14 @@ export function decodeRpcResult(payload: Uint8Array): { cmd: number; strings: st
 interface SerialPortLike {
   open(options: { baudRate: number }): Promise<void>;
   close(): Promise<void>;
+  /**
+   * Optional in Web Serial because native USB serial ports need not expose
+   * modem-control lines. USB-UART bridges such as the E1003's CH340 do.
+   */
+  setSignals?(signals: {
+    dataTerminalReady?: boolean;
+    requestToSend?: boolean;
+  }): Promise<void>;
   readable: ReadableStream<Uint8Array> | null;
   writable: WritableStream<Uint8Array> | null;
 }
@@ -236,6 +249,8 @@ function getSerial(): SerialLike | undefined {
 
 export type ProvisionPhase =
   | "connecting"
+  | "checking"
+  | "waking"
   | "sending"
   | "provisioning"
   | "provisioned"
@@ -257,6 +272,102 @@ export interface ProvisionOptions {
   onPhase?: (phase: ProvisionPhase, detail?: string) => void;
   /** Overall timeout for the device to report PROVISIONED/error (ms). */
   timeoutMs?: number;
+}
+
+const SERIAL_BAUD_RATE = 115_200;
+const PROBE_TIMEOUT_MS = 900;
+const RESET_PULSE_MS = 150;
+// An E1003 takes roughly three seconds to initialise its e-paper controller
+// before its serial console and Improv handler are ready.
+const RESET_BOOT_WAIT_MS = 3_500;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function closeSerial(
+  port: SerialPortLike,
+  reader?: ReadableStreamDefaultReader<Uint8Array>,
+  writer?: WritableStreamDefaultWriter<Uint8Array>,
+): Promise<void> {
+  try {
+    await reader?.cancel();
+  } catch {
+    /* A silent device is expected while probing. */
+  }
+  reader?.releaseLock();
+  writer?.releaseLock();
+  await port.close().catch(() => {});
+}
+
+/**
+ * Check that the selected device is alive before ever touching control lines.
+ * GET_STATE is an idempotent Improv command, so a waking device cannot receive
+ * Wi-Fi credentials or otherwise change state during this probe.
+ */
+async function probeImprovDevice(port: SerialPortLike): Promise<boolean> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
+  try {
+    await port.open({ baudRate: SERIAL_BAUD_RATE });
+    // Keep both active-low bridge outputs released while testing an awake
+    // device. This is a no-op on USB-Serial-JTAG ports.
+    await port.setSignals?.({ dataTerminalReady: false, requestToSend: false });
+    reader = port.readable?.getReader();
+    writer = port.writable?.getWriter();
+    if (!reader || !writer) return false;
+
+    const parser = new ImprovParser();
+    await writer.write(encodeGetState());
+    return await Promise.race([
+      reader.read().then(({ value, done }) => {
+        if (done || !value) return false;
+        return parser.push(value).length > 0;
+      }),
+      sleep(PROBE_TIMEOUT_MS).then(() => false),
+    ]);
+  } catch {
+    return false;
+  } finally {
+    await closeSerial(port, reader, writer);
+  }
+}
+
+/**
+ * Wake a sleeping ESP over an auto-reset capable USB-UART bridge. DTR must
+ * remain released (normal boot); pulsing active-low RTS drives ESP_EN/reset.
+ * This deliberately does not use the bootloader sequence or alter flash.
+ */
+async function pulseSerialReset(port: SerialPortLike): Promise<boolean> {
+  if (!port.setSignals) return false;
+  try {
+    await port.open({ baudRate: SERIAL_BAUD_RATE });
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    await sleep(50);
+    await port.setSignals({ requestToSend: true });
+    await sleep(RESET_PULSE_MS);
+    await port.setSignals({ requestToSend: false });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await port.close().catch(() => {});
+  }
+}
+
+/**
+ * Prefer a non-disruptive Improv probe. Only devices that do not answer are
+ * given one USB-UART reset attempt, which wakes supported sleeping displays.
+ */
+async function wakeIfNeeded(
+  port: SerialPortLike,
+  onPhase?: (phase: ProvisionPhase) => void,
+): Promise<boolean> {
+  onPhase?.("checking");
+  if (await probeImprovDevice(port)) return false;
+
+  onPhase?.("waking");
+  const resetSent = await pulseSerialReset(port);
+  if (resetSent) await sleep(RESET_BOOT_WAIT_MS);
+  return resetSent;
 }
 
 const ERROR_TEXT: Record<number, string> = {
@@ -295,6 +406,10 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
     return { ok: false, error: "No serial port selected. Make sure the device is connected via USB and isn't open in another tab." };
   }
 
+  // Try an idempotent state query first. A sleeping E1003 has no UART task,
+  // but its CH340 control lines can reset it safely without flashing.
+  const resetAttempted = await wakeIfNeeded(port, (phase) => onPhase(phase));
+
   const parser = new ImprovParser();
   const done: ProvisionResult = { ok: false };
   let settled = false;
@@ -313,13 +428,18 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
   };
 
   const timer = setTimeout(
-    () => finish({ ok: false, error: "Timed out waiting for the device to respond." }),
+    () => finish({
+      ok: false,
+      error: resetAttempted
+        ? "Timed out after attempting to wake the display over USB. Press Refresh on the display and try again."
+        : "Timed out waiting for the device to respond. Press Refresh on the display and try again.",
+    }),
     timeoutMs,
   );
 
   try {
     onPhase("connecting");
-    await port.open({ baudRate: 115200 }); // baud is ignored by USB-Serial-JTAG
+    await port.open({ baudRate: SERIAL_BAUD_RATE }); // baud is ignored by USB-Serial-JTAG
     opened = true;
     writer = port.writable?.getWriter();
     reader = port.readable?.getReader();
@@ -372,14 +492,7 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
   } finally {
     clearTimeout(timer);
     if (graceTimer) clearTimeout(graceTimer);
-    try {
-      await reader?.cancel();
-    } catch {
-      /* ignore */
-    }
-    reader?.releaseLock();
-    writer?.releaseLock();
-    if (opened) await port.close().catch(() => {});
+    if (opened) await closeSerial(port, reader, writer);
   }
 
   return done;
@@ -423,6 +536,8 @@ export async function scanNetworksOverSerial(opts?: {
     return { ok: false, networks: [], error: "No serial port selected. Make sure the device is connected via USB." };
   }
 
+  await wakeIfNeeded(port);
+
   const parser = new ImprovParser();
   const byName = new Map<string, WifiNetwork>();
   let finished = false;
@@ -439,7 +554,7 @@ export async function scanNetworksOverSerial(opts?: {
   }, opts?.timeoutMs ?? 8000);
 
   try {
-    await port.open({ baudRate: 115200 });
+    await port.open({ baudRate: SERIAL_BAUD_RATE });
     opened = true;
     writer = port.writable?.getWriter();
     reader = port.readable?.getReader();
@@ -470,14 +585,7 @@ export async function scanNetworksOverSerial(opts?: {
     error = e instanceof Error ? e.message : "Serial I/O error.";
   } finally {
     clearTimeout(timer);
-    try {
-      await reader?.cancel();
-    } catch {
-      /* ignore */
-    }
-    reader?.releaseLock();
-    writer?.releaseLock();
-    if (opened) await port.close().catch(() => {});
+    if (opened) await closeSerial(port, reader, writer);
   }
 
   if (error) return { ok: false, networks: [], error };
