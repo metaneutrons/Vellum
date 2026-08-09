@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.4](https://github.com/metaneutrons/Vellum/compare/v1.6.3...v1.6.4) (2026-08-09)
+
+
+### Bug Fixes
+
+* **firmware:** make E1002 USB provisioning reliable ([#126](https://github.com/metaneutrons/Vellum/issues/126)) ([4a3ccef](https://github.com/metaneutrons/Vellum/commit/4a3ccefaf116f1fcb639719900ce55b0851d6280))
+* wake sleeping displays during USB provisioning ([#135](https://github.com/metaneutrons/Vellum/issues/135)) ([aee7b04](https://github.com/metaneutrons/Vellum/commit/aee7b046e0cb17d5a65bcba323f92a96f4b2ead3))
+
 ## [1.6.3](https://github.com/metaneutrons/Vellum/compare/v1.6.2...v1.6.3) (2026-08-08)
 
 
