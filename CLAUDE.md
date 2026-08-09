@@ -18,23 +18,21 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
 
 ## Server (Next.js): build / test
 
-- Node **22** for dev/CI (`.nvmrc`, consumed via `node-version-file`). The
+- Node **22.13+** for dev/CI (`.nvmrc`, consumed via `node-version-file`). The
   production Docker image builds & runs on **node:26-alpine** (`Dockerfile`,
   pinned by digest). Two different Node versions — don't assume one everywhere.
-- Install EXACTLY (CI + Dockerfile parity):
-  `npm ci --ignore-scripts && npm rebuild @napi-rs/canvas`.
-  Plain `npm ci` reopens the install-hook supply-chain surface; without the
-  rebuild, the one native addon the room-booking renderer needs
-  (`@napi-rs/canvas`) is unbuilt and canvas rendering fails at runtime.
-- **npm is pinned to `npm@10.9.8`** (`package.json` `packageManager`; CI runs
-  `corepack enable`). **Regenerate `package-lock.json` ONLY under npm 10** — run
-  `corepack enable` once locally, or `npx npm@10.9.8 install`. A lockfile written
-  by npm 11 fails CI's npm-10 `npm ci` with `Missing @esbuild/<platform> from
-  lock file` (passes on the author's Mac, red on CI). pnpm migration is on the
-  roadmap; until then, npm 10 is mandatory for lockfile edits.
+- Install exactly with `pnpm install --frozen-lockfile` (CI + Docker parity).
+  pnpm is pinned in `package.json`; `pnpm-lock.yaml` is the only JavaScript
+  lockfile. `pnpm-workspace.yaml` denies dependency lifecycle scripts by default
+  and explicitly allows only reviewed native/tooling packages. Do not bypass the
+  allowlist with `--dangerously-allow-all-builds`.
+- Node 25+ no longer bundles Corepack. Install pnpm normally once (or use
+  `pnpm/action-setup` in CI); the repository's `packageManager` field pins and
+  selects the required pnpm version.
 - Scripts (`package.json`): `dev`, `build`, `start`, `lint` (`eslint .`),
-  `test` (`vitest --run`), `test:coverage`, `db:migrate` (`drizzle-kit migrate`),
-  `dev:mdns` / `mdns`. Type-check: `npx tsc --noEmit`.
+  `test` (`vitest --run`), `test:coverage`, `db:migrate` (the idempotent
+  `scripts/migrate.mjs` runner),
+  `dev:mdns` / `mdns`. Type-check: `pnpm exec tsc --noEmit`.
 - Tests: **~20 vitest suites, node environment, fully self-contained — NO
   Postgres / testcontainers / docker.** The workspace-wide snapdog note "tier-2
   tests need `DOCKER_HOST=colima socket`" does NOT apply to Vellum.

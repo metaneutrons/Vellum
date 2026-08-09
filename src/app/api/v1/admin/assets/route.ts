@@ -5,12 +5,14 @@ import { db, withDb } from "@/db";
 import { assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { UUID_RE } from "@/lib/validation";
+import { requestHasPermission } from "@/lib/access";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/svg+xml", "image/jpeg"];
 const DEFAULT_LIMIT = 50;
 
 export async function GET(request: NextRequest) {
+  if (!(await requestHasPermission(request, "content.read"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "") || DEFAULT_LIMIT, 200);
   const offset = parseInt(request.nextUrl.searchParams.get("offset") ?? "") || 0;
 
@@ -27,6 +29,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
+  if (!(await requestHasPermission(request, "content.manage"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const name = (formData.get("name") as string) || file?.name || "untitled";
@@ -71,6 +74,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!(await requestHasPermission(request, "content.manage"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id || !UUID_RE.test(id)) return Response.json({ error: "Invalid or missing id" }, { status: 400 });

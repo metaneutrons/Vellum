@@ -68,7 +68,8 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 22.13+
+- pnpm 11.20.0 (the repository pins the exact version in `package.json`)
 - PostgreSQL 15+
 - A calendar provider (Microsoft 365, Google, anny, or any iCal URL)
 
@@ -77,7 +78,7 @@ All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 
 ```bash
 git clone <your-repo-url>
 cd vellum
-npm install
+pnpm install --frozen-lockfile
 
 # Configure environment
 cp .env.example .env
@@ -85,10 +86,10 @@ cp .env.example .env
 
 # Create database and run migrations (idempotent — safe to re-run on upgrades)
 createdb vellum
-npm run db:migrate
+pnpm db:migrate
 
 # Start with mDNS auto-discovery
-npm run dev:mdns
+pnpm dev:mdns
 ```
 
 Open **<http://localhost:3000/admin>** and log in.
@@ -113,6 +114,31 @@ docker run -d \
 The container **applies pending database migrations on startup** (idempotent; fail-open so a transient DB outage doesn't block boot), so a fresh `DATABASE_URL` is provisioned automatically and upgrades pick up new migrations with no manual step.
 
 Multi-arch image available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
+
+### Microsoft Entra ID sign-in
+
+Vellum supports local break-glass accounts alongside Microsoft Entra ID OIDC.
+When Entra is enabled, set a single canonical HTTPS origin and let Vellum derive
+the callback path; do not configure the callback as a separate application
+setting:
+
+```dotenv
+VELLUM_PUBLIC_URL=https://vellum.example.com
+ENTRA_TENANT_ID=your-tenant-id
+ENTRA_CLIENT_ID=your-app-client-id
+ENTRA_CLIENT_SECRET=store-this-in-your-secret-manager
+```
+
+Register this exact **Web** redirect URI in the Entra app registration:
+
+```text
+https://vellum.example.com/api/auth/oidc/entra/callback
+```
+
+`VELLUM_PUBLIC_URL` must be an HTTPS origin only: no path, query string, or
+fragment. The callback path is deliberately fixed so the OIDC client,
+authorization-code exchange, and post-login redirects cannot diverge. Keep the
+local owner account as a break-glass recovery path.
 
 ### First-Time Setup (Admin Dashboard)
 
@@ -172,11 +198,11 @@ Provision the device over the USB cable — no phone or hotspot needed:
 ## Development
 
 ```bash
-npm run dev          # Start Next.js dev server
-npm run dev:mdns     # Start with mDNS announcement
-npm test             # Run tests (~20 vitest suites)
-npm run lint         # ESLint
-npx tsc --noEmit     # Type check
+pnpm dev              # Start Next.js dev server
+pnpm dev:mdns         # Start with mDNS announcement
+pnpm test             # Run tests (~20 vitest suites)
+pnpm lint             # ESLint
+pnpm exec tsc --noEmit # Type check
 ```
 
 ### Device Simulator

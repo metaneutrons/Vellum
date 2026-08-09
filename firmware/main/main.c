@@ -195,11 +195,18 @@ static uint32_t perform_render(bool *render_ok)
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Render request failed: %s", esp_err_to_name(err));
-        char safe_url[NVS_MAX_URL_LEN];
-        char message[NVS_MAX_URL_LEN + 32];
-        display_server_url(safe_url, sizeof(safe_url));
-        snprintf(message, sizeof(message), "Server unavailable\n%s", safe_url);
-        display_show_error(message);
+        /* A dropped Wi-Fi association and an unreachable backend both surface as
+         * HTTP transport failures. Check association before blaming the server,
+         * so a public display gives operators an actionable diagnosis. */
+        if (!wifi_manager_is_connected()) {
+            display_show_wifi_error("Wi-Fi connection was lost", sleep_sec);
+        } else {
+            char safe_url[NVS_MAX_URL_LEN];
+            char message[NVS_MAX_URL_LEN + 32];
+            display_server_url(safe_url, sizeof(safe_url));
+            snprintf(message, sizeof(message), "Server unavailable\n%s", safe_url);
+            display_show_error(message);
+        }
         http_client_free_response(&resp);
         return sleep_sec;
     }
@@ -452,9 +459,20 @@ void app_main(void)
     }
 
     if (wifi_result == WIFI_RESULT_FAILED) {
-        ESP_LOGW(TAG, "Wi-Fi connection failed");
-        display_show_error("No WiFi Signal");
+        ESP_LOGW(TAG, "Wi-Fi connection failed: %s",
+                 wifi_manager_get_last_failure_message());
+        uint32_t retry_after_seconds = CONFIG_VELLUM_FALLBACK_SLEEP_SEC;
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+        /* LCD mode deliberately caps its retry wait at 30 seconds. Keep the
+         * displayed estimate honest and leave the backlight on so the failure
+         * screen remains visible throughout that short recovery window. */
+        if (retry_after_seconds > 30) retry_after_seconds = 30;
+#endif
+        display_show_wifi_error(wifi_manager_get_last_failure_message(),
+                                retry_after_seconds);
+#if !defined(CONFIG_VELLUM_PANEL_D1001)
         display_sleep();
+#endif
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
         /* On E-Paper: does not return. On D1001: returns, then restart to re-init WiFi */
         esp_restart();

@@ -14,6 +14,7 @@ import {
   Palette,
   Timer,
   Cpu,
+  ShieldCheck,
   LogOut,
   Menu,
   X,
@@ -21,7 +22,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
-const links: { href: string; key: "overview" | "devices" | "content" | "providers" | "themes" | "profiles" | "firmware"; Icon: LucideIcon }[] = [
+const links: { href: string; key: "overview" | "devices" | "content" | "providers" | "themes" | "profiles" | "firmware" | "access"; Icon: LucideIcon }[] = [
   { href: "/admin", key: "overview", Icon: LayoutDashboard },
   { href: "/admin/devices", key: "devices", Icon: MonitorSmartphone },
   { href: "/admin/content", key: "content", Icon: FileText },
@@ -29,6 +30,7 @@ const links: { href: string; key: "overview" | "devices" | "content" | "provider
   { href: "/admin/themes", key: "themes", Icon: Palette },
   { href: "/admin/profiles", key: "profiles", Icon: Timer },
   { href: "/admin/firmware", key: "firmware", Icon: Cpu },
+  { href: "/admin/access", key: "access", Icon: ShieldCheck },
 ];
 
 const LOCALES = [
@@ -44,7 +46,7 @@ function logout() {
   window.location.href = "/login";
 }
 
-export function AdminNav() {
+export function AdminNav({ canAccessManagement }: { canAccessManagement: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const t = useTranslations("nav");
@@ -84,7 +86,7 @@ export function AdminNav() {
         </Link>
 
         <div className="flex flex-col gap-0.5">
-          {links.map(({ href, key, Icon }) => {
+          {links.filter((link) => link.key !== "access" || canAccessManagement).map(({ href, key, Icon }) => {
             // Overview (/admin) is the index — exact match so it isn't perma-active
             // under every sub-route. Sub-pages match themselves or a nested route,
             // with a path boundary so e.g. /admin/devices doesn't light up for a

@@ -22,23 +22,21 @@ import type { RolloutState } from "@/lib/rollout";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { approveDevice as approveDeviceAuth } from "@/lib/auth";
 import { log } from "@/lib/logger";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 import { randomBytes } from "node:crypto";
+import { requirePermission, type Permission, writeAudit } from "@/lib/access";
 
-/** Throw unless the caller holds a valid admin session cookie. */
-async function requireAdmin(): Promise<void> {
-  const c = await cookies();
-  if (!(await verifySessionToken(c.get(SESSION_COOKIE)?.value))) {
-    throw new Error("Unauthorized");
-  }
+/** Central RBAC guard for every server action. */
+async function requireAdmin(permission: Permission) {
+  return requirePermission(permission);
 }
 
 /* ── Devices ──────────────────────────────────────────────────── */
 
 export async function approveDevice(mac: string) {
+  const actor = await requireAdmin("devices.approve");
   try {
     await approveDeviceAuth(mac);
+    await writeAudit(actor, "device.approve", "device", mac);
     revalidatePath("/admin/devices");
   } catch (err) {
     log.error("Failed to approve device", { mac, error: String(err) });
@@ -60,13 +58,14 @@ export async function createProvisioningVoucher(
   label: string,
   ttlHours: number = VOUCHER_TTL_HOURS,
 ): Promise<string> {
-  await requireAdmin();
+  const actor = await requireAdmin("devices.provision");
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
   await withDb(
     () => db.insert(provisioningVouchers).values({ token, label: label.trim() || null, expiresAt }),
     "create-voucher",
   );
+  await writeAudit(actor, "device.voucher.create", "provisioning_voucher", undefined, { label: label.trim(), expiresAt: expiresAt.toISOString() });
   revalidatePath("/admin/devices");
   return token;
 }
@@ -75,9 +74,11 @@ export async function updateDevice(
   mac: string,
   data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null; firmwareChannel?: string | null; firmwarePinVersion?: string | null; orientationOverride?: string | null }
 ) {
+  const actor = await requireAdmin("devices.manage");
   try {
     await withDb(() => db.update(devices).set(data).where(eq(devices.mac, mac)), "update-device");
     revalidatePath("/admin/devices");
+    await writeAudit(actor, "device.update", "device", mac, { fields: Object.keys(data) });
   } catch (err) {
     log.error("Failed to update device", { mac, error: String(err) });
     throw err;
@@ -85,11 +86,13 @@ export async function updateDevice(
 }
 
 export async function deleteDevice(mac: string) {
+  const actor = await requireAdmin("devices.manage");
   try {
     await withDb(() => db.delete(telemetry).where(eq(telemetry.mac, mac)), "delete-device-telemetry");
     await withDb(() => db.delete(reports).where(eq(reports.mac, mac)), "delete-device-reports");
     await withDb(() => db.delete(devices).where(eq(devices.mac, mac)), "delete-device");
     revalidatePath("/admin/devices");
+    await writeAudit(actor, "device.delete", "device", mac);
   } catch (err) {
     log.error("Failed to delete device", { mac, error: String(err) });
     throw err;
@@ -99,18 +102,24 @@ export async function deleteDevice(mac: string) {
 /* ── Themes ───────────────────────────────────────────────────── */
 
 export async function createTheme(name: string, config: Record<string, string>) {
+  const actor = await requireAdmin("themes.manage");
   await withDb(() => db.insert(themes).values({ name, config }), "create-theme");
+  await writeAudit(actor, "theme.create", "theme", undefined, { name });
   revalidatePath("/admin/themes");
 }
 
 export async function updateTheme(id: string, name: string, config: Record<string, string>) {
+  const actor = await requireAdmin("themes.manage");
   await withDb(() => db.update(themes).set({ name, config, updatedAt: new Date() }).where(eq(themes.id, id)), "update-theme");
   revalidatePath("/admin/themes");
+  await writeAudit(actor, "theme.update", "theme", id, { name });
 }
 
 export async function deleteTheme(id: string) {
+  const actor = await requireAdmin("themes.manage");
   await withDb(() => db.delete(themes).where(eq(themes.id, id)), "delete-theme");
   revalidatePath("/admin/themes");
+  await writeAudit(actor, "theme.delete", "theme", id);
 }
 
 /* ── Calendar Providers ───────────────────────────────────────── */
@@ -120,10 +129,12 @@ export async function createProvider(
   name: string,
   credentials: Record<string, string>
 ) {
+  const actor = await requireAdmin("providers.manage");
   try {
     const encrypted = encryptCredentials(credentials);
     await withDb(() => db.insert(dataProviders).values({ type, name, encryptedCredentials: encrypted }), "create-provider");
     revalidatePath("/admin/providers");
+    await writeAudit(actor, "provider.create", "provider", undefined, { type, name });
   } catch (err) {
     log.error("Failed to create provider", { error: String(err) });
     throw err;
@@ -135,6 +146,7 @@ export async function updateProvider(
   name: string,
   credentials?: Record<string, string>
 ) {
+  const actor = await requireAdmin("providers.manage");
   try {
     const data: Record<string, unknown> = { name, updatedAt: new Date() };
     if (credentials && Object.keys(credentials).length > 0) {
@@ -142,6 +154,7 @@ export async function updateProvider(
     }
     await withDb(() => db.update(dataProviders).set(data).where(eq(dataProviders.id, id)), "update-provider");
     revalidatePath("/admin/providers");
+    await writeAudit(actor, "provider.update", "provider", id, { name, credentialsChanged: !!credentials && Object.keys(credentials).length > 0 });
   } catch (err) {
     log.error("Failed to update provider", { id, error: String(err) });
     throw err;
@@ -149,8 +162,10 @@ export async function updateProvider(
 }
 
 export async function deleteProvider(id: string) {
+  const actor = await requireAdmin("providers.manage");
   await withDb(() => db.delete(dataProviders).where(eq(dataProviders.id, id)), "delete-provider");
   revalidatePath("/admin/providers");
+  await writeAudit(actor, "provider.delete", "provider", id);
 }
 
 /* ── Content Instances ────────────────────────────────────────── */
@@ -160,8 +175,10 @@ export async function createContentInstance(
   name: string,
   config: Record<string, unknown>
 ) {
+  const actor = await requireAdmin("content.manage");
   await withDb(() => db.insert(contentInstances).values({ typeSlug, name, config }), "create-content-instance");
   revalidatePath("/admin/content");
+  await writeAudit(actor, "content.create", "content", undefined, { typeSlug, name });
 }
 
 export async function updateContentInstance(
@@ -169,26 +186,33 @@ export async function updateContentInstance(
   name: string,
   config: Record<string, unknown>
 ) {
+  const actor = await requireAdmin("content.manage");
   await withDb(() => db.update(contentInstances).set({ name, config, updatedAt: new Date() }).where(eq(contentInstances.id, id)), "update-content-instance");
   revalidatePath("/admin/content");
+  await writeAudit(actor, "content.update", "content", id, { name });
 }
 
 export async function deleteContentInstance(id: string) {
+  const actor = await requireAdmin("content.manage");
   await withDb(() => db.delete(contentInstances).where(eq(contentInstances.id, id)), "delete-content-instance");
   revalidatePath("/admin/content");
+  await writeAudit(actor, "content.delete", "content", id);
 }
 
 /* ── Lookups ──────────────────────────────────────────────────── */
 
 export async function getAllDevices() {
+  await requireAdmin("devices.read");
   return withDb(() => db.select().from(devices).orderBy(devices.createdAt), "get-all-devices");
 }
 
 export async function getAllThemes() {
+  await requireAdmin("content.read");
   return withDb(() => db.select().from(themes).orderBy(themes.name), "get-all-themes");
 }
 
 export async function getAllProviders() {
+  await requireAdmin("providers.read");
   return withDb(() => db.select({
     id: dataProviders.id,
     type: dataProviders.type,
@@ -198,6 +222,7 @@ export async function getAllProviders() {
 }
 
 export async function getProviderCredentials(id: string): Promise<Record<string, string>> {
+  await requireAdmin("providers.manage_secrets");
   const [provider] = await withDb(() => db
     .select({ encrypted: dataProviders.encryptedCredentials })
     .from(dataProviders)
@@ -212,16 +237,19 @@ export async function getProviderCredentials(id: string): Promise<Record<string,
 }
 
 export async function getAllContentInstances() {
+  await requireAdmin("content.read");
   return withDb(() => db.select().from(contentInstances).orderBy(contentInstances.name), "get-all-content-instances");
 }
 
 export async function getAllContentTypes() {
+  await requireAdmin("content.read");
   const { getAllContentRenderers } = await import("@/lib/content/registry");
   return getAllContentRenderers().map((r) => ({ slug: r.slug, name: r.name }));
 }
 
 
 export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string }> {
+  await requireAdmin("providers.manage_secrets");
   const [provider] = await withDb(() => db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1), "test-provider-get");
   if (!provider) return { ok: false, message: "Provider not found" };
 
@@ -278,6 +306,7 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
 }
 
 export async function testContentInstance(id: string): Promise<{ ok: boolean; message: string }> {
+  await requireAdmin("content.manage");
   const [instance] = await withDb(() => db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1), "test-content-instance-get");
   if (!instance) return { ok: false, message: "Content instance not found" };
 
@@ -320,13 +349,16 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
 /* ── Refresh Profiles ─────────────────────────────────────────── */
 
 export async function getAllRefreshProfiles() {
+  await requireAdmin("content.read");
   return withDb(() => db.select().from(refreshProfiles).orderBy(refreshProfiles.name), "get-all-refresh-profiles");
 }
 
 export async function createRefreshProfile(name: string, config: Record<string, unknown>) {
+  const actor = await requireAdmin("profiles.manage");
   try {
     await withDb(() => db.insert(refreshProfiles).values({ name, config }), "create-refresh-profile");
     revalidatePath("/admin/profiles");
+    await writeAudit(actor, "profile.create", "refresh_profile", undefined, { name });
   } catch (err) {
     log.error("Failed to create refresh profile", { error: String(err) });
     throw err;
@@ -334,9 +366,11 @@ export async function createRefreshProfile(name: string, config: Record<string, 
 }
 
 export async function updateRefreshProfile(id: string, name: string, config: Record<string, unknown>) {
+  const actor = await requireAdmin("profiles.manage");
   try {
     await withDb(() => db.update(refreshProfiles).set({ name, config, updatedAt: new Date() }).where(eq(refreshProfiles.id, id)), "update-refresh-profile");
     revalidatePath("/admin/profiles");
+    await writeAudit(actor, "profile.update", "refresh_profile", id, { name });
   } catch (err) {
     log.error("Failed to update refresh profile", { id, error: String(err) });
     throw err;
@@ -344,9 +378,11 @@ export async function updateRefreshProfile(id: string, name: string, config: Rec
 }
 
 export async function deleteRefreshProfile(id: string) {
+  const actor = await requireAdmin("profiles.manage");
   try {
     await withDb(() => db.delete(refreshProfiles).where(eq(refreshProfiles.id, id)), "delete-refresh-profile");
     revalidatePath("/admin/profiles");
+    await writeAudit(actor, "profile.delete", "refresh_profile", id);
   } catch (err) {
     log.error("Failed to delete refresh profile", { id, error: String(err) });
     throw err;
@@ -356,6 +392,7 @@ export async function deleteRefreshProfile(id: string) {
 /* ── Firmware ──────────────────────────────────────────────────── */
 
 export async function getAvailableVersions() {
+  await requireAdmin("firmware.read");
   const { getAvailableVersions: fn } = await import("@/lib/firmware");
   return fn();
 }
@@ -363,15 +400,18 @@ export async function getAvailableVersions() {
 /* ── Settings ─────────────────────────────────────────────────── */
 
 export async function updateSetting(key: string, value: unknown) {
+  const actor = await requireAdmin("firmware.rollout");
   const { setSetting } = await import("@/lib/settings");
   const { syncAutoPoll } = await import("@/lib/firmware");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await setSetting(key as any, value as any);
   if (key.startsWith("firmware.")) await syncAutoPoll();
   revalidatePath("/admin/firmware");
+  await writeAudit(actor, "setting.update", "setting", key);
 }
 
 export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
+  await requireAdmin("content.read");
   const { KNOWN_DISPLAYS } = await import("@/lib/content/renderers/door-sign-types");
   const rows = await withDb(() => db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
     .where(sql`${devices.displayCaps} IS NOT NULL`), "get-known-display-sizes");
@@ -404,6 +444,7 @@ export async function getKnownDisplaySizes(): Promise<{ label: string; width: nu
 
 /** All rollout records (for the rollout dashboard), newest-touched first. */
 export async function getRollouts() {
+  await requireAdmin("firmware.read");
   return withDb(
     () => db.select().from(firmwareRollouts).orderBy(sql`${firmwareRollouts.updatedAt} DESC`),
     "get-rollouts",
@@ -420,6 +461,7 @@ export async function setRollout(
   state: RolloutState,
   percent = 0,
 ) {
+  const actor = await requireAdmin("firmware.rollout");
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
   await withDb(
     () =>
@@ -433,15 +475,18 @@ export async function setRollout(
     "set-rollout",
   );
   revalidatePath("/admin/firmware");
+  await writeAudit(actor, "firmware.rollout.set", "firmware_rollout", `${version}:${channel}`, { state, percent: pct });
 }
 
 /** One-click kill-switch: stop offering `version` on `channel` fleet-wide. */
 export async function haltRollout(version: string, channel: string) {
+  await requireAdmin("firmware.rollout");
   await setRollout(version, channel, "halted", 0);
 }
 
 /** Recent OTA outcome events (for the rollout dashboard / failure triage). */
 export async function getRecentOtaEvents(limit = 100) {
+  await requireAdmin("firmware.read");
   return withDb(
     () =>
       db.select().from(otaEvents).orderBy(sql`${otaEvents.timestamp} DESC`).limit(limit),
@@ -466,6 +511,7 @@ export interface RolloutOverview {
 
 /** Everything the rollout dashboard needs in one round-trip. */
 export async function getRolloutOverview(): Promise<RolloutOverview> {
+  await requireAdmin("firmware.read");
   const [rollouts, adoption, health, recentEvents] = await Promise.all([
     getRollouts().catch(() => []),
     // Adoption: how many devices are running each firmware version (latest

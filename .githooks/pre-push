@@ -1,3 +1,3 @@
 #!/bin/sh
 # Keep local pushes aligned with the same i18n invariant enforced by CI.
-npm run i18n:check
+pnpm i18n:check

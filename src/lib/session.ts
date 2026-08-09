@@ -68,9 +68,9 @@ function timingSafeEqual(a: string, b: string): boolean {
   return r === 0;
 }
 
-/** Create a signed, expiring session token (cookie value). */
-export async function createSessionToken(ttlMs: number = DEFAULT_TTL_MS): Promise<string> {
-  const payload = b64urlEncodeStr(JSON.stringify({ sub: "admin", exp: Date.now() + ttlMs }));
+/** Create a signed, expiring session token for an opaque database session id. */
+export async function createSessionToken(subject: string, ttlMs: number = DEFAULT_TTL_MS): Promise<string> {
+  const payload = b64urlEncodeStr(JSON.stringify({ sub: subject, exp: Date.now() + ttlMs }));
   const sig = await hmac(payload);
   return `${payload}.${sig}`;
 }
@@ -89,6 +89,18 @@ export async function verifySessionToken(token: string | undefined | null): Prom
     return typeof data.exp === "number" && data.exp > Date.now();
   } catch {
     return false;
+  }
+}
+
+/** Return a verified token subject without making this Edge-safe module depend on the DB. */
+export async function getSessionTokenSubject(token: string | undefined | null): Promise<string | null> {
+  if (!(await verifySessionToken(token)) || !token) return null;
+  try {
+    const payload = token.slice(0, token.indexOf("."));
+    const data = JSON.parse(b64urlDecodeStr(payload)) as { sub?: unknown };
+    return typeof data.sub === "string" && data.sub.length > 0 ? data.sub : null;
+  } catch {
+    return null;
   }
 }
 

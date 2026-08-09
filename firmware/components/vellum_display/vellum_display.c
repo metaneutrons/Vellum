@@ -269,6 +269,59 @@ void display_show_connecting(const char *ssid)
     lvgl_refresh();
 }
 
+void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds)
+{
+    if (!s_lvgl_disp) return;
+    const vellum_panel_t *p = vellum_panel();
+    char screen_id[96];
+    snprintf(screen_id, sizeof(screen_id), "wifi-error:%s:%lu", detail ? detail : "",
+             (unsigned long)retry_after_seconds);
+    if (screen_unchanged(screen_id)) return;
+
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, p->bg, 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(scr, p->height > 1000 ? 28 : 14, 0);
+
+    add_logo(scr);
+
+    lv_obj_t *icon = lv_label_create(scr);
+    lv_label_set_text(icon, LV_SYMBOL_WARNING);
+    lv_obj_set_style_text_font(icon, p->font_lg, 0);
+    lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
+
+    lv_obj_t *title = lv_label_create(scr);
+    lv_label_set_text(title, "Wi-Fi unavailable");
+    lv_obj_set_style_text_font(title, p->font_lg, 0);
+    lv_obj_set_style_text_color(title, p->fg, 0);
+    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(title, p->width * 3 / 4);
+
+    lv_obj_t *reason = lv_label_create(scr);
+    lv_label_set_text(reason, detail && detail[0] ? detail : "Could not join saved Wi-Fi");
+    lv_obj_set_style_text_font(reason, p->font_md, 0);
+    lv_obj_set_style_text_color(reason, p->muted, 0);
+    lv_obj_set_style_text_align(reason, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(reason, p->width * 3 / 4);
+
+    uint32_t minutes = (retry_after_seconds + 59) / 60;
+    char retry[80];
+    snprintf(retry, sizeof(retry), "Retrying automatically\nin about %lu minute%s",
+             (unsigned long)minutes, minutes == 1 ? "" : "s");
+    lv_obj_t *hint = lv_label_create(scr);
+    lv_label_set_text(hint, retry);
+    lv_obj_set_style_text_font(hint, p->font_sm, 0);
+    lv_obj_set_style_text_color(hint, p->muted, 0);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(hint, p->width * 3 / 4);
+
+    lvgl_refresh();
+}
+
 void display_show_ota_progress(uint8_t percent)
 {
     if (!s_lvgl_disp) return;

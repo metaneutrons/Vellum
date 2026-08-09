@@ -60,9 +60,9 @@ cost stays near zero and the bound only matters on a cold cache.
 
 ## Database migrations (server)
 
-Server schema changes ship as `drizzle/*.sql` files — generate with `npm run
-db:generate` after editing `src/db/schema.ts`, and commit the SQL plus
-`drizzle/meta`. They are applied by **`npm run db:migrate`** (`scripts/migrate.mjs`),
+Server schema changes ship as `drizzle/*.sql` files — generate with
+`pnpm db:generate` after editing `src/db/schema.ts`, and commit the SQL plus
+`drizzle/meta`. They are applied by **`pnpm db:migrate`** (`scripts/migrate.mjs`),
 **not** `drizzle-kit migrate` — whose journal is empty here because the databases
 were created with `drizzle-kit push`, so `drizzle-kit migrate` would try to replay
 `0000…` against existing tables. The runner is idempotent and **self-baselining**:

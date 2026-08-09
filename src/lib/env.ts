@@ -9,6 +9,20 @@
 
 import { z } from "zod";
 
+/** Docker Compose commonly supplies unset optional environment variables as
+ * empty strings. Normalize those values before validating so an optional OIDC
+ * configuration can be omitted without making the entire process fail. */
+const optionalEnv = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    schema.optional(),
+  );
+
+const publicOrigin = z.string().url("VELLUM_PUBLIC_URL must be an absolute HTTPS origin").refine((value) => {
+  const url = new URL(value);
+  return url.protocol === "https:" && url.pathname === "/" && !url.search && !url.hash;
+}, "VELLUM_PUBLIC_URL must be an HTTPS origin without a path, query, or fragment");
+
 const envSchema = z.object({
   DATABASE_URL: z.string().url("DATABASE_URL must be a valid URL"),
   ENCRYPTION_KEY: z.string().min(32, "ENCRYPTION_KEY must be at least 32 characters"),
@@ -16,6 +30,10 @@ const envSchema = z.object({
   ADMIN_API_KEY: z.string().min(32, "ADMIN_API_KEY must be at least 32 characters"),
   ADMIN_USER: z.string().min(1, "ADMIN_USER is required"),
   ADMIN_PASS: z.string().min(8, "ADMIN_PASS must be at least 8 characters"),
+  ENTRA_TENANT_ID: optionalEnv(z.string().uuid("ENTRA_TENANT_ID must be a UUID")),
+  ENTRA_CLIENT_ID: optionalEnv(z.string().uuid("ENTRA_CLIENT_ID must be a UUID")),
+  ENTRA_CLIENT_SECRET: optionalEnv(z.string().min(1, "ENTRA_CLIENT_SECRET must not be empty")),
+  VELLUM_PUBLIC_URL: optionalEnv(publicOrigin),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
@@ -36,6 +54,10 @@ function loadEnv(): Env {
         ADMIN_API_KEY: "test-admin-api-key-that-is-at-least-32-chars",
         ADMIN_USER: "admin",
         ADMIN_PASS: "testpassword",
+        ENTRA_TENANT_ID: undefined,
+        ENTRA_CLIENT_ID: undefined,
+        ENTRA_CLIENT_SECRET: undefined,
+        VELLUM_PUBLIC_URL: undefined,
         NODE_ENV: "test",
         LOG_LEVEL: "error",
       };

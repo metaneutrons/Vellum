@@ -1,0 +1,77 @@
+# Production stack for a standalone Vellum installation.
+#
+# Copy `.env.example` to `.env` in this directory, set every value, then run:
+#   docker compose up -d --build
+#
+# The external `traefik` network is supplied by the host's reverse proxy.
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vellum}
+      POSTGRES_USER: ${POSTGRES_USER:-vellum}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # PostgreSQL 18 stores clusters below a versioned directory. Mounting the
+      # parent keeps this layout upgrade-compatible (and avoids the legacy
+      # `/var/lib/postgresql/data` mount being rejected by the image).
+      - vellum-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  vellum:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vellum}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vellum}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY in .env}
+      ADMIN_USER: ${ADMIN_USER:?set ADMIN_USER in .env}
+      ADMIN_PASS: ${ADMIN_PASS:?set ADMIN_PASS in .env}
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      VELLUM_PUBLIC_URL: ${VELLUM_PUBLIC_URL:-}
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.routers.vellum.entrypoints=websecure
+      - traefik.http.routers.vellum.rule=Host(`${VELLUM_HOST:?set VELLUM_HOST in .env}`)
+      - traefik.http.routers.vellum.tls=true
+      - traefik.http.routers.vellum.tls.certresolver=letsencrypt
+      # The public listener is shared with other services, but Vellum itself
+      # is deliberately LAN-only. This also blocks requests sent directly to
+      # the host's public IP with a forged Host header.
+      - traefik.http.middlewares.vellum-internal.ipallowlist.sourcerange=${VELLUM_TRUSTED_IPS:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      - traefik.http.routers.vellum.middlewares=vellum-internal@docker
+      - traefik.http.services.vellum.loadbalancer.server.port=3000
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+      - traefik
+
+volumes:
+  vellum-postgres:
+
+networks:
+  internal:
+    internal: true
+  traefik:
+    external: true

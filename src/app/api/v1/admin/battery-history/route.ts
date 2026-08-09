@@ -4,8 +4,10 @@ import { NextRequest } from "next/server";
 import { db, withDb } from "@/db";
 import { telemetry } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
+import { requestHasPermission } from "@/lib/access";
 
 export async function GET(request: NextRequest) {
+  if (!(await requestHasPermission(request, "devices.read"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const mac = request.nextUrl.searchParams.get("mac");
   const days = parseInt(request.nextUrl.searchParams.get("days") ?? "30") || 30;
 

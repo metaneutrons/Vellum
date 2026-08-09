@@ -62,6 +62,15 @@ void wifi_manager_get_mac(char *buf, size_t buf_len);
 /** Get current Wi-Fi RSSI (only valid when connected). */
 int wifi_manager_get_rssi(void);
 
+/** True only while the station has an active AP association. */
+bool wifi_manager_is_connected(void);
+
+/**
+ * A concise, user-facing explanation of the most recent failed station join.
+ * Never contains an SSID, password, BSSID, or low-level reason code.
+ */
+const char *wifi_manager_get_last_failure_message(void);
+
 #ifdef __cplusplus
 }
 #endif

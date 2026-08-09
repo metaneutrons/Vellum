@@ -1,0 +1,11 @@
+# Keep dependency lifecycle scripts denied by default. Every allowed package is
+# reviewed and named explicitly so a transitive update cannot silently add a
+# new install-time executable.
+strictDepBuilds: true
+allowBuilds:
+  "@napi-rs/canvas": true
+  '@parcel/watcher': true
+  '@swc/core': true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

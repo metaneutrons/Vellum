@@ -91,19 +91,11 @@ design calls:
 
 ## Build / tooling
 
-- [ ] **Migrate the package manager npm → pnpm.** npm is currently pinned to
-      `npm@10.9.8` (`package.json` `packageManager` + `corepack enable` in CI) to
-      stop the recurring cross-version lockfile drift (npm-11-authored lockfiles
-      fail CI's npm-10 `npm ci` with `Missing @esbuild/<platform>`). pnpm removes
-      that class entirely (single lockfile, Corepack-pinned) and adds stricter dep
-      resolution + a cleaner build-script allowlist. Not a flag flip — it's a
-      migration: rework the `Dockerfile` (`npm ci --ignore-scripts` +
-      `npm rebuild @napi-rs/canvas` → pnpm with `onlyBuiltDependencies`), verify
-      `output: "standalone"` + `@vercel/nft` still trace the native
-      `@napi-rs/canvas` under pnpm's symlinked store (likely needs
-      `node-linker=hoisted` / `outputFileTracingRoot`), convert all CI workflows,
-      and update the docs. **Gate the whole thing on a green multi-arch Docker
-      build** before committing.
+- [x] **Migrate the package manager npm → pnpm.** pnpm is version-pinned in
+      `package.json`; `pnpm-lock.yaml` is the single JavaScript lockfile, CI and
+      Docker use frozen installs, and `pnpm-workspace.yaml` uses pnpm 11's
+      deny-by-default `allowBuilds` policy. The standalone Next.js output and
+      native `@napi-rs/canvas` tracing are verified by the production build.
 
 ## Path to 100 — enterprise scorecard
 
@@ -150,7 +142,9 @@ the sections above are cross-referenced, not duplicated.
 ### CI/CD & Supply Chain (87 → 100)
 
 - [x] **Firmware host-tests + build are REQUIRED branch-protection checks** (#66) — a red host-test can no longer merge (as #56 did).
-- [x] **Lockfile fixed — CI & Docker run `npm ci`** (M#13). All four `ci.yml` jobs (Lint, Type Check, Test, Build) and the `Dockerfile` run `npm ci --ignore-scripts && npm rebuild @napi-rs/canvas` against a committed `lockfileVersion`-3 `package-lock.json`; the earlier esbuild-drift + `workspace:`-protocol + eslint-peer conflicts are resolved.
+- [x] **Reproducible dependency installs** (M#13). All CI jobs and the
+      `Dockerfile` run `pnpm install --frozen-lockfile` against the committed
+      `pnpm-lock.yaml`; dependency build scripts are restricted by `allowBuilds`.
 - [ ] Make SLSA provenance + SBOM *gating* checks, and add Snyk. Both are already emitted (firmware `attest-build-provenance@v2`; docker `sbom: true` + `provenance: mode=max`), but nothing verifies them in-pipeline; Snyk is genuinely absent.
 - [ ] Signed tags/commits + a dependency-review gate.
 

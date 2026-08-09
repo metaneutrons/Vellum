@@ -3,6 +3,7 @@
 import { NextRequest } from "next/server";
 import { getManifestsByChannel, type FirmwareChannel } from "@/lib/firmware";
 import { safeFetch } from "@/lib/safe-fetch";
+import { requestHasPermission } from "@/lib/access";
 
 /**
  * Proxy endpoint for firmware binaries.
@@ -13,6 +14,7 @@ import { safeFetch } from "@/lib/safe-fetch";
  * Query params: model=e1002&channel=stable&version=1.0.0
  */
 export async function GET(request: NextRequest) {
+  if (!(await requestHasPermission(request, "firmware.flash"))) return Response.json({ error: "Forbidden" }, { status: 403 });
   const model = request.nextUrl.searchParams.get("model");
   const channel = request.nextUrl.searchParams.get("channel") as FirmwareChannel | null;
   const version = request.nextUrl.searchParams.get("version");

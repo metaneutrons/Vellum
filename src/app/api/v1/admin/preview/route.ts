@@ -7,6 +7,7 @@ import { contentInstances, devices, themes } from "@/db/schema";
 import { getContentRenderer } from "@/lib/content";
 import { resolveTheme, parseTheme } from "@/lib/theme";
 import { resolveDisplayCaps, DISPLAY_REGISTRY, type ResolvedDisplay } from "@/lib/display";
+import { requestHasPermission } from "@/lib/access";
 
 const _defaultModel = DISPLAY_REGISTRY.e1002;
 const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
@@ -19,6 +20,7 @@ const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
 };
 
 export async function GET(request: NextRequest) {
+  if (!(await requestHasPermission(request, "content.read"))) return new Response("Forbidden", { status: 403 });
   const instanceId = request.nextUrl.searchParams.get("instanceId");
   const themeId = request.nextUrl.searchParams.get("themeId");
   if (!instanceId) return new Response("Missing instanceId", { status: 400 });

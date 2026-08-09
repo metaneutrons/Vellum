@@ -13,7 +13,7 @@
  * and only genuinely-new statements run.
  *
  * Reads DATABASE_URL from the environment (the container already has it; for
- * local dev the npm script loads .env via --env-file-if-exists).
+ * local dev the package-manager script loads .env via --env-file-if-exists).
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
