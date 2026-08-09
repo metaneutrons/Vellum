@@ -62,6 +62,27 @@ static lv_obj_t *add_logo(lv_obj_t *parent)
     return img;
 }
 
+/* Every branded transient/status screen uses this anchor. Do not centre logo
+ * and content as one flex group: a longer error message would otherwise move
+ * the Vellum mark to a different height. */
+static int status_logo_top(const vellum_panel_t *p)
+{
+    return p->height > 1000 ? 140 : 32;
+}
+
+static int status_content_top(const vellum_panel_t *p)
+{
+    int logo_h = p->logo ? p->logo->header.h : 0;
+    return status_logo_top(p) + logo_h + (p->height > 1000 ? 36 : 18);
+}
+
+static lv_obj_t *add_status_logo(lv_obj_t *parent)
+{
+    lv_obj_t *logo = add_logo(parent);
+    if (logo) lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, status_logo_top(vellum_panel()));
+    return logo;
+}
+
 /* ── Init ─────────────────────────────────────────────────────── */
 
 esp_err_t display_init(void)
@@ -114,13 +135,9 @@ void display_show_boot(const char *version)
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, p->bg, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_layout(scr, LV_LAYOUT_NONE);
 
-    /* Flex column, fully centered */
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, 20, 0);
-
-    add_logo(scr);
+    add_status_logo(scr);
 
     lv_obj_t *ver = lv_label_create(scr);
     const esp_app_desc_t *app = esp_app_get_description();
@@ -129,6 +146,7 @@ void display_show_boot(const char *version)
     lv_label_set_text(ver, ver_str);
     lv_obj_set_style_text_font(ver, p->font_xs, 0);
     lv_obj_set_style_text_color(ver, p->muted, 0);
+    lv_obj_align(ver, LV_ALIGN_TOP_MID, 0, status_content_top(p));
 
     lvgl_refresh();
 }
@@ -282,17 +300,17 @@ void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds)
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, p->bg, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, p->height > 1000 ? 28 : 14, 0);
+    lv_obj_set_layout(scr, LV_LAYOUT_NONE);
+    int content_top = status_content_top(p);
+    int step = p->height > 1000 ? 88 : 44;
 
-    add_logo(scr);
+    add_status_logo(scr);
 
     lv_obj_t *icon = lv_label_create(scr);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
     lv_obj_set_style_text_font(icon, p->font_lg, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, content_top);
 
     lv_obj_t *title = lv_label_create(scr);
     lv_label_set_text(title, "Wi-Fi unavailable");
@@ -300,6 +318,7 @@ void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds)
     lv_obj_set_style_text_color(title, p->fg, 0);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(title, p->width * 3 / 4);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, content_top + step);
 
     lv_obj_t *reason = lv_label_create(scr);
     lv_label_set_text(reason, detail && detail[0] ? detail : "Could not join saved Wi-Fi");
@@ -307,6 +326,7 @@ void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds)
     lv_obj_set_style_text_color(reason, p->muted, 0);
     lv_obj_set_style_text_align(reason, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(reason, p->width * 3 / 4);
+    lv_obj_align(reason, LV_ALIGN_TOP_MID, 0, content_top + step * 2);
 
     uint32_t minutes = (retry_after_seconds + 59) / 60;
     char retry[80];
@@ -318,6 +338,7 @@ void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds)
     lv_obj_set_style_text_color(hint, p->muted, 0);
     lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(hint, p->width * 3 / 4);
+    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, content_top + step * 3);
 
     lvgl_refresh();
 }
@@ -335,14 +356,11 @@ void display_show_ota_progress(uint8_t percent)
             lv_obj_clean(scr);
             lv_obj_set_style_bg_color(scr, p->bg, 0);
             lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-            lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-            /* Keep the complete status group centred. START pinned the logo to
-             * y=0 on the tall E1003 panel. */
-            lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                                  LV_FLEX_ALIGN_CENTER);
-            lv_obj_set_style_pad_row(scr, p->height > 1000 ? 32 : 12, 0);
+            lv_obj_set_layout(scr, LV_LAYOUT_NONE);
+            int content_top = status_content_top(p);
+            int step = p->height > 1000 ? 72 : 36;
 
-            add_logo(scr);
+            add_status_logo(scr);
 
             s_ota_title = lv_label_create(scr);
             lv_obj_set_width(s_ota_title, p->width / 2);
@@ -352,9 +370,11 @@ void display_show_ota_progress(uint8_t percent)
             lv_label_set_text(s_ota_title, "Updating firmware...");
             lv_obj_set_style_text_font(s_ota_title, p->font_md, 0);
             lv_obj_set_style_text_color(s_ota_title, p->fg, 0);
+            lv_obj_align(s_ota_title, LV_ALIGN_TOP_MID, 0, content_top);
 
             s_ota_bar = lv_bar_create(scr);
             lv_obj_set_size(s_ota_bar, p->width / 2, p->height > 1000 ? 40 : 24);
+            lv_obj_align(s_ota_bar, LV_ALIGN_TOP_MID, 0, content_top + step);
 
             s_ota_percent = lv_label_create(scr);
             /* Fixed opaque bounds are important on e-paper: variable-width
@@ -366,6 +386,7 @@ void display_show_ota_progress(uint8_t percent)
             lv_obj_set_style_bg_opa(s_ota_percent, LV_OPA_COVER, 0);
             lv_obj_set_style_text_font(s_ota_percent, p->font_md, 0);
             lv_obj_set_style_text_color(s_ota_percent, p->fg, 0);
+            lv_obj_align(s_ota_percent, LV_ALIGN_TOP_MID, 0, content_top + step * 2);
 
             s_ota_warning = lv_label_create(scr);
             lv_obj_set_width(s_ota_warning, p->width / 2);
@@ -375,6 +396,7 @@ void display_show_ota_progress(uint8_t percent)
             lv_label_set_text(s_ota_warning, "Do not power off");
             lv_obj_set_style_text_font(s_ota_warning, p->font_xs, 0);
             lv_obj_set_style_text_color(s_ota_warning, p->muted, 0);
+            lv_obj_align(s_ota_warning, LV_ALIGN_TOP_MID, 0, content_top + step * 3);
         }
 
         lv_bar_set_value(s_ota_bar, percent, LV_ANIM_OFF);
@@ -395,21 +417,23 @@ void display_show_ota_progress(uint8_t percent)
         lv_obj_clean(scr);
         lv_obj_set_style_bg_color(scr, p->bg, 0);
         lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-        lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_row(scr, 20, 0);
+        lv_obj_set_layout(scr, LV_LAYOUT_NONE);
+        int content_top = status_content_top(p);
+        int step = p->height > 1000 ? 84 : 42;
 
-        add_logo(scr);
+        add_status_logo(scr);
 
         lv_obj_t *title = lv_label_create(scr);
         lv_label_set_text(title, "Updating firmware...");
         lv_obj_set_style_text_font(title, p->font_lg, 0);
         lv_obj_set_style_text_color(title, p->fg, 0);
+        lv_obj_align(title, LV_ALIGN_TOP_MID, 0, content_top);
 
         lv_obj_t *warn = lv_label_create(scr);
         lv_label_set_text(warn, "Do not power off");
         lv_obj_set_style_text_font(warn, p->font_sm, 0);
         lv_obj_set_style_text_color(warn, p->muted, 0);
+        lv_obj_align(warn, LV_ALIGN_TOP_MID, 0, content_top + step);
 
         lvgl_refresh();
     }
@@ -426,19 +450,17 @@ void display_show_error(const char *message)
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, p->bg, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_layout(scr, LV_LAYOUT_NONE);
+    int content_top = status_content_top(p);
+    int message_top = content_top + (p->height > 1000 ? 100 : 50);
 
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, 20, 0);
-    lv_obj_set_style_pad_top(scr, 50, 0);
-
-    lv_obj_t *logo = add_logo(scr);
-    if (logo) lv_obj_set_style_pad_bottom(logo, 100, 0);
+    add_status_logo(scr);
 
     lv_obj_t *icon = lv_label_create(scr);
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
     lv_obj_set_style_text_font(icon, p->font_lg, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, content_top);
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text(lbl, message);
@@ -446,6 +468,7 @@ void display_show_error(const char *message)
     lv_obj_set_style_text_color(lbl, p->fg, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl, p->width * 3 / 4);
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, message_top);
 
     lvgl_refresh();
 }
