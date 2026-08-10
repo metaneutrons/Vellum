@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.0](https://github.com/metaneutrons/Vellum/compare/v1.6.5...v1.7.0) (2026-08-10)
+
+
+### Features
+
+* pin flashed firmware during enrollment ([9bc8e6c](https://github.com/metaneutrons/Vellum/commit/9bc8e6ccc8a579b8f17a3c318b3b43e1b44d3033))
+* preserve intentional USB firmware flashes ([37c2f60](https://github.com/metaneutrons/Vellum/commit/37c2f6088e21fbc3ed66c5a2d9bc5329ecbb55e9))
+
+
+### Bug Fixes
+
+* improve firmware flash selection flow ([daf3683](https://github.com/metaneutrons/Vellum/commit/daf3683f882b9244361d70ef91b285084e99accf))
+* show scanned Wi-Fi networks during provisioning ([a32f7e9](https://github.com/metaneutrons/Vellum/commit/a32f7e98573f16426334ff8b7904ccb2cb91d5d5))
+
 ## [1.6.5](https://github.com/metaneutrons/Vellum/compare/v1.6.4...v1.6.5) (2026-08-09)
 
 
