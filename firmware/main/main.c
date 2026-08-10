@@ -451,6 +451,7 @@ void app_main(void)
     xTaskCreate(d1001_button_task, "d1001_btn", 4096, NULL, 5, NULL);
 #endif
 
+    sleep_manager_init();
     wake_reason_t wake = sleep_manager_get_wake_reason();
 
     /* Only show boot screen on first power-on */
@@ -460,7 +461,6 @@ void app_main(void)
     }
     board_led_on();
     buttons_init();
-    sleep_manager_init();
 
     /* Factory reset: if KEY0 held at boot on fast-refresh displays */
 #if !defined(CONFIG_VELLUM_PANEL_D1001)
@@ -700,6 +700,9 @@ void app_main(void)
                  (unsigned long)sleep_duration);
         sleep_manager_enter(sleep_duration, buttons_get_wake_mask());
         if (!board_is_usb_powered()) break;
+        if (sleep_manager_take_button_refresh_request()) {
+            ESP_LOGI(TAG, "Green button confirmed — refreshing now");
+        }
         sleep_duration = perform_render(&render_ok);
         if (render_ok) ota_manager_mark_valid();
         ota_manager_check_and_apply();

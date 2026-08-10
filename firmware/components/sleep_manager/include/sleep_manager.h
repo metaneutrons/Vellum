@@ -33,6 +33,9 @@ wake_reason_t sleep_manager_get_wake_reason(void);
  */
 void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask);
 
+/** Return and clear a refresh request made while USB power kept the device awake. */
+bool sleep_manager_take_button_refresh_request(void);
+
 /**
  * Enter permanent deep sleep (no timer).
  * Only GPIO button presses can wake the device.
