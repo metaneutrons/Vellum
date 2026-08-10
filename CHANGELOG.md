@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.1](https://github.com/metaneutrons/Vellum/compare/v1.8.0...v1.8.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **provisioning:** prevent invalid timestamp reservation ([3be924a](https://github.com/metaneutrons/Vellum/commit/3be924af395237c83ae1f1e272e6ed42bb749716))
+* **provisioning:** use valid timestamp reservation ([8d68af6](https://github.com/metaneutrons/Vellum/commit/8d68af675ad4cc8f85ad8a7f1a94690366e6423a))
+
 ## [1.8.0](https://github.com/metaneutrons/Vellum/compare/v1.7.2...v1.8.0) (2026-08-10)
 
 
