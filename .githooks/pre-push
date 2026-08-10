@@ -1,3 +1,6 @@
 #!/bin/sh
-# Keep local pushes aligned with the same i18n invariant enforced by CI.
+# Keep local pushes aligned with the fast static checks enforced by CI.
+set -eu
+
 pnpm i18n:check
+pnpm typecheck

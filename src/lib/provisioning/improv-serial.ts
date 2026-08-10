@@ -53,6 +53,8 @@ export const ImprovError = {
 // SSID copies into ssid[33] (max 32), password into pass[65] (max 64).
 export const MAX_SSID_LEN = 32;
 export const MAX_PASS_LEN = 64;
+export const MIN_PROVISIONING_UNIX_TIME = 1_704_067_200; // 2024-01-01T00:00:00Z
+export const MAX_PROVISIONING_UNIX_TIME = 4_102_444_799; // 2099-12-31T23:59:59Z
 
 function lenPrefixed(s: string): number[] {
   const bytes = new TextEncoder().encode(s);
@@ -62,7 +64,11 @@ function lenPrefixed(s: string): number[] {
 
 function utcTimestampString(value: number): string {
   const seconds = Math.floor(value);
-  if (!Number.isSafeInteger(seconds) || seconds < 1_704_067_200 || seconds > 4_102_444_799) {
+  if (
+    !Number.isSafeInteger(seconds) ||
+    seconds < MIN_PROVISIONING_UNIX_TIME ||
+    seconds > MAX_PROVISIONING_UNIX_TIME
+  ) {
     throw new Error("Improv: UTC timestamp must be between 2024-01-01 and 2099-12-31");
   }
   return String(seconds);
