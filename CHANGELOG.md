@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.0](https://github.com/metaneutrons/Vellum/compare/v1.8.1...v1.9.0) (2026-08-10)
+
+
+### Features
+
+* add managed server updates ([19abdcd](https://github.com/metaneutrons/Vellum/commit/19abdcd2e2b367232b465d8dba9782f0f5f76f80))
+* add managed server updates ([cc207b7](https://github.com/metaneutrons/Vellum/commit/cc207b7a965c9c01cc7d9edcfa75eaac4579954f))
+
 ## [1.8.1](https://github.com/metaneutrons/Vellum/compare/v1.8.0...v1.8.1) (2026-08-10)
 
 
