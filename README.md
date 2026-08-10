@@ -1,114 +1,68 @@
 <p align="center">
-  <img src="assets/vellum_logo.svg" alt="Vellum" width="240" />
+  <img src="assets/vellum_logo.svg" alt="Vellum" width="240">
 </p>
 
 <p align="center">
-  <strong>(E-Ink) Display Management Platform</strong><br>
-  Centrally manage, brand, and deploy content to (E-Paper) displays.
+  <strong>Open-source control plane for secure, centrally managed room displays.</strong><br>
+  Render once. Operate every E-Paper and full-color display from one place.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/CI-passing-brightgreen" alt="CI">
-  <img src="https://img.shields.io/badge/Firmware-ESP32--S3-red" alt="Firmware">
-  <img src="https://img.shields.io/badge/TypeScript-6.0-blue" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Next.js-16.2-black" alt="Next.js">
-  <img src="https://img.shields.io/badge/ESP--IDF-6.0-red" alt="ESP-IDF">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-green.svg" alt="License">
-  <img src="https://img.shields.io/badge/Docker-ghcr.io-blue" alt="Docker"></a>
+  <a href="https://github.com/metaneutrons/Vellum/actions/workflows/ci.yml"><img src="https://github.com/metaneutrons/Vellum/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/metaneutrons/Vellum/releases/latest"><img src="https://img.shields.io/github/v/release/metaneutrons/Vellum?label=release" alt="Latest release"></a>
+  <a href="https://github.com/metaneutrons/Vellum/pkgs/container/vellum"><img src="https://img.shields.io/badge/container-ghcr.io-183157" alt="Container image"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-1c8a8f" alt="AGPL-3.0 license"></a>
 </p>
 
----
+Vellum turns Seeed Studio reTerminal displays into a managed signage fleet. The
+server combines booking data, content, branding, refresh policy, telemetry, and
+firmware lifecycle management. Devices receive display-ready images and signed
+updates over HTTPS; no browser engine or provider credential lives on a display.
 
-## What is Vellum?
+<p align="center">
+  <img src="assets/vellum-architecture.svg" alt="Vellum architecture: providers feed the server, which manages PostgreSQL-backed content and signed updates for E-Paper and LCD displays" width="100%">
+</p>
 
-Vellum is an open-source platform for managing (not only) E-Ink/E-Paper displays in offices, coworking spaces, and conference rooms. A central server renders content (meeting room schedules, dashboards, signage) and delivers pixel-perfect images to battery-powered ESP32-S3 displays that can run for months on a single charge.
+## Why Vellum
 
-## Features
+| | Capability |
+|---|---|
+| **One fleet** | Provision, approve, assign, monitor, and update every supported display from the Web UI. |
+| **Provider-independent content** | Use Microsoft 365, Google Calendar, anny, or iCalendar without coupling display firmware to a booking system. |
+| **Pixel-perfect output** | Server-side rendering, model-aware color conversion, orientation support, themes, and live previews. |
+| **Enterprise access** | Local recovery accounts, Microsoft Entra ID OIDC, passkeys, scoped roles, service accounts, and audit events. |
+| **Secure device lifecycle** | USB provisioning, encrypted enrollment, HTTPS, production NVS hardening, and Ed25519-signed OTA firmware. |
+| **Safe operations** | A production Compose stack with PostgreSQL, release discovery, scheduled or manual updates, backups, health checks, and rollback. |
 
-- **🖥 Plugin Content System** — Room booking (Outlook-style day view), extensible for weather, dashboards, photos
-- **📅 Calendar & Booking Providers** — Microsoft 365, Google Calendar, anny (room/workspace booking), and iCal URL feeds
-- **🎨 Theme System** — DB-backed branding with live preview, per-device assignment
-- **📡 Display Agnostic** — Mono, 4/16-level grayscale, and 7-color Spectra 6 displays
-- **✏️ Pixel-Perfect Rendering** — Pre-rendered bitmap font atlas for color e-paper, anti-aliased for grayscale
-- **⏱ Refresh Profiles** — Schedule rules by weekday/time (night mode, weekends, office hours)
-- **⬆️ OTA Updates** — Signed firmware distribution via GitHub Releases (Ed25519 + SHA256)
-- **🔒 Encrypted Security** — validated TLS (HTTPS) to the backend, X25519 ECDH encrypted token delivery, and NVS credential encryption at rest (production hardening profile — see [SECURITY.md](SECURITY.md))
-- **🌐 Zero-Config Setup** — mDNS auto-discovery, USB/Web-Serial provisioning from the browser (SoftAP captive portal remains the first-boot fallback)
-- **🖱 Web Flasher** — Flash firmware to devices directly from the browser via USB
-- **🧪 Device Simulator** — Web-based E-Paper simulator for development (dev-only)
-- **📊 Telemetry Dashboard** — Battery, RSSI, firmware version monitoring with warnings
+## Install for production — Docker Compose
 
-## Supported Hardware
+The repository's Compose stack is the **recommended way to run Vellum**. It
+installs the server, PostgreSQL, and the Vellum updater as one operational unit.
+The updater discovers new server releases, verifies their signed container
+images, creates a database backup, performs a readiness check, and rolls back a
+failed update. In the Web UI, administrators can choose manual updates or a
+daily maintenance time.
 
-| Model | Display | Resolution | Colors | Link |
-|-------|---------|-----------|--------|------|
-| [reTerminal E1001](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html) | 7.5" E-Ink | 800×480 | 4-level grayscale | [Wiki](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001) |
-| [reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) | 7.3" Spectra 6 | 800×480 | 7 colors (B/W/R/G/B/Y/O) | [Wiki](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002) |
-| [reTerminal E1003](https://www.seeedstudio.com/catalogsearch/result/?q=e1003) | 10.3" E-Ink | 1404×1872 | 16-level grayscale | [Wiki](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003) |
+### Requirements
 
-All displays are powered by **ESP32-S3** with WiFi, 2000mAh battery, USB-C, and 3 programmable buttons. New display hardware can be added by implementing a display driver — the server adapts automatically via capability negotiation.
+- Linux host with Docker Engine and Docker Compose v2
+- HTTPS reverse proxy with a publicly trusted certificate
+- Persistent local storage below `/var/lib/vellum`
+- A DNS name that resolves to the reverse proxy from the display network
 
-## Architecture
-
-```plain
-┌──────────────────┐       HTTPS        ┌────────────────────┐       APIs       ┌─────────────┐
-│  ESP32-S3        │ ──────────────────▶│  Vellum Server     │ ────────────────▶│  M365       │
-│  E-Ink Display   │ ◀──────────────────│  (Next.js)         │ ◀────────────────│  Google     │
-│                  │    pixel buffer    │                    │                  │  anny       │
-│  Sleeps 99%      │                    │  Admin Dashboard   │                  │  iCal       │
-│  of the time     │                    │  Device Simulator  │                  └─────────────┘
-└──────────────────┘                    └─────────┬──────────┘
-                                                  │
-                                          ┌───────┴──────┐
-                                          │  PostgreSQL  │
-                                          └──────────────┘
-```
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js 22.13+
-- pnpm 11.20.0 (the repository pins the exact version in `package.json`)
-- PostgreSQL 15+
-- A calendar provider (Microsoft 365, Google, anny, or any iCal URL)
-
-### Server Setup
+### Deploy
 
 ```bash
-git clone <your-repo-url>
-cd vellum
-pnpm install --frozen-lockfile
+git clone https://github.com/metaneutrons/Vellum.git
+cd Vellum
 
-# Configure environment
-cp .env.example .env
-# Edit .env: set DATABASE_URL, ENCRYPTION_KEY, SESSION_SECRET (required, min 32 chars — `openssl rand -hex 32`), ADMIN_API_KEY, ADMIN_USER, ADMIN_PASS
-
-# Create database and run migrations (idempotent — safe to re-run on upgrades)
-createdb vellum
-pnpm db:migrate
-
-# Start with mDNS auto-discovery
-pnpm dev:mdns
-```
-
-Open **<http://localhost:3000/admin>** and log in.
-
-### Docker
-
-For production, the **recommended installation** is the repository's Compose
-stack. It includes PostgreSQL with bind-mounted storage, signed server updates,
-pre-update backups, readiness-based rollback, and update controls in the Vellum
-Web UI:
-
-```bash
 sudo install -d -m 0755 /docker/vellum /var/lib/vellum/postgres \
   /var/lib/vellum/backups /var/lib/vellum/updater
 sudo install -d -m 0700 /etc/vellum
 sudo install -m 0644 deploy/docker-compose.yml /docker/vellum/docker-compose.yml
 sudo install -m 0600 deploy/vellum.env.example /etc/vellum/vellum.env
 
-# Replace every placeholder; generate independent secrets with:
+# Replace every placeholder. Generate each secret independently.
 openssl rand -hex 32
 sudoedit /etc/vellum/vellum.env
 
@@ -118,206 +72,228 @@ sudo docker compose --env-file /etc/vellum/vellum.env \
   -f /docker/vellum/docker-compose.yml up -d
 ```
 
-Only `docker-compose.yml` is stored below `/docker/vellum`. Secrets remain in
-`/etc/vellum`; database, updater state, and backups remain in `/var/lib/vellum`.
-Choose manual installation or an automatic daily maintenance time under
-**Firmware → Vellum Server**. See the complete
-[production deployment guide](docs/DOCKER_DEPLOYMENT.md) for supply-chain
-verification, reverse-proxy setup, rollback, and restore procedures.
+The layout deliberately separates configuration and data:
 
-For local evaluation without the production PostgreSQL/update stack, the server
-image can also be started directly:
+| Path | Contents |
+|---|---|
+| `/docker/vellum/docker-compose.yml` | The only file in the Compose directory |
+| `/etc/vellum/vellum.env` | Secrets and deployment configuration (`0600`) |
+| `/var/lib/vellum/postgres` | PostgreSQL data |
+| `/var/lib/vellum/backups` | Pre-update database backups |
+| `/var/lib/vellum/updater` | Persistent updater configuration and state |
 
-```bash
-docker pull ghcr.io/metaneutrons/vellum:latest
+The server listens on `127.0.0.1:3000`; terminate HTTPS at the reverse proxy.
+Set `VELLUM_PUBLIC_URL` to the canonical HTTPS origin, then open
+`https://your-vellum-host/admin`. Database migrations run automatically when the
+container starts.
 
-docker run -d \
-  --name vellum \
-  -p 3000:3000 \
-  -e DATABASE_URL=postgresql://user:pass@host:5432/vellum \
-  -e ENCRYPTION_KEY=your-encryption-key \
-  -e SESSION_SECRET=$(openssl rand -hex 32) \
-  -e ADMIN_API_KEY=your-admin-api-key \
-  -e ADMIN_USER=admin \
-  -e ADMIN_PASS=your-password \
-  ghcr.io/metaneutrons/vellum:latest
-```
+> `ADMIN_USER` and `ADMIN_PASS` bootstrap the first local Owner account only
+> when the user database is empty. Keep that local account as a protected
+> break-glass path. `ADMIN_API_KEY` remains a legacy global API credential for
+> compatibility; integrations should use revocable, scoped service accounts
+> created in **Access** instead. All three variables are currently required at
+> startup and must contain unique, randomly generated values.
 
-The container **applies pending database migrations on startup** (idempotent; fail-open so a transient DB outage doesn't block boot), so a fresh `DATABASE_URL` is provisioned automatically and upgrades pick up new migrations with no manual step.
+Read the [production deployment guide](docs/DOCKER_DEPLOYMENT.md) before going
+live. It covers reverse-proxy headers, image verification, updater controls,
+backup restore, rollback, and operational hardening.
 
-Multi-arch images are available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
+## First run
 
-### Microsoft Entra ID sign-in
+1. Sign in with the bootstrap Owner account.
+2. Add a booking source under **Providers**.
+3. Create content, choose a theme, and optionally define a refresh profile.
+4. Open **Firmware → Flash device** and install the firmware for the exact model.
+5. Continue to **Provision** and send Wi-Fi, time, and server settings over USB.
+6. Approve the device or use a single-use enrollment voucher, then assign its content.
+7. Configure server updates under **Firmware → Vellum Server**.
 
-Vellum supports local break-glass accounts alongside Microsoft Entra ID OIDC.
-When Entra is enabled, set a single canonical HTTPS origin and let Vellum derive
-the callback path; do not configure the callback as a separate application
-setting:
+Chrome or Edge is required for browser-based flashing and USB provisioning
+because these flows use Web Serial. E-Series devices expose USB through a UART
+bridge; D1001 uses its native USB interface. If USB is unavailable, an
+unprovisioned E-Series device also offers the `Vellum-XXXX` SoftAP fallback.
+
+## Supported displays
+
+Firmware is built and released separately for each model. The server negotiates
+capabilities reported by the device, so E-Paper and LCD displays share the same
+fleet, content, and policy model without sharing an incompatible firmware image.
+
+| Model | Platform | Display | Server output | Orientation |
+|---|---|---|---|---|
+| [reTerminal E1001](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/)) | ESP32-S3 | 7.5″, 800×480, monochrome E-Paper | Raw 1-bit | Landscape |
+| [reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/)) | ESP32-S3 | 7.3″, 800×480, seven-color E-Paper | Raw indexed color | Landscape |
+| [reTerminal E1003](https://www.seeedstudio.com/reTerminal-E1003-p-6731.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/)) | ESP32-S3 | 10.3″, 1872×1404, 16-gray E-Paper | Raw 4-bit grayscale | Portrait or landscape |
+| [reTerminal D1001](https://wiki.seeedstudio.com/getting_started_with_reterminal_d1001/) | ESP32-P4 + ESP32-C6 | 8″, 800×1280, full-color LCD | JPEG | Portrait or landscape |
+
+Support includes board-specific display drivers, battery and USB-power handling,
+buttons, telemetry, provisioning, and OTA behavior. D1001 additionally integrates
+its RTC and uses the ESP32-C6 as the wireless coprocessor for the ESP32-P4.
+
+## Product capabilities
+
+### Content and booking
+
+- Room booking, door-sign, and multi-door-sign content renderers
+- Microsoft 365, Google Calendar, anny, and iCalendar providers
+- Provider or custom booking URLs rendered as optional QR codes
+- Themes, live previews, time zones, and per-device assignments
+- Weekday/time rules for refresh cadence and overnight behavior
+
+### Fleet and firmware
+
+- Browser-based firmware flashing with model and release selection
+- USB/Web-Serial provisioning, Wi-Fi scan, manual network entry, NTP override,
+  and device clock initialization
+- Voucher-backed zero-touch enrollment and version pinning across the
+  flash-to-provision flow
+- Capability, orientation, battery, RSSI, firmware, and rollout telemetry
+- Signed OTA releases with staged verification, retry grace periods, and
+  model-specific firmware channels
+- Development-only device simulator for all four supported models
+
+### Identity and access
+
+- Local accounts with scrypt-hashed passwords and passkey enrollment
+- Configurable recommended or required passkey policy
+- Microsoft Entra ID OIDC with verified-claim account linking and optional
+  role-controlled auto-provisioning
+- Owner, Administrator, Fleet Operator, Content Manager, Firmware Operator,
+  Auditor, and Viewer roles
+- Scoped, revocable service-account tokens and audit history
+
+For Entra ID, configure the canonical origin only:
 
 ```dotenv
 VELLUM_PUBLIC_URL=https://vellum.example.com
-ENTRA_TENANT_ID=your-tenant-id
-ENTRA_CLIENT_ID=your-app-client-id
+ENTRA_TENANT_ID=00000000-0000-0000-0000-000000000000
+ENTRA_CLIENT_ID=00000000-0000-0000-0000-000000000000
 ENTRA_CLIENT_SECRET=store-this-in-your-secret-manager
 ```
 
-Register this exact **Web** redirect URI in the Entra app registration:
+Register this exact Web redirect URI in the Entra application:
 
 ```text
 https://vellum.example.com/api/auth/oidc/entra/callback
 ```
 
-`VELLUM_PUBLIC_URL` must be an HTTPS origin only: no path, query string, or
-fragment. The callback path is deliberately fixed so the OIDC client,
-authorization-code exchange, and post-login redirects cannot diverge. Keep the
-local owner account as a break-glass recovery path.
+The callback path is fixed and derived from `VELLUM_PUBLIC_URL`. The URL must be
+an HTTPS origin without a path, query, or fragment.
 
-### First-Time Setup (Admin Dashboard)
+## Security model
 
-1. **Data Providers** → Add your Microsoft 365 / Google / anny / iCal credentials
-2. **Content** → Create a room booking instance (select provider, room email, timezone)
-3. **Themes** → Customize colors or use the default theme
-4. **Devices** → Approve devices as they connect, assign content + theme
+- Devices validate the server certificate and refuse cleartext production URLs
+  and HTTPS-to-HTTP redirects.
+- Enrollment uses X25519 ECDH to deliver the device token over an encrypted
+  channel; stored server-side credentials use AES-256-GCM.
+- OTA firmware is verified with Ed25519 and SHA-256 before the staged partition
+  becomes bootable.
+- Production firmware enables encrypted NVS and the supported platform hardening
+  controls; development builds intentionally do not.
+- Admin sessions use HTTP-only cookies, local passwords are scrypt-hashed, and
+  authorization is enforced through scoped permissions.
+- Server container releases are keylessly signed and verified by the Compose
+  updater before installation.
 
-### Firmware Installation
+The threat model, production controls, and platform-specific limitations are in
+[SECURITY.md](SECURITY.md). Firmware signing, secure-boot preparation, and KMS
+integration are documented in [Secure Boot and KMS](docs/SECURE_BOOT_AND_KMS.md).
 
-#### Option A: Browser-Based (recommended)
+## Develop Vellum
 
-1. Connect the reTerminal to your computer via USB-C
-2. Open **Admin → Firmware → Flash Device**
-3. Select the display model and firmware channel
-4. Click **"Connect & Flash"** — the browser flashes the firmware directly
+### Prerequisites
 
-> Requires Chrome or Edge (Web Serial API).
+- Node.js 22.13 or newer
+- pnpm 11.20.0 (pinned through `packageManager`)
+- PostgreSQL 15 or newer
 
-#### Option B: Command Line
+```bash
+git clone https://github.com/metaneutrons/Vellum.git
+cd Vellum
+corepack enable
+pnpm install --frozen-lockfile
+cp .env.example .env
+
+# Configure .env, then create the database and run migrations.
+createdb vellum
+pnpm db:migrate
+pnpm dev:mdns
+```
+
+Open <http://localhost:3000/admin>. The direct `docker run` route is intentionally
+not presented as a production installation: it does not provide the managed
+PostgreSQL and safe-update workflow of the Compose stack.
+
+### Quality gates
+
+```bash
+pnpm lint          # ESLint
+pnpm typecheck     # TypeScript, no emit
+pnpm test          # Vitest
+pnpm i18n:check    # Locale parity and hard-string checks
+pnpm release:check # Release and workflow invariants
+pnpm build         # Production Next.js build
+```
+
+The repository installs a pre-push hook for i18n, type, and release checks. CI
+adds linting, coverage enforcement, the production build, Compose validation,
+and updater tests.
+
+### Build firmware
+
+ESP-IDF 6.0 is installed separately. The firmware Makefile activates the local
+ESP-IDF environment configured for the workstation.
 
 ```bash
 cd firmware
-# Requires ESP-IDF v6.0 installed out-of-band (the Makefile activates it from a
-# hardcoded path — there is no `make setup` target).
-make build    # Compile firmware (default MODEL=e1002; e.g. make build MODEL=e1001)
-make fm       # Flash + open serial monitor
+make build MODEL=e1001
+make build MODEL=e1002
+make build MODEL=e1003
+make build MODEL=d1001
+
+# Flash the selected model and open its serial monitor.
+make fm MODEL=d1001
 ```
 
-See `firmware/main/Kconfig.projbuild` for all configurable options (display model, pins, timeouts).
+Configuration options live in `firmware/main/Kconfig.projbuild`; the display
+subsystem is described in [Firmware display architecture](docs/firmware-display-architecture.md).
 
-### Device Setup
+## Repository map
 
-Provision the device over the USB cable — no phone or hotspot needed:
+| Path | Purpose |
+|---|---|
+| `src/app/admin` | Fleet, content, provider, theme, access, firmware, and update UI |
+| `src/app/api/v1` | Device, admin, health, enrollment, and updater APIs |
+| `src/lib/calendar` | Provider registry and calendar integrations |
+| `src/lib/content` | Content renderer registry |
+| `src/lib/render` | Canvas, quantization, dithering, fonts, and display output |
+| `src/lib/access` | Local identity, passkeys, OIDC, roles, and service accounts |
+| `firmware` | ESP-IDF application and board/display components |
+| `deploy` | Production Compose stack, updater, and environment template |
+| `docs` | Deployment, security, release, and firmware design guides |
 
-1. Keep the reTerminal connected via USB-C (Chrome or Edge — Web Serial API)
-2. Open **Admin → Firmware → Provision**
-3. Push the WiFi SSID/password and server URL to the device over the cable
-4. *(Optional)* Mint a single-use, 7-day **voucher** for zero-touch auto-enrolment — the voucher token is delivered over the cable as the device's bearer token, so it registers and enrols itself without a manual approval step
-5. The device connects to WiFi and registers with the server
-6. Approve the device in the admin dashboard (unless a voucher auto-enrolled it) → it starts displaying content
+## API surface
 
-> **Fallback — SoftAP captive portal.** If the device boots with no stored WiFi credentials, it opens an open access point **"Vellum-XXXX"** and shows a QR code. Connect a phone to the AP, complete the captive portal, and enter WiFi credentials (server URL is auto-discovered via mDNS). This is the first-boot fallback only; USB provisioning is the primary path.
-
-## API Endpoints
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/v1/ink/hello` | None | Device registration (TOFU + X25519 ECDH) |
-| `GET` | `/api/v1/ink/render?mac=...` | Token | Render pixel buffer for device |
-| `GET` | `/api/v1/ink/config?mac=...` | Token | Device config + OTA update check |
-| `POST` | `/api/v1/ink/report` | Token | Submit issue report |
-| `GET` | `/api/v1/health` | None | Health check (DB connectivity) |
-| `POST` | `/api/v1/admin/devices/approve` | API Key | Approve pending device |
-| `GET` | `/api/v1/admin/preview?instanceId=...` | Session | Render content preview as PNG |
-
-## Development
-
-```bash
-pnpm dev              # Start Next.js dev server
-pnpm dev:mdns         # Start with mDNS announcement
-pnpm test             # Run tests (~20 vitest suites)
-pnpm lint             # ESLint
-pnpm exec tsc --noEmit # Type check
-```
-
-### Device Simulator
-
-Open **<http://localhost:3000/simulator>** (dev mode only). Simulates the full firmware cycle: boot → WiFi → ECDH hello → render → sleep. Supports all three display models.
-
-## Project Structure
-
-```plain
-src/
-├── app/
-│   ├── admin/            # Dashboard (9 pages: overview, devices, content, providers,
-│   │                     #   themes, profiles, firmware, flash, telemetry)
-│   ├── api/v1/           # Device + admin API endpoints
-│   ├── login/            # Admin authentication
-│   └── simulator/        # Device simulator (dev only)
-├── components/           # Shared UI (toast, modal, confirm, button, search, etc.)
-├── db/                   # Drizzle ORM schema + connection pool
-└── lib/
-    ├── auth/             # TOFU device auth + X25519 ECDH
-    ├── calendar/         # Provider registry + M365/Google/anny/iCal implementations
-    ├── content/          # Content renderer registry + room-booking renderer
-    ├── render/           # Canvas → pixel buffer pipeline + bitmap font atlas
-    ├── sleep/            # Refresh profiles + schedule rules engine
-    ├── firmware.ts       # OTA manifest fetcher + semver resolver
-    ├── display.ts        # Display capability negotiation (device-reported)
-    ├── theme.ts          # Theme system (Zod-validated from DB)
-    ├── encryption.ts     # AES-256-GCM for provider credentials
-    └── crypto.ts         # X25519 ECDH for secure token delivery
-
-firmware/
-├── main/                 # ESP-IDF entry point + boot flow (Wi-Fi, ECDH, render, sleep)
-└── components/
-    ├── board/            # Board HAL (battery ADC, USB-power detect, pin map)
-    ├── vellum_display/   # Display driver abstraction
-    │   └── drivers/      # E1001 (UC8179), E1002 (UC8179C), E1003, Stub
-    ├── http_client/      # Server communication (cJSON, TLS)
-    ├── wifi_manager/     # Station + SoftAP captive portal (first-boot fallback)
-    ├── vellum_serial/    # USB-serial Improv Wi-Fi provisioning + text console (primary onboarding)
-    ├── secure_channel/   # X25519 ECDH secure channel for encrypted token delivery
-    ├── ota_manager/      # OTA update engine (Ed25519-signed image verify, staged partition)
-    ├── nvs_manager/      # NVS store (WiFi, token, X25519 keypair; encrypted in prod profile)
-    ├── buttons/          # GPIO interrupt handler (3 buttons)
-    └── sleep_manager/    # Deep sleep + timer/GPIO wake
-```
-
-The browser-based flash and USB-serial provisioning UIs live under `src/app/admin/firmware/` (`flash/` and `provision/`).
-
-## Security
-
-- **Transport**: HTTPS-only to the backend with CA-bundle certificate validation; the device refuses non-`https://` URLs and cleartext-downgrade redirects
-- **Device Authentication**: Trust-On-First-Use with X25519 ECDH encrypted token delivery
-- **Credentials at Rest** (server): AES-256-GCM encryption with server-side master key
-- **Token Comparison**: SHA-256 hash-then-compare (constant-time, no length leakage)
-- **OTA Firmware**: Ed25519 signed + SHA256 verified against the staged partition before it is made bootable
-- **NVS Storage** (device): WiFi credentials, device token, and X25519 key live in NVS — encrypted at rest under the production hardening profile ([SECURITY.md](SECURITY.md)); **not** encrypted in dev builds
-- **Rate Limiting**: Per-IP rate limits on all API endpoints
-- **Admin Auth**: Timing-safe password comparison, httpOnly session cookies
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| Server | Next.js 16.2, TypeScript 6, Drizzle ORM |
-| Database | PostgreSQL 15+ |
-| Admin UI | Tailwind CSS 4, React Server Components |
-| Firmware | ESP-IDF 6.0, C, ESP32-S3 / ESP32-P4 |
-| Rendering | @napi-rs/canvas, Floyd-Steinberg dithering, bitmap font atlas |
-| Crypto | X25519 ECDH, AES-256-GCM, Ed25519, HKDF-SHA256 |
-| CI/CD | GitHub Actions, release-please |
+Displays use the versioned `/api/v1/ink/*` endpoints for enrollment, config,
+rendering, telemetry, and issue reports. Automation should use a scoped service
+account against `/api/v1/admin/*`; the browser UI uses its authenticated session.
+`GET /api/v1/health` provides the Compose and reverse-proxy health check.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue first to discuss what you'd like to change. See [ROADMAP.md](ROADMAP.md) for planned work.
+Contributions are welcome. Open an issue before a substantial change, keep each
+pull request focused, and run the quality gates above. The release process is
+documented in [docs/RELEASING.md](docs/RELEASING.md); planned work lives in
+[ROADMAP.md](ROADMAP.md).
 
 ## Acknowledgments
 
-- [Seeed Studio](https://www.seeedstudio.com/) — reTerminal E-Series hardware
-- [Espressif](https://www.espressif.com/) — ESP-IDF and ESP32-S3
-- [Vercel](https://vercel.com/) — Next.js framework
+- [Seeed Studio](https://www.seeedstudio.com/) — reTerminal E-Series and D-Series hardware
+- [Espressif](https://www.espressif.com/) — ESP-IDF, ESP32-S3, ESP32-P4, and ESP32-C6
+- [Next.js](https://nextjs.org/) — server and administration interface
 - [Project Nayuki](https://www.nayuki.io/page/qr-code-generator-library) — QR code generation
-- [Rasmus Andersson](https://rsms.me/inter/) — Inter typeface
+- [Inter](https://rsms.me/inter/) — display typeface
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE) for details.
+Vellum is licensed under the [GNU Affero General Public License v3.0](LICENSE).
