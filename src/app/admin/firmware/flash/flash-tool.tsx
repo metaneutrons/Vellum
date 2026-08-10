@@ -49,6 +49,9 @@ export function FlashTool({ versions }: Props) {
   const selectedVersion = version || latestVersion;
   const selectedIsNotLatest = Boolean(version && latestVersion && version !== latestVersion);
   const manifestUrl = `/api/v1/admin/flash-manifest?model=${encodeURIComponent(model)}&channel=${encodeURIComponent(channel)}${selectedVersion ? `&version=${encodeURIComponent(selectedVersion)}` : ""}`;
+  const provisioningHref = selectedIsNotLatest && selectedVersion
+    ? `/admin/firmware/provision?firmwareChannel=${encodeURIComponent(channel)}&firmwarePinVersion=${encodeURIComponent(selectedVersion)}`
+    : "/admin/firmware/provision";
 
   useEffect(() => {
     if (loaded) return;
@@ -188,7 +191,7 @@ export function FlashTool({ versions }: Props) {
             </div>
           </div>
           <Link
-            href="/admin/firmware/provision"
+            href={provisioningHref}
             className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-fill-tertiary px-4 text-[15px] font-semibold text-label transition hover:bg-fill-secondary focus-ring active:scale-[0.97]"
           >
             {t("continueProvisioning")} <span aria-hidden="true">→</span>

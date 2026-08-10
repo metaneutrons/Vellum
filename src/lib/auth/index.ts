@@ -88,16 +88,28 @@ export const drizzleDeviceRepo: DeviceRepository = {
           // Unexpired: no expiry set, or expiry still in the future.
           or(isNull(provisioningVouchers.expiresAt), gt(provisioningVouchers.expiresAt, new Date())),
         ))
-        .returning({ token: provisioningVouchers.token });
+        .returning({
+          token: provisioningVouchers.token,
+          firmwareChannel: provisioningVouchers.firmwareChannel,
+          firmwarePinVersion: provisioningVouchers.firmwarePinVersion,
+        });
       if (rows.length === 0) return false;
       // Same transaction: if this insert throws, the voucher claim rolls back,
       // so the voucher stays available for a retry instead of being burned.
+      const voucher = rows[0];
+      const enrollment = {
+        status: "approved",
+        token,
+        approvedAt: new Date(),
+        ...(voucher.firmwareChannel ? { firmwareChannel: voucher.firmwareChannel } : {}),
+        ...(voucher.firmwarePinVersion ? { firmwarePinVersion: voucher.firmwarePinVersion } : {}),
+      };
       await tx
         .insert(devices)
-        .values({ mac, status: "approved", token, approvedAt: new Date() })
+        .values({ mac, ...enrollment })
         .onConflictDoUpdate({
           target: devices.mac,
-          set: { status: "approved", token, approvedAt: new Date() },
+          set: enrollment,
         });
       return true;
     }), "auth-claim-voucher-enroll");

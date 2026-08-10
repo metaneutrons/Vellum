@@ -31,7 +31,11 @@ const ZERO_TOUCH_TOKEN_LEN = 64;
 // Server URL fits the firmware Improv buffer (256B); keep well under one byte's worth.
 const MAX_URL_LEN = 255;
 
-export function ProvisionTool() {
+export function ProvisionTool({
+  firmware,
+}: {
+  firmware?: { channel: "stable" | "beta"; version: string };
+}) {
   const t = useTranslations("provision");
   const tx = useTranslations("provisionExtras");
   const [ssid, setSsid] = useState("");
@@ -44,7 +48,7 @@ export function ProvisionTool() {
   const [result, setResult] = useState<ProvisionResult | null>(null);
   const [scanning, setScanning] = useState(false);
   const [networks, setNetworks] = useState<WifiNetwork[]>([]);
-  const [zeroTouch, setZeroTouch] = useState(false);
+  const [zeroTouch, setZeroTouch] = useState(Boolean(firmware));
 
   useEffect(() => {
     setSupported(isWebSerialSupported());
@@ -73,11 +77,14 @@ export function ProvisionTool() {
     let deviceToken: string | undefined;
     if (zeroTouch) {
       try {
-        deviceToken = await createProvisioningVoucher(`${ssid.trim() || "device"} (USB)`);
+        deviceToken = await createProvisioningVoucher(`${ssid.trim() || "device"} (USB)`, firmware);
       } catch (e) {
+        const message = e instanceof Error && e.message === "firmware_version_unavailable"
+          ? tx("firmwarePinUnavailable")
+          : e instanceof Error ? e.message : t("unknown");
         setResult({
           ok: false,
-          error: `Could not mint a provisioning voucher: ${e instanceof Error ? e.message : "error"}`,
+          error: message,
         });
         setBusy(false);
         return;
@@ -228,6 +235,13 @@ export function ProvisionTool() {
             under Devices.
           </span>
         </label>
+
+        {firmware && (
+          <div className="mt-3 rounded-lg border border-accent/25 bg-accent/10 p-3 text-[13px] text-label-secondary">
+            <p className="font-semibold text-label">{tx("firmwarePinTitle", { version: firmware.version })}</p>
+            <p className="mt-1">{tx("firmwarePinDescription", { channel: firmware.channel, version: firmware.version })}</p>
+          </div>
+        )}
 
         <div className="mt-5">
           <Button
