@@ -16,12 +16,14 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_sleep.h"
 #include "esp_timer.h"
+#include "esp_netif_sntp.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -41,6 +43,50 @@
 #include "ota_manager.h"
 
 static const char *TAG = "vellum_main";
+
+/* Certificates cannot be validated safely until the RTC has a real date.
+ * NTP option 42 from DHCP is preferred; public servers are resilient fallback
+ * for networks that do not advertise one. */
+#define VELLUM_MIN_VALID_UNIX_TIME 1704067200LL /* 2024-01-01T00:00:00Z */
+
+static bool system_time_is_valid(void)
+{
+    time_t now = time(NULL);
+    return (int64_t)now >= VELLUM_MIN_VALID_UNIX_TIME;
+}
+
+static bool time_sync_prepare(void)
+{
+    if (system_time_is_valid()) return true;
+
+    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(
+        3, ESP_SNTP_SERVER_LIST("time.cloudflare.com", "time.google.com", "pool.ntp.org"));
+    config.server_from_dhcp = true;
+    esp_err_t err = esp_netif_sntp_init(&config);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "Unable to initialize NTP: %s", esp_err_to_name(err));
+        return false;
+    }
+    return true;
+}
+
+static bool time_sync_wait_for_valid_clock(void)
+{
+    if (system_time_is_valid()) return true;
+
+    /* lwIP may defer the very first SNTP probe while the DHCP lease settles.
+     * This is a boot-only wait; once synchronized the clock is reused. */
+    const int max_attempts = 25;
+    for (int attempt = 1; attempt <= max_attempts; ++attempt) {
+        if (esp_netif_sntp_sync_wait(pdMS_TO_TICKS(2000)) == ESP_OK &&
+            system_time_is_valid()) {
+            ESP_LOGI(TAG, "System clock synchronized via NTP");
+            return true;
+        }
+        ESP_LOGI(TAG, "Waiting for NTP time (%d/%d)", attempt, max_attempts);
+    }
+    return system_time_is_valid();
+}
 
 /* A USB-powered display must remain usable for Web Serial provisioning and
  * diagnostics. Keeping the panel awake matches the MCU sleep policy in
@@ -76,6 +122,26 @@ static void display_server_url(char *out, size_t out_len)
     }
 }
 
+/* Keep operational details private: the room display gets a concise recovery
+ * instruction, while exact mbedTLS codes remain in the USB serial log. */
+static void display_transport_error(vellum_http_failure_t failure)
+{
+    char safe_url[NVS_MAX_URL_LEN];
+    char message[NVS_MAX_URL_LEN + 72];
+    display_server_url(safe_url, sizeof(safe_url));
+
+    if (failure == VELLUM_HTTP_FAILURE_TLS_CERTIFICATE) {
+        snprintf(message, sizeof(message),
+                 "Secure connection failed\nCheck server certificate\n%s", safe_url);
+    } else if (failure == VELLUM_HTTP_FAILURE_TLS_HANDSHAKE) {
+        snprintf(message, sizeof(message),
+                 "Secure connection failed\nCheck server TLS settings\n%s", safe_url);
+    } else {
+        snprintf(message, sizeof(message), "Server unavailable\n%s", safe_url);
+    }
+    display_show_error(message);
+}
+
 static vellum_telemetry_t gather_telemetry(void)
 {
     vellum_telemetry_t t = {
@@ -91,8 +157,9 @@ static vellum_telemetry_t gather_telemetry(void)
  * TOFU hello handshake
  * ----------------------------------------------------------------------- */
 
-static bool perform_hello(void)
+static bool perform_hello(vellum_http_failure_t *failure)
 {
+    if (failure) *failure = VELLUM_HTTP_FAILURE_NONE;
     ESP_LOGI(TAG, "Performing hello handshake");
 
     vellum_http_response_t resp = {0};
@@ -101,6 +168,7 @@ static bool perform_hello(void)
     if (err != ESP_OK || resp.status_code != 200) {
         ESP_LOGW(TAG, "Hello failed: err=%s status=%d",
                  esp_err_to_name(err), resp.status_code);
+        if (failure) *failure = resp.failure;
         http_client_free_response(&resp);
         return false;
     }
@@ -213,11 +281,7 @@ static uint32_t perform_render(bool *render_ok)
         if (!wifi_manager_is_connected()) {
             display_show_wifi_error("Wi-Fi connection was lost", sleep_sec);
         } else {
-            char safe_url[NVS_MAX_URL_LEN];
-            char message[NVS_MAX_URL_LEN + 32];
-            display_server_url(safe_url, sizeof(safe_url));
-            snprintf(message, sizeof(message), "Server unavailable\n%s", safe_url);
-            display_show_error(message);
+            display_transport_error(resp.failure);
         }
         http_client_free_response(&resp);
         return sleep_sec;
@@ -244,12 +308,16 @@ static uint32_t perform_render(bool *render_ok)
     } else if (resp.status_code == 304) {
         ESP_LOGI(TAG, "Content unchanged — skipping display refresh");
         if (render_ok) *render_ok = true;   /* legitimate no-change */
+    } else if (resp.status_code == 204) {
+        ESP_LOGI(TAG, "No content assigned — showing idle screen");
+        display_show_no_content();
+        if (render_ok) *render_ok = true;   /* legitimate configured idle state */
     } else if (resp.status_code == 401) {
         ESP_LOGW(TAG, "401 Unauthorized");
         display_show_error("Unauthorized");
         nvs_manager_store_token("");
         http_client_set_token(NULL);
-        perform_hello();
+        perform_hello(NULL);
     } else if (resp.status_code >= 500 || resp.status_code == -1) {
         ESP_LOGW(TAG, "Server error (%d)", resp.status_code);
         display_show_error("Server Error");
@@ -456,6 +524,15 @@ void app_main(void)
 #endif
     }
 
+    /* Prepare SNTP before DHCP so a network-provided NTP server (option 42)
+     * is captured alongside the lease. */
+    if (!time_sync_prepare()) {
+        display_show_error("Time synchronization setup failed");
+        display_sleep_unless_usb_powered();
+        sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+        esp_restart();
+    }
+
     /* 3. Connect to Wi-Fi or enter SoftAP */
     wifi_result_t wifi_result = wifi_manager_connect_station();
 
@@ -487,6 +564,16 @@ void app_main(void)
 #endif
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
         /* On E-Paper: does not return. On D1001: returns, then restart to re-init WiFi */
+        esp_restart();
+    }
+
+    /* A fresh boot has no trustworthy wall clock. Do not weaken certificate
+     * verification or send device credentials until NTP has set the time. */
+    if (!time_sync_wait_for_valid_clock()) {
+        ESP_LOGW(TAG, "NTP did not provide a valid system time");
+        display_show_error("Time synchronization failed\nCheck network access");
+        display_sleep_unless_usb_powered();
+        sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
         esp_restart();
     }
 
@@ -551,9 +638,15 @@ void app_main(void)
     if (nvs_manager_get_token(token, sizeof(token)) == ESP_OK && strlen(token) > 0) {
         http_client_set_token(token);
     } else {
-        while (!perform_hello()) {
+        vellum_http_failure_t hello_failure;
+        while (!perform_hello(&hello_failure)) {
             ESP_LOGW(TAG, "No token after hello — device may be pending or server unreachable");
-            display_show_error("No Server");
+            if (hello_failure == VELLUM_HTTP_FAILURE_TLS_CERTIFICATE ||
+                hello_failure == VELLUM_HTTP_FAILURE_TLS_HANDSHAKE) {
+                display_transport_error(hello_failure);
+            } else {
+                display_show_error("No Server");
+            }
             display_sleep_unless_usb_powered();
             sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
             /* On D1001 this returns after delay; on E-Paper it does not return */

@@ -452,7 +452,14 @@ void display_show_error(const char *message)
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_set_layout(scr, LV_LAYOUT_NONE);
     int content_top = status_content_top(p);
-    int message_top = content_top + (p->height > 1000 ? 100 : 50);
+    const bool large_panel = p->height > 1000;
+    /* Give the warning mark its own, symmetric visual space.  Transform scale
+     * expands from the glyph centre, hence the half-expansion top inset. */
+    int warning_top = content_top + (large_panel ? 32 : 18);
+    /* 48px glyph × 150% = 72px. status_content_top() already reserves the
+     * visual top margin below the logo (36px / 18px), so mirror it below the
+     * visible warning glyph before the message begins. */
+    int message_top = content_top + (large_panel ? 148 : 108);
 
     add_status_logo(scr);
 
@@ -460,7 +467,8 @@ void display_show_error(const char *message)
     lv_label_set_text(icon, LV_SYMBOL_WARNING);
     lv_obj_set_style_text_font(icon, p->font_lg, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
-    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, content_top);
+    lv_obj_set_style_transform_scale(icon, 384, 0); /* 150%; 256 is 100% */
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, warning_top);
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text(lbl, message);
@@ -469,6 +477,39 @@ void display_show_error(const char *message)
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl, p->width * 3 / 4);
     lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, message_top);
+
+    lvgl_refresh();
+}
+
+void display_show_no_content(void)
+{
+    if (!s_lvgl_disp) return;
+    const vellum_panel_t *p = vellum_panel();
+    if (screen_unchanged("no-content")) return;
+
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_set_style_bg_color(scr, p->bg, 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_layout(scr, LV_LAYOUT_NONE);
+    add_status_logo(scr);
+
+    const int content_top = status_content_top(p);
+    lv_obj_t *title = lv_label_create(scr);
+    lv_label_set_text(title, "No content assigned");
+    lv_obj_set_style_text_font(title, p->font_lg, 0);
+    lv_obj_set_style_text_color(title, p->fg, 0);
+    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(title, p->width * 3 / 4);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, content_top + (p->height > 1000 ? 90 : 54));
+
+    lv_obj_t *hint = lv_label_create(scr);
+    lv_label_set_text(hint, "Assign content in Vellum");
+    lv_obj_set_style_text_font(hint, p->font_sm, 0);
+    lv_obj_set_style_text_color(hint, p->muted, 0);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(hint, p->width * 3 / 4);
+    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, content_top + (p->height > 1000 ? 148 : 100));
 
     lvgl_refresh();
 }

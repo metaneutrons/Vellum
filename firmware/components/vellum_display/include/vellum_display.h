@@ -46,6 +46,8 @@ void display_show_connecting(const char *ssid);
 /** Show a public-safe Wi-Fi failure screen and automatic retry timing. */
 void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds);
 void display_show_ota_progress(uint8_t percent);
+/** Show the neutral state returned when no content is assigned to this display. */
+void display_show_no_content(void);
 void display_show_error(const char *message);
 void display_show_low_battery(void);
 esp_err_t display_update_raw(const uint8_t *buffer, size_t len);

@@ -46,6 +46,10 @@ typedef struct {
     char   *buf;
     size_t  len;
     size_t  cap;
+    /* Set only after the TCP transport is established.  A subsequent HTTPS
+     * failure with no HTTP response is a TLS handshake failure even when the
+     * ESP-IDF error tracker has no mbedTLS code (for example, peer close). */
+    bool    transport_connected;
 } resp_buf_t;
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
@@ -54,6 +58,9 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
     if (!rb) return ESP_OK;
 
     switch (evt->event_id) {
+    case HTTP_EVENT_ON_CONNECTED:
+        rb->transport_connected = true;
+        break;
     case HTTP_EVENT_ON_DATA:
         if (evt->data_len > 0) {
             /* Enforce response size limit */
@@ -107,6 +114,38 @@ static void set_auth_header(esp_http_client_handle_t client)
     if (strlen(s_token) > 0) {
         esp_http_client_set_header(client, "X-Device-Token", s_token);
     }
+}
+
+/* Preserve actionable TLS diagnostics before the HTTP client is cleaned up.
+ * The public display must never expose implementation codes, but operators can
+ * retrieve them from USB serial logs when investigating a certificate change. */
+static void record_transport_failure(esp_http_client_handle_t client,
+                                     vellum_http_response_t *resp,
+                                     const char *operation,
+                                     esp_err_t err,
+                                     bool transport_connected)
+{
+    resp->failure = VELLUM_HTTP_FAILURE_TRANSPORT;
+    resp->tls_error_code = 0;
+    resp->tls_verify_flags = 0;
+
+    int tls_code = 0;
+    int tls_flags = 0;
+    esp_err_t tls_err = esp_http_client_get_and_clear_last_tls_error(
+        client, &tls_code, &tls_flags);
+    resp->tls_error_code = tls_code;
+    resp->tls_verify_flags = tls_flags;
+
+    if (tls_flags != 0) {
+        resp->failure = VELLUM_HTTP_FAILURE_TLS_CERTIFICATE;
+    } else if (tls_code != 0) {
+        resp->failure = VELLUM_HTTP_FAILURE_TLS_HANDSHAKE;
+    }
+
+    ESP_LOGW(TAG, "%s failed: %s (connected=%s tls=%s code=%d flags=0x%x)",
+             operation, esp_err_to_name(err), transport_connected ? "yes" : "no",
+             esp_err_to_name(tls_err),
+             tls_code, (unsigned int)tls_flags);
 }
 
 /* ---- Public API -------------------------------------------------------- */
@@ -290,13 +329,19 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     esp_http_client_set_post_field(client, json_str, strlen(json_str));
 
     esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
-        resp->status_code = esp_http_client_get_status_code(client);
+    resp->status_code = esp_http_client_get_status_code(client);
+    /* esp_http_client returns ESP_ERR_NOT_SUPPORTED for a 401 challenge even
+     * when the HTTPS exchange itself completed.  Preserve that HTTP response
+     * so the caller can refresh its device token instead of showing a
+     * transport/TLS error. */
+    if (err == ESP_OK || resp->status_code > 0) {
         resp->body = rb.buf;
         resp->body_len = rb.len;
         ESP_LOGI(TAG, "POST /hello → %d", resp->status_code);
+        err = ESP_OK;
     } else {
-        ESP_LOGW(TAG, "POST /hello failed: %s", esp_err_to_name(err));
+        record_transport_failure(client, resp, "POST /hello", err,
+                                 rb.transport_connected);
         free(rb.buf);
     }
 
@@ -354,8 +399,11 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
     }
 
     esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
-        resp->status_code = esp_http_client_get_status_code(client);
+    resp->status_code = esp_http_client_get_status_code(client);
+    /* A complete HTTP error response (notably 401 with WWW-Authenticate)
+     * is not a TLS failure.  Let the caller inspect its status and recover
+     * its device token. */
+    if (err == ESP_OK || resp->status_code > 0) {
 
         /* Parse X-Sleep-Duration header */
         char *sleep_hdr_val = NULL;
@@ -389,8 +437,10 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
             rb.buf = NULL;
             ESP_LOGI(TAG, "GET /render → %d", resp->status_code);
         }
+        err = ESP_OK;
     } else {
-        ESP_LOGW(TAG, "GET /render failed: %s", esp_err_to_name(err));
+        record_transport_failure(client, resp, "GET /render", err,
+                                 rb.transport_connected);
         free(rb.buf);
     }
 

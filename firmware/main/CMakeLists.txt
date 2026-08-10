@@ -13,4 +13,5 @@ idf_component_register(
         secure_channel
         ota_manager
         esp_driver_gpio
+        esp_netif
 )
