@@ -45,8 +45,8 @@
 static const char *TAG = "vellum_main";
 
 /* Certificates cannot be validated safely until the RTC has a real date.
- * NTP option 42 from DHCP is preferred; public servers are resilient fallback
- * for networks that do not advertise one. */
+ * A provisioned NTP server is an explicit administrator override. Otherwise,
+ * DHCP option 42 is preferred and public servers are resilient fallbacks. */
 #define VELLUM_MIN_VALID_UNIX_TIME 1704067200LL /* 2024-01-01T00:00:00Z */
 
 static bool system_time_is_valid(void)
@@ -61,7 +61,21 @@ static bool time_sync_prepare(void)
 
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(
         3, ESP_SNTP_SERVER_LIST("time.cloudflare.com", "time.google.com", "pool.ntp.org"));
-    config.server_from_dhcp = true;
+    /* esp-netif retains the server-name pointer after initialization, so this
+     * must outlive this setup function. */
+    static char provisioned_server[NVS_MAX_NTP_SERVER_LEN];
+    provisioned_server[0] = '\0';
+    if (nvs_manager_get_ntp_server(provisioned_server, sizeof(provisioned_server)) == ESP_OK &&
+        provisioned_server[0]) {
+        /* An explicit provisioning choice must be deterministic: do not let a
+         * DHCP lease or fallback server silently replace the configured source. */
+        config.servers[0] = provisioned_server;
+        config.num_of_servers = 1;
+        config.server_from_dhcp = false;
+        ESP_LOGI(TAG, "Using provisioned NTP server");
+    } else {
+        config.server_from_dhcp = true;
+    }
     esp_err_t err = esp_netif_sntp_init(&config);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
         ESP_LOGW(TAG, "Unable to initialize NTP: %s", esp_err_to_name(err));

@@ -317,5 +317,6 @@
   "wizard": {
     "progress": "Progreso",
     "stepOf": "Paso {current} de {total}"
-  }
+  },
+  "provisionNtp": { "label": "Servidor NTP (opcional)", "hint": "Anula el NTP de DHCP y los servidores de respaldo del firmware. Déjelo vacío para la política estándar.", "placeholder": "p. ej., ntp.interno.example", "tooLong": "Debe tener como máximo {max} bytes.", "profileTooLarge": "El perfil es demasiado grande para una trama USB ({current}/{max} bytes); acorte la URL o el servidor NTP." }
 }

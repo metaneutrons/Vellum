@@ -10,9 +10,9 @@
  *
  * where checksum = (sum of the first 9+len bytes) & 0xFF.
  *
- * Vellum extends the standard Improv `WIFI_SETTINGS` RPC with an optional THIRD
- * length-prefixed string carrying the server URL, so a single command can push
- * a complete device profile (SSID + password + server URL).
+ * Vellum extends the standard Improv `WIFI_SETTINGS` RPC with optional
+ * length-prefixed strings for the server URL, zero-touch voucher, and an
+ * administrator-selected NTP server.
  *
  * The pure encode/parse helpers here are environment-agnostic and unit-tested.
  * `provisionOverSerial()` drives the actual Web Serial connection (browser only).
@@ -80,9 +80,8 @@ export function encodeRpcCommand(cmd: number, cmdPayload: number[]): Uint8Array 
 }
 
 /**
- * Encode a WIFI_SETTINGS command carrying ssid + password + optional serverUrl.
- * The cmd payload is `ssid_len|ssid|pass_len|pass|[url_len|url]`, exactly what
- * `improv_handle_wifi_settings` parses.
+ * Encode a WIFI_SETTINGS command carrying SSID, password, and optional profile
+ * fields. The NTP server is fifth to preserve the existing URL/token protocol.
  */
 /** Encode a SCAN_WIFI command (no payload). */
 export function encodeScanWifi(): Uint8Array {
@@ -99,13 +98,14 @@ export function encodeWifiSettings(
   password: string,
   serverUrl?: string,
   deviceToken?: string,
+  ntpServer?: string,
 ): Uint8Array {
   const payload = [...lenPrefixed(ssid), ...lenPrefixed(password)];
-  // The device token is the optional 4TH string; the server URL is the 3rd and
-  // acts as its positional separator, so emit an empty URL placeholder if a
-  // token is supplied without one.
-  if (serverUrl || deviceToken) payload.push(...lenPrefixed(serverUrl ?? ""));
-  if (deviceToken) payload.push(...lenPrefixed(deviceToken));
+  // The URL is third, token fourth, and NTP fifth. Emit positional empty
+  // placeholders when a later field is provided.
+  if (serverUrl || deviceToken || ntpServer !== undefined) payload.push(...lenPrefixed(serverUrl ?? ""));
+  if (deviceToken || ntpServer !== undefined) payload.push(...lenPrefixed(deviceToken ?? ""));
+  if (ntpServer !== undefined) payload.push(...lenPrefixed(ntpServer));
   if (payload.length > MAX_WIFI_SETTINGS_PAYLOAD) {
     // The payload becomes a 1-byte cmd_len (and the frame's 1-byte data_len is
     // cmd_len+2), so it can't exceed 253 or the length wraps and the firmware
@@ -129,11 +129,13 @@ export function wifiSettingsPayloadLength(
   password: string,
   serverUrl?: string,
   deviceToken?: string,
+  ntpServer?: string,
 ): number {
   const enc = new TextEncoder();
   let n = 1 + enc.encode(ssid).length + 1 + enc.encode(password).length;
-  if (serverUrl || deviceToken) n += 1 + enc.encode(serverUrl ?? "").length;
-  if (deviceToken) n += 1 + enc.encode(deviceToken).length;
+  if (serverUrl || deviceToken || ntpServer !== undefined) n += 1 + enc.encode(serverUrl ?? "").length;
+  if (deviceToken || ntpServer !== undefined) n += 1 + enc.encode(deviceToken ?? "").length;
+  if (ntpServer !== undefined) n += 1 + enc.encode(ntpServer).length;
   return n;
 }
 
@@ -266,6 +268,8 @@ export interface ProvisionOptions {
   ssid: string;
   password: string;
   serverUrl?: string;
+  /** Optional administrator NTP server. Overrides DHCP and firmware fallbacks. */
+  ntpServer?: string;
   /** Optional pre-provisioning voucher token for zero-touch enrolment. */
   deviceToken?: string;
   /** Progress callback for UI. */
@@ -448,7 +452,7 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
     } else {
       onPhase("sending");
       await writer.write(
-        encodeWifiSettings(opts.ssid, opts.password, opts.serverUrl, opts.deviceToken),
+        encodeWifiSettings(opts.ssid, opts.password, opts.serverUrl, opts.deviceToken, opts.ntpServer),
       );
 
       while (!settled) {

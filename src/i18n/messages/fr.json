@@ -317,5 +317,6 @@
   "wizard": {
     "progress": "Progression",
     "stepOf": "Étape {current} sur {total}"
-  }
+  },
+  "provisionNtp": { "label": "Serveur NTP (facultatif)", "hint": "Remplace le NTP DHCP et les serveurs de secours du firmware. Laissez vide pour la règle standard.", "placeholder": "ex. ntp.interne.example", "tooLong": "Doit contenir au plus {max} octets.", "profileTooLarge": "Le profil est trop volumineux pour une trame USB ({current}/{max} octets) ; raccourcissez l’URL ou le serveur NTP." }
 }

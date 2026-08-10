@@ -30,6 +30,7 @@ function firmwareParse(frame: Uint8Array): {
   pass?: string;
   url?: string;
   token?: string;
+  ntp?: string;
 } {
   const b = Array.from(frame);
   if (b.length < 10) return { ok: false };
@@ -58,6 +59,7 @@ function firmwareParse(frame: Uint8Array): {
   const pass = dec.decode(Uint8Array.from(p.slice(2 + ssidLen, 2 + ssidLen + passLen)));
   let url: string | undefined;
   let token: string | undefined;
+  let ntp: string | undefined;
   let pos = 2 + ssidLen + passLen;
   if (pos < p.length) {
     const urlLen = p[pos];
@@ -69,10 +71,17 @@ function firmwareParse(frame: Uint8Array): {
         if (tokLen > 0 && pos + 1 + tokLen <= p.length) {
           token = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + tokLen)));
         }
+        pos += 1 + tokLen;
+        if (pos < p.length) {
+          const ntpLen = p[pos];
+          if (ntpLen > 0 && pos + 1 + ntpLen === p.length) {
+            ntp = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + ntpLen)));
+          }
+        }
       }
     }
   }
-  return { ok: true, ssid, pass, url, token };
+  return { ok: true, ssid, pass, url, token, ntp };
 }
 
 describe("Improv WIFI_SETTINGS encoding", () => {
@@ -102,6 +111,22 @@ describe("Improv WIFI_SETTINGS encoding", () => {
     const parsed = firmwareParse(encodeWifiSettings("Net", "pw", undefined, "tok123"));
     expect(parsed.url).toBeUndefined();
     expect(parsed.token).toBe("tok123");
+  });
+
+  it("carries the administrator NTP server as the fifth string", () => {
+    const parsed = firmwareParse(
+      encodeWifiSettings("Net", "pw", "https://v.io", "tok123", "ntp.internal.example"),
+    );
+    expect(parsed.url).toBe("https://v.io");
+    expect(parsed.token).toBe("tok123");
+    expect(parsed.ntp).toBe("ntp.internal.example");
+  });
+
+  it("uses positional empty URL and token strings for an NTP-only override", () => {
+    const parsed = firmwareParse(encodeWifiSettings("Net", "pw", undefined, undefined, "192.168.16.1"));
+    expect(parsed.url).toBeUndefined();
+    expect(parsed.token).toBeUndefined();
+    expect(parsed.ntp).toBe("192.168.16.1");
   });
 
   it("omits the URL string when serverUrl is absent (2-string form)", () => {
@@ -141,18 +166,19 @@ describe("WIFI_SETTINGS payload-size guard", () => {
   // The payload becomes a single-byte cmd_len, so it must stay ≤253 or the
   // length wraps and the firmware silently rejects (or misreads) the frame.
   it("predicts the exact encoded payload length (matches the real frame)", () => {
-    const cases: [string, string, string?, string?][] = [
-      ["MyNet", "s3cret!!", "https://vellum.example.com", undefined],
-      ["Net", "pw", "https://v.io", "a".repeat(64)],
-      ["Net", "pw", undefined, "tok123"],
-      ["Café-WLAN", "", "http://x", undefined],
-      ["Net", "pw", undefined, undefined],
+    const cases: [string, string, string?, string?, string?][] = [
+      ["MyNet", "s3cret!!", "https://vellum.example.com", undefined, undefined],
+      ["Net", "pw", "https://v.io", "a".repeat(64), undefined],
+      ["Net", "pw", undefined, "tok123", undefined],
+      ["Café-WLAN", "", "http://x", undefined, undefined],
+      ["Net", "pw", undefined, undefined, "ntp.internal"],
+      ["Net", "pw", undefined, undefined, undefined],
     ];
-    for (const [ssid, pass, url, tok] of cases) {
-      const frame = encodeWifiSettings(ssid, pass, url, tok);
+    for (const [ssid, pass, url, tok, ntp] of cases) {
+      const frame = encodeWifiSettings(ssid, pass, url, tok, ntp);
       // frame[8] is data_len = cmd_len + 2 (cmd byte + cmd_len byte); the payload
       // is cmd_len, so predicted length === data_len - 2.
-      expect(wifiSettingsPayloadLength(ssid, pass, url, tok)).toBe(frame[8] - 2);
+      expect(wifiSettingsPayloadLength(ssid, pass, url, tok, ntp)).toBe(frame[8] - 2);
     }
   });
 
