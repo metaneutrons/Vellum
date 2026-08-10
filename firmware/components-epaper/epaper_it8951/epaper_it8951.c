@@ -288,6 +288,13 @@ esp_err_t it8951_get_info(it8951_dev_info_t *info)
 
 esp_err_t it8951_load_image_4bpp(const uint8_t *data, uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
+    if (!data || w == 0 || h == 0 || (x % 4) != 0 || (w % 4) != 0 ||
+        (uint32_t)x + w > s_info.width || (uint32_t)y + h > s_info.height) {
+        ESP_LOGE(TAG, "Invalid 4bpp image area %ux%u at (%u,%u); x/w must be 4-pixel aligned",
+                 w, h, x, y);
+        return ESP_ERR_INVALID_ARG;
+    }
+
     /* The controller is initialised once in it8951_init() and remains awake for
      * the render. Resetting it for every LVGL chunk made one E1003 frame take
      * tens of seconds and prevented useful OTA progress updates. */
