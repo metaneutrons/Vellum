@@ -17,6 +17,7 @@
 #include "driver/ledc.h"
 #include "driver/gpio.h"
 #include "driver/usb_serial_jtag.h"
+#include <sys/time.h>
 #if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
 #include "driver/i2c_master.h"
 #endif
@@ -227,6 +228,20 @@ bool board_is_usb_powered(void)
      * ESP32-S3 USB-Serial-JTAG controller. */
     return usb_serial_jtag_is_connected();
 #endif
+}
+
+esp_err_t board_set_utc_time(time_t value)
+{
+    struct timeval tv = { .tv_sec = value, .tv_usec = 0 };
+    if (settimeofday(&tv, NULL) != 0) return ESP_FAIL;
+#if CONFIG_VELLUM_PANEL_D1001
+    esp_err_t rtc_err = d1001_rtc_set_time(value);
+    if (rtc_err != ESP_OK) {
+        ESP_LOGW(TAG, "System time set, but D1001 RTC write failed: %s",
+                 esp_err_to_name(rtc_err));
+    }
+#endif
+    return ESP_OK;
 }
 
 /* ── Status LED (active-low) ──────────────────────────────────── */

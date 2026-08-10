@@ -31,6 +31,7 @@ function firmwareParse(frame: Uint8Array): {
   url?: string;
   token?: string;
   ntp?: string;
+  time?: string;
 } {
   const b = Array.from(frame);
   if (b.length < 10) return { ok: false };
@@ -60,6 +61,7 @@ function firmwareParse(frame: Uint8Array): {
   let url: string | undefined;
   let token: string | undefined;
   let ntp: string | undefined;
+  let time: string | undefined;
   let pos = 2 + ssidLen + passLen;
   if (pos < p.length) {
     const urlLen = p[pos];
@@ -74,14 +76,21 @@ function firmwareParse(frame: Uint8Array): {
         pos += 1 + tokLen;
         if (pos < p.length) {
           const ntpLen = p[pos];
-          if (ntpLen > 0 && pos + 1 + ntpLen === p.length) {
+          if (ntpLen > 0 && pos + 1 + ntpLen <= p.length) {
             ntp = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + ntpLen)));
+          }
+          pos += 1 + ntpLen;
+          if (pos < p.length) {
+            const timeLen = p[pos];
+            if (timeLen > 0 && pos + 1 + timeLen === p.length) {
+              time = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + timeLen)));
+            }
           }
         }
       }
     }
   }
-  return { ok: true, ssid, pass, url, token, ntp };
+  return { ok: true, ssid, pass, url, token, ntp, time };
 }
 
 describe("Improv WIFI_SETTINGS encoding", () => {
@@ -129,6 +138,33 @@ describe("Improv WIFI_SETTINGS encoding", () => {
     expect(parsed.ntp).toBe("192.168.16.1");
   });
 
+  it("carries browser UTC as the sixth string", () => {
+    const parsed = firmwareParse(
+      encodeWifiSettings("Net", "pw", "https://v.io", "tok123", "ntp.internal", 1_786_291_200),
+    );
+    expect(parsed.ntp).toBe("ntp.internal");
+    expect(parsed.time).toBe("1786291200");
+  });
+
+  it("uses all positional placeholders for a timestamp-only profile", () => {
+    const parsed = firmwareParse(
+      encodeWifiSettings("Net", "pw", undefined, undefined, undefined, 1_786_291_200),
+    );
+    expect(parsed.url).toBeUndefined();
+    expect(parsed.token).toBeUndefined();
+    expect(parsed.ntp).toBeUndefined();
+    expect(parsed.time).toBe("1786291200");
+  });
+
+  it("rejects timestamps outside the RTC-supported range", () => {
+    expect(() => encodeWifiSettings("Net", "pw", undefined, undefined, undefined, Number.NaN)).toThrow(
+      /UTC timestamp/,
+    );
+    expect(() => encodeWifiSettings("Net", "pw", undefined, undefined, undefined, 1_700_000_000)).toThrow(
+      /UTC timestamp/,
+    );
+  });
+
   it("omits the URL string when serverUrl is absent (2-string form)", () => {
     const frame = encodeWifiSettings("Net", "pw");
     const parsed = firmwareParse(frame);
@@ -166,19 +202,20 @@ describe("WIFI_SETTINGS payload-size guard", () => {
   // The payload becomes a single-byte cmd_len, so it must stay ≤253 or the
   // length wraps and the firmware silently rejects (or misreads) the frame.
   it("predicts the exact encoded payload length (matches the real frame)", () => {
-    const cases: [string, string, string?, string?, string?][] = [
+    const cases: [string, string, string?, string?, string?, number?][] = [
       ["MyNet", "s3cret!!", "https://vellum.example.com", undefined, undefined],
       ["Net", "pw", "https://v.io", "a".repeat(64), undefined],
       ["Net", "pw", undefined, "tok123", undefined],
       ["Café-WLAN", "", "http://x", undefined, undefined],
       ["Net", "pw", undefined, undefined, "ntp.internal"],
+      ["Net", "pw", undefined, undefined, undefined, 1_786_291_200],
       ["Net", "pw", undefined, undefined, undefined],
     ];
-    for (const [ssid, pass, url, tok, ntp] of cases) {
-      const frame = encodeWifiSettings(ssid, pass, url, tok, ntp);
+    for (const [ssid, pass, url, tok, ntp, time] of cases) {
+      const frame = encodeWifiSettings(ssid, pass, url, tok, ntp, time);
       // frame[8] is data_len = cmd_len + 2 (cmd byte + cmd_len byte); the payload
       // is cmd_len, so predicted length === data_len - 2.
-      expect(wifiSettingsPayloadLength(ssid, pass, url, tok, ntp)).toBe(frame[8] - 2);
+      expect(wifiSettingsPayloadLength(ssid, pass, url, tok, ntp, time)).toBe(frame[8] - 2);
     }
   });
 

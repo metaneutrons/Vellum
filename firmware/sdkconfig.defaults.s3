@@ -18,6 +18,13 @@ CONFIG_NVS_ENCRYPTION=n
 # Wi-Fi (native, no remote)
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
 CONFIG_ESP_WIFI_REMOTE_ENABLED=n
+# Keep WPA3-Personal support explicit instead of relying on ESP-IDF defaults.
+# Vellum accepts both legacy SAE Hunt-and-Peck and WPA3 H2E, including the
+# compatibility mode used by access points during WPA2/WPA3 transitions.
+CONFIG_ESP_WIFI_ENABLE_WPA3_SAE=y
+CONFIG_ESP_WIFI_ENABLE_SAE_H2E=y
+CONFIG_ESP_WIFI_ENABLE_SAE_PK=y
+CONFIG_ESP_WIFI_WPA3_COMPATIBLE_SUPPORT=y
 
 # GPIO sleep config
 CONFIG_GPIO_ESP32_SUPPORT_SWITCH_SLP_PULL=n

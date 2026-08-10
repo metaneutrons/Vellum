@@ -61,6 +61,26 @@ static volatile bool s_credentials_received = false;
 static uint8_t s_last_disconnect_reason = 0;
 static wifi_failure_kind_t s_last_failure = WIFI_FAILURE_UNKNOWN;
 
+static const char *wifi_auth_mode_name(wifi_auth_mode_t authmode)
+{
+    switch (authmode) {
+    case WIFI_AUTH_OPEN: return "open";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA-PSK";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2-PSK";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2-PSK";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3-SAE";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/WPA3 transition";
+    case WIFI_AUTH_OWE: return "OWE";
+    case WIFI_AUTH_WPA3_ENT_192: return "WPA3-Enterprise 192-bit";
+    case WIFI_AUTH_DPP: return "DPP";
+    case WIFI_AUTH_WPA3_ENTERPRISE: return "WPA3-Enterprise";
+    case WIFI_AUTH_WPA2_WPA3_ENTERPRISE: return "WPA2/WPA3-Enterprise";
+    case WIFI_AUTH_WPA_ENTERPRISE: return "WPA-Enterprise";
+    default: return "unknown";
+    }
+}
+
 /* ---- Captive portal HTML (embedded) ------------------------------------ */
 
 static const char PORTAL_HTML[] =
@@ -185,6 +205,13 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
 {
     if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
+    } else if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
+        const wifi_event_sta_connected_t *event =
+            (const wifi_event_sta_connected_t *)event_data;
+        if (event) {
+            ESP_LOGI(TAG, "Associated using %s (channel=%u)",
+                     wifi_auth_mode_name(event->authmode), event->channel);
+        }
     } else if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         const wifi_event_sta_disconnected_t *event =
             (const wifi_event_sta_disconnected_t *)event_data;
@@ -562,6 +589,27 @@ wifi_result_t wifi_manager_connect_station(void)
      * networks. Requiring WPA2 unconditionally makes those valid profiles
      * impossible to join despite advertising them as open in scan results. */
     wifi_config.sta.threshold.authmode = pass[0] ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+    if (pass[0]) {
+        /* Scan every matching BSSID and prefer the strongest security mode.
+         * A fast scan can otherwise stop at a WPA2 BSSID before discovering a
+         * WPA3-capable BSSID broadcasting the same SSID. */
+        wifi_config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+        wifi_config.sta.sort_method = WIFI_CONNECT_AP_BY_SECURITY;
+
+        /* WPA3-Personal requires PMF and SAE. Keep PMF optional at the policy
+         * level so the same saved profile still works with WPA2-only and
+         * WPA2/WPA3 transition networks; the driver requires it automatically
+         * when SAE is negotiated. Supporting both PWE derivation methods is
+         * required for compatibility with older WPA3 APs and modern H2E APs. */
+        wifi_config.sta.pmf_cfg.capable = true;
+        wifi_config.sta.pmf_cfg.required = false;
+        wifi_config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+        wifi_config.sta.sae_pk_mode = WPA3_SAE_PK_MODE_AUTOMATIC;
+        wifi_config.sta.transition_disable = 0;
+#if CONFIG_ESP_WIFI_WPA3_COMPATIBLE_SUPPORT
+        wifi_config.sta.disable_wpa3_compatible_mode = 0;
+#endif
+    }
 
     wifi_mode_t prev_mode = WIFI_MODE_NULL;
     esp_wifi_get_mode(&prev_mode);

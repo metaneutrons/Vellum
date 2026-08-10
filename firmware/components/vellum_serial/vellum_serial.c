@@ -16,9 +16,11 @@
 #include "nvs_manager.h"
 #include "wifi_manager.h"
 #include "transport_policy.h"
+#include "board.h"
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_console.h"
@@ -148,61 +150,82 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     char pass[65] = {0};
     if (pass_len > 0) memcpy(pass, &data[2 + ssid_len], pass_len > 64 ? 64 : pass_len);
 
-    /* Optional third string: server URL (also the Improv redirect target).
-     * Optional fourth string: a pre-provisioning device token (zero-touch
-     * enrolment). Optional fifth string: an administrator-provisioned NTP
-     * server, which overrides DHCP and firmware fallbacks. */
+    /* Optional positional strings: server URL, zero-touch token, NTP override,
+     * then the provisioning client's current UTC Unix time. */
     char redirect[NVS_MAX_URL_LEN] = {0};
     char supplied_url[NVS_MAX_URL_LEN] = {0};
+    char supplied_token[NVS_MAX_TOKEN_LEN] = {0};
     char supplied_ntp[NVS_MAX_NTP_SERVER_LEN] = {0};
+    bool token_supplied = false;
+    bool ntp_supplied = false;
+    bool time_supplied = false;
+    time_t supplied_time = 0;
     size_t pos = (size_t)2 + ssid_len + pass_len;
     if (pos < len) {
         uint8_t url_len = data[pos];
-        if (pos + 1 + url_len <= (size_t)len) {
-            if (url_len > 0) {
-                /* url_len is uint8_t (<=255) and NVS_MAX_URL_LEN is 256, so a full
-                 * copy always leaves room for the NUL — a `url_len >= NVS_MAX_URL_LEN`
-                 * clamp is provably always-false and trips -Werror=type-limits. Assert
-                 * the invariant so shrinking the buffer can't silently overflow. */
-                _Static_assert(NVS_MAX_URL_LEN >= 256, "url buffer must hold any uint8_t-length value + NUL");
-                memcpy(supplied_url, &data[pos + 1], url_len);
-                if (!provisioning_url_allowed(supplied_url)) {
-                    /* Do not log the supplied URL: it may contain userinfo or tokens. */
-                    ESP_LOGW(TAG, "Improv: server URL rejected by build policy");
-                    improv_send_error(IMPROV_ERROR_INSECURE_URL);
-                    return; /* Store neither Wi-Fi nor URL from a rejected profile. */
-                }
-            }
-            pos += 1 + url_len; /* advance past the URL string (even if empty) */
-
-            if (pos < len) {
-                uint8_t tok_len = data[pos];
-                if (pos + 1 + tok_len > (size_t)len) {
-                    improv_send_error(IMPROV_ERROR_INVALID_RPC);
-                    return;
-                }
-                if (tok_len > 0) {
-                    char tok[NVS_MAX_TOKEN_LEN] = {0};
-                    memcpy(tok, &data[pos + 1], tok_len >= NVS_MAX_TOKEN_LEN ? NVS_MAX_TOKEN_LEN - 1 : tok_len);
-                    nvs_manager_store_token(tok);
-                    ESP_LOGI(TAG, "Improv: pre-provisioning token stored");
-                }
-                pos += 1 + tok_len;
-
-                if (pos < len) {
-                    uint8_t ntp_len = data[pos];
-                    /* ntp_len is uint8_t and the NVS buffer has room for any
-                     * value plus a NUL terminator. */
-                    _Static_assert(NVS_MAX_NTP_SERVER_LEN >= 256,
-                                   "NTP buffer must hold any uint8_t-length value + NUL");
-                    if (pos + 1 + ntp_len != (size_t)len) {
-                        improv_send_error(IMPROV_ERROR_INVALID_RPC);
-                        return;
-                    }
-                    if (ntp_len > 0) memcpy(supplied_ntp, &data[pos + 1], ntp_len);
-                }
-            }
+        if (pos + 1 + url_len > (size_t)len) {
+            improv_send_error(IMPROV_ERROR_INVALID_RPC);
+            return;
         }
+        _Static_assert(NVS_MAX_URL_LEN >= 256, "url buffer must hold any uint8_t-length value + NUL");
+        if (url_len > 0) memcpy(supplied_url, &data[pos + 1], url_len);
+        if (!provisioning_url_allowed(supplied_url)) {
+            ESP_LOGW(TAG, "Improv: server URL rejected by build policy");
+            improv_send_error(IMPROV_ERROR_INSECURE_URL);
+            return;
+        }
+        pos += 1 + url_len;
+
+        if (pos < len) {
+            uint8_t tok_len = data[pos];
+            if (pos + 1 + tok_len > (size_t)len) {
+                improv_send_error(IMPROV_ERROR_INVALID_RPC);
+                return;
+            }
+            token_supplied = true;
+            if (tok_len > 0) {
+                memcpy(supplied_token, &data[pos + 1],
+                       tok_len >= NVS_MAX_TOKEN_LEN ? NVS_MAX_TOKEN_LEN - 1 : tok_len);
+            }
+            pos += 1 + tok_len;
+        }
+
+        if (pos < len) {
+            uint8_t ntp_len = data[pos];
+            _Static_assert(NVS_MAX_NTP_SERVER_LEN >= 256,
+                           "NTP buffer must hold any uint8_t-length value + NUL");
+            if (pos + 1 + ntp_len > (size_t)len) {
+                improv_send_error(IMPROV_ERROR_INVALID_RPC);
+                return;
+            }
+            ntp_supplied = true;
+            if (ntp_len > 0) memcpy(supplied_ntp, &data[pos + 1], ntp_len);
+            pos += 1 + ntp_len;
+        }
+
+        if (pos < len) {
+            uint8_t time_len = data[pos];
+            if (time_len == 0 || time_len > 20 || pos + 1 + time_len != (size_t)len) {
+                improv_send_error(IMPROV_ERROR_INVALID_RPC);
+                return;
+            }
+            char value[21] = {0};
+            memcpy(value, &data[pos + 1], time_len);
+            char *end = NULL;
+            long long parsed = strtoll(value, &end, 10);
+            if (!end || *end != '\0' || parsed < 1704067200LL || parsed > 4102444799LL) {
+                improv_send_error(IMPROV_ERROR_INVALID_RPC);
+                return;
+            }
+            supplied_time = (time_t)parsed;
+            time_supplied = true;
+            pos += 1 + time_len;
+        }
+    }
+
+    if (pos != len) {
+        improv_send_error(IMPROV_ERROR_INVALID_RPC);
+        return;
     }
 
     ESP_LOGI(TAG, "Improv: WiFi credentials received — SSID: %s", ssid);
@@ -213,14 +236,25 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
 
     /* Store and connect */
     nvs_manager_store_wifi(ssid, pass);
+    if (token_supplied && supplied_token[0]) {
+        nvs_manager_store_token(supplied_token);
+        ESP_LOGI(TAG, "Improv: pre-provisioning token stored");
+    }
     if (supplied_url[0]) {
         nvs_manager_store_server_url(supplied_url);
         snprintf(redirect, sizeof(redirect), "%s", supplied_url);
         ESP_LOGI(TAG, "Improv: Server URL: %s", supplied_url);
     }
-    if (pos < len) {
+    if (ntp_supplied) {
         nvs_manager_store_ntp_server(supplied_ntp);
         ESP_LOGI(TAG, "Improv: NTP server override %s", supplied_ntp[0] ? "stored" : "cleared");
+    }
+    if (time_supplied) {
+        if (board_set_utc_time(supplied_time) == ESP_OK) {
+            ESP_LOGI(TAG, "Improv: system time provisioned");
+        } else {
+            ESP_LOGW(TAG, "Improv: could not apply provisioned system time");
+        }
     }
 
     if (wifi_manager_connect_station() == WIFI_RESULT_CONNECTED) {

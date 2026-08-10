@@ -12,7 +12,7 @@
  *
  * Vellum extends the standard Improv `WIFI_SETTINGS` RPC with optional
  * length-prefixed strings for the server URL, zero-touch voucher, and an
- * administrator-selected NTP server.
+ * administrator-selected NTP server, and the client's current UTC Unix time.
  *
  * The pure encode/parse helpers here are environment-agnostic and unit-tested.
  * `provisionOverSerial()` drives the actual Web Serial connection (browser only).
@@ -60,6 +60,14 @@ function lenPrefixed(s: string): number[] {
   return [bytes.length, ...bytes];
 }
 
+function utcTimestampString(value: number): string {
+  const seconds = Math.floor(value);
+  if (!Number.isSafeInteger(seconds) || seconds < 1_704_067_200 || seconds > 4_102_444_799) {
+    throw new Error("Improv: UTC timestamp must be between 2024-01-01 and 2099-12-31");
+  }
+  return String(seconds);
+}
+
 /** 8-bit sum of `bytes[0 .. n-1]`. */
 function checksum(bytes: number[]): number {
   let c = 0;
@@ -81,7 +89,7 @@ export function encodeRpcCommand(cmd: number, cmdPayload: number[]): Uint8Array 
 
 /**
  * Encode a WIFI_SETTINGS command carrying SSID, password, and optional profile
- * fields. The NTP server is fifth to preserve the existing URL/token protocol.
+ * fields. NTP is fifth and UTC time sixth to preserve existing clients.
  */
 /** Encode a SCAN_WIFI command (no payload). */
 export function encodeScanWifi(): Uint8Array {
@@ -99,13 +107,16 @@ export function encodeWifiSettings(
   serverUrl?: string,
   deviceToken?: string,
   ntpServer?: string,
+  provisionedAtUnix?: number,
 ): Uint8Array {
   const payload = [...lenPrefixed(ssid), ...lenPrefixed(password)];
-  // The URL is third, token fourth, and NTP fifth. Emit positional empty
-  // placeholders when a later field is provided.
-  if (serverUrl || deviceToken || ntpServer !== undefined) payload.push(...lenPrefixed(serverUrl ?? ""));
-  if (deviceToken || ntpServer !== undefined) payload.push(...lenPrefixed(deviceToken ?? ""));
-  if (ntpServer !== undefined) payload.push(...lenPrefixed(ntpServer));
+  const hasTime = provisionedAtUnix !== undefined;
+  // URL, token, NTP, and UTC time are positional. Emit empty placeholders when
+  // a later field is provided so older firmware can still parse earlier forms.
+  if (serverUrl || deviceToken || ntpServer !== undefined || hasTime) payload.push(...lenPrefixed(serverUrl ?? ""));
+  if (deviceToken || ntpServer !== undefined || hasTime) payload.push(...lenPrefixed(deviceToken ?? ""));
+  if (ntpServer !== undefined || hasTime) payload.push(...lenPrefixed(ntpServer ?? ""));
+  if (hasTime) payload.push(...lenPrefixed(utcTimestampString(provisionedAtUnix)));
   if (payload.length > MAX_WIFI_SETTINGS_PAYLOAD) {
     // The payload becomes a 1-byte cmd_len (and the frame's 1-byte data_len is
     // cmd_len+2), so it can't exceed 253 or the length wraps and the firmware
@@ -130,12 +141,15 @@ export function wifiSettingsPayloadLength(
   serverUrl?: string,
   deviceToken?: string,
   ntpServer?: string,
+  provisionedAtUnix?: number,
 ): number {
   const enc = new TextEncoder();
+  const hasTime = provisionedAtUnix !== undefined;
   let n = 1 + enc.encode(ssid).length + 1 + enc.encode(password).length;
-  if (serverUrl || deviceToken || ntpServer !== undefined) n += 1 + enc.encode(serverUrl ?? "").length;
-  if (deviceToken || ntpServer !== undefined) n += 1 + enc.encode(deviceToken ?? "").length;
-  if (ntpServer !== undefined) n += 1 + enc.encode(ntpServer).length;
+  if (serverUrl || deviceToken || ntpServer !== undefined || hasTime) n += 1 + enc.encode(serverUrl ?? "").length;
+  if (deviceToken || ntpServer !== undefined || hasTime) n += 1 + enc.encode(deviceToken ?? "").length;
+  if (ntpServer !== undefined || hasTime) n += 1 + enc.encode(ntpServer ?? "").length;
+  if (hasTime) n += 1 + enc.encode(utcTimestampString(provisionedAtUnix)).length;
   return n;
 }
 
@@ -272,6 +286,8 @@ export interface ProvisionOptions {
   ntpServer?: string;
   /** Optional pre-provisioning voucher token for zero-touch enrolment. */
   deviceToken?: string;
+  /** Browser UTC Unix time, persisted to a hardware RTC when the model has one. */
+  provisionedAtUnix?: number;
   /** Progress callback for UI. */
   onPhase?: (phase: ProvisionPhase, detail?: string) => void;
   /** Overall timeout for the device to report PROVISIONED/error (ms). */
@@ -421,6 +437,7 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
   let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
   let opened = false;
   let graceTimer: ReturnType<typeof setTimeout> | undefined;
+  let legacyTimeFallbackAttempted = false;
 
   // finish() also cancels the reader so a pending reader.read() unblocks and the
   // loop exits — otherwise a silent device would hang past the timeout.
@@ -452,7 +469,14 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
     } else {
       onPhase("sending");
       await writer.write(
-        encodeWifiSettings(opts.ssid, opts.password, opts.serverUrl, opts.deviceToken, opts.ntpServer),
+        encodeWifiSettings(
+          opts.ssid,
+          opts.password,
+          opts.serverUrl,
+          opts.deviceToken,
+          opts.ntpServer,
+          opts.provisionedAtUnix ?? Math.floor(Date.now() / 1000),
+        ),
       );
 
       while (!settled) {
@@ -477,6 +501,23 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
           } else if (frame.type === ImprovType.ERROR_STATE) {
             const err = frame.payload[0];
             if (err !== ImprovError.NONE) {
+              // Firmware predating the sixth UTC field rejects the otherwise
+              // valid profile as INVALID_RPC. Retry once in the legacy five-field
+              // form so existing field devices remain provisionable during rollout.
+              if (err === ImprovError.INVALID_RPC && !legacyTimeFallbackAttempted) {
+                legacyTimeFallbackAttempted = true;
+                onPhase("sending");
+                await writer.write(
+                  encodeWifiSettings(
+                    opts.ssid,
+                    opts.password,
+                    opts.serverUrl,
+                    opts.deviceToken,
+                    opts.ntpServer,
+                  ),
+                );
+                continue;
+              }
               const msg = improvErrorMessage(err);
               onPhase("error", msg);
               finish({ ok: false, error: msg });

@@ -31,6 +31,7 @@ const ZERO_TOUCH_TOKEN_LEN = 64;
 // Server URL fits the firmware Improv buffer (256B); keep well under one byte's worth.
 const MAX_URL_LEN = 255;
 const MAX_NTP_SERVER_LEN = 255;
+const PROVISIONING_TIMESTAMP_RESERVATION = 9_999_999_999;
 
 export function ProvisionTool({
   firmware,
@@ -62,13 +63,14 @@ export function ProvisionTool({
   const passOk = new TextEncoder().encode(password).length <= MAX_PASS_LEN;
   const urlOk = new TextEncoder().encode(serverUrl.trim()).length <= MAX_URL_LEN;
   const ntpOk = new TextEncoder().encode(ntpServer.trim()).length <= MAX_NTP_SERVER_LEN;
-  // The whole profile must fit one Improv frame (ssid + pass + URL + token + NTP).
+  // Reserve the ten-byte UTC timestamp that is added immediately before send.
   const payloadBytes = wifiSettingsPayloadLength(
     ssid.trim(),
     password,
     serverUrl.trim() || undefined,
     zeroTouch ? "x".repeat(ZERO_TOUCH_TOKEN_LEN) : undefined,
     ntpServer.trim(),
+    PROVISIONING_TIMESTAMP_RESERVATION,
   );
   const payloadOk = payloadBytes <= MAX_WIFI_SETTINGS_PAYLOAD;
   const canSubmit = supported && !busy && !scanning && ssidOk && passOk && urlOk && ntpOk && payloadOk;
@@ -104,6 +106,7 @@ export function ProvisionTool({
         // An explicit empty fifth field clears a previously provisioned override
         // and restores the DHCP/PTB policy.
         ntpServer: ntpServer.trim(),
+        provisionedAtUnix: Math.floor(Date.now() / 1000),
         deviceToken,
         onPhase: (p, d) => {
           setPhase(p);

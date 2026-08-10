@@ -26,7 +26,7 @@ void vellum_serial_init(void);   // start the serial console + Improv task
 that owns `stdin`/`stdout` on the configured console and multiplexes the two
 protocols.
 
-Component dependencies (`CMakeLists.txt`): `console`, `nvs_manager`,
+Component dependencies (`CMakeLists.txt`): `board`, `console`, `nvs_manager`,
 `wifi_manager`, `esp_driver_uart`.
 
 ## Improv Wi-Fi Serial protocol
@@ -69,7 +69,7 @@ Reported states: `READY` (`0x02`), `PROVISIONING` (`0x03`), `PROVISIONED`
 
 ### WIFI_SETTINGS payload
 
-`improv_handle_wifi_settings()` reads up to four length-prefixed
+`improv_handle_wifi_settings()` reads up to six length-prefixed
 (`len(1) | bytes`) strings from the command payload:
 
 1. **SSID** (required) — copied into a 33-byte buffer, so max 32 bytes.
@@ -83,6 +83,16 @@ Reported states: `READY` (`0x02`), `PROVISIONING` (`0x03`), `PROVISIONED`
    `/api/v1/ink/hello`, the server auto-approves the device that presents this
    voucher token. The URL string is the positional separator, so a token
    without a server URL is still preceded by an empty URL field.
+5. **NTP server** (optional, 5th string) — an explicit administrator override
+   for DHCP option 42 and the firmware fallback servers. An empty field clears
+   a previously provisioned override.
+6. **UTC Unix timestamp** (optional, 6th string) — supplied by the browser at
+   send time. It immediately initializes the system clock on every model and is
+   also persisted in the D1001's battery-backed PCF8563T RTC. This gives TLS a
+   valid clock before the first NTP response; background NTP remains authoritative.
+
+Later optional fields require empty positional placeholders for omitted earlier
+fields. Older clients remain valid because all four extension fields are optional.
 
 On receipt the device stores the Wi-Fi credentials
 (`nvs_manager_store_wifi()`), transitions to `PROVISIONING`, and calls
