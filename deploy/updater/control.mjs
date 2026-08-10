@@ -1,0 +1,197 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import { createServer } from "node:http";
+import { spawn } from "node:child_process";
+import { timingSafeEqual } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
+const token = process.env.UPDATER_TOKEN ?? "";
+const intervalSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 900);
+const operationTimeoutMs = Number(process.env.UPDATE_TIMEOUT_SECONDS ?? 900) * 1000;
+const port = Number(process.env.CONTROL_PORT ?? 8080);
+const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases/latest";
+const target = process.env.TARGET_CONTAINER ?? "vellum";
+const configFile = process.env.UPDATER_CONFIG_FILE ?? "/state/config.json";
+const defaultConfig = {
+  mode: (process.env.AUTO_APPLY ?? "true") === "true" ? "automatic" : "manual",
+  maintenanceTime: process.env.MAINTENANCE_TIME ?? "02:00",
+  timezone: process.env.TZ ?? "UTC",
+  lastAutomaticAttemptDate: null,
+};
+
+function validTimezone(value) {
+  try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return true; } catch { return false; }
+}
+function validateConfig(value) {
+  return value && ["manual", "automatic"].includes(value.mode) && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.maintenanceTime)
+    && typeof value.timezone === "string" && value.timezone.length <= 100 && validTimezone(value.timezone)
+    && (value.lastAutomaticAttemptDate == null || /^\d{4}-\d{2}-\d{2}$/.test(value.lastAutomaticAttemptDate));
+}
+if (process.env.VELLUM_UPDATER_TEST !== "true") {
+  if (token.length < 32) throw new Error("UPDATER_TOKEN must contain at least 32 characters");
+  if (!Number.isInteger(intervalSeconds) || intervalSeconds < 300) throw new Error("POLL_INTERVAL_SECONDS must be at least 300");
+  if (!Number.isInteger(operationTimeoutMs) || operationTimeoutMs < 60_000) throw new Error("UPDATE_TIMEOUT_SECONDS must be at least 60");
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("CONTROL_PORT is invalid");
+  if (!validateConfig(defaultConfig)) throw new Error("invalid default update schedule");
+}
+
+function loadConfig() {
+  try {
+    const stored = JSON.parse(readFileSync(configFile, "utf8"));
+    if (validateConfig(stored)) return { ...defaultConfig, ...stored };
+    console.error("vellum-updater: ignoring invalid persisted configuration");
+  } catch (error) {
+    if (error?.code !== "ENOENT") console.error(`vellum-updater: cannot read persisted configuration: ${error}`);
+  }
+  return { ...defaultConfig };
+}
+let config = loadConfig();
+function saveConfig() {
+  mkdirSync(dirname(configFile), { recursive: true, mode: 0o700 });
+  const temporary = `${configFile}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify(config)}\n`, { mode: 0o600 });
+  renameSync(temporary, configFile);
+}
+
+const status = { state: "starting", currentVersion: null, availableVersion: null,
+  updateAvailable: false, lastCheckedAt: null, lastUpdatedAt: null, lastError: null };
+let active = false;
+
+function publicStatus() {
+  return { ...status, updateMode: config.mode, maintenanceTime: config.maintenanceTime, timezone: config.timezone };
+}
+function equalToken(candidate) {
+  const a = Buffer.from(candidate ?? ""); const b = Buffer.from(token);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+function parts(value) {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value ?? "");
+  return match ? match.slice(1).map(Number) : null;
+}
+function newer(current, candidate) {
+  const a = parts(current); const b = parts(candidate);
+  if (!b) return false;
+  if (!a) return true;
+  for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return b[i] > a[i]; }
+  return false;
+}
+function zonedClock(date, timezone) {
+  const values = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric",
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return { date: `${values.year}-${values.month}-${values.day}`, time: `${values.hour}:${values.minute}` };
+}
+function command(commandName, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(commandName, args, { timeout: operationTimeoutMs, killSignal: "SIGTERM", ...options, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = ""; let stderr = "";
+    child.stdout.on("data", (data) => { stdout += data; });
+    child.stderr.on("data", (data) => { stderr += data; process.stderr.write(data); });
+    child.on("error", reject);
+    child.on("close", (code) => code === 0 ? resolve(stdout.trim()) : reject(new Error(stderr.trim() || `${commandName} exited ${code}`)));
+  });
+}
+async function currentVersion() {
+  const image = await command("docker", ["inspect", "--format", "{{.Image}}", target]);
+  return command("docker", ["image", "inspect", "--format", '{{ index .Config.Labels "org.opencontainers.image.version" }}', image]);
+}
+async function releaseVersion() {
+  const headers = { Accept: "application/vnd.github+json", "User-Agent": "vellum-updater" };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const response = await fetch(releaseApi, { headers, signal: AbortSignal.timeout(30_000) });
+  if (!response.ok) throw new Error(`GitHub Releases returned HTTP ${response.status}`);
+  const release = await response.json();
+  if (release.draft || release.prerelease || !/^v\d+\.\d+\.\d+$/.test(release.tag_name ?? ""))
+    throw new Error("GitHub latest is not a stable Vellum server release");
+  return release.tag_name;
+}
+async function check() {
+  if (active) return;
+  active = true; status.state = "checking"; status.lastError = null;
+  try {
+    const [current, available] = await Promise.all([currentVersion(), releaseVersion()]);
+    status.currentVersion = current || null; status.availableVersion = available;
+    status.updateAvailable = newer(current, available); status.lastCheckedAt = new Date().toISOString();
+    status.state = status.updateAvailable ? "available" : "current";
+  } catch (error) {
+    status.state = "failed"; status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
+  } finally { active = false; }
+  await tryScheduledApply();
+}
+async function apply() {
+  if (active) return false;
+  active = true; status.state = "updating"; status.lastError = null;
+  try {
+    await command("/usr/local/bin/vellum-update", [], { env: { ...process.env, UPDATE_ONCE: "true" } });
+    status.currentVersion = status.availableVersion; status.updateAvailable = false;
+    status.lastUpdatedAt = new Date().toISOString(); status.state = "current";
+  } catch (error) {
+    status.state = "failed"; status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
+  } finally { active = false; }
+  return true;
+}
+async function tryScheduledApply(now = new Date()) {
+  if (active || !status.updateAvailable || config.mode !== "automatic") return false;
+  const clock = zonedClock(now, config.timezone);
+  if (clock.time !== config.maintenanceTime || clock.date === config.lastAutomaticAttemptDate) return false;
+  config.lastAutomaticAttemptDate = clock.date;
+  saveConfig();
+  return apply();
+}
+function send(response, code, body) {
+  response.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" });
+  response.end(JSON.stringify(body));
+}
+function readJson(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => { body += chunk; if (body.length > 4096) request.destroy(); });
+    request.on("end", () => { try { resolve(JSON.parse(body)); } catch { reject(new Error("invalid_json")); } });
+    request.on("error", reject);
+  });
+}
+function startServer() { return createServer(async (request, response) => {
+  try {
+    if (!equalToken(request.headers.authorization?.replace(/^Bearer /, ""))) return send(response, 401, { error: "unauthorized" });
+    if (request.method === "GET" && request.url === "/v1/status") return send(response, 200, publicStatus());
+    if (request.method === "POST" && request.url === "/v1/check") {
+      if (active) return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+      void check(); return send(response, 202, publicStatus());
+    }
+    if (request.method === "POST" && request.url === "/v1/apply") {
+      if (active) return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+      if (!status.updateAvailable) return send(response, 200, publicStatus());
+      void apply(); return send(response, 202, publicStatus());
+    }
+    if (request.method === "POST" && request.url === "/v1/config") {
+      if (active) return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+      const input = await readJson(request);
+      if (!validateConfig(input)) return send(response, 400, { error: "invalid_config" });
+      config = { mode: input.mode, maintenanceTime: input.maintenanceTime, timezone: input.timezone,
+        lastAutomaticAttemptDate: null };
+      saveConfig();
+      void tryScheduledApply();
+      return send(response, 200, publicStatus());
+    }
+    return send(response, 404, { error: "not_found" });
+  } catch (error) {
+    console.error(`vellum-updater: control request failed: ${error}`);
+    if (!response.headersSent) return send(response, 400, { error: "invalid_request" });
+  }
+}).listen(port, "0.0.0.0", () => console.error(`vellum-updater: control API listening on ${port}`)); }
+
+if (process.env.VELLUM_UPDATER_TEST !== "true") {
+  const server = startServer();
+  const shutdown = () => {
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
+  void check();
+  setInterval(() => void check(), intervalSeconds * 1000).unref();
+  setInterval(() => void tryScheduledApply(), 30_000).unref();
+}
+
+export { equalToken, newer, validateConfig, zonedClock };

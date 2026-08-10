@@ -2,13 +2,15 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { updateDevice, updateSetting } from "../actions";
 import { useToast } from "@/components/toast";
 import { useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { Cpu, Download, Package, Usb } from "lucide-react";
+import type { ServerUpdateStatus } from "@/lib/server-updater";
+import { ConfirmDialog } from "@/components/confirm";
 
 interface FirmwareVersion {
   version: string;
@@ -28,15 +30,73 @@ interface Props {
   devices: Device[];
   versions: FirmwareVersion[];
   settings: Record<string, unknown>;
+  serverUpdate: ServerUpdateStatus;
+  canUpdateServer: boolean;
 }
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
+const serverStateKeys = {
+  unavailable: "serverStateUnavailable", starting: "serverStateStarting", checking: "serverStateChecking",
+  available: "serverStateAvailable", updating: "serverStateUpdating", current: "serverStateCurrent",
+  failed: "serverStateFailed",
+} as const;
 
-export function FirmwarePage({ devices, versions, settings }: Props) {
+export function FirmwarePage({ devices, versions, settings, serverUpdate: initialServerUpdate, canUpdateServer }: Props) {
   const { toast } = useToast();
   const t = useTranslations("firmware");
   const [pending, startTransition] = useTransition();
+  const [serverUpdate, setServerUpdate] = useState(initialServerUpdate);
+  const [serverActionPending, setServerActionPending] = useState(false);
+  const [confirmServerUpdate, setConfirmServerUpdate] = useState(false);
+  const [updateMode, setUpdateMode] = useState(serverUpdate.updateMode);
+  const [maintenanceTime, setMaintenanceTime] = useState(serverUpdate.maintenanceTime);
+  const [updateTimezone, setUpdateTimezone] = useState(serverUpdate.timezone);
+  const [scheduleDirty, setScheduleDirty] = useState(false);
+
+  useEffect(() => {
+    const refresh = () => fetch("/api/v1/admin/server-update", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((value) => value && setServerUpdate(value))
+      .catch(() => undefined);
+    const timer = window.setInterval(refresh, serverUpdate.state === "updating" ? 3_000 : 30_000);
+    return () => window.clearInterval(timer);
+  }, [serverUpdate.state]);
+
+  useEffect(() => {
+    if (!scheduleDirty && serverUpdate.supported) {
+      setUpdateMode(serverUpdate.updateMode);
+      setMaintenanceTime(serverUpdate.maintenanceTime);
+      setUpdateTimezone(serverUpdate.timezone);
+    }
+  }, [scheduleDirty, serverUpdate.maintenanceTime, serverUpdate.supported, serverUpdate.timezone, serverUpdate.updateMode]);
+
+  async function serverAction(action: "check" | "apply") {
+    setConfirmServerUpdate(false);
+    setServerActionPending(true);
+    try {
+      const response = await fetch("/api/v1/admin/server-update", { method: "POST",
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
+      if (!response.ok) throw new Error();
+      setServerUpdate(await response.json());
+      toast("success", action === "apply" ? t("serverUpdateStarted") : t("serverCheckStarted"));
+    } catch { toast("error", t("serverActionFailed")); }
+    finally { setServerActionPending(false); }
+  }
+
+  async function saveServerUpdateConfig() {
+    setServerActionPending(true);
+    try {
+      const response = await fetch("/api/v1/admin/server-update", { method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "configure", mode: updateMode, maintenanceTime, timezone: updateTimezone }) });
+      if (!response.ok) throw new Error();
+      setServerUpdate(await response.json());
+      setScheduleDirty(false);
+      toast("success", t("serverScheduleSaved"));
+    } catch { toast("error", t("serverScheduleFailed")); }
+    finally { setServerActionPending(false); }
+  }
 
   const autoPoll = settings["firmware.autoPoll"] as boolean ?? false;
   const pollIntervalS = settings["firmware.pollIntervalS"] as number ?? 900;
@@ -92,6 +152,66 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
         </a>
       </div>
 
+      <h2 className="text-lg font-semibold text-label mb-3">{t("serverUpdateTitle")}</h2>
+      <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 p-4 mb-8">
+        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-[240px]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-label">{serverUpdate.currentVersion ?? t("serverVersionUnknown")}</span>
+            <StatusPill tone={!serverUpdate.supported ? "neutral" : serverUpdate.state === "failed" ? "red" : serverUpdate.updateAvailable ? "orange" : "green"}>
+              {t(serverStateKeys[serverUpdate.state])}
+            </StatusPill>
+          </div>
+          <p className="text-sm text-label-secondary mt-1">
+            {!serverUpdate.supported ? t("serverUpdaterUnavailable") : serverUpdate.updateAvailable
+              ? t("serverUpdateAvailable", { version: serverUpdate.availableVersion ?? "" })
+              : serverUpdate.lastError ?? (serverUpdate.updateMode === "automatic"
+                ? t("serverAutomaticSchedule", { time: serverUpdate.maintenanceTime, timezone: serverUpdate.timezone })
+                : t("serverManualSchedule"))}
+          </p>
+        </div>
+        {canUpdateServer && serverUpdate.supported && (
+          <div className="flex gap-2">
+            <button disabled={serverActionPending || serverUpdate.state === "updating"} onClick={() => serverAction("check")}
+              className="min-h-10 px-3 rounded-md bg-fill-tertiary text-sm font-semibold disabled:opacity-50 focus-ring">{t("serverCheck")}</button>
+            {serverUpdate.updateAvailable && <button disabled={serverActionPending || serverUpdate.state === "updating"} onClick={() => setConfirmServerUpdate(true)}
+              className="min-h-10 px-4 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring">{t("serverInstall")}</button>}
+          </div>
+        )}
+        </div>
+        {canUpdateServer && serverUpdate.supported && (
+          <div className="mt-4 pt-4 border-t border-separator flex items-end gap-3 flex-wrap">
+            <label className="flex flex-col gap-1 text-xs text-label-secondary">
+              {t("serverUpdateMode")}
+              <select className={selectCls} value={updateMode} onChange={(event) => { setUpdateMode(event.target.value as "manual" | "automatic"); setScheduleDirty(true); }}>
+                <option value="manual">{t("serverModeManual")}</option>
+                <option value="automatic">{t("serverModeAutomatic")}</option>
+              </select>
+            </label>
+            {updateMode === "automatic" && <>
+              <label className="flex flex-col gap-1 text-xs text-label-secondary">
+                {t("serverMaintenanceTime")}
+                <input className={selectCls} type="time" required value={maintenanceTime}
+                  onChange={(event) => { setMaintenanceTime(event.target.value); setScheduleDirty(true); }} />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-label-secondary flex-1 min-w-[190px]">
+                {t("serverTimezone")}
+                <input className={selectCls} required maxLength={100} value={updateTimezone}
+                  placeholder="Europe/Berlin" onChange={(event) => { setUpdateTimezone(event.target.value); setScheduleDirty(true); }} />
+              </label>
+            </>}
+            <button disabled={serverActionPending || !scheduleDirty || !maintenanceTime || !updateTimezone} onClick={saveServerUpdateConfig}
+              className="min-h-8 px-3 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring">
+              {t("serverSaveSchedule")}
+            </button>
+          </div>
+        )}
+      </div>
+      <ConfirmDialog open={confirmServerUpdate} onClose={() => setConfirmServerUpdate(false)}
+        onConfirm={() => serverAction("apply")} pending={serverActionPending}
+        title={t("serverConfirmTitle")} message={t("serverConfirmMessage", { version: serverUpdate.availableVersion ?? "" })}
+        confirmLabel={t("serverInstall")} />
+
       {/* Auto-poll settings */}
       <h2 className="text-lg font-semibold text-label mb-3">{t("autoUpdate")}</h2>
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 px-4 py-4 mb-8 flex items-center gap-6 flex-wrap">
@@ -114,7 +234,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
           </label>
         )}
         <span className="text-xs text-label-tertiary">
-          {autoPoll ? "Server checks GitHub for new releases automatically" : "Only checks when admin page is opened or device requests /config"}
+          {autoPoll ? t("autoUpdateOn") : t("autoUpdateOff")}
         </span>
       </div>
 

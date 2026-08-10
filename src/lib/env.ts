@@ -34,6 +34,8 @@ const envSchema = z.object({
   ENTRA_CLIENT_ID: optionalEnv(z.string().uuid("ENTRA_CLIENT_ID must be a UUID")),
   ENTRA_CLIENT_SECRET: optionalEnv(z.string().min(1, "ENTRA_CLIENT_SECRET must not be empty")),
   VELLUM_PUBLIC_URL: optionalEnv(publicOrigin),
+  UPDATER_URL: optionalEnv(z.string().url()),
+  UPDATER_TOKEN: optionalEnv(z.string().min(32, "UPDATER_TOKEN must be at least 32 characters")),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
@@ -58,6 +60,8 @@ function loadEnv(): Env {
         ENTRA_CLIENT_ID: undefined,
         ENTRA_CLIENT_SECRET: undefined,
         VELLUM_PUBLIC_URL: undefined,
+        UPDATER_URL: undefined,
+        UPDATER_TOKEN: undefined,
         NODE_ENV: "test",
         LOG_LEVEL: "error",
       };
