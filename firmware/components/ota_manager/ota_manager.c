@@ -29,6 +29,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -44,12 +45,70 @@
 #include "http_client.h"
 #include "vellum_display.h"
 #include "board.h"
+#include "nvs_manager.h"
 #include "esp_attr.h"
 #include "esp_rom_crc.h"
 #include "sdkconfig.h"
 #include "ota_trust_keys.h"
 
 static const char *TAG = "ota";
+
+/* A failed image must not monopolise an externally powered display by being
+ * retried on every render. Persist this across deep sleep, but bind it to the
+ * offered version so a later fixed release can apply immediately. */
+#define OTA_RETRY_KEY "ota_retry"
+#define OTA_RETRY_GRACE_SEC (15 * 60)
+#define OTA_FAILURE_NOTICE_MS 5000
+
+static bool ota_retry_is_deferred(const char *version)
+{
+    if (!version || !*version) return false;
+    char value[96] = {0};
+    if (nvs_manager_get_str(OTA_RETRY_KEY, value, sizeof(value)) != ESP_OK) return false;
+
+    char *separator = strrchr(value, '|');
+    if (!separator) return false;
+    *separator++ = '\0';
+    if (strcmp(value, version) != 0) return false;
+
+    char *end = NULL;
+    long long retry_at = strtoll(separator, &end, 10);
+    time_t now = time(NULL);
+    if (!end || *end != '\0' || retry_at <= 0 || now < 1700000000) return false;
+    if ((long long)now < retry_at) {
+        ESP_LOGW(TAG, "OTA %s deferred for another %lld seconds after a prior failure",
+                 version, retry_at - (long long)now);
+        return true;
+    }
+    return false;
+}
+
+static void ota_defer_retry(const char *version)
+{
+    if (!version || !*version) return;
+    time_t now = time(NULL);
+    if (now < 1700000000) {
+        ESP_LOGW(TAG, "No valid clock; cannot persist OTA retry grace period");
+        return;
+    }
+    char value[96];
+    snprintf(value, sizeof(value), "%s|%lld", version,
+             (long long)now + OTA_RETRY_GRACE_SEC);
+    if (nvs_manager_set_str(OTA_RETRY_KEY, value) != ESP_OK) {
+        ESP_LOGW(TAG, "Could not persist OTA retry grace period");
+    }
+}
+
+static ota_check_result_t ota_show_failure_and_restore(const char *version)
+{
+    ota_defer_retry(version);
+    display_show_error("Firmware update failed\nWill retry later");
+    board_buzzer_beep(500, 500);
+    /* Error feedback needs to be visible, but must not become the display's
+     * steady state. The caller redraws normal content immediately afterwards. */
+    vTaskDelay(pdMS_TO_TICKS(OTA_FAILURE_NOTICE_MS));
+    return OTA_CHECK_RESTORE_RENDER;
+}
 
 #if defined(CONFIG_VELLUM_OTA_REQUIRE_SIGNATURE)
   #define OTA_REQUIRE_SIGNATURE 1
@@ -272,7 +331,7 @@ static void ota_report_rollback_if_needed(void)
     }
 }
 
-void ota_manager_check_and_apply(void)
+ota_check_result_t ota_manager_check_and_apply(void)
 {
     /* Power guard (anti-brick): an OTA is a large flash write followed by a
      * reboot; a brownout mid-write can corrupt the staged slot. Require USB
@@ -282,7 +341,7 @@ void ota_manager_check_and_apply(void)
         if (battery < CONFIG_VELLUM_OTA_MIN_BATTERY_PCT) {
             ESP_LOGW(TAG, "Skipping OTA: battery %d%% < %d%% and not USB-powered",
                      battery, CONFIG_VELLUM_OTA_MIN_BATTERY_PCT);
-            return;
+            return OTA_CHECK_NO_RESTORE;
         }
     }
 
@@ -292,11 +351,11 @@ void ota_manager_check_and_apply(void)
 
     if (err != ESP_OK || resp.status_code != 200 || !resp.body) {
         http_client_free_response(&resp);
-        return;
+        return OTA_CHECK_NO_RESTORE;
     }
 
     cJSON *root = cJSON_ParseWithLength(resp.body, resp.body_len);
-    if (!root) { http_client_free_response(&resp); return; }
+    if (!root) { http_client_free_response(&resp); return OTA_CHECK_NO_RESTORE; }
 
     cJSON *data = cJSON_GetObjectItemCaseSensitive(root, "data");
     cJSON *ota_url = data ? cJSON_GetObjectItemCaseSensitive(data, "otaUrl") : NULL;
@@ -310,7 +369,7 @@ void ota_manager_check_and_apply(void)
     if (!cJSON_IsString(ota_url) || !ota_url->valuestring || strlen(ota_url->valuestring) == 0) {
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return OTA_CHECK_NO_RESTORE;
     }
 
     /* Enterprise transport policy: firmware images are fetched over validated
@@ -321,14 +380,14 @@ void ota_manager_check_and_apply(void)
                  ota_url->valuestring);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return OTA_CHECK_NO_RESTORE;
     }
 
     /* Version gate: don't re-flash the version we're already running. */
     if (cJSON_IsString(ota_ver) && !version_is_new(ota_ver->valuestring)) {
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return OTA_CHECK_NO_RESTORE;
     }
 
     /* Downgrade guard (defense-in-depth): refuse a strictly-older image unless the
@@ -340,7 +399,7 @@ void ota_manager_check_and_apply(void)
                  ota_ver->valuestring);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return OTA_CHECK_NO_RESTORE;
     }
 
     ESP_LOGI(TAG, "OTA update: %s → %s",
@@ -350,6 +409,12 @@ void ota_manager_check_and_apply(void)
     char to_ver[64];
     snprintf(to_ver, sizeof(to_ver), "%s",
              cJSON_IsString(ota_ver) && ota_ver->valuestring ? ota_ver->valuestring : "");
+
+    if (ota_retry_is_deferred(to_ver)) {
+        cJSON_Delete(root);
+        http_client_free_response(&resp);
+        return OTA_CHECK_NO_RESTORE;
+    }
 
     display_show_ota_progress(0);
     board_buzzer_beep(800, 200);
@@ -369,10 +434,9 @@ void ota_manager_check_and_apply(void)
     esp_https_ota_handle_t handle = NULL;
     if (esp_https_ota_begin(&ota_cfg, &handle) != ESP_OK || handle == NULL) {
         ESP_LOGW(TAG, "esp_https_ota_begin failed");
-        board_buzzer_beep(300, 500);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return ota_show_failure_and_restore(to_ver);
     }
 
     /* ── Anti-brick: reject a wrong-model image BEFORE downloading it ────
@@ -387,10 +451,9 @@ void ota_manager_check_and_apply(void)
     if (esp_https_ota_get_img_desc(handle, &staged_desc) != ESP_OK) {
         ESP_LOGE(TAG, "Cannot read staged image descriptor — aborting OTA");
         esp_https_ota_abort(handle);
-        board_buzzer_beep(300, 500);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return ota_show_failure_and_restore(to_ver);
     }
     const esp_app_desc_t *running_desc = esp_app_get_description();
     if (!running_desc ||
@@ -401,10 +464,9 @@ void ota_manager_check_and_apply(void)
                  running_desc ? running_desc->project_name : "?");
         ota_report(to_ver, "verify_fail", "model_mismatch");
         esp_https_ota_abort(handle);
-        board_buzzer_beep(300, 500);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return ota_show_failure_and_restore(to_ver);
     }
 
     /* Download the image into the inactive slot (not yet bootable).  IDF's
@@ -430,16 +492,16 @@ void ota_manager_check_and_apply(void)
     if (!ok) {
         ESP_LOGW(TAG, "OTA download incomplete: %s", esp_err_to_name(err));
         esp_https_ota_abort(handle);
-        board_buzzer_beep(300, 500);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return ota_show_failure_and_restore(to_ver);
     }
 
     /* ── Verify the staged image BEFORE making it bootable ──────── */
     const esp_partition_t *running = esp_ota_get_running_partition();
     const esp_partition_t *update = esp_ota_get_next_update_partition(running);
     bool verified = false;
+    const char *verify_error = "partition_missing";
 
     if (update) {
         uint8_t sha[32];
@@ -453,30 +515,32 @@ void ota_manager_check_and_apply(void)
              * missing digest as a failure rather than silently trusting it. */
             if (!cJSON_IsString(ota_sha) || !ota_sha->valuestring) {
                 ESP_LOGE(TAG, "Server did not supply otaSha256 — refusing OTA");
+                verify_error = "digest_missing";
             } else if (strcmp(sha_hex, ota_sha->valuestring) != 0) {
                 ESP_LOGE(TAG, "SHA256 mismatch: expected %s got %s",
                          ota_sha->valuestring, sha_hex);
+                verify_error = "digest_mismatch";
             } else {
                 ESP_LOGI(TAG, "SHA256 verified ✓");
                 verified = verify_ota_signature(
                     sha,
                     cJSON_IsString(ota_sig) ? ota_sig->valuestring : NULL,
                     cJSON_IsString(ota_kid) ? ota_kid->valuestring : NULL);
+                if (!verified) verify_error = "signature";
             }
         } else {
             ESP_LOGE(TAG, "esp_partition_get_sha256 failed");
+            verify_error = "partition_hash";
         }
     }
 
     if (!verified) {
         ESP_LOGE(TAG, "OTA verification failed — aborting (image not booted)");
-        ota_report(to_ver, "verify_fail", "verify");
+        ota_report(to_ver, "verify_fail", verify_error);
         esp_https_ota_abort(handle);
-        display_show_error("Firmware update failed\nWill retry later");
-        board_buzzer_beep(500, 500);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return;
+        return ota_show_failure_and_restore(to_ver);
     }
 
     /* Verified — finish() sets the boot partition (PENDING_VERIFY w/ rollback). */
@@ -486,9 +550,7 @@ void ota_manager_check_and_apply(void)
 
     if (fin != ESP_OK) {
         ESP_LOGE(TAG, "esp_https_ota_finish failed: %s", esp_err_to_name(fin));
-        display_show_error("Firmware update failed\nWill retry later");
-        board_buzzer_beep(500, 500);
-        return;
+        return ota_show_failure_and_restore(to_ver);
     }
 
     ESP_LOGI(TAG, "OTA verified + applied — restarting");
@@ -496,6 +558,7 @@ void ota_manager_check_and_apply(void)
     ota_report(to_ver, "applied", NULL);
     board_buzzer_beep(2000, 100); vTaskDelay(pdMS_TO_TICKS(100)); board_buzzer_beep(2000, 100);
     esp_restart();
+    return OTA_CHECK_NO_RESTORE; /* esp_restart does not return */
 }
 
 void ota_manager_mark_valid(void)

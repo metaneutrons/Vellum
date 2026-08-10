@@ -5,6 +5,7 @@ idf_component_register(
         http_client
         vellum_display
         board
+        nvs_manager
         mbedtls
         esp_https_ota
         app_update

@@ -670,8 +670,12 @@ void app_main(void)
         if (render_ok) ota_manager_mark_valid();
     }
 
-    /* 8. Check for OTA update */
-    ota_manager_check_and_apply();
+    /* 8. Check for OTA update. A failed OTA briefly owns the display for clear
+     * feedback, then we immediately restore the normal room view before sleep. */
+    if (ota_manager_check_and_apply() == OTA_CHECK_RESTORE_RENDER) {
+        sleep_duration = perform_render(&render_ok);
+        if (render_ok) ota_manager_mark_valid();
+    }
     board_led_off();
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
@@ -689,7 +693,10 @@ void app_main(void)
         /* A good image that failed its FIRST render still confirms on the first
          * successful poll here (mark_valid is idempotent). */
         if (render_ok) ota_manager_mark_valid();
-        ota_manager_check_and_apply();
+        if (ota_manager_check_and_apply() == OTA_CHECK_RESTORE_RENDER) {
+            sleep_duration = perform_render(&render_ok);
+            if (render_ok) ota_manager_mark_valid();
+        }
     }
 #else
     /* 9. E-paper normally sleeps between refreshes. With external USB power
@@ -705,7 +712,10 @@ void app_main(void)
         }
         sleep_duration = perform_render(&render_ok);
         if (render_ok) ota_manager_mark_valid();
-        ota_manager_check_and_apply();
+        if (ota_manager_check_and_apply() == OTA_CHECK_RESTORE_RENDER) {
+            sleep_duration = perform_render(&render_ok);
+            if (render_ok) ota_manager_mark_valid();
+        }
     }
 
     /* USB was not present (or was removed): return to low-power operation. */

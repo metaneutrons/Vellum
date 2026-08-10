@@ -6,12 +6,20 @@
  */
 #pragma once
 
+typedef enum {
+    /** No update was attempted, or an update was applied and the device restarts. */
+    OTA_CHECK_NO_RESTORE = 0,
+    /** An update failed after taking over the display; caller must render normal content. */
+    OTA_CHECK_RESTORE_RENDER,
+} ota_check_result_t;
+
 /**
  * Query the backend /config endpoint for an available update and, if present,
  * download it over HTTPS, verify its SHA-256 and Ed25519 signature, and apply
- * it — restarting the device on success. No-op when no update is offered.
+ * it — restarting the device on success. Failed post-download validation is
+ * rate-limited and returns OTA_CHECK_RESTORE_RENDER after the error was shown.
  */
-void ota_manager_check_and_apply(void);
+ota_check_result_t ota_manager_check_and_apply(void);
 
 /**
  * Confirm the running image is good, cancelling bootloader rollback.
