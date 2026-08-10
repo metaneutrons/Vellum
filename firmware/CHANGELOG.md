@@ -2,6 +2,13 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.3.2](https://github.com/metaneutrons/Vellum/compare/firmware-v1.3.1...firmware-v1.3.2) (2026-08-10)
+
+
+### Bug Fixes
+
+* **firmware:** prevent E1003 OTA progress corruption ([#159](https://github.com/metaneutrons/Vellum/issues/159)) ([f992c46](https://github.com/metaneutrons/Vellum/commit/f992c46d8cdff374c3ab54b9d96a14a823d1389e))
+
 ## [1.3.1](https://github.com/metaneutrons/Vellum/compare/firmware-v1.3.0...firmware-v1.3.1) (2026-08-10)
 
 
