@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/metaneutrons/Vellum/compare/v1.7.0...v1.7.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* harden firmware connectivity and USB refresh ([#142](https://github.com/metaneutrons/Vellum/issues/142)) ([d049f0f](https://github.com/metaneutrons/Vellum/commit/d049f0f4a3d87edb215d3a44dba8302d968350e1))
+
 ## [1.7.0](https://github.com/metaneutrons/Vellum/compare/v1.6.5...v1.7.0) (2026-08-10)
 
 
