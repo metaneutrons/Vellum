@@ -20,8 +20,16 @@ export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("system");
 
   useEffect(() => {
-    const saved = (localStorage.getItem("vellum-theme") as Theme) || "system";
+    const stored = localStorage.getItem("vellum-theme");
+    const saved: Theme = stored === "light" || stored === "dark" || stored === "system"
+      ? stored
+      : "system";
     setTheme(saved);
+    // The inline layout script prevents a flash on a normal document load.
+    // Apply again after hydration: this also recovers the correct system
+    // appearance when a browser restores a page from its cache or blocks the
+    // early inline script during a navigation.
+    apply(saved);
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
       if ((localStorage.getItem("vellum-theme") || "system") === "system") apply("system");

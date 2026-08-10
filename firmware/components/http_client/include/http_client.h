@@ -23,6 +23,15 @@ typedef struct {
     const char *firmware_ver;
 } vellum_telemetry_t;
 
+/** The safe, user-actionable category of a failed HTTP transport. Detailed
+ * mbedTLS values remain available in the response for the USB serial log. */
+typedef enum {
+    VELLUM_HTTP_FAILURE_NONE = 0,
+    VELLUM_HTTP_FAILURE_TRANSPORT,
+    VELLUM_HTTP_FAILURE_TLS_CERTIFICATE,
+    VELLUM_HTTP_FAILURE_TLS_HANDSHAKE,
+} vellum_http_failure_t;
+
 /** HTTP response from the backend. */
 typedef struct {
     int       status_code;    /**< HTTP status (200, 400, 401, 5xx, or -1) */
@@ -31,6 +40,9 @@ typedef struct {
     size_t    body_len;       /**< Length of text body */
     uint8_t  *binary_body;    /**< Binary body for render endpoint (caller must free) */
     size_t    binary_len;     /**< Length of binary body */
+    vellum_http_failure_t failure; /**< Safe classification when the request fails */
+    int       tls_error_code; /**< mbedTLS code for USB diagnostics; 0 if unavailable */
+    int       tls_verify_flags; /**< mbedTLS certificate flags; 0 if unavailable */
 } vellum_http_response_t;
 
 /** Initialize the HTTP client module. Call once after Wi-Fi is connected. */

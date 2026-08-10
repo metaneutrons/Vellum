@@ -17,10 +17,31 @@
 #include "sdkconfig.h"
 
 #include "board.h"
+#include "buttons.h"
 
 static const char *TAG = "sleep_mgr";
 
 static wake_reason_t s_wake_reason = WAKE_REASON_POWER_ON;
+static bool s_button_refresh_requested;
+
+/* The wake mask is configured for active-low buttons.  When USB power keeps
+ * the MCU awake there is no deep-sleep wake event, so poll that same mask to
+ * preserve the physical refresh button's behaviour. */
+static bool wake_button_pressed(uint64_t button_wake_mask)
+{
+#ifdef CONFIG_VELLUM_BUTTON_ACTIVE_HIGH
+    const int pressed_level = 1;
+#else
+    const int pressed_level = 0;
+#endif
+    for (int gpio = 0; gpio < 64; ++gpio) {
+        if ((button_wake_mask & (1ULL << gpio)) &&
+            gpio_get_level((gpio_num_t)gpio) == pressed_level) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void sleep_manager_init(void)
 {
@@ -52,6 +73,7 @@ wake_reason_t sleep_manager_get_wake_reason(void)
 
 void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
 {
+    s_button_refresh_requested = false;
     if (seconds == 0) {
         seconds = CONFIG_VELLUM_FALLBACK_SLEEP_SEC;
     }
@@ -68,6 +90,14 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
              elapsed < seconds && board_is_usb_powered();
              ++elapsed) {
             vTaskDelay(pdMS_TO_TICKS(1000));
+            /* The ISR catches a short press between polling ticks; the GPIO
+             * level check also covers a button that remains held. */
+            if (buttons_key0_pressed() || wake_button_pressed(button_wake_mask)) {
+                ESP_LOGI(TAG, "Refresh button pressed while USB powered");
+                s_button_refresh_requested = true;
+                board_buzzer_beep(1000, 100);
+                return;
+            }
         }
         return;
     }
@@ -101,6 +131,13 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
     esp_deep_sleep_start();
     /* does not return */
 #endif
+}
+
+bool sleep_manager_take_button_refresh_request(void)
+{
+    bool requested = s_button_refresh_requested;
+    s_button_refresh_requested = false;
+    return requested;
 }
 
 void sleep_manager_enter_permanent(uint64_t button_wake_mask)
