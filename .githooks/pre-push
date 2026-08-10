@@ -4,3 +4,4 @@ set -eu
 
 pnpm i18n:check
 pnpm typecheck
+pnpm release:check

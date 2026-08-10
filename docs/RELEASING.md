@@ -7,7 +7,7 @@ image.
 
 | Artifact | release-please component | Version SSOT | Git tag | Built by |
 |----------|--------------------------|--------------|---------|----------|
-| **Server** (Next.js / Docker) | `.` (root, `node`) | `package.json` | `vX.Y.Z` | `docker.yml` |
+| **Server** (Next.js / Docker) | `server` (`.` root, `node`) | `package.json` | `vX.Y.Z` | `docker.yml` |
 | **Firmware** (ESP32 OTA) | `firmware` (`simple`) | `.release-please-manifest.json` → `firmware/main/Kconfig.projbuild` | `firmware-vX.Y.Z` | `firmware.yml` |
 
 > The firmware version of record is the `firmware` key in
@@ -21,8 +21,11 @@ image.
 release-please routes each Conventional Commit to a component by the paths it
 touches: changes under `firmware/**` bump the **firmware** version; everything
 else bumps the **server** version. It opens (and keeps updated) a separate
-release PR per component. Merging a release PR publishes a GitHub Release under
-that component's tag, which triggers exactly one build workflow:
+release PR per component. Their titles always include the component and version
+(`chore(main): release server X.Y.Z` or `chore(main): release firmware X.Y.Z`),
+which makes the post-merge lookup unambiguous. Merging a release PR publishes a
+GitHub Release under that component's tag, which triggers exactly one build
+workflow:
 
 - **Server release** (`vX.Y.Z`) → `docker.yml` builds + signs the multi-arch
   image and moves `latest`. `firmware.yml` also triggers on the same
@@ -40,6 +43,10 @@ that component's tag, which triggers exactly one build workflow:
 > multi-component config — the tag/release had to be created by hand). A merge
 > commit preserves the release commit release-please expects. Only the two
 > `chore: release …` PRs need this; ordinary feature/fix PRs stay squash-merged.
+
+`pnpm release:check` guards the component split, parseable PR-title contract,
+tag formats, workflow wiring, and both version sources. It runs during pre-push
+and as the dedicated **Release Config** CI check.
 
 ## Why this is safe for the fleet
 
