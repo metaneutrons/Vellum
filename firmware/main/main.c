@@ -50,7 +50,7 @@ static const char *TAG = "vellum_main";
 
 /* Certificates cannot be validated safely until the RTC has a real date.
  * A provisioned NTP server is an explicit administrator override. Otherwise,
- * DHCP option 42 is preferred and public servers are resilient fallbacks. */
+ * DHCP option 42 is preferred and PTB's UTC(PTB) servers are fallbacks. */
 #define VELLUM_MIN_VALID_UNIX_TIME 1704067200LL /* 2024-01-01T00:00:00Z */
 
 static bool system_time_is_valid(void)
@@ -73,7 +73,7 @@ static void time_sync_completed(struct timeval *tv)
 static bool time_sync_prepare(void)
 {
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(
-        3, ESP_SNTP_SERVER_LIST("time.cloudflare.com", "time.google.com", "pool.ntp.org"));
+        3, ESP_SNTP_SERVER_LIST("ptbtime1.ptb.de", "ptbtime2.ptb.de", "ptbtime3.ptb.de"));
     /* esp-netif retains the server-name pointer after initialization, so this
      * must outlive this setup function. */
     static char provisioned_server[NVS_MAX_NTP_SERVER_LEN];
