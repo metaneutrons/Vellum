@@ -14,6 +14,10 @@ CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS=y
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
 
+# main.c configures three public NTP fallbacks before Wi-Fi connects. Keep the
+# P4/LCD target aligned with the S3 targets so the shared startup code builds.
+CONFIG_LWIP_SNTP_MAX_SERVERS=3
+
 # Panel
 CONFIG_VELLUM_PANEL_D1001=y
 
