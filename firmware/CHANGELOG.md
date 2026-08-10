@@ -2,6 +2,21 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.3.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.2.12...firmware-v1.3.0) (2026-08-10)
+
+
+### Features
+
+* **firmware:** add D1001 RTC support ([525255c](https://github.com/metaneutrons/Vellum/commit/525255c8c5587aab52fa8074a9eecffbe1a121da))
+* **firmware:** add D1001 RTC support ([f77a8a6](https://github.com/metaneutrons/Vellum/commit/f77a8a66a618614ed2e9465beb0cfcf4254ef14d))
+* **provisioning:** support NTP server overrides ([613ea5c](https://github.com/metaneutrons/Vellum/commit/613ea5c894c7c7b2c5b9f9f626175a43f7fb33b5))
+* **provisioning:** support NTP server overrides ([0b45a08](https://github.com/metaneutrons/Vellum/commit/0b45a08be0563bd5b402c2eaca140f7148e4aaf0))
+
+
+### Bug Fixes
+
+* **firmware:** harden WPA3 station compatibility ([afb5f01](https://github.com/metaneutrons/Vellum/commit/afb5f01518a5cd9d2639295873da9e2df8acdbe6))
+
 ## [1.2.12](https://github.com/metaneutrons/Vellum/compare/firmware-v1.2.11...firmware-v1.2.12) (2026-08-10)
 
 
