@@ -2,6 +2,16 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.3.1](https://github.com/metaneutrons/Vellum/compare/firmware-v1.3.0...firmware-v1.3.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **firmware:** prefer PTB NTP fallbacks ([6fdeaf2](https://github.com/metaneutrons/Vellum/commit/6fdeaf26833dc034f243d90c1c25888f71c3b2b2))
+* **firmware:** prefer PTB NTP fallbacks ([f41a9f7](https://github.com/metaneutrons/Vellum/commit/f41a9f77ddc90e29f809434bb815be201ee34f58))
+* **firmware:** show version on system screens ([58e9da8](https://github.com/metaneutrons/Vellum/commit/58e9da8a028b8d7eaa7b46f47f3ed195733c4eed))
+* **firmware:** show version on system screens ([117c6ef](https://github.com/metaneutrons/Vellum/commit/117c6ef8aa93b3f3c7d2bb80fb1d4360f9cab47d))
+
 ## [1.3.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.2.12...firmware-v1.3.0) (2026-08-10)
 
 
