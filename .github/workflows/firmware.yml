@@ -6,6 +6,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      stable_tag:
+        description: Existing firmware-v* release tag to repair/publish as stable (must match the Kconfig version)
+        required: false
+        type: string
 
 env:
   IDF_VERSION: v6.0
@@ -41,6 +46,9 @@ jobs:
 
       - name: Calculate version
         id: calc
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          STABLE_TAG: ${{ inputs.stable_tag }}
         run: |
           # Base version from Kconfig (SSOT: release-please). Anchor to the
           # VELLUM_FIRMWARE_VERSION config block (marked by x-release-please-version)
@@ -56,6 +64,27 @@ jobs:
             echo "version=${BASE}" >> $GITHUB_OUTPUT
             echo "channel=${CHAN}" >> $GITHUB_OUTPUT
             echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          elif [[ "$HEAD_COMMIT_MESSAGE" == chore:\ release\ * ]]; then
+            # Release Please normally publishes a `release` event after merging its
+            # PR. When it authenticates with GITHUB_TOKEN, GitHub deliberately
+            # suppresses that downstream event. The release commit itself still
+            # arrives as a push, so recognise it as the deterministic fallback.
+            # The Kconfig version has already been bumped by Release Please and the
+            # stable release/tag will exist by the time the compilation finishes.
+            echo "version=${BASE}" >> $GITHUB_OUTPUT
+            echo "channel=stable" >> $GITHUB_OUTPUT
+            echo "tag=firmware-v${BASE}" >> $GITHUB_OUTPUT
+          elif [ -n "$STABLE_TAG" ]; then
+            # Explicit, guarded recovery path for an already-created stable release.
+            # This is intentionally exact: it cannot publish the current firmware
+            # into an arbitrary tag or accidentally turn a beta into stable.
+            [ "$STABLE_TAG" = "firmware-v${BASE}" ] || {
+              echo "::error::stable_tag must be firmware-v${BASE}, got $STABLE_TAG"
+              exit 1
+            }
+            echo "version=${BASE}" >> $GITHUB_OUTPUT
+            echo "channel=stable" >> $GITHUB_OUTPUT
+            echo "tag=${STABLE_TAG}" >> $GITHUB_OUTPUT
           else
             # Beta: count commits since the last STABLE firmware tag. Anchor to the
             # firmware tag line (`firmware-v1.2.3`) and exclude betas (`*-beta*`) so
@@ -79,8 +108,9 @@ jobs:
 
   build:
     needs: version
-    # Skip the redundant beta pipeline for release-please's own release commit; the
-    # stable firmware build fires moments later from the `release: published` event.
+    # Skip a release-please release commit only when it did not touch firmware. A
+    # firmware release commit must build here as a fallback for GITHUB_TOKEN, whose
+    # releases intentionally do not emit downstream `release` workflow events.
     # Two ways a release lands on main:
     #  - squash-merge → subject `chore(main): release …` / `chore(firmware): release …`
     #    (anchored to the SUBJECT start so a normal commit whose BODY merely says
@@ -93,7 +123,8 @@ jobs:
       github.event_name != 'push' ||
       !(startsWith(github.event.head_commit.message, 'chore(main): release ') ||
         startsWith(github.event.head_commit.message, 'chore(firmware): release ') ||
-        contains(github.event.head_commit.message, 'release-please--branches'))
+        contains(github.event.head_commit.message, 'release-please--branches')) ||
+      needs.version.outputs.channel == 'stable'
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
@@ -256,7 +287,7 @@ jobs:
           done
 
       - name: Require a signing key for stable releases (devices are fail-closed)
-        if: github.event_name == 'release' && env.OTA_KMS_KEY == '' && env.FIRMWARE_SIGNING_KEY == ''
+        if: needs.version.outputs.channel == 'stable' && env.OTA_KMS_KEY == '' && env.FIRMWARE_SIGNING_KEY == ''
         run: |
           echo "::error::No OTA signing key available (neither OTA_KMS_KEY_VERSION nor FIRMWARE_SIGNING_KEY). Fail-closed devices reject unsigned OTA, so a stable release must be signed."
           exit 1
@@ -409,7 +440,7 @@ jobs:
           # Signatures are mandatory on real releases (devices are fail-closed); on
           # beta builds an unset FIRMWARE_SIGNING_KEY yields empty signatures, which
           # dev/fail-open devices still accept — so only hard-require on release.
-          REQUIRE_SIG: ${{ github.event_name == 'release' }}
+          REQUIRE_SIG: ${{ needs.version.outputs.channel == 'stable' }}
         run: |
           cd binaries
           REQUIRE_SIG="$REQUIRE_SIG" node -e "
@@ -447,22 +478,22 @@ jobs:
       # LAST in a separate step. resolveOta() keys off the manifest, so a device
       # polling mid-publish must never see a manifest whose assets aren't up yet.
       - name: Upload images to existing release
-        if: github.event_name == 'release'
+        if: needs.version.outputs.channel == 'stable'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd binaries
-          gh release upload "${{ github.event.release.tag_name }}" \
+          gh release upload "${{ needs.version.outputs.tag }}" \
             *.bin *.sha256 \
             --repo "${{ github.repository }}" --clobber
 
       - name: Upload manifest to existing release (last, after all images)
-        if: github.event_name == 'release'
+        if: needs.version.outputs.channel == 'stable'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd binaries
-          gh release upload "${{ github.event.release.tag_name }}" \
+          gh release upload "${{ needs.version.outputs.tag }}" \
             firmware-manifest.json \
             --repo "${{ github.repository }}" --clobber
 
@@ -470,17 +501,17 @@ jobs:
       # Normalize its title and prevent a hardware artifact release from taking
       # GitHub's single "Latest" badge away from the current server release.
       - name: Normalize stable firmware release presentation
-        if: github.event_name == 'release'
+        if: needs.version.outputs.channel == 'stable'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api --method PATCH \
-            "repos/${{ github.repository }}/releases/${{ github.event.release.id }}" \
-            -f "name=Vellum Firmware v${{ needs.version.outputs.version }}" \
-            -F "make_latest=false"
+          gh release edit "${{ needs.version.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --title "Vellum Firmware v${{ needs.version.outputs.version }}" \
+            --latest=false
 
       - name: Create beta release with images (manifest uploaded last, below)
-        if: github.event_name != 'release'
+        if: needs.version.outputs.channel != 'stable'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
@@ -492,7 +523,7 @@ jobs:
             binaries/*.sha256
 
       - name: Add manifest to beta release (last, after all images)
-        if: github.event_name != 'release'
+        if: needs.version.outputs.channel != 'stable'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
