@@ -11,6 +11,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
+#include "esp_err.h"
 
 /** Initialize battery ADC, status LED, and buzzer. */
 void board_init(void);
@@ -23,6 +25,9 @@ int board_battery_level(void);
 
 /** True when external USB power is present on hardware that can detect it. */
 bool board_is_usb_powered(void);
+
+/** Set the UTC system clock and persist it in a hardware RTC when available. */
+esp_err_t board_set_utc_time(time_t value);
 
 /** Status LED (active-low). */
 void board_led_on(void);

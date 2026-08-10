@@ -5,6 +5,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_io_expander.h"
+#include <time.h>
 
 /* ── Pin Definitions ─────────────────────────────────────────── */
 
@@ -104,3 +105,7 @@ int d1001_usb_voltage(void);
 
 /** @brief Power off the board */
 void d1001_power_off(void);
+
+/** Battery-backed PCF8563T clock (UTC). */
+esp_err_t d1001_rtc_get_time(time_t *out);
+esp_err_t d1001_rtc_set_time(time_t value);

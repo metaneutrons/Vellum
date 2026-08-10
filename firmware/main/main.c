@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include "esp_log.h"
 #include "esp_system.h"
@@ -41,6 +42,9 @@
 #include "board.h"
 #include "secure_channel.h"
 #include "ota_manager.h"
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+#include "d1001_board.h"
+#endif
 
 static const char *TAG = "vellum_main";
 
@@ -55,10 +59,19 @@ static bool system_time_is_valid(void)
     return (int64_t)now >= VELLUM_MIN_VALID_UNIX_TIME;
 }
 
+static void time_sync_completed(struct timeval *tv)
+{
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+    if (tv && d1001_rtc_set_time(tv->tv_sec) != ESP_OK) {
+        ESP_LOGW(TAG, "Could not persist synchronized time to D1001 RTC");
+    }
+#else
+    (void)tv;
+#endif
+}
+
 static bool time_sync_prepare(void)
 {
-    if (system_time_is_valid()) return true;
-
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(
         3, ESP_SNTP_SERVER_LIST("time.cloudflare.com", "time.google.com", "pool.ntp.org"));
     /* esp-netif retains the server-name pointer after initialization, so this
@@ -76,6 +89,7 @@ static bool time_sync_prepare(void)
     } else {
         config.server_from_dhcp = true;
     }
+    config.sync_cb = time_sync_completed;
     esp_err_t err = esp_netif_sntp_init(&config);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
         ESP_LOGW(TAG, "Unable to initialize NTP: %s", esp_err_to_name(err));
@@ -443,9 +457,13 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_manager_init());
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001: board init first (power rails, I2C, IO-expander) */
-    extern esp_err_t d1001_board_init(void);
-    extern esp_err_t d1001_backlight_on(void);
     ESP_ERROR_CHECK(d1001_board_init());
+    time_t rtc_time;
+    if (d1001_rtc_get_time(&rtc_time) == ESP_OK) {
+        struct timeval tv = { .tv_sec = rtc_time, .tv_usec = 0 };
+        settimeofday(&tv, NULL);
+        ESP_LOGI(TAG, "System clock restored from D1001 RTC");
+    }
     d1001_backlight_on();
 #else
     board_init();

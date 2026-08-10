@@ -9,6 +9,7 @@
 #include "driver/ledc.h"
 #include "soc/pmu_reg.h"
 #include "esp_io_expander_pca9535.h"
+#include <time.h>
 
 static const char *TAG = "d1001_board";
 
@@ -16,7 +17,66 @@ static i2c_master_bus_handle_t s_i2c0 = NULL;
 static i2c_master_bus_handle_t s_i2c1 = NULL;
 static esp_io_expander_handle_t s_io_exp = NULL;
 static adc_oneshot_unit_handle_t s_adc = NULL;
+static i2c_master_dev_handle_t s_rtc = NULL;
 static bool s_bl_init = false;
+#define PCF8563_ADDR       0x51
+#define PCF8563_TIME_REG   0x02
+#define PCF8563_VL_BIT     0x80
+#define RTC_MIN_VALID_TIME 1704067200LL
+
+static uint8_t from_bcd(uint8_t value) { return (value >> 4) * 10 + (value & 0x0f); }
+static uint8_t to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
+
+/* Gregorian calendar to Unix days, independent of process TZ. */
+static int64_t days_from_civil(int year, unsigned month, unsigned day)
+{
+    year -= month <= 2;
+    const int era = (year >= 0 ? year : year - 399) / 400;
+    const unsigned year_of_era = (unsigned)(year - era * 400);
+    const unsigned day_of_year = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+    const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    return era * 146097LL + (int64_t)day_of_era - 719468LL;
+}
+
+esp_err_t d1001_rtc_get_time(time_t *out)
+{
+    if (!out || !s_rtc) return ESP_ERR_INVALID_STATE;
+    uint8_t reg = PCF8563_TIME_REG;
+    uint8_t raw[7];
+    ESP_RETURN_ON_ERROR(i2c_master_transmit_receive(s_rtc, &reg, 1, raw, sizeof(raw), 100),
+                        TAG, "RTC read failed");
+    if (raw[0] & PCF8563_VL_BIT) return ESP_ERR_INVALID_STATE;
+
+    const int second = from_bcd(raw[0] & 0x7f);
+    const int minute = from_bcd(raw[1] & 0x7f);
+    const int hour = from_bcd(raw[2] & 0x3f);
+    const int day = from_bcd(raw[3] & 0x3f);
+    const int month = from_bcd(raw[5] & 0x1f);
+    const int year = 2000 + from_bcd(raw[6]);
+    static const uint8_t month_days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    const bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    if (second > 59 || minute > 59 || hour > 23 || month < 1 || month > 12 ||
+        day < 1 || day > month_days[month - 1] + (month == 2 && leap ? 1 : 0)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    *out = (time_t)(days_from_civil(year, (unsigned)month, (unsigned)day) * 86400LL +
+                   hour * 3600LL + minute * 60LL + second);
+    return (int64_t)*out >= RTC_MIN_VALID_TIME ? ESP_OK : ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t d1001_rtc_set_time(time_t value)
+{
+    if (!s_rtc || (int64_t)value < RTC_MIN_VALID_TIME) return ESP_ERR_INVALID_ARG;
+    struct tm utc;
+    gmtime_r(&value, &utc);
+    if (utc.tm_year < 100 || utc.tm_year > 199) return ESP_ERR_INVALID_ARG;
+    uint8_t data[] = {
+        PCF8563_TIME_REG, to_bcd(utc.tm_sec), to_bcd(utc.tm_min), to_bcd(utc.tm_hour),
+        to_bcd(utc.tm_mday), to_bcd(utc.tm_wday), to_bcd(utc.tm_mon + 1),
+        to_bcd(utc.tm_year - 100),
+    };
+    return i2c_master_transmit(s_rtc, data, sizeof(data), 100);
+}
 
 esp_err_t d1001_board_init(void)
 {
@@ -41,6 +101,17 @@ esp_err_t d1001_board_init(void)
         .i2c_port = 1,
     };
     ESP_RETURN_ON_ERROR(i2c_new_master_bus(&i2c1_cfg, &s_i2c1), TAG, "I2C1 init failed");
+
+    i2c_device_config_t rtc_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = PCF8563_ADDR,
+        .scl_speed_hz = 100000,
+    };
+    esp_err_t rtc_err = i2c_master_bus_add_device(s_i2c1, &rtc_cfg, &s_rtc);
+    if (rtc_err != ESP_OK) {
+        ESP_LOGW(TAG, "PCF8563T unavailable: %s", esp_err_to_name(rtc_err));
+        s_rtc = NULL;
+    }
 
     /* ADC for battery */
     adc_oneshot_unit_init_cfg_t adc_cfg = { .unit_id = ADC_UNIT_1 };
