@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.0](https://github.com/metaneutrons/Vellum/compare/v1.7.2...v1.8.0) (2026-08-10)
+
+
+### Features
+
+* **firmware:** add D1001 RTC support ([525255c](https://github.com/metaneutrons/Vellum/commit/525255c8c5587aab52fa8074a9eecffbe1a121da))
+* **firmware:** add D1001 RTC support ([f77a8a6](https://github.com/metaneutrons/Vellum/commit/f77a8a66a618614ed2e9465beb0cfcf4254ef14d))
+* **provisioning:** support NTP server overrides ([613ea5c](https://github.com/metaneutrons/Vellum/commit/613ea5c894c7c7b2c5b9f9f626175a43f7fb33b5))
+* **provisioning:** support NTP server overrides ([0b45a08](https://github.com/metaneutrons/Vellum/commit/0b45a08be0563bd5b402c2eaca140f7148e4aaf0))
+
 ## [1.7.2](https://github.com/metaneutrons/Vellum/compare/v1.7.1...v1.7.2) (2026-08-10)
 
 
