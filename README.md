@@ -96,6 +96,38 @@ Open **<http://localhost:3000/admin>** and log in.
 
 ### Docker
 
+For production, the **recommended installation** is the repository's Compose
+stack. It includes PostgreSQL with bind-mounted storage, signed server updates,
+pre-update backups, readiness-based rollback, and update controls in the Vellum
+Web UI:
+
+```bash
+sudo install -d -m 0755 /docker/vellum /var/lib/vellum/postgres \
+  /var/lib/vellum/backups /var/lib/vellum/updater
+sudo install -d -m 0700 /etc/vellum
+sudo install -m 0644 deploy/docker-compose.yml /docker/vellum/docker-compose.yml
+sudo install -m 0600 deploy/vellum.env.example /etc/vellum/vellum.env
+
+# Replace every placeholder; generate independent secrets with:
+openssl rand -hex 32
+sudoedit /etc/vellum/vellum.env
+
+sudo docker compose --env-file /etc/vellum/vellum.env \
+  -f /docker/vellum/docker-compose.yml pull
+sudo docker compose --env-file /etc/vellum/vellum.env \
+  -f /docker/vellum/docker-compose.yml up -d
+```
+
+Only `docker-compose.yml` is stored below `/docker/vellum`. Secrets remain in
+`/etc/vellum`; database, updater state, and backups remain in `/var/lib/vellum`.
+Choose manual installation or an automatic daily maintenance time under
+**Firmware → Vellum Server**. See the complete
+[production deployment guide](docs/DOCKER_DEPLOYMENT.md) for supply-chain
+verification, reverse-proxy setup, rollback, and restore procedures.
+
+For local evaluation without the production PostgreSQL/update stack, the server
+image can also be started directly:
+
 ```bash
 docker pull ghcr.io/metaneutrons/vellum:latest
 
@@ -113,7 +145,7 @@ docker run -d \
 
 The container **applies pending database migrations on startup** (idempotent; fail-open so a transient DB outage doesn't block boot), so a fresh `DATABASE_URL` is provisioned automatically and upgrades pick up new migrations with no manual step.
 
-Multi-arch image available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
+Multi-arch images are available for **linux/amd64** and **linux/arm64** (native builds, no QEMU).
 
 ### Microsoft Entra ID sign-in
 

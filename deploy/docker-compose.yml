@@ -1,77 +1,97 @@
-# Production stack for a standalone Vellum installation.
-#
-# Copy `.env.example` to `.env` in this directory, set every value, then run:
-#   docker compose up -d --build
-#
-# The external `traefik` network is supplied by the host's reverse proxy.
+name: vellum
+
 services:
-  db:
-    image: postgres:18-alpine
+  postgres:
+    image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+    container_name: vellum-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-vellum}
       POSTGRES_USER: ${POSTGRES_USER:-vellum}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
-      # PostgreSQL 18 stores clusters below a versioned directory. Mounting the
-      # parent keeps this layout upgrade-compatible (and avoids the legacy
-      # `/var/lib/postgresql/data` mount being rejected by the image).
-      - vellum-postgres:/var/lib/postgresql
+      # PostgreSQL 18 stores its versioned cluster below this parent directory.
+      - /var/lib/vellum/postgres:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vellum} -d $${POSTGRES_DB:-vellum}"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 20s
     security_opt:
       - no-new-privileges:true
-    networks:
-      - internal
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
 
-  vellum:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+  server:
+    image: ${VELLUM_IMAGE:-ghcr.io/metaneutrons/vellum:latest}
+    container_name: vellum
+    restart: unless-stopped
+    env_file:
+      - ${VELLUM_ENV_FILE:-/etc/vellum/vellum.env}
+    environment:
+      UPDATER_URL: http://updater:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  updater:
+    image: ${UPDATER_IMAGE:-ghcr.io/metaneutrons/vellum-updater:latest}
+    container_name: vellum-updater
     restart: unless-stopped
     depends_on:
-      db:
+      server:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-vellum}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vellum}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
-      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
-      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY in .env}
-      ADMIN_USER: ${ADMIN_USER:?set ADMIN_USER in .env}
-      ADMIN_PASS: ${ADMIN_PASS:?set ADMIN_PASS in .env}
-      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
-      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
-      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
-      VELLUM_PUBLIC_URL: ${VELLUM_PUBLIC_URL:-}
-      NODE_ENV: production
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=traefik
-      - traefik.http.routers.vellum.entrypoints=websecure
-      - traefik.http.routers.vellum.rule=Host(`${VELLUM_HOST:?set VELLUM_HOST in .env}`)
-      - traefik.http.routers.vellum.tls=true
-      - traefik.http.routers.vellum.tls.certresolver=letsencrypt
-      # The public listener is shared with other services, but Vellum itself
-      # is deliberately LAN-only. This also blocks requests sent directly to
-      # the host's public IP with a forged Host header.
-      - traefik.http.middlewares.vellum-internal.ipallowlist.sourcerange=${VELLUM_TRUSTED_IPS:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
-      - traefik.http.routers.vellum.middlewares=vellum-internal@docker
-      - traefik.http.services.vellum.loadbalancer.server.port=3000
+      COMPOSE_FILE: /stack/docker-compose.yml
+      COMPOSE_PROJECT: vellum
+      COMPOSE_SERVICE: server
+      TARGET_CONTAINER: vellum
+      DATABASE_CONTAINER: vellum-postgres
+      IMAGE_REPOSITORY: ghcr.io/metaneutrons/vellum
+      POLL_INTERVAL_SECONDS: "900"
+      UPDATE_TIMEOUT_SECONDS: "900"
+      AUTO_APPLY: ${AUTO_APPLY:-true}
+      MAINTENANCE_TIME: ${MAINTENANCE_TIME:-02:00}
+      TZ: ${TZ:-UTC}
+      UPDATER_CONFIG_FILE: /state/config.json
+      HOME: /tmp
+      VELLUM_ENV_FILE: /run/vellum/vellum.env
+      READINESS_URL: http://server:3000/api/v1/health
+      READINESS_TIMEOUT_SECONDS: "120"
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: "14"
+    env_file:
+      - ${VELLUM_ENV_FILE:-/etc/vellum/vellum.env}
+    volumes:
+      # Docker socket access is intentionally isolated to the updater. It is
+      # root-equivalent; never expose this container or its API to the network.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /docker/vellum/docker-compose.yml:/stack/docker-compose.yml:ro
+      - /var/lib/vellum/backups:/backups
+      - /var/lib/vellum/updater:/state
+      - ${VELLUM_ENV_FILE:-/etc/vellum/vellum.env}:/run/vellum/vellum.env:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
-    networks:
-      - internal
-      - traefik
-
-volumes:
-  vellum-postgres:
-
-networks:
-  internal:
-    internal: true
-  traefik:
-    external: true
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"

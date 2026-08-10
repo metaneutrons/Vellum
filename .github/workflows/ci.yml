@@ -15,6 +15,22 @@ env:
   ADMIN_PASS: ci-password-at-least-8
 
 jobs:
+  deployment:
+    name: Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Validate updater scripts
+        run: |
+          shellcheck deploy/updater/update.sh deploy/updater/test-update.sh
+          bash deploy/updater/test-update.sh
+          node --check deploy/updater/control.mjs
+          node --test deploy/updater/control.test.mjs
+      - name: Validate production Compose stack
+        run: VELLUM_ENV_FILE="$PWD/deploy/vellum.env.example" docker compose --env-file deploy/vellum.env.example -f deploy/docker-compose.yml config --quiet
+      - name: Build updater image
+        run: docker build --file deploy/updater/Dockerfile deploy/updater
+
   release-config:
     name: Release Config
     runs-on: ubuntu-latest
