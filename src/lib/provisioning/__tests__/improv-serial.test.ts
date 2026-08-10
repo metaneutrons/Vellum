@@ -11,6 +11,7 @@ import {
   decodeRpcResult,
   wifiSettingsPayloadLength,
   MAX_WIFI_SETTINGS_PAYLOAD,
+  MAX_PROVISIONING_UNIX_TIME,
   IMPROV_HEADER,
   IMPROV_VERSION,
   ImprovType,
@@ -163,6 +164,22 @@ describe("Improv WIFI_SETTINGS encoding", () => {
     expect(() => encodeWifiSettings("Net", "pw", undefined, undefined, undefined, 1_700_000_000)).toThrow(
       /UTC timestamp/,
     );
+    expect(() =>
+      encodeWifiSettings("Net", "pw", undefined, undefined, undefined, MAX_PROVISIONING_UNIX_TIME + 1),
+    ).toThrow(/UTC timestamp/);
+  });
+
+  it("accepts the longest valid timestamp for payload-size reservation", () => {
+    expect(() =>
+      wifiSettingsPayloadLength(
+        "Net",
+        "pw",
+        "https://vellum.example",
+        undefined,
+        "",
+        MAX_PROVISIONING_UNIX_TIME,
+      ),
+    ).not.toThrow();
   });
 
   it("omits the URL string when serverUrl is absent (2-string form)", () => {

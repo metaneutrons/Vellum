@@ -19,6 +19,7 @@ import {
   MAX_SSID_LEN,
   MAX_PASS_LEN,
   MAX_WIFI_SETTINGS_PAYLOAD,
+  MAX_PROVISIONING_UNIX_TIME,
   type ProvisionPhase,
   type ProvisionResult,
   type WifiNetwork,
@@ -31,7 +32,6 @@ const ZERO_TOUCH_TOKEN_LEN = 64;
 // Server URL fits the firmware Improv buffer (256B); keep well under one byte's worth.
 const MAX_URL_LEN = 255;
 const MAX_NTP_SERVER_LEN = 255;
-const PROVISIONING_TIMESTAMP_RESERVATION = 9_999_999_999;
 
 export function ProvisionTool({
   firmware,
@@ -63,14 +63,16 @@ export function ProvisionTool({
   const passOk = new TextEncoder().encode(password).length <= MAX_PASS_LEN;
   const urlOk = new TextEncoder().encode(serverUrl.trim()).length <= MAX_URL_LEN;
   const ntpOk = new TextEncoder().encode(ntpServer.trim()).length <= MAX_NTP_SERVER_LEN;
-  // Reserve the ten-byte UTC timestamp that is added immediately before send.
+  // Reserve the longest valid ten-byte UTC timestamp that can be sent. Using
+  // an out-of-range ten-digit placeholder would trigger the encoder's clock
+  // validation while this component is merely calculating its payload size.
   const payloadBytes = wifiSettingsPayloadLength(
     ssid.trim(),
     password,
     serverUrl.trim() || undefined,
     zeroTouch ? "x".repeat(ZERO_TOUCH_TOKEN_LEN) : undefined,
     ntpServer.trim(),
-    PROVISIONING_TIMESTAMP_RESERVATION,
+    MAX_PROVISIONING_UNIX_TIME,
   );
   const payloadOk = payloadBytes <= MAX_WIFI_SETTINGS_PAYLOAD;
   const canSubmit = supported && !busy && !scanning && ssidOk && passOk && urlOk && ntpOk && payloadOk;
