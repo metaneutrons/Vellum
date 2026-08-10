@@ -27,8 +27,9 @@ wake_reason_t sleep_manager_get_wake_reason(void);
 
 /**
  * Enter deep sleep for the specified number of seconds.
- * Configures both timer and GPIO button wake sources.
- * Does not return — device resets on wake.
+ * Configures both timer and GPIO button wake sources. On e-paper boards with
+ * detected external USB power it waits while remaining awake instead, and
+ * returns when the interval elapses or USB power is removed.
  */
 void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask);
 
