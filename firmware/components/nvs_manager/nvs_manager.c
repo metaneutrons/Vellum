@@ -18,6 +18,7 @@ static const char *TAG = "nvs_mgr";
 #define KEY_WIFI_PASS   "wifi_pass"
 #define KEY_TOKEN       "device_token"
 #define KEY_SERVER_URL  "server_url"
+#define KEY_NTP_SERVER  "ntp_server"
 #define KEY_PRIV_KEY    "ecdh_priv"
 #define KEY_PUB_KEY     "ecdh_pub"
 
@@ -129,6 +130,11 @@ esp_err_t nvs_manager_get_server_url(char *buf, size_t buf_len)
     return read_str(KEY_SERVER_URL, buf, buf_len);
 }
 
+esp_err_t nvs_manager_get_ntp_server(char *buf, size_t buf_len)
+{
+    return read_str(KEY_NTP_SERVER, buf, buf_len);
+}
+
 esp_err_t nvs_manager_store_wifi(const char *ssid, const char *pass)
 {
     if (!ssid || !pass || strlen(ssid) == 0) return ESP_ERR_INVALID_ARG;
@@ -152,6 +158,12 @@ esp_err_t nvs_manager_store_server_url(const char *url)
     if (!url || strlen(url) == 0) return ESP_ERR_INVALID_ARG;
     if (strlen(url) >= NVS_MAX_URL_LEN) return ESP_ERR_INVALID_ARG;
     return write_str(KEY_SERVER_URL, url);
+}
+
+esp_err_t nvs_manager_store_ntp_server(const char *server)
+{
+    if (!server || strlen(server) >= NVS_MAX_NTP_SERVER_LEN) return ESP_ERR_INVALID_ARG;
+    return write_str(KEY_NTP_SERVER, server);
 }
 
 esp_err_t nvs_manager_get_private_key(char *buf, size_t buf_len)

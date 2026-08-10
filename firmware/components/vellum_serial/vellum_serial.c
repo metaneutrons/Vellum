@@ -150,9 +150,11 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
 
     /* Optional third string: server URL (also the Improv redirect target).
      * Optional fourth string: a pre-provisioning device token (zero-touch
-     * enrolment) — the server auto-approves the first device to present it. */
+     * enrolment). Optional fifth string: an administrator-provisioned NTP
+     * server, which overrides DHCP and firmware fallbacks. */
     char redirect[NVS_MAX_URL_LEN] = {0};
     char supplied_url[NVS_MAX_URL_LEN] = {0};
+    char supplied_ntp[NVS_MAX_NTP_SERVER_LEN] = {0};
     size_t pos = (size_t)2 + ssid_len + pass_len;
     if (pos < len) {
         uint8_t url_len = data[pos];
@@ -175,11 +177,29 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
 
             if (pos < len) {
                 uint8_t tok_len = data[pos];
-                if (tok_len > 0 && pos + 1 + tok_len <= (size_t)len) {
+                if (pos + 1 + tok_len > (size_t)len) {
+                    improv_send_error(IMPROV_ERROR_INVALID_RPC);
+                    return;
+                }
+                if (tok_len > 0) {
                     char tok[NVS_MAX_TOKEN_LEN] = {0};
                     memcpy(tok, &data[pos + 1], tok_len >= NVS_MAX_TOKEN_LEN ? NVS_MAX_TOKEN_LEN - 1 : tok_len);
                     nvs_manager_store_token(tok);
                     ESP_LOGI(TAG, "Improv: pre-provisioning token stored");
+                }
+                pos += 1 + tok_len;
+
+                if (pos < len) {
+                    uint8_t ntp_len = data[pos];
+                    /* ntp_len is uint8_t and the NVS buffer has room for any
+                     * value plus a NUL terminator. */
+                    _Static_assert(NVS_MAX_NTP_SERVER_LEN >= 256,
+                                   "NTP buffer must hold any uint8_t-length value + NUL");
+                    if (pos + 1 + ntp_len != (size_t)len) {
+                        improv_send_error(IMPROV_ERROR_INVALID_RPC);
+                        return;
+                    }
+                    if (ntp_len > 0) memcpy(supplied_ntp, &data[pos + 1], ntp_len);
                 }
             }
         }
@@ -197,6 +217,10 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
         nvs_manager_store_server_url(supplied_url);
         snprintf(redirect, sizeof(redirect), "%s", supplied_url);
         ESP_LOGI(TAG, "Improv: Server URL: %s", supplied_url);
+    }
+    if (pos < len) {
+        nvs_manager_store_ntp_server(supplied_ntp);
+        ESP_LOGI(TAG, "Improv: NTP server override %s", supplied_ntp[0] ? "stored" : "cleared");
     }
 
     if (wifi_manager_connect_station() == WIFI_RESULT_CONNECTED) {

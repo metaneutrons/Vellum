@@ -317,5 +317,6 @@
   "wizard": {
     "progress": "Einrichtungsfortschritt",
     "stepOf": "Schritt {current} von {total}"
-  }
+  },
+  "provisionNtp": { "label": "NTP-Server (optional)", "hint": "Übersteuert DHCP-NTP und die Firmware-Fallbacks. Für die Standardrichtlinie leer lassen.", "placeholder": "z. B. ntp.intern.example", "tooLong": "Maximal {max} Bytes.", "profileTooLarge": "Das Profil ist für einen USB-Frame zu groß ({current}/{max} Bytes) — URL oder NTP-Server kürzen." }
 }

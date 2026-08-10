@@ -21,6 +21,7 @@
 #define NVS_MAX_PASS_LEN    65   /* 64 chars + null */
 #define NVS_MAX_TOKEN_LEN   65   /* 64 hex chars + null */
 #define NVS_MAX_URL_LEN     256
+#define NVS_MAX_NTP_SERVER_LEN 256 /* DNS name or IP literal + null */
 #define NVS_MAX_KEY_LEN     45   /* 44 base64 chars + null (32 bytes X25519) */
 
 #ifdef __cplusplus
@@ -48,6 +49,9 @@ esp_err_t nvs_manager_get_token(char *buf, size_t buf_len);
 /** Read server URL. Returns ESP_OK on success. */
 esp_err_t nvs_manager_get_server_url(char *buf, size_t buf_len);
 
+/** Read the optional administrator-provisioned NTP server. */
+esp_err_t nvs_manager_get_ntp_server(char *buf, size_t buf_len);
+
 /** Store Wi-Fi credentials. */
 esp_err_t nvs_manager_store_wifi(const char *ssid, const char *pass);
 
@@ -56,6 +60,9 @@ esp_err_t nvs_manager_store_token(const char *token);
 
 /** Store backend server URL. */
 esp_err_t nvs_manager_store_server_url(const char *url);
+
+/** Store or clear the administrator-provisioned NTP server. */
+esp_err_t nvs_manager_store_ntp_server(const char *server);
 
 /** Read X25519 private key (base64). */
 esp_err_t nvs_manager_get_private_key(char *buf, size_t buf_len);

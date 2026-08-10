@@ -30,6 +30,7 @@ const ZERO_TOUCH_TOKEN_LEN = 64;
 
 // Server URL fits the firmware Improv buffer (256B); keep well under one byte's worth.
 const MAX_URL_LEN = 255;
+const MAX_NTP_SERVER_LEN = 255;
 
 export function ProvisionTool({
   firmware,
@@ -38,9 +39,11 @@ export function ProvisionTool({
 }) {
   const t = useTranslations("provision");
   const tx = useTranslations("provisionExtras");
+  const nt = useTranslations("provisionNtp");
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [serverUrl, setServerUrl] = useState("");
+  const [ntpServer, setNtpServer] = useState("");
   const [supported, setSupported] = useState(true);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<ProvisionPhase | null>(null);
@@ -58,15 +61,17 @@ export function ProvisionTool({
   const ssidOk = ssid.trim().length > 0 && new TextEncoder().encode(ssid.trim()).length <= MAX_SSID_LEN;
   const passOk = new TextEncoder().encode(password).length <= MAX_PASS_LEN;
   const urlOk = new TextEncoder().encode(serverUrl.trim()).length <= MAX_URL_LEN;
-  // The whole profile must fit one Improv frame (ssid + pass + url [+ token]).
+  const ntpOk = new TextEncoder().encode(ntpServer.trim()).length <= MAX_NTP_SERVER_LEN;
+  // The whole profile must fit one Improv frame (ssid + pass + URL + token + NTP).
   const payloadBytes = wifiSettingsPayloadLength(
     ssid.trim(),
     password,
     serverUrl.trim() || undefined,
     zeroTouch ? "x".repeat(ZERO_TOUCH_TOKEN_LEN) : undefined,
+    ntpServer.trim(),
   );
   const payloadOk = payloadBytes <= MAX_WIFI_SETTINGS_PAYLOAD;
-  const canSubmit = supported && !busy && !scanning && ssidOk && passOk && urlOk && payloadOk;
+  const canSubmit = supported && !busy && !scanning && ssidOk && passOk && urlOk && ntpOk && payloadOk;
 
   async function provision() {
     setBusy(true);
@@ -96,6 +101,9 @@ export function ProvisionTool({
         ssid: ssid.trim(),
         password,
         serverUrl: serverUrl.trim() || undefined,
+        // An explicit empty fifth field clears a previously provisioned override
+        // and restores the DHCP/PTB policy.
+        ntpServer: ntpServer.trim(),
         deviceToken,
         onPhase: (p, d) => {
           setPhase(p);
@@ -239,6 +247,28 @@ export function ProvisionTool({
               value={serverUrl}
               onChange={(e) => setServerUrl(e.target.value)}
               placeholder={tx("serverPlaceholder")}
+              autoComplete="off"
+              disabled={busy}
+            />
+          </Field>
+
+          <Field
+            label={nt("label")}
+            htmlFor="prov-ntp"
+            hint={nt("hint")}
+            error={
+              !ntpOk
+                ? nt("tooLong", { max: MAX_NTP_SERVER_LEN })
+                : !payloadOk
+                  ? nt("profileTooLarge", { current: payloadBytes, max: MAX_WIFI_SETTINGS_PAYLOAD })
+                  : undefined
+            }
+          >
+            <Input
+              id="prov-ntp"
+              value={ntpServer}
+              onChange={(e) => setNtpServer(e.target.value)}
+              placeholder={nt("placeholder")}
               autoComplete="off"
               disabled={busy}
             />

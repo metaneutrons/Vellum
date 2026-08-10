@@ -317,5 +317,6 @@
   "wizard": {
     "progress": "Progresso",
     "stepOf": "Passo {current} di {total}"
-  }
+  },
+  "provisionNtp": { "label": "Server NTP (facoltativo)", "hint": "Sostituisce l'NTP DHCP e i server di fallback del firmware. Lascia vuoto per il criterio standard.", "placeholder": "es. ntp.interno.example", "tooLong": "Deve contenere al massimo {max} byte.", "profileTooLarge": "Il profilo è troppo grande per un frame USB ({current}/{max} byte): accorcia l'URL o il server NTP." }
 }
