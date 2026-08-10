@@ -73,13 +73,34 @@ static int status_logo_top(const vellum_panel_t *p)
 static int status_content_top(const vellum_panel_t *p)
 {
     int logo_h = p->logo ? p->logo->header.h : 0;
-    return status_logo_top(p) + logo_h + (p->height > 1000 ? 36 : 18);
+    /* Reserve space for the firmware identity line rendered below the mark. */
+    return status_logo_top(p) + logo_h + (p->height > 1000 ? 80 : 42);
+}
+
+static lv_obj_t *add_firmware_identity(lv_obj_t *parent)
+{
+    const vellum_panel_t *p = vellum_panel();
+    const esp_app_desc_t *app = esp_app_get_description();
+    lv_obj_t *identity = lv_label_create(parent);
+    char text[80];
+    snprintf(text, sizeof(text), "%s | %s", app->version, p->model);
+    lv_label_set_text(identity, text);
+    lv_obj_set_style_text_font(identity, p->font_xs, 0);
+    lv_obj_set_style_text_color(identity, p->muted, 0);
+    lv_obj_set_style_text_align(identity, LV_TEXT_ALIGN_CENTER, 0);
+    return identity;
 }
 
 static lv_obj_t *add_status_logo(lv_obj_t *parent)
 {
+    const vellum_panel_t *p = vellum_panel();
     lv_obj_t *logo = add_logo(parent);
-    if (logo) lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, status_logo_top(vellum_panel()));
+    if (logo) lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, status_logo_top(p));
+
+    lv_obj_t *identity = add_firmware_identity(parent);
+    int logo_h = p->logo ? p->logo->header.h : 0;
+    lv_obj_align(identity, LV_ALIGN_TOP_MID, 0,
+                 status_logo_top(p) + logo_h + (p->height > 1000 ? 14 : 8));
     return logo;
 }
 
@@ -139,15 +160,6 @@ void display_show_boot(const char *version)
 
     add_status_logo(scr);
 
-    lv_obj_t *ver = lv_label_create(scr);
-    const esp_app_desc_t *app = esp_app_get_description();
-    char ver_str[80];
-    snprintf(ver_str, sizeof(ver_str), "%s | %s", app->version, p->model);
-    lv_label_set_text(ver, ver_str);
-    lv_obj_set_style_text_font(ver, p->font_xs, 0);
-    lv_obj_set_style_text_color(ver, p->muted, 0);
-    lv_obj_align(ver, LV_ALIGN_TOP_MID, 0, status_content_top(p));
-
     lvgl_refresh();
 }
 
@@ -205,6 +217,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
         lv_obj_set_flex_flow(left, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(left, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         add_logo(left);
+        add_firmware_identity(left);
 
         lv_obj_t *right = lv_obj_create(scr);
         lv_obj_remove_style_all(right);
@@ -238,6 +251,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
         lv_obj_set_style_pad_top(scr, p->height / 12, 0);
 
         add_logo(scr);
+        add_firmware_identity(scr);
 
         if (qr_buf) {
             lv_obj_t *canvas = lv_canvas_create(scr);
@@ -278,6 +292,7 @@ void display_show_connecting(const char *ssid)
     lv_obj_set_style_pad_row(scr, 20, 0);
 
     add_logo(scr);
+    add_firmware_identity(scr);
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text_fmt(lbl, "Connecting to %s...", ssid);
