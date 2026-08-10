@@ -100,28 +100,48 @@ static lv_display_t *s_disp = NULL;
 static lv_area_t s_dirty_area;
 static bool s_dirty_area_valid = false;
 
+/* IT8951 consumes packed 4bpp pixels as 16-bit words.  A transfer must
+ * therefore start on a four-pixel boundary and contain a multiple of four
+ * pixels per row.  Expand LVGL's invalidated area before rendering so the
+ * added neighbouring pixels are freshly drawn as well. */
+#define IT8951_PIXELS_PER_WORD 4
+
+static void it8951_rounder_cb(lv_event_t *event)
+{
+    lv_area_t *area = lv_event_get_invalidated_area(event);
+    area->x1 &= ~(IT8951_PIXELS_PER_WORD - 1);
+    area->x2 = LV_MIN(PANEL_WIDTH - 1,
+                      area->x2 | (IT8951_PIXELS_PER_WORD - 1));
+}
+
 static void it8951_lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
-    /* Convert L8 (8bpp grayscale) to 4bpp for IT8951 */
-    int32_t w = area->x2 - area->x1 + 1;
-    int32_t h = area->y2 - area->y1 + 1;
-    size_t buf_size = (size_t)w * h / 2;
+    const int32_t w = area->x2 - area->x1 + 1;
+    const int32_t h = area->y2 - area->y1 + 1;
+    const size_t src_stride = lv_draw_buf_width_to_stride(w, LV_COLOR_FORMAT_L8);
+    const size_t dst_stride = (size_t)w / 2;
+    const size_t buf_size = dst_stride * h;
     uint8_t *buf = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
+    bool loaded = false;
+
     if (buf) {
         for (int32_t y = 0; y < h; y++) {
+            const uint8_t *src = px_map + (size_t)y * src_stride;
+            uint8_t *dst = buf + (size_t)y * dst_stride;
             for (int32_t x = 0; x < w; x += 2) {
-                uint8_t p1 = px_map[y * w + x] >> 4;       /* 8bpp → 4bpp */
-                uint8_t p2 = (x + 1 < w) ? (px_map[y * w + x + 1] >> 4) : 0xF;
-                buf[(y * w + x) / 2] = (p1 << 4) | p2;
+                dst[x / 2] = (src[x] & 0xF0) | (src[x + 1] >> 4);
             }
         }
-        it8951_load_image_4bpp(buf, area->x1, area->y1, w, h);
+        loaded = it8951_load_image_4bpp(buf, area->x1, area->y1, w, h) == ESP_OK;
         heap_caps_free(buf);
+    } else {
+        ESP_LOGE(TAG, "Cannot allocate %zu-byte IT8951 flush buffer", buf_size);
     }
-    if (!s_dirty_area_valid) {
+
+    if (loaded && !s_dirty_area_valid) {
         s_dirty_area = *area;
         s_dirty_area_valid = true;
-    } else {
+    } else if (loaded) {
         s_dirty_area.x1 = LV_MIN(s_dirty_area.x1, area->x1);
         s_dirty_area.y1 = LV_MIN(s_dirty_area.y1, area->y1);
         s_dirty_area.x2 = LV_MAX(s_dirty_area.x2, area->x2);
@@ -175,6 +195,7 @@ static lv_display_t *ep_init(void)
     lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_L8);
     lv_display_set_buffers(s_disp, lvgl_buf, NULL, lvgl_buf_size, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(s_disp, it8951_lvgl_flush);
+    lv_display_add_event_cb(s_disp, it8951_rounder_cb, LV_EVENT_INVALIDATE_AREA, NULL);
     ESP_LOGI(TAG, "LVGL display initialized for IT8951 L8 (%zu bytes)", lvgl_buf_size);
 #else
     epd_config_t cfg = {
