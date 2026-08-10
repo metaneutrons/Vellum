@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import {
   encodeWifiSettings,
   encodeScanWifi,
+  encodeGetState,
   decodeScanNetwork,
   encodeFrame,
   ImprovParser,
@@ -125,6 +126,14 @@ describe("Improv WIFI_SETTINGS encoding", () => {
     for (let i = 0; i < 9 + len; i++) cs = (cs + frame[i]) & 0xff;
     expect(frame[9 + len]).toBe(cs);
     expect(frame.length).toBe(10 + len);
+  });
+});
+
+describe("Improv harmless readiness probe", () => {
+  it("encodes GET_STATE as an RPC command with no payload", () => {
+    const frame = encodeGetState();
+    expect(frame[7]).toBe(ImprovType.RPC_COMMAND);
+    expect(Array.from(frame.slice(9, 11))).toEqual([ImprovCmd.GET_STATE, 0]);
   });
 });
 

@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.7.0](https://github.com/metaneutrons/Vellum/compare/v1.6.5...v1.7.0) (2026-08-10)
+
+
+### Features
+
+* pin flashed firmware during enrollment ([9bc8e6c](https://github.com/metaneutrons/Vellum/commit/9bc8e6ccc8a579b8f17a3c318b3b43e1b44d3033))
+* preserve intentional USB firmware flashes ([37c2f60](https://github.com/metaneutrons/Vellum/commit/37c2f6088e21fbc3ed66c5a2d9bc5329ecbb55e9))
+
+
+### Bug Fixes
+
+* improve firmware flash selection flow ([daf3683](https://github.com/metaneutrons/Vellum/commit/daf3683f882b9244361d70ef91b285084e99accf))
+* show scanned Wi-Fi networks during provisioning ([a32f7e9](https://github.com/metaneutrons/Vellum/commit/a32f7e98573f16426334ff8b7904ccb2cb91d5d5))
+
+## [1.6.5](https://github.com/metaneutrons/Vellum/compare/v1.6.4...v1.6.5) (2026-08-09)
+
+
+### Bug Fixes
+
+* avoid global pnpm config in Docker build ([#136](https://github.com/metaneutrons/Vellum/issues/136)) ([48fc7f3](https://github.com/metaneutrons/Vellum/commit/48fc7f399224c952c93adce874c07566f19260e3))
+
+## [1.6.4](https://github.com/metaneutrons/Vellum/compare/v1.6.3...v1.6.4) (2026-08-09)
+
+
+### Bug Fixes
+
+* **firmware:** make E1002 USB provisioning reliable ([#126](https://github.com/metaneutrons/Vellum/issues/126)) ([4a3ccef](https://github.com/metaneutrons/Vellum/commit/4a3ccefaf116f1fcb639719900ce55b0851d6280))
+* wake sleeping displays during USB provisioning ([#135](https://github.com/metaneutrons/Vellum/issues/135)) ([aee7b04](https://github.com/metaneutrons/Vellum/commit/aee7b046e0cb17d5a65bcba323f92a96f4b2ead3))
+
 ## [1.6.3](https://github.com/metaneutrons/Vellum/compare/v1.6.2...v1.6.3) (2026-08-08)
 
 
