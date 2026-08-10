@@ -12,6 +12,17 @@ import { Button } from "@/components/ui/button";
 import { DISPLAY_REGISTRY } from "@/lib/display";
 import { useTranslations } from "next-intl";
 
+interface FirmwareVersion {
+  version: string;
+  channel: "stable" | "beta";
+  date: string;
+  tag: string;
+}
+
+interface Props {
+  versions: FirmwareVersion[];
+}
+
 // ESP Web Tools registers <esp-web-install-button> (script loaded lazily below).
 // Cast the tag name to a component so it renders as a custom element with real
 // React children (Aurora <Button> / <Notice> in its slots) — no JSX intrinsic
@@ -26,13 +37,18 @@ const selectCls =
   "w-full min-h-11 px-3.5 rounded-md bg-surface-secondary border border-separator " +
   "text-[15px] text-label focus-ring focus:border-accent transition";
 
-export function FlashTool() {
+export function FlashTool({ versions }: Props) {
   const t = useTranslations("flash");
   const [model, setModel] = useState("e1002");
   const [channel, setChannel] = useState("stable");
+  const [version, setVersion] = useState("");
   const [loaded, setLoaded] = useState(false);
 
-  const manifestUrl = `/api/v1/admin/flash-manifest?model=${model}&channel=${channel}`;
+  const channelVersions = versions.filter((candidate) => candidate.channel === channel);
+  const latestVersion = channelVersions[0]?.version;
+  const selectedVersion = version || latestVersion;
+  const selectedIsNotLatest = Boolean(version && latestVersion && version !== latestVersion);
+  const manifestUrl = `/api/v1/admin/flash-manifest?model=${encodeURIComponent(model)}&channel=${encodeURIComponent(channel)}${selectedVersion ? `&version=${encodeURIComponent(selectedVersion)}` : ""}`;
 
   useEffect(() => {
     if (loaded) return;
@@ -79,18 +95,49 @@ export function FlashTool() {
               id="flash-channel"
               className={selectCls}
               value={channel}
-              onChange={(e) => setChannel(e.target.value)}
+              onChange={(e) => {
+                setChannel(e.target.value);
+                setVersion("");
+              }}
               aria-label={t("channel")}
             >
               <option value="stable">{t("stable")}</option>
               <option value="beta">{t("beta")}</option>
             </select>
           </Field>
+
+          <Field label={t("version")} htmlFor="flash-version">
+            <select
+              id="flash-version"
+              className={selectCls}
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              aria-label={t("version")}
+              disabled={channelVersions.length === 0}
+            >
+              {latestVersion && <option value="">{t("latest", { version: latestVersion })}</option>}
+              {channelVersions.map((candidate) => (
+                <option key={candidate.tag} value={candidate.version}>
+                  {`v${candidate.version} · ${new Date(candidate.date).toLocaleDateString()}`}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
+
+        {selectedIsNotLatest && selectedVersion && latestVersion && (
+          <div className="mt-5 rounded-xl border border-orange/30 bg-orange/10 px-4 py-3 text-[13px] text-label-secondary">
+            <p className="font-semibold text-label">{t("nonLatestTitle")}</p>
+            <p className="mt-1">{t("nonLatestDescription", { version: selectedVersion, latest: latestVersion })}</p>
+            <Link href="/admin/devices" className="mt-2 inline-block font-medium text-accent hover:underline focus-ring rounded">
+              {t("openDevices")}
+            </Link>
+          </div>
+        )}
 
         {/* ESP Web Tools install button — full flash UX with progress. Remounted
             when model/channel change so it re-reads the manifest URL. */}
-        <div key={`${model}-${channel}`} className="mt-5">
+        <div key={`${model}-${channel}-${selectedVersion ?? "none"}`} className="mt-5">
           {loaded ? (
             <EspInstallButton manifest={manifestUrl}>
               <Button
@@ -132,11 +179,21 @@ export function FlashTool() {
           <p className="mt-1">{t("proxy")}</p>
         </div>
 
-        <div className="mt-4 text-[13px]">
-          <Link href="/admin/firmware/provision" className="text-accent hover:underline">
-            Next: provision Wi-Fi &amp; server over USB →
+        <section className="mt-6 rounded-xl border border-separator bg-fill-secondary p-4">
+          <div className="flex items-start gap-3">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-on-accent">2</span>
+            <div>
+              <h2 className="text-sm font-semibold text-label">{t("nextStepTitle")}</h2>
+              <p className="mt-1 text-[13px] leading-5 text-label-secondary">{t("nextStepDescription")}</p>
+            </div>
+          </div>
+          <Link
+            href="/admin/firmware/provision"
+            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-fill-tertiary px-4 text-[15px] font-semibold text-label transition hover:bg-fill-secondary focus-ring active:scale-[0.97]"
+          >
+            {t("continueProvisioning")} <span aria-hidden="true">→</span>
           </Link>
-        </div>
+        </section>
       </Card>
     </div>
   );
