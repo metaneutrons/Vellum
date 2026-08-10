@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/metaneutrons/Vellum/compare/v1.7.1...v1.7.2) (2026-08-10)
+
+
+### Bug Fixes
+
+* **ci:** publish stable firmware after release-please ([#146](https://github.com/metaneutrons/Vellum/issues/146)) ([c33aa16](https://github.com/metaneutrons/Vellum/commit/c33aa1659f6b19d7da97f4714cc770286deb5935))
+
 ## [1.7.1](https://github.com/metaneutrons/Vellum/compare/v1.7.0...v1.7.1) (2026-08-10)
 
 
