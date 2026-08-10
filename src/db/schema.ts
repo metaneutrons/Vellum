@@ -278,6 +278,10 @@ export const provisioningVouchers = pgTable("provisioning_vouchers", {
   // of a leaked-but-unclaimed voucher to the validity window. NULL = never
   // expires (back-compat for rows minted before this column existed).
   expiresAt: timestamp("expires_at"),
+  // Optional desired release selected in the flash flow. These are applied only
+  // when this single-use voucher is claimed, binding the pin to the enrolled MAC.
+  firmwareChannel: text("firmware_channel"),
+  firmwarePinVersion: text("firmware_pin_version"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
