@@ -28,7 +28,9 @@ GitHub Release under that component's tag, which triggers exactly one build
 workflow:
 
 - **Server release** (`vX.Y.Z`) → `docker.yml` builds + signs the multi-arch
-  image and moves `latest`. `firmware.yml` also triggers on the same
+  image and moves `latest`. `deployment-assets.yml` attaches the versioned
+  `docker-compose.yml`, `vellum.env.example`, and their `SHA256SUMS` file.
+  `firmware.yml` also triggers on the same
   `release: published` event, but its jobs skip (gated on the tag name — the
   `version` job's `if:` requires a `firmware-*` tag, so it and the downstream
   `build` / `sign-and-release` jobs skip on a server release).
@@ -47,6 +49,11 @@ workflow:
 `pnpm release:check` guards the component split, parseable PR-title contract,
 tag formats, workflow wiring, and both version sources. It runs during pre-push
 and as the dedicated **Release Config** CI check.
+
+An existing server release can be backfilled without rebuilding an image or
+firmware by manually running **Deployment Assets** with its `vX.Y.Z` tag. The
+workflow checks out that tag, so the uploaded deployment files always match the
+released server source.
 
 ## Why this is safe for the fleet
 

@@ -1,0 +1,55 @@
+name: Deployment Assets
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing server release tag to backfill
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    # Firmware releases intentionally carry only model firmware artifacts.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.event.release.tag_name, 'firmware-')
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Validate server release tag
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Expected a stable server release tag (vX.Y.Z), got: $RELEASE_TAG"
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Prepare versioned deployment assets
+        run: |
+          mkdir -p dist
+          install -m 0644 deploy/docker-compose.yml dist/docker-compose.yml
+          install -m 0644 deploy/vellum.env.example dist/vellum.env.example
+          cd dist
+          sha256sum docker-compose.yml vellum.env.example > SHA256SUMS
+
+      - name: Upload assets to the server release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$RELEASE_TAG" \
+            dist/docker-compose.yml \
+            dist/vellum.env.example \
+            dist/SHA256SUMS \
+            --clobber \
+            --repo "$GITHUB_REPOSITORY"

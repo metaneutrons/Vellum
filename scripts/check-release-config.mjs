@@ -7,6 +7,10 @@ const config = readJson("release-please-config.json");
 const manifest = readJson(".release-please-manifest.json");
 const packageJson = readJson("package.json");
 const workflow = readFileSync(".github/workflows/release-please.yml", "utf8");
+const deploymentAssetsWorkflow = readFileSync(".github/workflows/deployment-assets.yml", "utf8");
+const dependabotConfig = readFileSync(".github/dependabot.yml", "utf8");
+const productionCompose = readFileSync("deploy/docker-compose.yml", "utf8");
+const deploymentEnv = readFileSync("deploy/vellum.env.example", "utf8");
 const firmwareKconfig = readFileSync("firmware/main/Kconfig.projbuild", "utf8");
 const failures = [];
 
@@ -54,6 +58,26 @@ expect(workflow.includes("config-file: release-please-config.json"),
   "release workflow must use the manifest configuration");
 expect(workflow.includes("manifest-file: .release-please-manifest.json"),
   "release workflow must use the version manifest");
+
+expect(deploymentAssetsWorkflow.includes("release:\n    types: [published]"),
+  "deployment assets must be published with each GitHub release");
+expect(deploymentAssetsWorkflow.includes("workflow_dispatch:"),
+  "deployment assets must support backfilling an existing server release");
+expect(deploymentAssetsWorkflow.includes("ref: ${{ env.RELEASE_TAG }}"),
+  "deployment assets must be read from the released tag");
+for (const asset of ["docker-compose.yml", "vellum.env.example", "SHA256SUMS"]) {
+  expect(deploymentAssetsWorkflow.includes(`dist/${asset}`),
+    `deployment release must upload ${asset}`);
+}
+expect(dependabotConfig.includes('package-ecosystem: "docker-compose"') &&
+  dependabotConfig.includes('directory: "/deploy"'),
+"Dependabot must monitor production Compose image pins");
+for (const variable of ["VELLUM_DATA_DIR", "VELLUM_COMPOSE_FILE", "VELLUM_ENV_FILE"]) {
+  expect(productionCompose.includes(`\${${variable}:-`),
+    `production Compose host path must be portable via ${variable}`);
+  expect(deploymentEnv.includes(`${variable}=`),
+    `production environment template must set ${variable}`);
+}
 
 if (failures.length > 0) {
   process.stderr.write(`Release configuration is invalid:\n- ${failures.join("\n- ")}\n`);
