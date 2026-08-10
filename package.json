@@ -22,6 +22,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "i18n:check": "node scripts/check-i18n.mjs",
+    "release:check": "node scripts/check-release-config.mjs",
     "prepare": "node scripts/setup-git-hooks.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",

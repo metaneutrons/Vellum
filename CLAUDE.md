@@ -98,7 +98,8 @@ Driven by `release-please-config.json` + `.release-please-manifest.json`
 release fires the build workflows (falls back to `GITHUB_TOKEN` with no
 downstream triggers).
 
-- **Server** = package `.` (release-type `node`, `exclude-paths:["firmware"]`,
+- **Server** = component `server`, package `.` (release-type `node`,
+  `exclude-paths:["firmware"]`,
   tag `vX.Y.Z`) → built by `docker.yml` (multi-arch amd64+arm64, SBOM + SLSA
   provenance, cosign keyless, moves `latest`).
 - **Firmware** = package `firmware` (release-type `simple`,
@@ -108,6 +109,12 @@ downstream triggers).
 - release-please routes each commit by path: `firmware/**` → firmware component;
   everything else → server. A server `fix:` does NOT rebuild firmware and vice
   versa.
+- `separate-pull-requests: true` and the explicit title pattern produce one
+  parseable PR per changed component (`chore(main): release server X.Y.Z` /
+  `chore(main): release firmware X.Y.Z`). Keep `${component}` and `${version}`
+  in that pattern: grouped `chore: release main` titles can leave a server-only
+  release merged but untagged. `pnpm release:check` enforces these invariants in
+  pre-push and CI.
 - **MERGE-COMMIT the two `chore: release` PRs — do NOT squash.** Squash rewrites
   the release commit and release-please fails to create the GitHub Release object
   (hit on v1.2.1; tag/release had to be hand-created). Ordinary PRs stay
@@ -127,14 +134,15 @@ downstream triggers).
   "autorelease: tagged"` so release-please's state stays consistent.
 - Firmware version **SSOT**: the `firmware` key in
   `.release-please-manifest.json` → `firmware/main/Kconfig.projbuild`
-  `default "X.Y.Z" # x-release-please-version`. **Current = 1.2.1.**
+  `default "X.Y.Z" # x-release-please-version`. Read the manifest for the
+  current value; do not hard-code it in documentation.
   `firmware/version.txt` is **gitignored + build-generated** for `PROJECT_VER`
   and is NOT authoritative (working copies may show junk like `1.3.0-localtest`).
 - Tag state: `firmware-v1.2.0` is a release-please **anchor tag with NO GitHub
-  Release** (fleet never sees it). `firmware-v1.2.1` is the **first & current
-  real firmware release**. The next firmware version is **whatever release-please
-  computes** from `firmware/**` commits since firmware-v1.2.1 (do not assume
-  v1.3.0 — a stale doc/comment claims that).
+  Release** (fleet never sees it). `firmware-v1.2.1` is the **first real
+  firmware release in that lineage**. The next firmware version is
+  **whatever release-please computes** from `firmware/**` commits since its
+  latest release; do not assume a specific version.
 - `firmware.yml` `if:`-gotchas — don't "fix" them into misfiring: the `version`
   job skips server (`v*`) releases; `build`/`sign-and-release` then skip via
   default `success()` gating (adding `always()`/`!cancelled()` would run firmware
