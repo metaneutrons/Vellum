@@ -56,16 +56,35 @@ const VOUCHER_TTL_HOURS = 24 * 7;
  */
 export async function createProvisioningVoucher(
   label: string,
+  firmware?: { channel: "stable" | "beta"; version: string },
   ttlHours: number = VOUCHER_TTL_HOURS,
 ): Promise<string> {
   const actor = await requireAdmin("devices.provision");
+  if (firmware) {
+    const { getManifestsByChannel } = await import("@/lib/firmware");
+    const versions = await getManifestsByChannel(firmware.channel);
+    if (!versions.some((candidate) => candidate.version === firmware.version)) {
+      throw new Error("firmware_version_unavailable");
+    }
+  }
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
   await withDb(
-    () => db.insert(provisioningVouchers).values({ token, label: label.trim() || null, expiresAt }),
+    () => db.insert(provisioningVouchers).values({
+      token,
+      label: label.trim() || null,
+      expiresAt,
+      firmwareChannel: firmware?.channel,
+      firmwarePinVersion: firmware?.version,
+    }),
     "create-voucher",
   );
-  await writeAudit(actor, "device.voucher.create", "provisioning_voucher", undefined, { label: label.trim(), expiresAt: expiresAt.toISOString() });
+  await writeAudit(actor, "device.voucher.create", "provisioning_voucher", undefined, {
+    label: label.trim(),
+    expiresAt: expiresAt.toISOString(),
+    firmwareChannel: firmware?.channel,
+    firmwarePinVersion: firmware?.version,
+  });
   revalidatePath("/admin/devices");
   return token;
 }

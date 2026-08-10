@@ -42,6 +42,18 @@
 
 static const char *TAG = "vellum_main";
 
+/* A USB-powered display must remain usable for Web Serial provisioning and
+ * diagnostics. Keeping the panel awake matches the MCU sleep policy in
+ * sleep_manager_enter() and avoids making a cabled error screen disappear. */
+static void display_sleep_unless_usb_powered(void)
+{
+    if (board_is_usb_powered()) {
+        ESP_LOGI(TAG, "External USB power present; keeping display awake");
+        return;
+    }
+    display_sleep();
+}
+
 /** Build a display-safe server URL. Credentials are never expected in Vellum
  * URLs, but redact RFC 3986 userinfo defensively before putting it on a public
  * room display. */
@@ -428,7 +440,7 @@ void app_main(void)
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
         display_show_error("Low Battery");
-        display_sleep();
+        display_sleep_unless_usb_powered();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
         /* LCD mode returns after a bounded delay and re-checks the battery. */
         while (board_battery_level() < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
@@ -471,7 +483,7 @@ void app_main(void)
         display_show_wifi_error(wifi_manager_get_last_failure_message(),
                                 retry_after_seconds);
 #if !defined(CONFIG_VELLUM_PANEL_D1001)
-        display_sleep();
+        display_sleep_unless_usb_powered();
 #endif
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
         /* On E-Paper: does not return. On D1001: returns, then restart to re-init WiFi */
@@ -528,7 +540,7 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(100));
         button_action_t action = buttons_poll();
         if (handle_button_action(action)) {
-            display_sleep();
+            display_sleep_unless_usb_powered();
             sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
             /* does not return */
         }
@@ -542,7 +554,7 @@ void app_main(void)
         while (!perform_hello()) {
             ESP_LOGW(TAG, "No token after hello — device may be pending or server unreachable");
             display_show_error("No Server");
-            display_sleep();
+            display_sleep_unless_usb_powered();
             sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
             /* On D1001 this returns after delay; on E-Paper it does not return */
         }
@@ -587,9 +599,22 @@ void app_main(void)
         ota_manager_check_and_apply();
     }
 #else
-    /* 9. Enter deep sleep (E-Paper) */
+    /* 9. E-paper normally sleeps between refreshes. With external USB power
+     * it deliberately remains awake and keeps polling, so a cabled display is
+     * immediately reachable through its serial-provisioning interface. */
+    while (board_is_usb_powered()) {
+        ESP_LOGI(TAG, "External USB power present; refreshing in %lu seconds",
+                 (unsigned long)sleep_duration);
+        sleep_manager_enter(sleep_duration, buttons_get_wake_mask());
+        if (!board_is_usb_powered()) break;
+        sleep_duration = perform_render(&render_ok);
+        if (render_ok) ota_manager_mark_valid();
+        ota_manager_check_and_apply();
+    }
+
+    /* USB was not present (or was removed): return to low-power operation. */
     ESP_LOGI(TAG, "Sleeping for %lu seconds", (unsigned long)sleep_duration);
-    display_sleep();
+    display_sleep_unless_usb_powered();
     sleep_manager_enter(sleep_duration, buttons_get_wake_mask());
     /* does not return */
 #endif

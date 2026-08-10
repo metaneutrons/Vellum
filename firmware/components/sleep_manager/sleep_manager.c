@@ -16,6 +16,8 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
+#include "board.h"
+
 static const char *TAG = "sleep_mgr";
 
 static wake_reason_t s_wake_reason = WAKE_REASON_POWER_ON;
@@ -53,6 +55,23 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
     if (seconds == 0) {
         seconds = CONFIG_VELLUM_FALLBACK_SLEEP_SEC;
     }
+
+#if !defined(CONFIG_VELLUM_PANEL_D1001)
+    /* A cabled display is expected to remain responsive for provisioning and
+     * diagnostics. Never enter ESP deep sleep while the board can positively
+     * identify external USB power. Poll the power state while waiting so an
+     * unplugged display falls back to normal battery-saving sleep promptly. */
+    if (board_is_usb_powered()) {
+        ESP_LOGI(TAG, "External USB power present; staying awake for %lu seconds",
+                 (unsigned long)seconds);
+        for (uint32_t elapsed = 0;
+             elapsed < seconds && board_is_usb_powered();
+             ++elapsed) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        return;
+    }
+#endif
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: delay then return to caller (no restart, no deep sleep) */
