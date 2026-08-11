@@ -9,6 +9,7 @@
     "themes": "Designs",
     "profiles": "Aktualisierungsprofile",
     "firmware": "Firmware",
+    "system": "System",
     "access": "Zugriff",
     "logout": "Abmelden",
     "lightMode": "Heller Modus",
@@ -211,9 +212,9 @@
     "save": "Speichern",
     "cancel": "Abbrechen", "search": "Suchen…", "defaultIntervals": "Standardintervalle", "scheduleRules": "Zeitplanregeln", "refreshInterval": "Aktualisierungsintervall", "moveUp": "Nach oben", "moveDown": "Nach unten", "overnight": "Übernachtregel (über Mitternacht)", "deleteTitle": "Profil löschen", "deleteMessage": "Dieses Aktualisierungsprofil löschen? Geräte wechseln zu den Standardwerten."
   },
-  "firmware": {
-    "rolloutAdoption": "Geräte mit dieser Version", "rolloutState": "Rollout-Status für {version}", "rolloutPercent": "Rollout-Prozent für {version}", "halt": "{version} anhalten", "stateFull": "vollständig", "stateCanary": "Canary", "statePercent": "Prozent", "statePaused": "pausiert", "stateHalted": "angehalten", "rolloutUpdated": "Rollout: {version} → {state}{percent}", "rolloutUpdateFailed": "Rollout konnte nicht aktualisiert werden",
-  "title": "Firmware",
+  "system": {
+  "title": "System",
+  "description": "Vellum Server, Updates und Betriebszustand verwalten",
   "serverUpdateTitle": "Vellum Server",
   "serverVersionUnknown": "Version unbekannt",
   "serverUpdaterUnavailable": "Automatische Server-Updates sind für diese Installation nicht aktiviert.",
@@ -237,13 +238,18 @@
   "serverCheckStarted": "Release-Prüfung gestartet",
   "serverUpdateStarted": "Server-Update gestartet",
   "serverActionFailed": "Server-Update-Aktion fehlgeschlagen",
+  "serverActionForbidden": "Diese Aktion ist nicht erlaubt. Lade die Seite neu oder prüfe deine Berechtigung.",
   "serverStateUnavailable": "Nicht verfügbar",
   "serverStateStarting": "Startet",
   "serverStateChecking": "Wird geprüft",
   "serverStateAvailable": "Update verfügbar",
   "serverStateUpdating": "Wird aktualisiert",
   "serverStateCurrent": "Aktuell",
-  "serverStateFailed": "Handlungsbedarf",
+  "serverStateFailed": "Handlungsbedarf"
+  },
+  "firmware": {
+    "rolloutAdoption": "Geräte mit dieser Version", "rolloutState": "Rollout-Status für {version}", "rolloutPercent": "Rollout-Prozent für {version}", "halt": "{version} anhalten", "stateFull": "vollständig", "stateCanary": "Canary", "statePercent": "Prozent", "statePaused": "pausiert", "stateHalted": "angehalten", "rolloutUpdated": "Rollout: {version} → {state}{percent}", "rolloutUpdateFailed": "Rollout konnte nicht aktualisiert werden",
+  "title": "Firmware",
     "description": "OTA-Firmware-Updates über GitHub Releases",
     "flash": "Gerät flashen",
     "provision": "Über USB einrichten",

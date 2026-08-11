@@ -9,6 +9,7 @@
     "themes": "Themes",
     "profiles": "Refresh Profiles",
     "firmware": "Firmware",
+    "system": "System",
     "access": "Access",
     "logout": "Logout",
     "lightMode": "Light mode",
@@ -211,9 +212,9 @@
     "save": "Save",
     "cancel": "Cancel", "search": "Search…", "defaultIntervals": "Default intervals", "scheduleRules": "Schedule rules", "refreshInterval": "Refresh interval", "moveUp": "Move up", "moveDown": "Move down", "overnight": "Overnight rule (wraps past midnight)", "deleteTitle": "Delete profile", "deleteMessage": "Delete this refresh profile? Devices using it will fall back to defaults."
   },
-  "firmware": {
-    "rolloutAdoption": "devices currently running this version", "rolloutState": "Rollout state for {version}", "rolloutPercent": "Rollout percent for {version}", "halt": "Halt {version}", "stateFull": "full", "stateCanary": "canary", "statePercent": "percent", "statePaused": "paused", "stateHalted": "halted", "rolloutUpdated": "Rollout: {version} → {state}{percent}", "rolloutUpdateFailed": "Failed to update rollout",
-  "title": "Firmware",
+  "system": {
+  "title": "System",
+  "description": "Manage the Vellum Server, updates, and operational status",
   "serverUpdateTitle": "Vellum Server",
   "serverVersionUnknown": "Version unknown",
   "serverUpdaterUnavailable": "Automatic server updates are not enabled for this deployment.",
@@ -237,13 +238,18 @@
   "serverCheckStarted": "Release check started",
   "serverUpdateStarted": "Server update started",
   "serverActionFailed": "Server update action failed",
+  "serverActionForbidden": "This action is not allowed. Reload the page or check your permission.",
   "serverStateUnavailable": "Unavailable",
   "serverStateStarting": "Starting",
   "serverStateChecking": "Checking",
   "serverStateAvailable": "Update available",
   "serverStateUpdating": "Updating",
   "serverStateCurrent": "Current",
-  "serverStateFailed": "Attention required",
+  "serverStateFailed": "Attention required"
+  },
+  "firmware": {
+    "rolloutAdoption": "devices currently running this version", "rolloutState": "Rollout state for {version}", "rolloutPercent": "Rollout percent for {version}", "halt": "Halt {version}", "stateFull": "full", "stateCanary": "canary", "statePercent": "percent", "statePaused": "paused", "stateHalted": "halted", "rolloutUpdated": "Rollout: {version} → {state}{percent}", "rolloutUpdateFailed": "Failed to update rollout",
+  "title": "Firmware",
     "description": "OTA firmware updates via GitHub Releases",
     "flash": "Flash Device",
     "provision": "Provision over USB",
