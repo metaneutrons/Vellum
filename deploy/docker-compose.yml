@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
       # PostgreSQL 18 stores its versioned cluster below this parent directory.
-      - ${VELLUM_DATA_DIR:-./.vellum}/postgres:/var/lib/postgresql
+      - ./data/postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vellum} -d $${POSTGRES_DB:-vellum}"]
       interval: 10s
@@ -31,7 +31,7 @@ services:
     container_name: vellum
     restart: unless-stopped
     env_file:
-      - ${VELLUM_ENV_FILE:-./vellum.env}
+      - ./.env
     environment:
       UPDATER_URL: http://updater:8080
     depends_on:
@@ -68,21 +68,21 @@ services:
       TZ: ${TZ:-UTC}
       UPDATER_CONFIG_FILE: /state/config.json
       HOME: /tmp
-      VELLUM_ENV_FILE: /run/vellum/vellum.env
+      VELLUM_ENV_FILE: /stack/.env
       READINESS_URL: http://server:3000/api/v1/health
       READINESS_TIMEOUT_SECONDS: "120"
       BACKUP_DIR: /backups
       BACKUP_RETENTION_DAYS: "14"
     env_file:
-      - ${VELLUM_ENV_FILE:-./vellum.env}
+      - ./.env
     volumes:
       # Docker socket access is intentionally isolated to the updater. It is
       # root-equivalent; never expose this container or its API to the network.
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${VELLUM_COMPOSE_FILE:-./docker-compose.yml}:/stack/docker-compose.yml:ro
-      - ${VELLUM_DATA_DIR:-./.vellum}/backups:/backups
-      - ${VELLUM_DATA_DIR:-./.vellum}/updater:/state
-      - ${VELLUM_ENV_FILE:-./vellum.env}:/run/vellum/vellum.env:ro
+      - ./docker-compose.yml:/stack/docker-compose.yml:ro
+      - ./data/backups:/backups
+      - ./data/updater:/state
+      - ./.env:/stack/.env:ro
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777

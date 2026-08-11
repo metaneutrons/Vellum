@@ -1,39 +1,40 @@
 # Production Docker deployment
 
-The production stack deliberately keeps `/docker/vellum` configuration-only:
-the directory contains one `docker-compose.yml`. Secrets live in
-`/etc/vellum/vellum.env`; PostgreSQL data, updater state, and update backups are
-bind-mounted below `/var/lib/vellum`.
+The recommended installation is one self-contained directory at a location you
+choose. It holds the Compose definition, its automatically loaded `.env`, and
+all persistent bind-mounted data. There is no repository checkout and no fixed
+Linux host path; the same stack works with Docker Engine or Docker Desktop.
 
 ## Install
 
 ```bash
-sudo install -d -m 0755 /docker/vellum /var/lib/vellum/postgres \
-  /var/lib/vellum/backups /var/lib/vellum/updater
-sudo install -d -m 0700 /etc/vellum
+# Choose any writable location for the complete Vellum installation.
+mkdir -p "$HOME/vellum"
+cd "$HOME/vellum"
 
-tmpdir="$(mktemp -d)"
 release="https://github.com/metaneutrons/Vellum/releases/latest/download"
 curl --fail --silent --show-error --location \
-  --output "$tmpdir/docker-compose.yml" "$release/docker-compose.yml"
+  --remote-name "$release/docker-compose.yml"
 curl --fail --silent --show-error --location \
-  --output "$tmpdir/vellum.env.example" "$release/vellum.env.example"
+  --remote-name "$release/vellum.env.example"
 curl --fail --silent --show-error --location \
-  --output "$tmpdir/SHA256SUMS" "$release/SHA256SUMS"
-(cd "$tmpdir" && sha256sum --check SHA256SUMS)
+  --remote-name "$release/SHA256SUMS"
 
-sudo install -m 0644 "$tmpdir/docker-compose.yml" /docker/vellum/docker-compose.yml
-sudo install -m 0600 "$tmpdir/vellum.env.example" /etc/vellum/vellum.env
-rm -rf "$tmpdir"
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum --check SHA256SUMS
+else
+  shasum --algorithm 256 --check SHA256SUMS
+fi
+mv vellum.env.example .env
+rm SHA256SUMS
+chmod 600 .env
 
 # Generate every placeholder secret independently, including UPDATER_TOKEN:
 openssl rand -hex 32
-sudoedit /etc/vellum/vellum.env
+${EDITOR:-vi} .env
 
-sudo docker compose --env-file /etc/vellum/vellum.env \
-  -f /docker/vellum/docker-compose.yml pull
-sudo docker compose --env-file /etc/vellum/vellum.env \
-  -f /docker/vellum/docker-compose.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
 The host needs no repository checkout. `releases/latest/download` resolves to
@@ -43,27 +44,23 @@ truncated or mismatched download before anything is installed. Each release's
 environment template also pins `VELLUM_IMAGE` to that exact server tag for the
 initial deployment; later upgrades remain controlled by the verified updater.
 
-## Local macOS run
+Compose creates this layout on first start:
 
-The production Compose file is also portable to Docker Desktop. Keep all local
-state inside the checked-out `deploy` directory and override the three Linux
-host paths from `vellum.env.example`:
-
-```bash
-cd deploy
-cp vellum.env.example vellum.env
-# Replace every secret and set VELLUM_PUBLIC_URL for your environment.
-
-VELLUM_DATA_DIR="$PWD/.vellum" \
-VELLUM_COMPOSE_FILE="$PWD/docker-compose.yml" \
-VELLUM_ENV_FILE="$PWD/vellum.env" \
-  docker compose --env-file vellum.env up -d
+```text
+vellum/
+├── docker-compose.yml
+├── .env
+└── data/
+    ├── postgres/
+    ├── backups/
+    └── updater/
 ```
 
-Use the same three overrides for later `docker compose` commands. PostgreSQL,
-backups, and updater state remain bind-mounted below `deploy/.vellum`; they are
-not hidden in anonymous Docker volumes. The production server port remains
-loopback-only at `127.0.0.1:3000`.
+You may place the directory anywhere the Docker-operating account can access,
+including `/srv/vellum`, `/docker/vellum`, or a home directory. Compose resolves
+the bind mounts relative to `docker-compose.yml`, so no paths need editing when
+the stopped stack is moved or restored. Keep `.env` private. The server port
+remains loopback-only at `127.0.0.1:3000` on Linux and macOS.
 
 For bootstrap supply-chain verification, inspect the published Sigstore identity
 with `cosign verify` and set `VELLUM_IMAGE` and `UPDATER_IMAGE` to the verified
@@ -104,7 +101,7 @@ Administrators with `system.update` permission choose the behavior under
   maintenance time in the configured IANA timezone, for example
   `02:00 Europe/Berlin`.
 
-The setting is persisted in `/var/lib/vellum/updater/config.json` and survives
+The setting is persisted in `data/updater/config.json` and survives
 container replacement. `AUTO_APPLY`, `MAINTENANCE_TIME`, and `TZ` in Compose are
 bootstrap defaults used only until a Web UI setting has been saved. A missed
 maintenance window is not executed late; it waits for the next daily window.
@@ -128,24 +125,23 @@ sudo docker exec vellum-updater node -e \
 The control port is intentionally not published by the Compose stack. To disable updates:
 
 ```bash
-sudo docker compose --env-file /etc/vellum/vellum.env \
-  -f /docker/vellum/docker-compose.yml stop updater
+docker compose stop updater
 ```
 
-Backups are retained in `/var/lib/vellum/backups` for 14 days. A failed server
-deployment rolls the image back automatically but never restores a database
-backup automatically; database restore is an explicit operator action. Server
-migrations must therefore follow expand/contract compatibility across adjacent
-releases.
+Backups are retained in `data/backups/` for 14 days. These database dumps are
+the safe artifacts to back up while the stack is running; copying the live
+`data/postgres/` directory does not guarantee a consistent database. A failed
+server deployment rolls the image back automatically but never restores a
+database backup automatically; database restore is an explicit operator action.
+Server migrations must therefore follow expand/contract compatibility across
+adjacent releases.
 
 The updater image itself is not allowed to replace its own container. Update it
 explicitly after reviewing a release:
 
 ```bash
-sudo docker compose --env-file /etc/vellum/vellum.env \
-  -f /docker/vellum/docker-compose.yml pull updater
-sudo docker compose --env-file /etc/vellum/vellum.env \
-  -f /docker/vellum/docker-compose.yml up -d --no-deps updater
+docker compose pull updater
+docker compose up -d --no-deps updater
 ```
 
 Docker socket access is root-equivalent. It exists only in the dedicated updater

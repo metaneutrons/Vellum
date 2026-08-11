@@ -9,6 +9,7 @@ out/
 .env*
 deploy/vellum.env
 deploy/.vellum/
+deploy/data/
 *.pem
 *.key
 *.der

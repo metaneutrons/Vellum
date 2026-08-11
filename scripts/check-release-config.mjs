@@ -74,11 +74,21 @@ for (const asset of ["docker-compose.yml", "vellum.env.example", "SHA256SUMS"]) 
 expect(dependabotConfig.includes('package-ecosystem: "docker-compose"') &&
   dependabotConfig.includes('directory: "/deploy"'),
 "Dependabot must monitor production Compose image pins");
+for (const path of [
+  "./data/postgres:/var/lib/postgresql",
+  "./data/backups:/backups",
+  "./data/updater:/state",
+  "./docker-compose.yml:/stack/docker-compose.yml:ro",
+  "./.env:/stack/.env:ro",
+]) {
+  expect(productionCompose.includes(path),
+    `production Compose must keep ${path} inside the portable stack directory`);
+}
+expect((productionCompose.match(/^\s+- \.\/\.env$/gm) ?? []).length === 2,
+  "server and updater must load the stack-local .env file");
 for (const variable of ["VELLUM_DATA_DIR", "VELLUM_COMPOSE_FILE", "VELLUM_ENV_FILE"]) {
-  expect(productionCompose.includes(`\${${variable}:-`),
-    `production Compose host path must be portable via ${variable}`);
-  expect(deploymentEnv.includes(`${variable}=`),
-    `production environment template must set ${variable}`);
+  expect(!deploymentEnv.includes(`${variable}=`),
+    `production environment template must not require obsolete host path ${variable}`);
 }
 
 if (failures.length > 0) {
