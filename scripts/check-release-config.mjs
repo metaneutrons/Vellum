@@ -63,8 +63,10 @@ expect(deploymentAssetsWorkflow.includes("release:\n    types: [published]"),
   "deployment assets must be published with each GitHub release");
 expect(deploymentAssetsWorkflow.includes("workflow_dispatch:"),
   "deployment assets must support backfilling an existing server release");
-expect(deploymentAssetsWorkflow.includes("ref: ${{ env.RELEASE_TAG }}"),
-  "deployment assets must be read from the released tag");
+expect(deploymentAssetsWorkflow.includes("github.event_name == 'workflow_dispatch' && github.sha || env.RELEASE_TAG"),
+  "deployment assets must use the tag normally and the current ref for backfills");
+expect(deploymentAssetsWorkflow.includes("VELLUM_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}"),
+  "deployment assets must pin the initial server image to the release tag");
 for (const asset of ["docker-compose.yml", "vellum.env.example", "SHA256SUMS"]) {
   expect(deploymentAssetsWorkflow.includes(`dist/${asset}`),
     `deployment release must upload ${asset}`);
