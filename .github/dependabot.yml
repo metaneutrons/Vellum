@@ -42,3 +42,16 @@ updates:
     groups:
       docker:
         update-types: ["minor", "patch"]
+
+  # ── Production Compose images (PostgreSQL digest, etc.) ───────────
+  # Keep mutable upstream tags reviewable and deployments reproducible. Major
+  # PostgreSQL upgrades remain separate PRs because they require a data upgrade.
+  - package-ecosystem: "docker-compose"
+    directory: "/deploy"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      compose:
+        update-types: ["minor", "patch"]

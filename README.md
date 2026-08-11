@@ -53,14 +53,24 @@ daily maintenance time.
 ### Deploy
 
 ```bash
-git clone https://github.com/metaneutrons/Vellum.git
-cd Vellum
-
 sudo install -d -m 0755 /docker/vellum /var/lib/vellum/postgres \
   /var/lib/vellum/backups /var/lib/vellum/updater
 sudo install -d -m 0700 /etc/vellum
-sudo install -m 0644 deploy/docker-compose.yml /docker/vellum/docker-compose.yml
-sudo install -m 0600 deploy/vellum.env.example /etc/vellum/vellum.env
+
+# Download the deployment files from the latest stable Vellum Server release.
+tmpdir="$(mktemp -d)"
+release="https://github.com/metaneutrons/Vellum/releases/latest/download"
+curl --fail --silent --show-error --location \
+  --output "$tmpdir/docker-compose.yml" "$release/docker-compose.yml"
+curl --fail --silent --show-error --location \
+  --output "$tmpdir/vellum.env.example" "$release/vellum.env.example"
+curl --fail --silent --show-error --location \
+  --output "$tmpdir/SHA256SUMS" "$release/SHA256SUMS"
+(cd "$tmpdir" && sha256sum --check SHA256SUMS)
+
+sudo install -m 0644 "$tmpdir/docker-compose.yml" /docker/vellum/docker-compose.yml
+sudo install -m 0600 "$tmpdir/vellum.env.example" /etc/vellum/vellum.env
+rm -rf "$tmpdir"
 
 # Replace every placeholder. Generate each secret independently.
 openssl rand -hex 32
@@ -81,6 +91,15 @@ The layout deliberately separates configuration and data:
 | `/var/lib/vellum/postgres` | PostgreSQL data |
 | `/var/lib/vellum/backups` | Pre-update database backups |
 | `/var/lib/vellum/updater` | Persistent updater configuration and state |
+
+No source checkout is installed on the host. To pin the initial deployment to a
+specific Vellum release, replace `releases/latest/download` above with, for
+example, `releases/download/v1.9.0`.
+
+The same Compose file also runs under Docker Desktop on macOS. Its bind mounts
+have portable relative defaults; the production environment template overrides
+them with the Linux paths above. See the [local macOS instructions](docs/DOCKER_DEPLOYMENT.md#local-macos-run)
+for the three host-path overrides.
 
 The server listens on `127.0.0.1:3000`; terminate HTTPS at the reverse proxy.
 Set `VELLUM_PUBLIC_URL` to the canonical HTTPS origin, then open
