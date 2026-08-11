@@ -7,7 +7,7 @@ export const PERMISSIONS = [
   "content.read", "content.manage", "themes.manage", "profiles.manage",
   "providers.read", "providers.manage", "providers.manage_secrets",
   "firmware.read", "firmware.flash", "firmware.rollout",
-  "access.read", "access.manage", "audit.read", "system.update",
+  "access.read", "access.manage", "audit.read", "system.read", "system.update",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

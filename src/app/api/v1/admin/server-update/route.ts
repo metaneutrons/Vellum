@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { getRequestPrincipal, hasPermission, writeAudit } from "@/lib/access";
 import { configureServerUpdates, getServerUpdateStatus, requestServerUpdate, requestServerUpdateCheck } from "@/lib/server-updater";
+import { hasTrustedMutationOrigin } from "@/lib/request-origin";
+import { env } from "@/lib/env";
 import { z } from "zod";
 
 const timezoneSchema = z.string().min(1).max(100).refine((value) => {
@@ -16,15 +18,18 @@ const actionSchema = z.discriminatedUnion("action", [
 
 export async function GET(request: Request) {
   const principal = await getRequestPrincipal(request);
-  if (!hasPermission(principal, "firmware.read")) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasPermission(principal, "system.read") && !hasPermission(principal, "system.update")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
   return Response.json(await getServerUpdateStatus(), { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(request: Request) {
   const principal = await getRequestPrincipal(request);
   if (!principal || !hasPermission(principal, "system.update")) return Response.json({ error: "Forbidden" }, { status: 403 });
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return Response.json({ error: "Invalid origin" }, { status: 403 });
+  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user")) {
+    return Response.json({ error: "Invalid origin" }, { status: 403 });
+  }
 
   const parsed = actionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Invalid action" }, { status: 400 });

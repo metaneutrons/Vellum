@@ -9,6 +9,7 @@
     "themes": "Thèmes",
     "profiles": "Profils de rafraîchissement",
     "firmware": "Firmware",
+    "system": "Système",
     "access": "Accès",
     "logout": "Déconnexion",
     "lightMode": "Mode clair",
@@ -211,9 +212,9 @@
     "save": "Enregistrer",
     "cancel": "Annuler", "search": "Rechercher…", "defaultIntervals": "Intervalles par défaut", "scheduleRules": "Règles de planification", "refreshInterval": "Intervalle de rafraîchissement", "moveUp": "Monter", "moveDown": "Descendre", "overnight": "Règle nocturne (franchit minuit)", "deleteTitle": "Supprimer le profil", "deleteMessage": "Supprimer ce profil ? Les appareils utiliseront les valeurs par défaut."
   },
-  "firmware": {
-    "rolloutAdoption": "appareils exécutant cette version", "rolloutState": "État du déploiement pour {version}", "rolloutPercent": "Pourcentage du déploiement pour {version}", "halt": "Arrêter {version}", "stateFull": "complet", "stateCanary": "canary", "statePercent": "pourcentage", "statePaused": "en pause", "stateHalted": "arrêté", "rolloutUpdated": "Déploiement : {version} → {state}{percent}", "rolloutUpdateFailed": "Échec de la mise à jour du déploiement",
-  "title": "Firmware",
+  "system": {
+  "title": "Système",
+  "description": "Gérer le serveur Vellum, les mises à jour et l’état opérationnel",
   "serverUpdateTitle": "Serveur Vellum",
   "serverVersionUnknown": "Version inconnue",
   "serverUpdaterUnavailable": "Les mises à jour automatiques du serveur ne sont pas activées pour cette installation.",
@@ -237,13 +238,18 @@
   "serverCheckStarted": "Vérification des versions lancée",
   "serverUpdateStarted": "Mise à jour du serveur lancée",
   "serverActionFailed": "Échec de l’action de mise à jour",
+  "serverActionForbidden": "Cette action n’est pas autorisée. Rechargez la page ou vérifiez votre autorisation.",
   "serverStateUnavailable": "Indisponible",
   "serverStateStarting": "Démarrage",
   "serverStateChecking": "Vérification",
   "serverStateAvailable": "Mise à jour disponible",
   "serverStateUpdating": "Mise à jour",
   "serverStateCurrent": "À jour",
-  "serverStateFailed": "Intervention requise",
+  "serverStateFailed": "Intervention requise"
+  },
+  "firmware": {
+    "rolloutAdoption": "appareils exécutant cette version", "rolloutState": "État du déploiement pour {version}", "rolloutPercent": "Pourcentage du déploiement pour {version}", "halt": "Arrêter {version}", "stateFull": "complet", "stateCanary": "canary", "statePercent": "pourcentage", "statePaused": "en pause", "stateHalted": "arrêté", "rolloutUpdated": "Déploiement : {version} → {state}{percent}", "rolloutUpdateFailed": "Échec de la mise à jour du déploiement",
+  "title": "Firmware",
     "description": "Mises à jour OTA via GitHub Releases",
     "flash": "Flasher l'appareil",
     "provision": "Provisionner via USB",

@@ -94,7 +94,7 @@ Before changing the server it:
 6. restores the previous server image automatically if readiness fails.
 
 Administrators with `system.update` permission choose the behavior under
-**Firmware → Vellum Server**:
+**System → Vellum Server**:
 
 - **Manual:** Vellum announces the release and waits for confirmation.
 - **Automatic:** Vellum installs an available release at the configured daily

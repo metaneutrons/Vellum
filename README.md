@@ -126,7 +126,7 @@ backup restore, rollback, and operational hardening.
 4. Open **Firmware → Flash device** and install the firmware for the exact model.
 5. Continue to **Provision** and send Wi-Fi, time, and server settings over USB.
 6. Approve the device or use a single-use enrollment voucher, then assign its content.
-7. Configure server updates under **Firmware → Vellum Server**.
+7. Configure server updates under **System → Vellum Server**.
 
 Chrome or Edge is required for browser-based flashing and USB provisioning
 because these flows use Web Serial. E-Series devices expose USB through a UART

@@ -38,8 +38,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   { id: "fleet_operator", name: "Fleet Operator", description: "Manages devices and provisioning.", permissions: ["dashboard.read", "devices.read", "devices.manage", "devices.approve", "devices.provision", "firmware.read", "firmware.flash"] },
   { id: "content_manager", name: "Content Manager", description: "Manages content, themes, profiles, and provider configuration without secrets.", permissions: ["dashboard.read", "content.read", "content.manage", "themes.manage", "profiles.manage", "providers.read"] },
   { id: "firmware_operator", name: "Firmware Operator", description: "Flashes displays and manages staged rollouts.", permissions: ["dashboard.read", "devices.read", "firmware.read", "firmware.flash", "firmware.rollout"] },
-  { id: "auditor", name: "Auditor", description: "Read-only visibility into fleet configuration and audit history.", permissions: ["dashboard.read", "devices.read", "content.read", "providers.read", "firmware.read", "access.read", "audit.read"] },
-  { id: "viewer", name: "Viewer", description: "Read-only fleet and content visibility.", permissions: ["dashboard.read", "devices.read", "content.read", "providers.read", "firmware.read"] },
+  { id: "auditor", name: "Auditor", description: "Read-only visibility into fleet configuration and audit history.", permissions: ["dashboard.read", "devices.read", "content.read", "providers.read", "firmware.read", "access.read", "audit.read", "system.read"] },
+  { id: "viewer", name: "Viewer", description: "Read-only fleet and content visibility.", permissions: ["dashboard.read", "devices.read", "content.read", "providers.read", "firmware.read", "system.read"] },
 ] as const;
 
 export type Principal = {
