@@ -32,13 +32,22 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          # A normal release publishes its tagged tree. A manual backfill uses
+          # the workflow ref so an older release can receive a later, compatible
+          # deployment fix without moving or rewriting the release tag.
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || env.RELEASE_TAG }}
 
       - name: Prepare versioned deployment assets
         run: |
           mkdir -p dist
           install -m 0644 deploy/docker-compose.yml dist/docker-compose.yml
           install -m 0644 deploy/vellum.env.example dist/vellum.env.example
+          sed -i \
+            "s|^VELLUM_IMAGE=.*|VELLUM_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}|" \
+            dist/vellum.env.example
+          grep -Fx \
+            "VELLUM_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}" \
+            dist/vellum.env.example
           cd dist
           sha256sum docker-compose.yml vellum.env.example > SHA256SUMS
 

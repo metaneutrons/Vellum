@@ -52,8 +52,10 @@ and as the dedicated **Release Config** CI check.
 
 An existing server release can be backfilled without rebuilding an image or
 firmware by manually running **Deployment Assets** with its `vX.Y.Z` tag. The
-workflow checks out that tag, so the uploaded deployment files always match the
-released server source.
+manual workflow uses the current compatible deployment definition while pinning
+`VELLUM_IMAGE` to the requested release tag. This allows an older release to
+receive installation or portability fixes without moving its immutable git tag
+or rebuilding server and firmware artifacts.
 
 ## Why this is safe for the fleet
 

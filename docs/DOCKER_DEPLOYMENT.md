@@ -39,7 +39,9 @@ sudo docker compose --env-file /etc/vellum/vellum.env \
 The host needs no repository checkout. `releases/latest/download` resolves to
 the latest stable Vellum Server release; replace it with
 `releases/download/vX.Y.Z` to pin a particular release. `SHA256SUMS` detects a
-truncated or mismatched download before anything is installed.
+truncated or mismatched download before anything is installed. Each release's
+environment template also pins `VELLUM_IMAGE` to that exact server tag for the
+initial deployment; later upgrades remain controlled by the verified updater.
 
 ## Local macOS run
 
