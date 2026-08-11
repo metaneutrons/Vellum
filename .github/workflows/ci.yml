@@ -27,7 +27,9 @@ jobs:
           node --check deploy/updater/control.mjs
           node --test deploy/updater/control.test.mjs
       - name: Validate production Compose stack
-        run: VELLUM_ENV_FILE="$PWD/deploy/vellum.env.example" docker compose --env-file deploy/vellum.env.example -f deploy/docker-compose.yml config --quiet
+        run: |
+          cp deploy/vellum.env.example deploy/.env
+          docker compose -f deploy/docker-compose.yml config --quiet
       - name: Build updater image
         run: docker build --file deploy/updater/Dockerfile deploy/updater
 

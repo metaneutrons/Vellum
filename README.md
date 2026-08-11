@@ -45,61 +45,62 @@ daily maintenance time.
 
 ### Requirements
 
-- Linux host with Docker Engine and Docker Compose v2
+- Docker Engine with Docker Compose v2, or Docker Desktop on macOS
 - HTTPS reverse proxy with a publicly trusted certificate
-- Persistent local storage below `/var/lib/vellum`
+- A writable directory for the stack and its persistent data
 - A DNS name that resolves to the reverse proxy from the display network
 
 ### Deploy
 
 ```bash
-sudo install -d -m 0755 /docker/vellum /var/lib/vellum/postgres \
-  /var/lib/vellum/backups /var/lib/vellum/updater
-sudo install -d -m 0700 /etc/vellum
+# Choose any writable location. The complete installation stays in this folder.
+mkdir -p "$HOME/vellum"
+cd "$HOME/vellum"
 
 # Download the deployment files from the latest stable Vellum Server release.
-tmpdir="$(mktemp -d)"
 release="https://github.com/metaneutrons/Vellum/releases/latest/download"
 curl --fail --silent --show-error --location \
-  --output "$tmpdir/docker-compose.yml" "$release/docker-compose.yml"
+  --remote-name "$release/docker-compose.yml"
 curl --fail --silent --show-error --location \
-  --output "$tmpdir/vellum.env.example" "$release/vellum.env.example"
+  --remote-name "$release/vellum.env.example"
 curl --fail --silent --show-error --location \
-  --output "$tmpdir/SHA256SUMS" "$release/SHA256SUMS"
-(cd "$tmpdir" && sha256sum --check SHA256SUMS)
+  --remote-name "$release/SHA256SUMS"
 
-sudo install -m 0644 "$tmpdir/docker-compose.yml" /docker/vellum/docker-compose.yml
-sudo install -m 0600 "$tmpdir/vellum.env.example" /etc/vellum/vellum.env
-rm -rf "$tmpdir"
+# Verify on Linux or macOS, then turn the template into Compose's automatic .env.
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum --check SHA256SUMS
+else
+  shasum --algorithm 256 --check SHA256SUMS
+fi
+mv vellum.env.example .env
+rm SHA256SUMS
+chmod 600 .env
 
 # Replace every placeholder. Generate each secret independently.
 openssl rand -hex 32
-sudoedit /etc/vellum/vellum.env
+${EDITOR:-vi} .env
 
-sudo docker compose --env-file /etc/vellum/vellum.env \
-  -f /docker/vellum/docker-compose.yml pull
-sudo docker compose --env-file /etc/vellum/vellum.env \
-  -f /docker/vellum/docker-compose.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
-The layout deliberately separates configuration and data:
+Compose automatically reads `.env`. Relative bind mounts keep configuration,
+PostgreSQL, backups, and updater state together in the directory you selected:
 
-| Path | Contents |
+| Path within the chosen directory | Contents |
 |---|---|
-| `/docker/vellum/docker-compose.yml` | The only file in the Compose directory |
-| `/etc/vellum/vellum.env` | Secrets and deployment configuration (`0600`) |
-| `/var/lib/vellum/postgres` | PostgreSQL data |
-| `/var/lib/vellum/backups` | Pre-update database backups |
-| `/var/lib/vellum/updater` | Persistent updater configuration and state |
+| `docker-compose.yml` | Server, PostgreSQL, and updater stack |
+| `.env` | Secrets and deployment configuration (`0600`) |
+| `data/postgres/` | PostgreSQL data |
+| `data/backups/` | Consistent pre-update database backups |
+| `data/updater/` | Persistent updater configuration and state |
 
-No source checkout is installed on the host. To pin the initial deployment to a
-specific Vellum release, replace `releases/latest/download` above with, for
-example, `releases/download/v1.9.0`.
-
-The same Compose file also runs under Docker Desktop on macOS. Its bind mounts
-have portable relative defaults; the production environment template overrides
-them with the Linux paths above. See the [local macOS instructions](docs/DOCKER_DEPLOYMENT.md#local-macos-run)
-for the three host-path overrides.
+No source checkout or fixed host path is required. You can choose another
+directory, such as `/srv/vellum` or `/docker/vellum`; keep the files together
+and run Compose from there. Stop the stack before copying the complete directory.
+For a database-consistent backup while Vellum is running, use the dumps in
+`data/backups/`, not a live copy of `data/postgres/`. To pin the initial
+deployment, replace `releases/latest/download` with `releases/download/vX.Y.Z`.
 
 The server listens on `127.0.0.1:3000`; terminate HTTPS at the reverse proxy.
 Set `VELLUM_PUBLIC_URL` to the canonical HTTPS origin, then open
