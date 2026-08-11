@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.1](https://github.com/metaneutrons/Vellum/compare/v1.9.0...v1.9.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* pin images in deployment backfills ([#166](https://github.com/metaneutrons/Vellum/issues/166)) ([196b8d9](https://github.com/metaneutrons/Vellum/commit/196b8d9761d124ec27ed33c83dff52e1bd939cca))
+* publish portable deployment assets ([#164](https://github.com/metaneutrons/Vellum/issues/164)) ([39d2d1b](https://github.com/metaneutrons/Vellum/commit/39d2d1be05e4197b0f770e9fbd7c1489c8c77ac0))
+
 ## [1.9.0](https://github.com/metaneutrons/Vellum/compare/v1.8.1...v1.9.0) (2026-08-10)
 
 
