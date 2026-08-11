@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.2](https://github.com/metaneutrons/Vellum/compare/v1.9.1...v1.9.2) (2026-08-11)
+
+
+### Bug Fixes
+
+* **deploy:** simplify portable compose setup ([#168](https://github.com/metaneutrons/Vellum/issues/168)) ([5284209](https://github.com/metaneutrons/Vellum/commit/52842095c9e02824b360831f104f9815481782b9))
+* **system:** repair server update management ([#170](https://github.com/metaneutrons/Vellum/issues/170)) ([434d602](https://github.com/metaneutrons/Vellum/commit/434d6022393ee3d054cc7215289eeb4e1b9a7617))
+
 ## [1.9.1](https://github.com/metaneutrons/Vellum/compare/v1.9.0...v1.9.1) (2026-08-11)
 
 
