@@ -98,28 +98,51 @@ them in `__vellum_migrations`. Consequences:
   | Model | Chip | Panel / controller | Display | USB serial transport |
   |-------|------|--------------------|---------|----------------------|
   | `e1001` | ESP32-S3 | GDEY075T7 / UC8179_BW | mono 800×480 | **native USB-Serial-JTAG** |
-  | `e1002` | ESP32-S3 | GDEP073E01 / ACeP **7-color** | 800×480 (default build) | **CH340C → UART0** |
+  | `e1002` | ESP32-S3 | GDEP073E01 / ACeP (see palette note) | 800×480 (default build) | **CH340C → UART0** |
   | `e1003` | ESP32-S3 | ED103TC2 / IT8951 | **16-gray / 4bpp, 1872×1404** | **CH340K → UART0** |
   | `d1001` | **ESP32-P4** + ESP32-C6 (Wi-Fi via `esp_wifi_remote`/ESP-Hosted) | JD9365 MIPI-DSI **LCD** | 800×1280 | **native USB-Serial-JTAG** |
   Only e1001 has no overlay: e1002/e1003 add console/UART overlays
   (`sdkconfig.defaults.e1002` / `.e1003`) on top of `sdkconfig.defaults.s3`, so
   they differ by more than panel Kconfig.
 - **USB-C wiring is per-model and drives two separate behaviours — get it right
-  before debugging provisioning or power.** Only E1001 and D1001 wire USB-C to
-  the SoC's native USB; E1002 (CH340C) and E1003 (CH340K) terminate USB-C at a
-  UART bridge on UART0, so the browser sees `/dev/tty.wch*` there and
-  `/dev/cu.usbmodem*` on the native-USB models. Consequently
+  before debugging provisioning or power.** E1002 (CH340C) and E1003 (CH340K)
+  terminate USB-C at a UART bridge on UART0, so the browser sees
+  `/dev/tty.wch*` there; the native-USB models show `/dev/cu.usbmodem*`.
+  ⚠️ **E1001's "native USB" status is repo-asserted but NOT hardware-verified.**
+  It rests only on same-author prose (`sdkconfig.defaults.s3`,
+  `vellum_serial.c`, `vellum_serial/README.md`) — the *same evidence class that
+  was wrong for E1002 and E1003* until PRs #119/#126 corrected them against real
+  boards. E1001 is simply the model nobody has yet contradicted, which may only
+  mean nobody has provisioned one over USB. **Before trusting it, verify on the
+  device**: `ls /dev/cu.*` with the board plugged in — `cu.usbmodem*` ⇒ native
+  USB-Serial-JTAG (Espressif VID `0x303a`), `cu.wchusbserial*` ⇒ a CH34x bridge
+  (VID `0x1a86`), in which case E1001 needs its own UART overlay exactly like
+  e1002/e1003 and `usb_serial_jtag_is_connected()` is a no-op there too.
+  Consequently
   `usb_serial_jtag_is_connected()` **cannot observe host presence on E1002/E1003
   at all** (their native USB pins go nowhere): those two read USB power from the
   **SY6974B charger over I²C** instead (`components/board/board.c`,
   `charger_reports_usb_power()`, host-tested in `test_sy6974b_power.c`), and only
   the native-USB models use the USJ signal. A "fix" that routes either console or
   USB-power detection uniformly across models WILL break two of the four.
-- Two label bugs to be aware of (code is the authority, not the menu string):
-  E1003 is **1872×1404** but `main/Kconfig.projbuild:19` labels it `1404x1872`;
-  E1002 reports a **7-entry** palette including orange
-  (`components/http_client/http_client.c`) but the Kconfig label and
-  `src/lib/display.ts` name it "6-Color".
+- Panel-capability inconsistencies — **unresolved, do not "fix" one side blindly;
+  confirm against the physical panel first**:
+  - E1003 is **1872×1404** in code and on the server, but
+    `main/Kconfig.projbuild:19` labels it `1404x1872`. (Label is the odd one out.)
+  - **E1002 colour count is contradictory inside the firmware**: the panel driver
+    declares `.ctrl = EPD_CTRL_ACEP_6COLOR`
+    (`epaper_uc8179/src/epaper_registry.c`) while the reported capabilities send a
+    **7-entry** palette including orange (`http_client.c`). README calls it
+    "Spectra 6 … 7 colors" — itself contradictory, since E Ink Spectra 6 does not
+    include orange (7-colour orange is the older ACeP/Gallery generation). Either
+    the palette has a spurious 7th entry or the driver enum is misnamed; a wrong
+    palette silently mis-quantises every rendered image, so resolve it against
+    the actual hardware.
+  - **E1001 is driven 1-bit mono** (`PANEL_BPP 1`, `PANEL_COLORS "mono"`,
+    `UC8179_BW`; server palette is 2 entries), yet Seeed's product page and
+    README describe the panel as **4-level grayscale**. Not necessarily a bug —
+    the firmware may simply not exploit the panel's greys — but nobody should
+    assume mono is a hardware limit.
 - Server-side `src/lib/display.ts` is a **static registry** used by the flash UI,
   simulator and preview; the E-Series firmware actually reports
   `orientations: []` (fixed). Runtime rendering resolves device-reported caps via
