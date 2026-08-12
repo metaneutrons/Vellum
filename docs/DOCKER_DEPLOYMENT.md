@@ -154,5 +154,22 @@ docker compose up -d --no-deps updater
 ```
 
 Docker socket access is root-equivalent. It exists only in the dedicated updater
-container, whose filesystem is read-only, capabilities are dropped, and API is
-unpublished. Do not attach untrusted workloads to the stack's default network.
+container, whose filesystem is read-only, whose API is unpublished, and which
+drops all Linux capabilities except one. Do not attach untrusted workloads to the
+stack's default network.
+
+That one exception is `DAC_OVERRIDE`, and it is required rather than leftover
+slack. `.env` deliberately stays `0600` and is owned by the host account that
+deployed the stack; the updater container runs as root and must both read that
+mounted file and write the newly deployed `VELLUM_IMAGE` pin back into it. With
+all capabilities dropped, root has no override for file permissions it does not
+own, so every update attempt fails closed at the updater's
+"environment file is not readable/writable" preflight. Keep `.env` at `0600`,
+keep the `.env` mount writable, and keep `DAC_OVERRIDE` — do not substitute a
+`0644` file or a read-only mount. The container only ever sees its own narrow
+stack mounts.
+
+Server and updater start pinned to the same release version; each release's
+environment template sets both `VELLUM_IMAGE` and `UPDATER_IMAGE` to that
+release's exact tag. The updater upgrades the **server**, not itself — moving to
+a newer updater is the explicit stack maintenance step shown above.
