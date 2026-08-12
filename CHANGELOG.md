@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.5](https://github.com/metaneutrons/Vellum/compare/v1.9.4...v1.9.5) (2026-08-12)
+
+
+### Bug Fixes
+
+* **ci:** harden release artifact routing ([#176](https://github.com/metaneutrons/Vellum/issues/176)) ([7765782](https://github.com/metaneutrons/Vellum/commit/776578295756a41d146d52ca605d771a8fc9f783))
+
 ## [1.9.4](https://github.com/metaneutrons/Vellum/compare/v1.9.3...v1.9.4) (2026-08-12)
 
 
