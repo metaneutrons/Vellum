@@ -37,6 +37,7 @@
 #include "vellum_display.h"
 #include "buttons.h"
 #include "sleep_manager.h"
+#include "render_backoff.h"
 #include "vellum_serial.h"
 #include "mdns.h"
 #include "board.h"
@@ -285,8 +286,37 @@ static bool perform_hello(vellum_http_failure_t *failure)
 /* Renders the current content. `render_ok` (nullable) is set true ONLY on a
  * genuinely successful round-trip (200 with a drawn frame, or a legitimate 304)
  * — the caller uses it to decide whether to confirm a freshly-OTA'd image. */
+/* Consecutive failed render cycles. RTC memory so the streak survives deep
+ * sleep — normal statics are reset on every wake, which would make the backoff
+ * a no-op on the e-paper models. */
+RTC_DATA_ATTR static uint32_t s_render_failures;
+
+/* Pace retries: a healthy cycle keeps the server's cadence, each failure
+ * doubles the wait up to the configured cap. */
+static uint32_t pace_retry(uint32_t base_sec, bool ok)
+{
+    if (ok) {
+        if (s_render_failures > 0) {
+            ESP_LOGI(TAG, "Render recovered after %lu failed cycle(s)",
+                     (unsigned long)s_render_failures);
+        }
+        s_render_failures = 0;
+        return base_sec;
+    }
+    if (s_render_failures < UINT32_MAX) s_render_failures++;
+    uint32_t delay = render_backoff_delay(base_sec, s_render_failures,
+                                          CONFIG_VELLUM_ERROR_BACKOFF_MAX_SEC);
+    if (delay != base_sec) {
+        ESP_LOGW(TAG, "Backing off after %lu consecutive failure(s): %lu s instead of %lu s",
+                 (unsigned long)s_render_failures, (unsigned long)delay,
+                 (unsigned long)base_sec);
+    }
+    return delay;
+}
+
 static uint32_t perform_render(bool *render_ok)
 {
+    bool ok = false;
     if (render_ok) *render_ok = false;
     ESP_LOGI(TAG, "Requesting render");
 
@@ -320,7 +350,7 @@ static uint32_t perform_render(bool *render_ok)
             display_transport_error(resp.failure);
         }
         http_client_free_response(&resp);
-        return sleep_sec;
+        return pace_retry(sleep_sec, false);
     }
 
     if (resp.status_code == 200) {
@@ -334,8 +364,9 @@ static uint32_t perform_render(bool *render_ok)
             if (display_update_raw(resp.binary_body, resp.binary_len) != ESP_OK) {
                 ESP_LOGW(TAG, "Malformed pixel buffer (%zu bytes)", resp.binary_len);
                 display_show_error("Error");
-            } else if (render_ok) {
-                *render_ok = true;   /* frame drawn successfully */
+            } else {
+                ok = true;           /* frame drawn successfully */
+                if (render_ok) *render_ok = true;
             }
         } else {
             ESP_LOGW(TAG, "Empty render response body");
@@ -343,11 +374,11 @@ static uint32_t perform_render(bool *render_ok)
         }
     } else if (resp.status_code == 304) {
         ESP_LOGI(TAG, "Content unchanged — skipping display refresh");
-        if (render_ok) *render_ok = true;   /* legitimate no-change */
+        ok = true; if (render_ok) *render_ok = true;   /* legitimate no-change */
     } else if (resp.status_code == 204) {
         ESP_LOGI(TAG, "No content assigned — showing idle screen");
         display_show_no_content();
-        if (render_ok) *render_ok = true;   /* legitimate configured idle state */
+        ok = true; if (render_ok) *render_ok = true;   /* legitimate configured idle state */
     } else if (resp.status_code == 401) {
         ESP_LOGW(TAG, "401 Unauthorized");
         display_show_error("Unauthorized");
@@ -363,7 +394,7 @@ static uint32_t perform_render(bool *render_ok)
     }
 
     http_client_free_response(&resp);
-    return sleep_sec;
+    return pace_retry(sleep_sec, ok);
 }
 
 /* -----------------------------------------------------------------------

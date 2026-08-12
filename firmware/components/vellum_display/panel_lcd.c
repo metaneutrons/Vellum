@@ -77,7 +77,16 @@ static lv_display_t *lcd_init(void)
         .v_res = D1001_LCD_V_RES,
         .hsync = D1001_LCD_HSYNC, .hbp = D1001_LCD_HBP, .hfp = D1001_LCD_HFP,
         .vsync = D1001_LCD_VSYNC, .vbp = D1001_LCD_VBP, .vfp = D1001_LCD_VFP,
-        .num_fb = 2,
+        /* ONE framebuffer on purpose. flush_cb writes the active continuous-scan
+         * buffer in place and deliberately never calls
+         * esp_lcd_panel_draw_bitmap() (it can fault in the P4 GDMA ISR while DSI
+         * scanout is active), so there is no buffer swap. With two framebuffers
+         * the DSI controller still ping-pongs scanout between them while only
+         * the first one is ever written — every second frame came from the
+         * untouched second buffer, which showed as a pale flicker over the real
+         * content whenever the screen was redrawn often (most visibly during the
+         * OTA progress bar). One buffer also frees ~2 MB of PSRAM. */
+        .num_fb = 1,
         .io_expander = d1001_io_expander(),
         .rst_mask = D1001_EXP_LCD_RST,
     };
@@ -90,8 +99,9 @@ static lv_display_t *lcd_init(void)
 
     lv_init();
 
-    void *buf1 = NULL, *buf2 = NULL;
-    if (esp_lcd_dpi_panel_get_frame_buffer(panel, 2, &buf1, &buf2) != ESP_OK) return NULL;
+    /* Single framebuffer — see .num_fb above. */
+    void *buf1 = NULL;
+    if (esp_lcd_dpi_panel_get_frame_buffer(panel, 1, &buf1) != ESP_OK) return NULL;
 
     uint16_t *render_buf = heap_caps_malloc(LCD_WIDTH * LCD_HEIGHT * 2,
                                             MALLOC_CAP_SPIRAM);

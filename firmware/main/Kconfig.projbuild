@@ -73,6 +73,15 @@ menu "Vellum Configuration"
             int "Fallback sleep duration (seconds)"
             default 900
             range 60 7200
+        config VELLUM_ERROR_BACKOFF_MAX_SEC
+            int "Maximum retry delay after consecutive render failures (seconds)"
+            default 3600
+            range 0 86400
+            help
+                Each failed render cycle doubles the wait before the next
+                attempt, up to this cap; a successful cycle resets it. Retrying
+                a dead backend at the normal cadence wastes wake-ups and radio
+                time on a battery device. 0 disables the cap (not the backoff).
         config VELLUM_WIFI_CONNECT_TIMEOUT_MS
             int "Wi-Fi connection timeout (ms)"
             default 30000
