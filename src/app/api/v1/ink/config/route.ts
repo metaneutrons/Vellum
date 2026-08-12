@@ -32,9 +32,35 @@ export async function GET(request: NextRequest) {
     "config-get-device"
   );
 
-  // Resolve OTA update
+  // Resolve OTA update.
+  //
+  // The model is taken from the request header first, then from the stored
+  // capabilities. Both matter: `/hello` is the only path that persists
+  // displayCaps, and a device enrolled through a provisioning voucher is
+  // approved with a token immediately — so it never calls `/hello` again and its
+  // displayCaps stay NULL. That resolved to "unknown", no manifest entry
+  // matched, and the device silently never received an OTA update (observed in
+  // the field on a D1001 stuck on an old firmware while rendering normally).
+  // The header is sent on this very request, so preferring it makes such a
+  // device self-heal on its next poll instead of needing a re-enrolment.
   const firmwareVer = request.headers.get("x-firmware-ver") ?? "0.0.0";
-  const displayModel = (device?.displayCaps as { model?: string })?.model ?? "unknown";
+  const headerModel = request.headers.get("x-display-model")?.trim() || null;
+  const storedModel = (device?.displayCaps as { model?: string })?.model ?? null;
+  const displayModel = headerModel ?? storedModel ?? "unknown";
+
+  // Backfill the stored capabilities when the device reports a model we do not
+  // have on record. Rendering resolves dimensions and pixel format from these
+  // same stored caps (`resolveDisplayCaps`), so a caps-less device would also be
+  // served the default 800x480 mono raw frame instead of its real format.
+  if (device && headerModel && storedModel !== headerModel) {
+    const caps = { ...((device.displayCaps as Record<string, unknown>) ?? {}), model: headerModel };
+    await withDb(
+      () => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, validation.data.mac)),
+      "config-backfill-display-model",
+    ).catch(() => {
+      // Non-fatal: the header already drives this response.
+    });
+  }
 
   const ota = await resolveOta(
     firmwareVer,

@@ -49,6 +49,7 @@ vi.mock("@/db", () => ({
 }));
 
 import { handleHello, validateToken } from "@/lib/auth";
+import { resolveOta } from "@/lib/firmware";
 import { POST as helloHandler } from "../hello/route";
 import { GET as configHandler } from "../config/route";
 import { POST as reportHandler } from "../report/route";
@@ -211,5 +212,51 @@ describe("POST /api/v1/ink/report", () => {
 
     expect(res.status).toBe(400);
     expect(body.status).toBe("error");
+  });
+});
+
+describe("GET /api/v1/ink/config — display model resolution", () => {
+  /* A voucher-enrolled device is approved with a token immediately and never
+   * calls /hello again, so its stored displayCaps stay NULL. Resolving the model
+   * from the DB alone yielded "unknown", no manifest entry matched, and the
+   * device silently never updated. The device sends X-Display-Model on this very
+   * request, so the header must win. */
+  it("resolves the model from X-Display-Model when caps are not stored", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token", "x-display-model": "d1001", "x-firmware-ver": "1.3.2" },
+    });
+
+    const res = await configHandler(req);
+    expect(res.status).toBe(200);
+
+    const [firmwareVer, displayModel] = vi.mocked(resolveOta).mock.calls[0];
+    expect(firmwareVer).toBe("1.3.2");
+    expect(displayModel).toBe("d1001");
+  });
+
+  it("falls back to \"unknown\" only when the device sends no model", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token" },
+    });
+
+    const res = await configHandler(req);
+    expect(res.status).toBe(200);
+    expect(vi.mocked(resolveOta).mock.calls[0][1]).toBe("unknown");
+  });
+
+  it("ignores a blank X-Display-Model instead of resolving an empty model", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token", "x-display-model": "   " },
+    });
+
+    const res = await configHandler(req);
+    expect(res.status).toBe(200);
+    expect(vi.mocked(resolveOta).mock.calls[0][1]).toBe("unknown");
   });
 });
