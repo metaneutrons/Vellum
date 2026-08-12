@@ -97,52 +97,56 @@ them in `__vellum_migrations`. Consequences:
 - **4 models** (`firmware/Makefile:40-60`, `firmware.yml` matrix):
   | Model | Chip | Panel / controller | Display | USB serial transport |
   |-------|------|--------------------|---------|----------------------|
-  | `e1001` | ESP32-S3 | GDEY075T7 / UC8179_BW | mono 800×480 | **native USB-Serial-JTAG** |
+  | `e1001` | ESP32-S3 | GDEY075T7 / UC8179_BW | mono 800×480 (panel does 4-gray) | **CH340C → UART0** |
   | `e1002` | ESP32-S3 | GDEP073E01 / ACeP (see palette note) | 800×480 (default build) | **CH340C → UART0** |
   | `e1003` | ESP32-S3 | ED103TC2 / IT8951 | **16-gray / 4bpp, 1872×1404** | **CH340K → UART0** |
   | `d1001` | **ESP32-P4** + ESP32-C6 (Wi-Fi via `esp_wifi_remote`/ESP-Hosted) | JD9365 MIPI-DSI **LCD** | 800×1280 | **native USB-Serial-JTAG** |
-  Only e1001 has no overlay: e1002/e1003 add console/UART overlays
-  (`sdkconfig.defaults.e1002` / `.e1003`) on top of `sdkconfig.defaults.s3`, so
-  they differ by more than panel Kconfig.
+  **Every S3 model needs its console overlay** (`sdkconfig.defaults.e1001` /
+  `.e1002` / `.e1003` on top of `sdkconfig.defaults.s3`) — they differ by more
+  than panel Kconfig. A model without one silently inherits the base
+  `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`, which is wrong for all three.
 - **USB-C wiring is per-model and drives two separate behaviours — get it right
-  before debugging provisioning or power.** E1002 (CH340C) and E1003 (CH340K)
-  terminate USB-C at a UART bridge on UART0, so the browser sees
-  `/dev/tty.wch*` there; the native-USB models show `/dev/cu.usbmodem*`.
-  ⚠️ **E1001's "native USB" status is repo-asserted but NOT hardware-verified.**
-  It rests only on same-author prose (`sdkconfig.defaults.s3`,
-  `vellum_serial.c`, `vellum_serial/README.md`) — the *same evidence class that
-  was wrong for E1002 and E1003* until PRs #119/#126 corrected them against real
-  boards. E1001 is simply the model nobody has yet contradicted, which may only
-  mean nobody has provisioned one over USB. **Before trusting it, verify on the
-  device**: `ls /dev/cu.*` with the board plugged in — `cu.usbmodem*` ⇒ native
-  USB-Serial-JTAG (Espressif VID `0x303a`), `cu.wchusbserial*` ⇒ a CH34x bridge
-  (VID `0x1a86`), in which case E1001 needs its own UART overlay exactly like
-  e1002/e1003 and `usb_serial_jtag_is_connected()` is a no-op there too.
-  Consequently
-  `usb_serial_jtag_is_connected()` **cannot observe host presence on E1002/E1003
-  at all** (their native USB pins go nowhere): those two read USB power from the
-  **SY6974B charger over I²C** instead (`components/board/board.c`,
-  `charger_reports_usb_power()`, host-tested in `test_sy6974b_power.c`), and only
-  the native-USB models use the USJ signal. A "fix" that routes either console or
-  USB-power detection uniformly across models WILL break two of the four.
+  before debugging provisioning or power.** Hardware-confirmed 2026-08-12:
+  **no E-Series model uses native USB.** E1001 and E1002 terminate USB-C at a
+  **CH340C**, E1003 at a **CH340K**, all on UART0 — so the browser and any
+  serial monitor see `/dev/tty.wch*`. Only **D1001** is genuinely native
+  (`/dev/cu.usbmodem*`). This was mis-documented for months: E1003 was corrected
+  in #119, E1002 in #126, and E1001 only after a hardware check — it had no
+  overlay at all, so its console and Improv frames went to a USB peripheral that
+  is not wired to the connector and USB provisioning could not work.
+- Consequence for power: `usb_serial_jtag_is_connected()` **can never observe
+  host presence on any E-Series board** (their native USB pins go nowhere).
+  E1002/E1003 therefore read USB power from the **SY6974B charger over I²C**
+  (`components/board/board.c` `charger_reports_usb_power()`, host-tested in
+  `test_sy6974b_power.c`; note the I²C pins differ per model — e1002 SDA39/SCL40,
+  e1003 SDA19/SCL20). ⚠️ **E1001 still falls through to the USJ branch, so
+  `board_is_usb_powered()` is permanently false there** — the low-battery gate
+  can deep-sleep a USB-powered E1001. Fixing it needs E1001's charger I²C pins
+  from the schematic; do not guess them. A "fix" that routes either console or
+  USB-power detection uniformly across models WILL break several.
 - Panel-capability inconsistencies — **unresolved, do not "fix" one side blindly;
   confirm against the physical panel first**:
   - E1003 is **1872×1404** in code and on the server, but
     `main/Kconfig.projbuild:19` labels it `1404x1872`. (Label is the odd one out.)
-  - **E1002 colour count is contradictory inside the firmware**: the panel driver
-    declares `.ctrl = EPD_CTRL_ACEP_6COLOR`
-    (`epaper_uc8179/src/epaper_registry.c`) while the reported capabilities send a
-    **7-entry** palette including orange (`http_client.c`). README calls it
-    "Spectra 6 … 7 colors" — itself contradictory, since E Ink Spectra 6 does not
-    include orange (7-colour orange is the older ACeP/Gallery generation). Either
-    the palette has a spurious 7th entry or the driver enum is misnamed; a wrong
-    palette silently mis-quantises every rendered image, so resolve it against
-    the actual hardware.
-  - **E1001 is driven 1-bit mono** (`PANEL_BPP 1`, `PANEL_COLORS "mono"`,
-    `UC8179_BW`; server palette is 2 entries), yet Seeed's product page and
-    README describe the panel as **4-level grayscale**. Not necessarily a bug —
-    the firmware may simply not exploit the panel's greys — but nobody should
-    assume mono is a hardware limit.
+  - **E1002 is a 6-colour panel (hardware-confirmed), but the firmware reports a
+    7-entry palette including orange** — `http_client.c` sends
+    `{black, white, yellow, red, orange, blue, green}` while the driver correctly
+    declares `.ctrl = EPD_CTRL_ACEP_6COLOR`. README's "Spectra 6 … 7 colors" is
+    wrong for the same reason (Spectra 6 has no orange). **Do not just delete the
+    orange entry**: the palette array index *is* the on-wire pixel code
+    (`EPD_PIXEL_BLACK 0x0` … `ORANGE 0x4`, `BLUE 0x5`, `GREEN 0x6` in
+    `epaper_config.h`), so removing an element shifts blue and green onto the
+    wrong codes. Fixing it needs the panel's real 6-colour code assignment from
+    the GDEP073E01 datasheet (does 0x4 become blue, or stay unused?). Until then
+    every rendered E1002 image can be mis-quantised toward a colour the panel
+    cannot show. `src/lib/display.ts` also carries a 7-entry e1002 palette in a
+    *different order* than the firmware's; runtime uses the device-reported one,
+    so the registry copy only skews the simulator/preview.
+  - **E1001's panel does 4-level grayscale (hardware-confirmed) but the firmware
+    drives it 1-bit mono** (`PANEL_BPP 1`, `PANEL_COLORS "mono"`, `UC8179_BW`;
+    server palette is 2 entries). The library already has `EPD_COLOR_4GRAY`, so
+    this is unexploited capability, not a hardware limit — switching would change
+    the payload from 48 KB to 96 KB per refresh.
 - Server-side `src/lib/display.ts` is a **static registry** used by the flash UI,
   simulator and preview; the E-Series firmware actually reports
   `orientations: []` (fixed). Runtime rendering resolves device-reported caps via
@@ -358,9 +362,10 @@ paragraph), `docs/SECURE_BOOT_AND_KMS.md`, `docs/DOCKER_DEPLOYMENT.md`,
   verification to PSA; no supported-versions table; no reporting channel.
 - `README.md`: advertises **passkeys** (not implemented); says "production
   firmware enables encrypted NVS" though release images never include the `prod`
-  profile (NVS is unencrypted in everything the flash tool and OTA serve); says
-  E1001 uses a UART bridge (it is native USB); scopes the SoftAP fallback to
-  E-Series (it is all models); documents `corepack enable`.
+  profile (NVS is unencrypted in everything the flash tool and OTA serve);
+  documents `corepack enable`, which fails on current Node. (Its USB statement —
+  "E-Series devices expose USB through a UART bridge; D1001 uses its native USB
+  interface" — is **correct**; CLAUDE.md was the file that had this wrong.)
 - `docs/firmware-display-architecture.md`: D1001 documented as raw RGB565 (it is
   JPEG); its "Migration Plan" and two "Open Questions" are shipped history.
 - `docs/firmware-refactor-tasks.md`: structurally stale — nothing from D1001

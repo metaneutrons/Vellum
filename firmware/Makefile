@@ -44,6 +44,7 @@ ifeq ($(MODEL),d1001)
 else ifeq ($(MODEL),e1001)
   TARGET_CHIP = esp32s3
   SDKCONFIG_DEFAULTS = sdkconfig.defaults.s3
+  MODEL_DEFAULTS = sdkconfig.defaults.e1001
   PANEL_CONFIG = CONFIG_VELLUM_PANEL_GDEY075T7=y
 else ifeq ($(MODEL),e1002)
   TARGET_CHIP = esp32s3
