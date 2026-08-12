@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.3](https://github.com/metaneutrons/Vellum/compare/v1.9.2...v1.9.3) (2026-08-12)
+
+
+### Bug Fixes
+
+* **deploy:** enforce reproducible image pins ([#171](https://github.com/metaneutrons/Vellum/issues/171)) ([3fb5896](https://github.com/metaneutrons/Vellum/commit/3fb589644599b5be2277d298458360119bbcee45))
+
 ## [1.9.2](https://github.com/metaneutrons/Vellum/compare/v1.9.1...v1.9.2) (2026-08-11)
 
 
