@@ -18,24 +18,53 @@ const optionalEnv = <T extends z.ZodTypeAny>(schema: T) =>
     schema.optional(),
   );
 
+/* Both env templates ship placeholders that satisfy every length rule, so
+ * length alone cannot tell a real secret from the example text:
+ *   deploy/vellum.env.example  ENCRYPTION_KEY=replace-with-openssl-rand-hex-32   (exactly 32)
+ *   .env.example               ENCRYPTION_KEY=change-me-generate-with-openssl-rand-hex-32 (44)
+ * An operator who edits only POSTGRES_PASSWORD would boot a fully "validated"
+ * server whose session-signing key, provider-credential master key and global
+ * API key are public repository content. Fail closed on the placeholder text
+ * instead. Matched anywhere in the value, because the prod template embeds the
+ * placeholder password inside DATABASE_URL. */
+const PLACEHOLDER_RE = /replace[-_]with|change[-_]?me/i;
+
+/** Secret-bearing value: enforces a minimum length AND refuses example text. */
+const secret = (name: string, min: number, hint: string) =>
+  z
+    .string()
+    .min(min, `${name} must be at least ${min} characters`)
+    .refine(
+      (value) => !PLACEHOLDER_RE.test(value),
+      `${name} still contains the example placeholder from .env.example — generate a real value (${hint})`,
+    );
+
 const publicOrigin = z.string().url("VELLUM_PUBLIC_URL must be an absolute HTTPS origin").refine((value) => {
   const url = new URL(value);
   return url.protocol === "https:" && url.pathname === "/" && !url.search && !url.hash;
 }, "VELLUM_PUBLIC_URL must be an HTTPS origin without a path, query, or fragment");
 
-const envSchema = z.object({
-  DATABASE_URL: z.string().url("DATABASE_URL must be a valid URL"),
-  ENCRYPTION_KEY: z.string().min(32, "ENCRYPTION_KEY must be at least 32 characters"),
-  SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
-  ADMIN_API_KEY: z.string().min(32, "ADMIN_API_KEY must be at least 32 characters"),
+/* Exported for tests: importing `env` runs loadEnv() at module load, which
+ * process.exit(1)s on invalid input, so the schema is validated directly. */
+export const envSchema = z.object({
+  DATABASE_URL: z
+    .string()
+    .url("DATABASE_URL must be a valid URL")
+    .refine(
+      (value) => !PLACEHOLDER_RE.test(value),
+      "DATABASE_URL still contains the example placeholder password from deploy/vellum.env.example — set a real POSTGRES_PASSWORD and use it here",
+    ),
+  ENCRYPTION_KEY: secret("ENCRYPTION_KEY", 32, "openssl rand -hex 32"),
+  SESSION_SECRET: secret("SESSION_SECRET", 32, "openssl rand -hex 32"),
+  ADMIN_API_KEY: secret("ADMIN_API_KEY", 32, "openssl rand -hex 32"),
   ADMIN_USER: z.string().min(1, "ADMIN_USER is required"),
-  ADMIN_PASS: z.string().min(8, "ADMIN_PASS must be at least 8 characters"),
+  ADMIN_PASS: secret("ADMIN_PASS", 8, "use a password manager"),
   ENTRA_TENANT_ID: optionalEnv(z.string().uuid("ENTRA_TENANT_ID must be a UUID")),
   ENTRA_CLIENT_ID: optionalEnv(z.string().uuid("ENTRA_CLIENT_ID must be a UUID")),
-  ENTRA_CLIENT_SECRET: optionalEnv(z.string().min(1, "ENTRA_CLIENT_SECRET must not be empty")),
+  ENTRA_CLIENT_SECRET: optionalEnv(secret("ENTRA_CLIENT_SECRET", 1, "copy it from the Entra app registration")),
   VELLUM_PUBLIC_URL: optionalEnv(publicOrigin),
   UPDATER_URL: optionalEnv(z.string().url()),
-  UPDATER_TOKEN: optionalEnv(z.string().min(32, "UPDATER_TOKEN must be at least 32 characters")),
+  UPDATER_TOKEN: optionalEnv(secret("UPDATER_TOKEN", 32, "openssl rand -hex 32")),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });

@@ -15,10 +15,10 @@ export default async function DevicesPage() {
     getKnownDisplaySizes(),
   ]);
 
-  // Devices + latest telemetry. The primary query includes expected_interval_s
-  // (the connectivity cadence). If that column isn't migrated yet, fall back to
-  // a query without it so the page degrades gracefully instead of 500ing —
-  // connectivity then uses the default cadence until `pnpm db:migrate` runs.
+  // Devices + latest telemetry. Older installations may predate either of the
+  // optional device columns below. Keep the page available during a rolling
+  // migration; the fallback preserves the response shape with null values so
+  // the table renders until `pnpm db:migrate` runs.
   let deviceRows: Record<string, unknown>[];
   try {
     deviceRows = (await db.execute(sql`
@@ -39,7 +39,8 @@ export default async function DevicesPage() {
       SELECT
         d.mac, d.status, d.content_instance_id, d.theme_id,
         d.refresh_profile_id, d.firmware_channel, d.firmware_pin_version,
-        d.display_caps, d.orientation_override, d.last_seen, d.approved_at, d.created_at,
+        d.display_caps, NULL::text AS orientation_override, d.last_seen,
+        NULL::integer AS expected_interval_s, d.approved_at, d.created_at,
         t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
       FROM devices d
       LEFT JOIN LATERAL (

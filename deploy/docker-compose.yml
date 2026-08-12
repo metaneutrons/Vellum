@@ -88,6 +88,20 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
+    # DAC_OVERRIDE is required, not optional hardening slack. The documented
+    # `.env` deliberately stays 0600 and is owned by the host account that
+    # deployed the stack, while this container runs as root — so after
+    # `cap_drop: ALL` it may neither read the mounted env file nor persist the
+    # newly deployed VELLUM_IMAGE pin, and update.sh fails closed at its
+    # "environment file is not readable/writable" preflight. Verified: with
+    # cap_drop ALL alone, both read and write are denied on a 0600 file owned by
+    # another uid; adding DAC_OVERRIDE restores exactly that access and leaves
+    # the file's mode and ownership untouched.
+    # Do NOT "fix" this by relaxing .env to 0644 or by dropping the rw mount.
+    # This is the minimal capability for the job, and the container only ever
+    # sees its own narrow stack mounts.
+    cap_add:
+      - DAC_OVERRIDE
     cap_drop:
       - ALL
     security_opt:
