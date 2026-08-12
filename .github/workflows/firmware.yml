@@ -39,6 +39,7 @@ jobs:
       version: ${{ steps.calc.outputs.version }}
       channel: ${{ steps.calc.outputs.channel }}
       tag: ${{ steps.calc.outputs.tag }}
+      release_component: ${{ steps.calc.outputs.release_component }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -55,25 +56,19 @@ jobs:
           # so an unrelated `default "..."` added above it can't hijack the version.
           BASE=$(grep -A3 'config VELLUM_FIRMWARE_VERSION' firmware/main/Kconfig.projbuild \
                  | grep -m1 -oP 'default "\K\d+\.\d+\.\d+')
+          RELEASE_COMPONENT=$(node scripts/classify-release-commit.mjs "$HEAD_COMMIT_MESSAGE")
+          echo "release_component=${RELEASE_COMPONENT}" >> "$GITHUB_OUTPUT"
 
           if [ "${{ github.event_name }}" = "release" ]; then
             # Honour the release's prerelease flag so a firmware-v*-beta release
             # published manually is labelled beta, not stable.
             CHAN=stable
             [ "${{ github.event.release.prerelease }}" = "true" ] && CHAN=beta
-            echo "version=${BASE}" >> $GITHUB_OUTPUT
-            echo "channel=${CHAN}" >> $GITHUB_OUTPUT
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          elif [[ "$HEAD_COMMIT_MESSAGE" == chore:\ release\ * ]]; then
-            # Release Please normally publishes a `release` event after merging its
-            # PR. When it authenticates with GITHUB_TOKEN, GitHub deliberately
-            # suppresses that downstream event. The release commit itself still
-            # arrives as a push, so recognise it as the deterministic fallback.
-            # The Kconfig version has already been bumped by Release Please and the
-            # stable release/tag will exist by the time the compilation finishes.
-            echo "version=${BASE}" >> $GITHUB_OUTPUT
-            echo "channel=stable" >> $GITHUB_OUTPUT
-            echo "tag=firmware-v${BASE}" >> $GITHUB_OUTPUT
+            {
+              echo "version=${BASE}"
+              echo "channel=${CHAN}"
+              echo "tag=${{ github.event.release.tag_name }}"
+            } >> "$GITHUB_OUTPUT"
           elif [ -n "$STABLE_TAG" ]; then
             # Explicit, guarded recovery path for an already-created stable release.
             # This is intentionally exact: it cannot publish the current firmware
@@ -82,9 +77,11 @@ jobs:
               echo "::error::stable_tag must be firmware-v${BASE}, got $STABLE_TAG"
               exit 1
             }
-            echo "version=${BASE}" >> $GITHUB_OUTPUT
-            echo "channel=stable" >> $GITHUB_OUTPUT
-            echo "tag=${STABLE_TAG}" >> $GITHUB_OUTPUT
+            {
+              echo "version=${BASE}"
+              echo "channel=stable"
+              echo "tag=${STABLE_TAG}"
+            } >> "$GITHUB_OUTPUT"
           else
             # Beta: count commits since the last STABLE firmware tag. Anchor to the
             # firmware tag line (`firmware-v1.2.3`) and exclude betas (`*-beta*`) so
@@ -92,7 +89,7 @@ jobs:
             LAST_TAG=$(git describe --tags --abbrev=0 --match 'firmware-v[0-9]*' \
                          --exclude '*-beta*' 2>/dev/null || echo "")
             if [ -n "$LAST_TAG" ]; then
-              BETA_NUM=$(git rev-list ${LAST_TAG}..HEAD --count)
+              BETA_NUM=$(git rev-list "${LAST_TAG}..HEAD" --count)
             else
               BETA_NUM=$(git rev-list HEAD --count)
             fi
@@ -101,30 +98,22 @@ jobs:
             # '+' (SemVer build metadata) is illegal in a git ref — keep it in
             # VERSION (manifest/firmware string) but make the tag git-safe.
             TAG="firmware-v${VERSION//+/-}"
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "channel=beta" >> $GITHUB_OUTPUT
-            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            {
+              echo "version=${VERSION}"
+              echo "channel=beta"
+              echo "tag=${TAG}"
+            } >> "$GITHUB_OUTPUT"
           fi
 
   build:
     needs: version
-    # Skip a release-please release commit only when it did not touch firmware. A
-    # firmware release commit must build here as a fallback for GITHUB_TOKEN, whose
-    # releases intentionally do not emit downstream `release` workflow events.
-    # Two ways a release lands on main:
-    #  - squash-merge → subject `chore(main): release …` / `chore(firmware): release …`
-    #    (anchored to the SUBJECT start so a normal commit whose BODY merely says
-    #    "release" is not skipped);
-    #  - merge-commit (the required flow for release PRs, see docs/RELEASING.md) →
-    #    `Merge pull request #N from …/release-please--branches--…`, matched by the
-    #    branch marker so the merge doesn't fire a second, redundant beta.
-    # Always build for real releases and manual dispatch.
+    # Stable artifacts are built exactly once from `release: published`. The
+    # required RELEASE_PAT guarantees that event is emitted; release-commit pushes
+    # are skipped to prevent a duplicate matrix build. Normal firmware pushes build
+    # beta, while manual dispatch remains the guarded repair path.
     if: >-
       github.event_name != 'push' ||
-      !(startsWith(github.event.head_commit.message, 'chore(main): release ') ||
-        startsWith(github.event.head_commit.message, 'chore(firmware): release ') ||
-        contains(github.event.head_commit.message, 'release-please--branches')) ||
-      needs.version.outputs.channel == 'stable'
+      needs.version.outputs.release_component == 'none'
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
@@ -158,7 +147,7 @@ jobs:
 
       - name: Inject version and configure
         run: |
-          . $IDF_PATH/export.sh
+          . "$IDF_PATH/export.sh"
           VERSION="${{ needs.version.outputs.version }}"
           DEFAULTS="${{ matrix.base }}"
           OVERLAY="${{ matrix.overlay }}"
@@ -170,18 +159,18 @@ jobs:
           echo "${VERSION}" > version.txt
           # -DVELLUM_MODEL bakes the model into the app-descriptor project_name
           # (vellum-<model>) so the OTA client can reject a wrong-model image.
-          idf.py -DVELLUM_MODEL=${{ matrix.model }} \
+          idf.py -DVELLUM_MODEL="${{ matrix.model }}" \
             -DSDKCONFIG_DEFAULTS="$DEFAULTS;sdkconfig.ci" \
-            set-target ${{ matrix.target }}
+            set-target "${{ matrix.target }}"
 
       - name: Build
         run: |
-          . $IDF_PATH/export.sh
-          idf.py -DVELLUM_MODEL=${{ matrix.model }} build
+          . "$IDF_PATH/export.sh"
+          idf.py -DVELLUM_MODEL="${{ matrix.model }}" build
 
       - name: Extract binaries (app image for OTA + merged image for web flasher)
         run: |
-          . $IDF_PATH/export.sh
+          . "$IDF_PATH/export.sh"
           VERSION="${{ needs.version.outputs.version }}"
           SAFE=$(printf '%s' "$VERSION" | tr '+' '-')   # url/file-safe (POSIX sh; drops '+build' separator)
           MODEL="${{ matrix.model }}"
@@ -214,9 +203,9 @@ jobs:
           printf '%s' "$DIGEST" > "${OTA}.sha256"
 
           # Merged full-flash image → web flasher (ESP Web Tools writes it at 0x0).
-          cd build && esptool --chip ${{ matrix.target }} merge-bin \
+          cd build && esptool --chip "${{ matrix.target }}" merge-bin \
             --output "../vellum-${MODEL}-v${SAFE}-factory.bin" @flash_args
-          cd .. && ls -lh vellum-${MODEL}-v${SAFE}*.bin "${OTA}.sha256"
+          cd .. && ls -lh ./vellum-"${MODEL}"-v"${SAFE}"*.bin "${OTA}.sha256"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
@@ -280,7 +269,7 @@ jobs:
           # when a Secure Boot block trails the image, so it is NOT tail -c 32 of a
           # signed file. Here we only confirm the sidecar arrived intact.
           cd binaries
-          for f in vellum-*-v*.bin; do
+          for f in ./vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac
             [ -s "$f.sha256" ] || { echo "::error::$f: missing precomputed digest sidecar from the build job"; exit 1; }
             grep -qE '^[0-9a-f]{64}$' "$f.sha256" || { echo "::error::$f.sha256 is not a 64-hex digest"; exit 1; }
@@ -333,7 +322,7 @@ jobs:
           fi
           echo "OTA_KEY_ID_RESOLVED=$KID" >> "$GITHUB_ENV"
           cd binaries
-          for f in vellum-*-v*.bin; do
+          for f in ./vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac
             xxd -r -p "$f.sha256" > "$f.hash"                          # raw 32-byte digest = message (build's image-info sidecar)
             gcloud kms asymmetric-sign \
@@ -398,7 +387,7 @@ jobs:
               || { echo "::error::$f signature failed pure-Ed25519 roundtrip verify"; exit 1; }
             echo "OK: $f verified"
           done
-          rm -f .signer_pub_raw spki.der signer_pub.pem *.hash *.sig.raw *.sig
+          rm -f .signer_pub_raw spki.der signer_pub.pem -- ./*.hash ./*.sig.raw ./*.sig
 
       - name: Generate manifest
         env:
@@ -483,8 +472,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd binaries
+          files=(./*.bin ./*.sha256)
           gh release upload "${{ needs.version.outputs.tag }}" \
-            *.bin *.sha256 \
+            "${files[@]}" \
             --repo "${{ github.repository }}" --clobber
 
       - name: Upload manifest to existing release (last, after all images)

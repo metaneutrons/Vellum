@@ -39,16 +39,23 @@ workflow:
   to the release. `docker.yml` also triggers, but its jobs skip (its `build` job
   is gated to non-firmware tag names).
 
-> **Merge release-please PRs with a merge commit, not a squash.** Squashing a
-> release PR rewrites the release commit, and release-please can then fail to
-> create the GitHub Release object from it (observed on v1.2.1 under the
-> multi-component config — the tag/release had to be created by hand). A merge
-> commit preserves the release commit release-please expects. Only the two
-> `chore: release …` PRs need this; ordinary feature/fix PRs stay squash-merged.
+Release PRs may be merged with either a merge commit or a squash commit. The
+release workflows route both forms through a shared, component-aware classifier:
+release-commit pushes never start duplicate artifact builds, server releases
+cannot publish firmware, firmware releases cannot move the server image, and
+ordinary commits that merely mention a release remain normal builds.
+
+`RELEASE_PAT` is mandatory and release automation fails closed when it is absent.
+This matters because GitHub suppresses downstream events for releases created by
+`GITHUB_TOKEN`; falling back would create a plausible-looking release without its
+container or firmware assets. Stable artifacts build exactly once from the
+`release: published` event. The guarded manual workflow remains available to
+repair an existing firmware release.
 
 `pnpm release:check` guards the component split, parseable PR-title contract,
-tag formats, workflow wiring, and both version sources. It runs during pre-push
-and as the dedicated **Release Config** CI check.
+tag formats, workflow wiring, both version sources, and regression fixtures for
+squash/merge release routing. It runs during pre-push and as the dedicated
+**Release Config** CI check.
 
 An existing server release can be backfilled without rebuilding an image or
 firmware by manually running **Deployment Assets** with its `vX.Y.Z` tag. The

@@ -11,9 +11,24 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/vellum
 
 jobs:
+  routing:
+    runs-on: ubuntu-latest
+    outputs:
+      release_component: ${{ steps.classify.outputs.release_component }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Classify Release Please commit
+        id: classify
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          COMPONENT=$(node scripts/classify-release-commit.mjs "$HEAD_COMMIT_MESSAGE")
+          echo "release_component=${COMPONENT}" >> "$GITHUB_OUTPUT"
+
   # Build each arch on its NATIVE runner and push by digest (no tag yet), with an
   # SBOM + max-mode SLSA provenance attestation and a per-arch GHA build cache.
   build:
+    needs: routing
     # Server-scoped only: a firmware release (`firmware-v*`) ships no Docker image
     # and must not move the `latest` tag or push a `firmware-v*`-named image.
     # A Release Please merge changes server release metadata, then emits a release
@@ -23,8 +38,7 @@ jobs:
       (github.event_name != 'release' ||
         !startsWith(github.event.release.tag_name, 'firmware')) &&
       (github.event_name != 'push' ||
-        !(startsWith(github.event.head_commit.message, 'chore(main): release ') ||
-          contains(github.event.head_commit.message, 'release-please--branches')))
+        needs.routing.outputs.release_component == 'none')
     strategy:
       fail-fast: false
       matrix:
@@ -140,8 +154,16 @@ jobs:
       - name: Create multi-arch manifest + push
         working-directory: ${{ runner.temp }}/digests
         run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+          mapfile -t TAGS < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          TAG_ARGS=()
+          for tag in "${TAGS[@]}"; do
+            TAG_ARGS+=("-t" "$tag")
+          done
+          SOURCES=()
+          for digest in ./*; do
+            SOURCES+=("${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:${digest#./}")
+          done
+          docker buildx imagetools create "${TAG_ARGS[@]}" "${SOURCES[@]}"
 
       - name: Capture pushed manifest digest
         id: digest
