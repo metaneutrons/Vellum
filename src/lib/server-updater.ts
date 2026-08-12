@@ -15,11 +15,18 @@ export type ServerUpdateStatus = {
   lastCheckedAt: string | null;
   lastUpdatedAt: string | null;
   lastError: string | null;
+  /** The updater sidecar's own image version, or null when it does not report
+   * one — which itself means it predates version reporting and is outdated. The
+   * updater never replaces its own container, so this is the only signal an
+   * operator gets that the component holding the Docker socket has fallen
+   * behind. See docs/DOCKER_DEPLOYMENT.md for the deliberate manual swap. */
+  updaterVersion: string | null;
+  updaterUpdateAvailable: boolean;
 };
 
 const unavailable: ServerUpdateStatus = { supported: false, state: "unavailable", currentVersion: null,
   availableVersion: null, updateAvailable: false, updateMode: "manual", maintenanceTime: "02:00", timezone: "UTC", lastCheckedAt: null,
-  lastUpdatedAt: null, lastError: null };
+  lastUpdatedAt: null, lastError: null, updaterVersion: null, updaterUpdateAvailable: false };
 
 const statusSchema = z.object({
   state: z.enum(["starting", "checking", "available", "updating", "current", "failed"]),
@@ -32,6 +39,11 @@ const statusSchema = z.object({
   lastCheckedAt: z.string().datetime().nullable(),
   lastUpdatedAt: z.string().datetime().nullable(),
   lastError: z.string().max(500).nullable(),
+  /* Optional on purpose: the currently deployed updater predates these fields,
+   * and a strict schema would reject its whole payload and report the update
+   * system as unavailable. */
+  updaterVersion: z.string().max(64).nullable().optional(),
+  updaterUpdateAvailable: z.boolean().optional(),
 });
 
 async function request(path: string, method = "GET", body?: unknown): Promise<ServerUpdateStatus> {
@@ -48,7 +60,13 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
     const raw = await response.json() as { status?: unknown };
     const value = raw.status ?? raw;
     const parsed = statusSchema.safeParse(value);
-    return parsed.success ? { ...parsed.data, supported: true } : unavailable;
+    if (!parsed.success) return unavailable;
+    return {
+      ...parsed.data,
+      supported: true,
+      updaterVersion: parsed.data.updaterVersion ?? null,
+      updaterUpdateAvailable: parsed.data.updaterUpdateAvailable ?? false,
+    };
   } catch {
     return unavailable;
   }

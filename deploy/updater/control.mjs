@@ -10,6 +10,12 @@ const intervalSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 900);
 const operationTimeoutMs = Number(process.env.UPDATE_TIMEOUT_SECONDS ?? 900) * 1000;
 const port = Number(process.env.CONTROL_PORT ?? 8080);
 const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases/latest";
+/* Own image version, baked in at build time (Dockerfile ARG UPDATER_VERSION).
+ * The updater deliberately never replaces its own container, so reporting this
+ * is the only way an operator learns that the component holding the Docker
+ * socket has fallen behind. An older updater simply omits the field, and the
+ * server treats that absence as "outdated, version unknown". */
+const updaterVersion = (process.env.UPDATER_VERSION ?? "").trim() || null;
 const target = process.env.TARGET_CONTAINER ?? "vellum";
 const configFile = process.env.UPDATER_CONFIG_FILE ?? "/state/config.json";
 const defaultConfig = {
@@ -60,7 +66,8 @@ function saveConfig() {
 }
 
 const status = { state: "starting", currentVersion: null, availableVersion: null,
-  updateAvailable: false, lastCheckedAt: null, lastUpdatedAt: null, lastError: null };
+  updateAvailable: false, lastCheckedAt: null, lastUpdatedAt: null, lastError: null,
+  updaterVersion, updaterUpdateAvailable: false };
 let active = false;
 
 function publicStatus() {
@@ -118,6 +125,9 @@ async function check() {
     const [current, available] = await Promise.all([currentVersion(), releaseVersion()]);
     status.currentVersion = current || null; status.availableVersion = available;
     status.updateAvailable = newer(current, available); status.lastCheckedAt = new Date().toISOString();
+    /* Both images are pinned to the same release tag by deployment-assets.yml, so
+     * the server's candidate release is also the updater's candidate. */
+    status.updaterUpdateAvailable = newer(updaterVersion, available);
     status.state = status.updateAvailable ? "available" : "current";
   } catch (error) {
     status.state = "failed"; status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
@@ -200,4 +210,4 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
   setInterval(() => void tryScheduledApply(), 30_000).unref();
 }
 
-export { equalToken, newer, validateConfig, zonedClock };
+export { equalToken, newer, validateConfig, zonedClock, publicStatus };

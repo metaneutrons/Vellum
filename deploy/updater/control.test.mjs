@@ -4,7 +4,7 @@ import test from "node:test";
 
 process.env.VELLUM_UPDATER_TEST = "true";
 process.env.UPDATER_TOKEN = "a".repeat(64);
-const { equalToken, newer, validateConfig, zonedClock } = await import("./control.mjs");
+const { equalToken, newer, publicStatus, validateConfig, zonedClock } = await import("./control.mjs");
 
 test("compares semantic release versions without allowing downgrades", () => {
   assert.equal(newer("1.8.1", "v1.8.2"), true);
@@ -28,4 +28,22 @@ test("validates and evaluates timezone-aware maintenance schedules", () => {
   assert.equal(validateConfig({ mode: "automatic", maintenanceTime: "02:30", timezone: "Not/AZone" }), false);
   assert.deepEqual(zonedClock(new Date("2026-08-11T00:30:00Z"), "Europe/Berlin"),
     { date: "2026-08-11", time: "02:30" });
+});
+
+test("reports its own image version so a stale updater is visible", () => {
+  const status = publicStatus();
+  // Built without the ARG in tests, so the field exists but is null — exactly
+  // what an older updater looks like to the server, which must tolerate it.
+  assert.ok("updaterVersion" in status, "status must always carry updaterVersion");
+  assert.ok("updaterUpdateAvailable" in status, "status must always carry updaterUpdateAvailable");
+  assert.equal(status.updaterUpdateAvailable, false, "must not claim an update before a check ran");
+});
+
+test("treats an unknown own version as older than any release", () => {
+  // The updater cannot replace itself, so a build without a baked version must
+  // still be reported as behind rather than silently current.
+  assert.equal(newer(null, "v1.9.6"), true);
+  assert.equal(newer("0.0.0-dev", "v1.9.6"), true);
+  assert.equal(newer("v1.9.6", "v1.9.6"), false);
+  assert.equal(newer("v1.9.7", "v1.9.6"), false);
 });

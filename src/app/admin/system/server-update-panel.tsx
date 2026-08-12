@@ -119,6 +119,23 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
                   : t("serverManualSchedule"))}
             </p>
           </div>
+          {status.supported && (status.updaterUpdateAvailable || !status.updaterVersion) && (
+            /* The updater never replaces its own container, so this is the only
+             * place an operator learns that the component holding the Docker
+             * socket has fallen behind. A missing version means the running
+             * updater predates version reporting — outdated by definition. */
+            <div className="w-full order-last rounded-lg bg-fill-tertiary/60 border border-separator/60 p-3">
+              <p className="text-sm text-label">
+                {status.updaterVersion
+                  ? t("updaterOutdated", { current: status.updaterVersion, available: status.availableVersion ?? "" })
+                  : t("updaterVersionUnknown")}
+              </p>
+              <p className="text-sm text-label-secondary mt-1">{t("updaterManualHint")}</p>
+              <pre className="mt-2 text-xs font-mono text-label-secondary whitespace-pre-wrap select-all">
+                docker compose pull updater{"\n"}docker compose up -d --no-deps updater
+              </pre>
+            </div>
+          )}
           {canUpdate && status.supported && (
             <div className="flex gap-2">
               <button disabled={actionPending || status.state === "updating"} onClick={() => runAction("check")}

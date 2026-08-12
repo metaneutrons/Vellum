@@ -145,8 +145,14 @@ database backup automatically; database restore is an explicit operator action.
 Server migrations must therefore follow expand/contract compatibility across
 adjacent releases.
 
-The updater image itself is not allowed to replace its own container. Update it
-explicitly after reviewing a release:
+The updater image itself is not allowed to replace its own container — replacing
+itself would kill the very process performing the swap. **System → Vellum Server**
+therefore shows the updater's own version and tells you when it has fallen behind,
+including the commands below; an updater that reports no version at all predates
+that reporting and is outdated by definition. Watch for it: this is the container
+holding the Docker socket, so it is the one component that never patches itself.
+
+Update it explicitly after reviewing a release:
 
 ```bash
 docker compose pull updater
