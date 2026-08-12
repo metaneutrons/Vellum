@@ -53,9 +53,14 @@ and as the dedicated **Release Config** CI check.
 An existing server release can be backfilled without rebuilding an image or
 firmware by manually running **Deployment Assets** with its `vX.Y.Z` tag. The
 manual workflow uses the current compatible deployment definition while pinning
-`VELLUM_IMAGE` to the requested release tag. This allows an older release to
-receive installation or portability fixes without moving its immutable git tag
-or rebuilding server and firmware artifacts.
+`VELLUM_IMAGE` and `UPDATER_IMAGE` to the requested release tag. This allows an
+older release to receive installation or portability fixes without moving its
+immutable git tag or rebuilding server and firmware artifacts.
+
+Deployment assets are published only after both versioned multi-architecture
+images exist and their GitHub Actions Sigstore identities verify. A failed or
+incomplete image release therefore cannot produce an apparently installable
+Compose bundle.
 
 ## Why this is safe for the fleet
 

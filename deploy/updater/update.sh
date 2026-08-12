@@ -8,6 +8,7 @@ readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/V
 readonly IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-ghcr.io/metaneutrons/vellum}"
 readonly COMPOSE_FILE="${COMPOSE_FILE:-/stack/docker-compose.yml}"
 readonly VELLUM_ENV_FILE="${VELLUM_ENV_FILE:-/run/vellum/vellum.env}"
+readonly ENV_BACKUP_FILE="${ENV_BACKUP_FILE:-/state/vellum.env.backup}"
 readonly COMPOSE_PROJECT="${COMPOSE_PROJECT:-vellum}"
 readonly COMPOSE_SERVICE="${COMPOSE_SERVICE:-server}"
 readonly TARGET_CONTAINER="${TARGET_CONTAINER:-vellum}"
@@ -41,6 +42,7 @@ validate_config() {
   done
   [[ -r "$COMPOSE_FILE" ]] || die "compose file is not readable: $COMPOSE_FILE"
   [[ -r "$VELLUM_ENV_FILE" ]] || die "environment file is not readable: $VELLUM_ENV_FILE"
+  [[ -w "$VELLUM_ENV_FILE" ]] || die "environment file is not writable: $VELLUM_ENV_FILE"
   [[ "$POLL_INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || die "POLL_INTERVAL_SECONDS must be numeric"
   (( POLL_INTERVAL_SECONDS >= 300 )) || die "POLL_INTERVAL_SECONDS must be at least 300"
   [[ "$READINESS_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || die "READINESS_TIMEOUT_SECONDS must be numeric"
@@ -138,6 +140,36 @@ compose_deploy() {
     up --detach --no-deps --pull never --force-recreate "$COMPOSE_SERVICE"
 }
 
+persist_server_image() {
+  local image="$1" count temporary backup_temporary
+  count="$(grep -c '^VELLUM_IMAGE=' "$VELLUM_ENV_FILE" || true)"
+  [[ "$count" == "1" ]] || {
+    die "environment file must contain exactly one VELLUM_IMAGE setting"
+    return 1
+  }
+
+  mkdir -p "$(dirname "$ENV_BACKUP_FILE")"
+  temporary="$(mktemp)"
+  backup_temporary="${ENV_BACKUP_FILE}.tmp"
+  awk -v image="$image" '
+    /^VELLUM_IMAGE=/ { print "VELLUM_IMAGE=" image; next }
+    { print }
+  ' "$VELLUM_ENV_FILE" >"$temporary"
+  cp -p "$VELLUM_ENV_FILE" "$backup_temporary"
+  mv -f "$backup_temporary" "$ENV_BACKUP_FILE"
+
+  if ! cp "$temporary" "$VELLUM_ENV_FILE" ||
+      ! grep -Fx "VELLUM_IMAGE=${image}" "$VELLUM_ENV_FILE" >/dev/null; then
+    cp "$ENV_BACKUP_FILE" "$VELLUM_ENV_FILE" || true
+    rm -f "$temporary"
+    die "could not persist the deployed server image"
+    return 1
+  fi
+  rm -f "$temporary"
+  sync -f "$VELLUM_ENV_FILE" 2>/dev/null || true
+  log "persisted server image pin: $image"
+}
+
 wait_for_readiness() {
   local deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))
   while (( SECONDS < deadline )); do
@@ -158,11 +190,14 @@ deploy_with_rollback() {
 
   log "deploying $candidate"
   if compose_deploy "$candidate" && wait_for_readiness; then
-    log "deployment healthy: $candidate"
-    return 0
+    if persist_server_image "$candidate"; then
+      log "deployment healthy: $candidate"
+      return 0
+    fi
+    log "deployment healthy but image pin persistence failed; rolling back"
   fi
 
-  log "deployment failed readiness; rolling back to $old_id"
+  log "deployment failed; rolling back to $old_id"
   if ! compose_deploy "$rollback_ref" || ! wait_for_readiness; then
     die "automatic rollback failed; operator intervention required"
   fi

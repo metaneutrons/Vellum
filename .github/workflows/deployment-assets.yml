@@ -37,17 +37,53 @@ jobs:
           # deployment fix without moving or rewriting the release tag.
           ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || env.RELEASE_TAG }}
 
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Wait for signed release images
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          owner="${OWNER,,}"
+          wait_for_signature() {
+            local image="$1" workflow="$2"
+            local identity="https://github.com/${REPOSITORY}/.github/workflows/${workflow}@refs/tags/${RELEASE_TAG}"
+            for attempt in {1..60}; do
+              if cosign verify \
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+                --certificate-identity "$identity" \
+                "$image" >/dev/null 2>&1; then
+                echo "Verified signed release image: $image"
+                return 0
+              fi
+              if [[ "$attempt" == "1" ]]; then
+                echo "Waiting for signed release image: $image"
+              fi
+              sleep 10
+            done
+            echo "::error::Signed release image did not become available: $image"
+            return 1
+          }
+          wait_for_signature "ghcr.io/${owner}/vellum:${RELEASE_TAG}" docker.yml
+          wait_for_signature "ghcr.io/${owner}/vellum-updater:${RELEASE_TAG}" updater.yml
+
       - name: Prepare versioned deployment assets
         run: |
           mkdir -p dist
           install -m 0644 deploy/docker-compose.yml dist/docker-compose.yml
           install -m 0644 deploy/vellum.env.example dist/vellum.env.example
+          server_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}"
+          updater_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum-updater:${RELEASE_TAG}"
           sed -i \
-            "s|^VELLUM_IMAGE=.*|VELLUM_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}|" \
+            -e "s|^VELLUM_IMAGE=.*|VELLUM_IMAGE=${server_image}|" \
+            -e "s|^UPDATER_IMAGE=.*|UPDATER_IMAGE=${updater_image}|" \
             dist/vellum.env.example
-          grep -Fx \
-            "VELLUM_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}" \
-            dist/vellum.env.example
+          grep -Fx "VELLUM_IMAGE=${server_image}" dist/vellum.env.example
+          grep -Fx "UPDATER_IMAGE=${updater_image}" dist/vellum.env.example
+          if grep -E '^(VELLUM|UPDATER)_IMAGE=.*:latest$' dist/vellum.env.example; then
+            echo "::error::Release assets must not contain mutable application image tags"
+            exit 1
+          fi
           cd dist
           sha256sum docker-compose.yml vellum.env.example > SHA256SUMS
 
