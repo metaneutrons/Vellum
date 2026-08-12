@@ -44,6 +44,21 @@ jobs:
           node-version-file: '.nvmrc'
       - run: pnpm release:check
 
+  schema:
+    name: Schema Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version-file: '.nvmrc'
+      # Asserts every src/db/schema.ts column has a migration in drizzle/.
+      # Nothing else catches this: migrate.mjs applies raw SQL, tsc only checks
+      # the model, and the test suite runs without Postgres — so a column with
+      # no migration stays green here and fails in production.
+      - run: pnpm db:check
+
   i18n:
     name: i18n
     runs-on: ubuntu-latest

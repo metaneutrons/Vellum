@@ -29,6 +29,12 @@ function validateConfig(value) {
 }
 if (process.env.VELLUM_UPDATER_TEST !== "true") {
   if (token.length < 32) throw new Error("UPDATER_TOKEN must contain at least 32 characters");
+  // vellum.env.example ships UPDATER_TOKEN=replace-with-openssl-rand-hex-32, which
+  // is exactly 32 characters and would otherwise pass the check above — leaving
+  // this root-equivalent control API guarded by a token published in the repo.
+  if (/replace[-_]with|change[-_]?me/i.test(token)) {
+    throw new Error("UPDATER_TOKEN still contains the example placeholder — generate a real value with: openssl rand -hex 32");
+  }
   if (!Number.isInteger(intervalSeconds) || intervalSeconds < 300) throw new Error("POLL_INTERVAL_SECONDS must be at least 300");
   if (!Number.isInteger(operationTimeoutMs) || operationTimeoutMs < 60_000) throw new Error("UPDATE_TIMEOUT_SECONDS must be at least 60");
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("CONTROL_PORT is invalid");
