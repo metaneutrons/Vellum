@@ -116,18 +116,26 @@ them in `__vellum_migrations`. Consequences:
   is not wired to the connector and USB provisioning could not work.
 - Consequence for power: `usb_serial_jtag_is_connected()` **can never observe
   host presence on any E-Series board** (their native USB pins go nowhere).
-  E1002/E1003 therefore read USB power from the **SY6974B charger over I²C**
-  (`components/board/board.c` `charger_reports_usb_power()`, host-tested in
-  `test_sy6974b_power.c`; note the I²C pins differ per model — e1002 SDA39/SCL40,
-  e1003 SDA19/SCL20). ⚠️ **E1001 still falls through to the USJ branch, so
-  `board_is_usb_powered()` is permanently false there** — the low-battery gate
-  can deep-sleep a USB-powered E1001. Fixing it needs E1001's charger I²C pins
-  from the schematic; do not guess them. A "fix" that routes either console or
-  USB-power detection uniformly across models WILL break several.
+  All three therefore read USB power from the **SY6974B charger (0x6B) over
+  I²C** (`components/board/board.c` `charger_reports_usb_power()`, host-tested in
+  `test_sy6974b_power.c`). **The charger bus differs per model**: E1001 and E1002
+  on **SDA39/SCL40**, E1003 on **SDA19/SCL20**. For E1001 this is corroborated by
+  Seeed's own Zephyr board port, whose devicetree puts `charger: sy6974b@6b` on
+  `i2c1` (SDA39/SCL40) while `i2c0` (SDA19/SCL20) carries only the SHT4x and the
+  PCF8563 RTC — and whose battery-divider enable (GPIO21, ADC0 ch0) matches this
+  repo's `VELLUM_BATTERY_EN_GPIO` default of 21. Only D1001 uses a VBUS sense
+  channel (`d1001_usb_voltage()`), and only D1001 may use the USJ signal.
+  A "fix" that routes either console or USB-power detection uniformly across
+  models WILL break several.
+- Unused E1001/E1003 hardware, for reference: both carry a **PCF8563 RTC** and an
+  **SHT4x** temperature/humidity sensor on `i2c0`; Vellum currently implements RTC
+  support only for D1001 and reads neither sensor on the E-Series.
 - Panel-capability inconsistencies — **unresolved, do not "fix" one side blindly;
   confirm against the physical panel first**:
-  - E1003 is **1872×1404** in code and on the server, but
-    `main/Kconfig.projbuild:19` labels it `1404x1872`. (Label is the odd one out.)
+  - E1003: code and server use **1872×1404** (landscape) while
+    `main/Kconfig.projbuild:19` labels it `1404x1872`. Not a typo — the vendor
+    spec is portrait 1404×1872 and Vellum drives the panel landscape, so the two
+    are the same panel under different orientation conventions. Leave both alone.
   - **E1002 is a 6-colour panel (hardware-confirmed), but the firmware reports a
     7-entry palette including orange** — `http_client.c` sends
     `{black, white, yellow, red, orange, blue, green}` while the driver correctly
