@@ -26,6 +26,7 @@ typedef enum {
 typedef struct {
     char ssid[33];   /* NUL-terminated */
     int8_t rssi;     /* dBm */
+    uint8_t authmode;/* esp-idf wifi_auth_mode_t value */
     bool open;       /* true if the network is open (no auth) */
 } wifi_ap_info_t;
 

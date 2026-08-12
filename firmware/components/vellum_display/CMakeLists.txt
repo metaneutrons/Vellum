@@ -9,7 +9,7 @@ set(SRCS "vellum_display.c")
 
 if("${IDF_TARGET}" STREQUAL "esp32p4")
     list(APPEND SRCS "panel_lcd.c")
-    set(BACKEND_REQUIRES d1001_board lcd_jd9365 esp_lcd espressif__esp_jpeg)
+    set(BACKEND_REQUIRES d1001_board lcd_jd9365 esp_lcd esp_mm espressif__esp_jpeg)
 else()
     list(APPEND SRCS "panel_epaper.c")
     if(CONFIG_VELLUM_PANEL_E1003)

@@ -248,12 +248,34 @@ esp_err_t board_set_utc_time(time_t value)
 
 static void led_init(void)
 {
+#if CONFIG_VELLUM_PANEL_D1001
+    gpio_set_direction(D1001_LED_R, GPIO_MODE_OUTPUT);
+    gpio_set_level(D1001_LED_R, 1);
+#else
     gpio_set_direction(CONFIG_VELLUM_LED_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_level(CONFIG_VELLUM_LED_GPIO, 1);
+#endif
 }
 
-void board_led_on(void)  { gpio_set_level(CONFIG_VELLUM_LED_GPIO, 0); }
-void board_led_off(void) { gpio_set_level(CONFIG_VELLUM_LED_GPIO, 1); }
+void board_led_on(void)
+{
+#if CONFIG_VELLUM_PANEL_D1001
+    /* GPIO6 is the D1001 C6 SDIO command line, not a status LED. */
+    gpio_set_direction(D1001_LED_R, GPIO_MODE_OUTPUT);
+    gpio_set_level(D1001_LED_R, 0);
+#else
+    gpio_set_level(CONFIG_VELLUM_LED_GPIO, 0);
+#endif
+}
+
+void board_led_off(void)
+{
+#if CONFIG_VELLUM_PANEL_D1001
+    gpio_set_level(D1001_LED_R, 1);
+#else
+    gpio_set_level(CONFIG_VELLUM_LED_GPIO, 1);
+#endif
+}
 
 /* ── Buzzer ───────────────────────────────────────────────────── */
 
@@ -267,12 +289,22 @@ static void buzzer_init(void)
 
 void board_buzzer_beep(uint32_t freq, uint32_t ms)
 {
+#if CONFIG_VELLUM_PANEL_D1001
+    /* D1001 has an ES8311-driven speaker, not the E-Series PWM buzzer. Using
+     * the generic LEDC channel here reprograms the LCD backlight channel and
+     * leaves it at 0% after every attempted beep. Audio feedback requires the
+     * codec path; until that is initialised, preserve the display instead. */
+    (void)freq;
+    (void)ms;
+    return;
+#else
     ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0, freq);
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 128);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
     vTaskDelay(pdMS_TO_TICKS(ms));
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+#endif
 }
 
 /* ── Init ─────────────────────────────────────────────────────── */
