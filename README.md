@@ -87,6 +87,10 @@ docker compose up -d
 Compose automatically reads `.env`. Relative bind mounts keep configuration,
 PostgreSQL, backups, and updater state together in the directory you selected:
 
+The release-provided `.env` pins both the server and updater images to the same
+exact `vX.Y.Z` release. Compose fails closed when either setting is missing; it
+never silently falls back to a mutable `latest` image.
+
 | Path within the chosen directory | Contents |
 |---|---|
 | `docker-compose.yml` | Server, PostgreSQL, and updater stack |

@@ -27,7 +27,7 @@ services:
         max-file: "3"
 
   server:
-    image: ${VELLUM_IMAGE:-ghcr.io/metaneutrons/vellum:latest}
+    image: ${VELLUM_IMAGE:?set VELLUM_IMAGE in .env}
     container_name: vellum
     restart: unless-stopped
     env_file:
@@ -48,7 +48,7 @@ services:
         max-file: "3"
 
   updater:
-    image: ${UPDATER_IMAGE:-ghcr.io/metaneutrons/vellum-updater:latest}
+    image: ${UPDATER_IMAGE:?set UPDATER_IMAGE in .env}
     container_name: vellum-updater
     restart: unless-stopped
     depends_on:
@@ -82,7 +82,9 @@ services:
       - ./docker-compose.yml:/stack/docker-compose.yml:ro
       - ./data/backups:/backups
       - ./data/updater:/state
-      - ./.env:/stack/.env:ro
+      # The updater persists a successfully deployed exact server tag here so a
+      # later operator-run `docker compose up` cannot silently roll it back.
+      - ./.env:/stack/.env
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777

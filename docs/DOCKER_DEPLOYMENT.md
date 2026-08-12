@@ -41,8 +41,9 @@ The host needs no repository checkout. `releases/latest/download` resolves to
 the latest stable Vellum Server release; replace it with
 `releases/download/vX.Y.Z` to pin a particular release. `SHA256SUMS` detects a
 truncated or mismatched download before anything is installed. Each release's
-environment template also pins `VELLUM_IMAGE` to that exact server tag for the
-initial deployment; later upgrades remain controlled by the verified updater.
+environment template pins `VELLUM_IMAGE` and `UPDATER_IMAGE` to that exact
+release tag. Later server upgrades remain controlled by the verified updater;
+updater upgrades are an explicit stack maintenance operation.
 
 Compose creates this layout on first start:
 
@@ -67,9 +68,9 @@ with `cosign verify` and set `VELLUM_IMAGE` and `UPDATER_IMAGE` to the verified
 `ghcr.io/...@sha256:...` manifest digests. Subsequent server releases are always
 pulled by exact tag and verified by the updater before deployment.
 
-Avoid an unreviewed full-stack `docker compose up --pull always`: it can replace
-the exact, verified server image with a mutable tag. Normal updater operation
-recreates only the `server` service from a verified exact tag.
+Compose rejects missing server or updater image settings instead of silently
+falling back to mutable tags. Avoid changing either setting to `latest`. Normal
+updater operation recreates only the `server` service from a verified exact tag.
 
 PostgreSQL is pinned to its major release and an immutable image digest. Never
 replace it with `postgres:latest`: that could turn a routine pull into an
@@ -91,7 +92,9 @@ Before changing the server it:
 3. writes an atomic PostgreSQL custom-format backup;
 4. recreates only the server container;
 5. requires both HTTP readiness and database connectivity;
-6. restores the previous server image automatically if readiness fails.
+6. persists the verified exact server tag for later Compose operations;
+7. restores both the previous container and image pin if deployment or pin
+   persistence fails.
 
 Administrators with `system.update` permission choose the behavior under
 **System → Vellum Server**:
