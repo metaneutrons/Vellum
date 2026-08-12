@@ -70,11 +70,17 @@ static int status_logo_top(const vellum_panel_t *p)
     return p->height > 1000 ? 140 : 32;
 }
 
+static int firmware_identity_gap(const vellum_panel_t *p)
+{
+    /* Keep the version visually separate from the mark at both density tiers. */
+    return p->height > 1000 ? 18 : 12;
+}
+
 static int status_content_top(const vellum_panel_t *p)
 {
     int logo_h = p->logo ? p->logo->header.h : 0;
     /* Reserve space for the firmware identity line rendered below the mark. */
-    return status_logo_top(p) + logo_h + (p->height > 1000 ? 80 : 42);
+    return status_logo_top(p) + logo_h + (p->height > 1000 ? 84 : 46);
 }
 
 static lv_obj_t *add_firmware_identity(lv_obj_t *parent)
@@ -100,8 +106,26 @@ static lv_obj_t *add_status_logo(lv_obj_t *parent)
     lv_obj_t *identity = add_firmware_identity(parent);
     int logo_h = p->logo ? p->logo->header.h : 0;
     lv_obj_align(identity, LV_ALIGN_TOP_MID, 0,
-                 status_logo_top(p) + logo_h + (p->height > 1000 ? 14 : 8));
+                 status_logo_top(p) + logo_h + firmware_identity_gap(p));
     return logo;
+}
+
+/** A self-contained mark for flex layouts, with the same logo/version spacing
+ * used by absolute-positioned status screens on every display model. */
+static lv_obj_t *add_branded_mark(lv_obj_t *parent)
+{
+    const vellum_panel_t *p = vellum_panel();
+    const int logo_w = p->logo ? p->logo->header.w : 0;
+    const int logo_h = p->logo ? p->logo->header.h : 0;
+    lv_obj_t *mark = lv_obj_create(parent);
+    lv_obj_remove_style_all(mark);
+    lv_obj_set_size(mark, logo_w, logo_h + firmware_identity_gap(p) + p->font_xs->line_height);
+    lv_obj_set_flex_flow(mark, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(mark, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(mark, firmware_identity_gap(p), 0);
+    add_logo(mark);
+    add_firmware_identity(mark);
+    return mark;
 }
 
 /* ── Init ─────────────────────────────────────────────────────── */
@@ -216,8 +240,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
         lv_obj_set_size(left, p->width / 2, p->height);
         lv_obj_set_flex_flow(left, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(left, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        add_logo(left);
-        add_firmware_identity(left);
+        add_branded_mark(left);
 
         lv_obj_t *right = lv_obj_create(scr);
         lv_obj_remove_style_all(right);
@@ -250,8 +273,7 @@ void display_show_wifi_setup(const char *ssid, const char *url)
         lv_obj_set_style_pad_row(scr, 20, 0);
         lv_obj_set_style_pad_top(scr, p->height / 12, 0);
 
-        add_logo(scr);
-        add_firmware_identity(scr);
+        add_branded_mark(scr);
 
         if (qr_buf) {
             lv_obj_t *canvas = lv_canvas_create(scr);
@@ -291,8 +313,7 @@ void display_show_connecting(const char *ssid)
     lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(scr, 20, 0);
 
-    add_logo(scr);
-    add_firmware_identity(scr);
+    add_branded_mark(scr);
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text_fmt(lbl, "Connecting to %s...", ssid);

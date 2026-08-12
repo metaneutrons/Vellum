@@ -46,6 +46,14 @@
 #include "d1001_board.h"
 #endif
 
+/* The default time policy enables DHCP option 42 before association and falls
+ * back to PTB when the lease supplies no server. Keeping this as a compile-time
+ * invariant prevents a target-specific sdkconfig from turning that valid
+ * runtime path into ESP_ERR_INVALID_ARG and a retry/reboot loop. */
+#if !CONFIG_LWIP_DHCP_GET_NTP_SRV
+#error "Vellum requires CONFIG_LWIP_DHCP_GET_NTP_SRV for its default NTP policy"
+#endif
+
 static const char *TAG = "vellum_main";
 
 /* Certificates cannot be validated safely until the RTC has a real date.
@@ -492,7 +500,11 @@ void app_main(void)
         board_buzzer_beep(1000, 100);
     }
     board_led_on();
+#if !defined(CONFIG_VELLUM_PANEL_D1001)
+    /* D1001 has one power button handled by d1001_button_task above. The
+     * generic three-button map includes GPIO4/5, which are other board signals. */
     buttons_init();
+#endif
 
     /* Factory reset: if KEY0 held at boot on fast-refresh displays */
 #if !defined(CONFIG_VELLUM_PANEL_D1001)

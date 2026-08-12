@@ -48,6 +48,11 @@ static void wait_for_wifi_transport(void)
 /* Event group bits */
 #define WIFI_CONNECTED_BIT  BIT0
 #define WIFI_FAIL_BIT       BIT1
+#define WIFI_SCAN_STA_STARTED_BIT BIT0
+#define WIFI_SCAN_START_TIMEOUT_MS 5000
+#define WIFI_SCAN_READY_SETTLE_MS 250
+#define WIFI_SCAN_STATE_RETRIES 10
+#define WIFI_SCAN_STATE_RETRY_MS 200
 
 static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_count = 0;
@@ -60,6 +65,15 @@ static SemaphoreHandle_t s_wifi_mutex = NULL;
 static volatile bool s_credentials_received = false;
 static uint8_t s_last_disconnect_reason = 0;
 static wifi_failure_kind_t s_last_failure = WIFI_FAILURE_UNKNOWN;
+
+static void wifi_scan_event_handler(void *arg, esp_event_base_t event_base,
+                                    int32_t event_id, void *event_data)
+{
+    (void)event_data;
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START && arg) {
+        xEventGroupSetBits((EventGroupHandle_t)arg, WIFI_SCAN_STA_STARTED_BIT);
+    }
+}
 
 static const char *wifi_auth_mode_name(wifi_auth_mode_t authmode)
 {
@@ -360,24 +374,68 @@ int wifi_manager_scan(wifi_ap_info_t *out, int max)
     wifi_mode_t prev_mode = WIFI_MODE_NULL;
     esp_wifi_get_mode(&prev_mode);
     bool was_started = s_wifi_started;
+    bool station_was_started = was_started &&
+        (prev_mode == WIFI_MODE_STA || prev_mode == WIFI_MODE_APSTA);
+    EventGroupHandle_t scan_events = NULL;
+    esp_event_handler_instance_t scan_handler = NULL;
+    bool scan_handler_registered = false;
+    int n = 0;
     wifi_mode_t scan_mode =
         (prev_mode == WIFI_MODE_AP || prev_mode == WIFI_MODE_APSTA)
             ? WIFI_MODE_APSTA : WIFI_MODE_STA;
+
+    /* ESP-Hosted changes the C6 radio mode asynchronously. On D1001, asking
+     * for a scan before WIFI_EVENT_STA_START arrives fails with
+     * ESP_ERR_WIFI_STATE. Local-radio targets tend to hide this race. */
+    if (!station_was_started) {
+        scan_events = xEventGroupCreate();
+        if (!scan_events ||
+            esp_event_handler_instance_register(WIFI_EVENT, WIFI_EVENT_STA_START,
+                                                wifi_scan_event_handler, scan_events,
+                                                &scan_handler) != ESP_OK) {
+            if (scan_events) vEventGroupDelete(scan_events);
+            xSemaphoreGive(s_wifi_mutex);
+            return 0;
+        }
+        scan_handler_registered = true;
+    }
+
     if (esp_wifi_set_mode(scan_mode) != ESP_OK) {
-        xSemaphoreGive(s_wifi_mutex);
-        return 0;
+        goto cleanup;
     }
     if (!s_wifi_started) {
         if (esp_wifi_start() != ESP_OK) {
-            xSemaphoreGive(s_wifi_mutex);
-            return 0;
+            goto cleanup;
         }
         s_wifi_started = true;
     }
 
-    int n = 0;
+    if (!station_was_started) {
+        EventBits_t bits = xEventGroupWaitBits(scan_events, WIFI_SCAN_STA_STARTED_BIT,
+                                               pdFALSE, pdTRUE,
+                                               pdMS_TO_TICKS(WIFI_SCAN_START_TIMEOUT_MS));
+        if (!(bits & WIFI_SCAN_STA_STARTED_BIT)) {
+            ESP_LOGE(TAG, "Station did not become scan-ready within %d ms",
+                     WIFI_SCAN_START_TIMEOUT_MS);
+            goto cleanup;
+        }
+        /* ESP-Hosted forwards STA_START before the C6 RPC endpoint accepts a
+         * scan. Give the remote state machine a brief chance to settle. */
+        vTaskDelay(pdMS_TO_TICKS(WIFI_SCAN_READY_SETTLE_MS));
+    }
+
     wifi_scan_config_t scan_cfg = { .show_hidden = false };
-    if (esp_wifi_scan_start(&scan_cfg, true) == ESP_OK) { /* blocking */
+    esp_err_t scan_err = ESP_ERR_WIFI_STATE;
+    for (int attempt = 0; attempt <= WIFI_SCAN_STATE_RETRIES; attempt++) {
+        scan_err = esp_wifi_scan_start(&scan_cfg, true); /* blocking */
+        if (scan_err != ESP_ERR_WIFI_STATE) break;
+        if (attempt < WIFI_SCAN_STATE_RETRIES) {
+            ESP_LOGW(TAG, "Wi-Fi scan not ready; retrying (%d/%d)",
+                     attempt + 1, WIFI_SCAN_STATE_RETRIES);
+            vTaskDelay(pdMS_TO_TICKS(WIFI_SCAN_STATE_RETRY_MS));
+        }
+    }
+    if (scan_err == ESP_OK) {
         uint16_t count = 0;
         esp_wifi_scan_get_ap_num(&count);
         if (count > (uint16_t)max) count = (uint16_t)max;
@@ -391,14 +449,23 @@ int wifi_manager_scan(wifi_ap_info_t *out, int max)
                     out[n].ssid[32] = '\0';
                     if (out[n].ssid[0] == '\0') continue; /* skip hidden/blank */
                     out[n].rssi = records[i].rssi;
+                    out[n].authmode = (uint8_t)records[i].authmode;
                     out[n].open = (records[i].authmode == WIFI_AUTH_OPEN);
                     n++;
                 }
                 free(records);
             }
         }
+    } else {
+        ESP_LOGE(TAG, "Wi-Fi scan failed: %s", esp_err_to_name(scan_err));
     }
 
+cleanup:
+    if (scan_handler_registered) {
+        esp_event_handler_instance_unregister(WIFI_EVENT, WIFI_EVENT_STA_START,
+                                              scan_handler);
+    }
+    if (scan_events) vEventGroupDelete(scan_events);
     if (was_started) {
         esp_wifi_set_mode(prev_mode); /* keep an existing SoftAP/station alive */
     } else {
@@ -412,26 +479,8 @@ int wifi_manager_scan(wifi_ap_info_t *out, int max)
 
 static esp_err_t portal_scan_handler(httpd_req_t *req)
 {
-    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
-
-    /* Switch to APSTA mode for scanning */
-    esp_wifi_set_mode(WIFI_MODE_APSTA);
-
-    wifi_scan_config_t scan_cfg = { .show_hidden = false };
-    esp_wifi_scan_start(&scan_cfg, true); /* blocking scan */
-
-    uint16_t count = 0;
-    esp_wifi_scan_get_ap_num(&count);
-    if (count > 20) count = 20;
-
-    wifi_ap_record_t *records = count ? malloc(count * sizeof(wifi_ap_record_t)) : NULL;
-    if (count && !records) {
-        esp_wifi_set_mode(WIFI_MODE_AP);
-        xSemaphoreGive(s_wifi_mutex);
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
-    if (count) esp_wifi_scan_get_ap_records(&count, records);
+    wifi_ap_info_t records[20] = {0};
+    int count = wifi_manager_scan(records, 20);
 
     /* Build JSON response with cJSON so SSIDs are escaped — a crafted nearby
      * SSID (containing quotes/backslashes/control chars) must not be able to
@@ -439,11 +488,8 @@ static esp_err_t portal_scan_handler(httpd_req_t *req)
     cJSON *arr = cJSON_CreateArray();
     for (int i = 0; i < count; i++) {
         /* wifi_ap_record_t.ssid is a fixed 33-byte field; force NUL-termination. */
-        char ssid[33];
-        memcpy(ssid, records[i].ssid, 32);
-        ssid[32] = '\0';
         cJSON *o = cJSON_CreateObject();
-        cJSON_AddStringToObject(o, "ssid", ssid);
+        cJSON_AddStringToObject(o, "ssid", records[i].ssid);
         cJSON_AddNumberToObject(o, "rssi", records[i].rssi);
         cJSON_AddNumberToObject(o, "auth", records[i].authmode);
         cJSON_AddItemToArray(arr, o);
@@ -455,9 +501,6 @@ static esp_err_t portal_scan_handler(httpd_req_t *req)
     httpd_resp_sendstr(req, json ? json : "[]");
     if (json) cJSON_free(json);
 
-    free(records);
-    esp_wifi_set_mode(WIFI_MODE_AP); /* back to AP only */
-    xSemaphoreGive(s_wifi_mutex);
     return ESP_OK;
 }
 

@@ -17,6 +17,7 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
 # main.c configures three PTB NTP fallbacks before Wi-Fi connects. Keep the
 # P4/LCD target aligned with the S3 targets so the shared startup code builds.
 CONFIG_LWIP_SNTP_MAX_SERVERS=3
+CONFIG_LWIP_DHCP_GET_NTP_SRV=y
 
 # Panel
 CONFIG_VELLUM_PANEL_D1001=y

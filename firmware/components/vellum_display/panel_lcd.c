@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_cache.h"
 #include "lvgl.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "d1001_board.h"
@@ -28,12 +29,38 @@ static const char *TAG = "panel_lcd";
 #define VELLUM_LOGO_H VELLUM_LOGO_RGB565_H
 
 static lv_display_t *s_disp = NULL;
-static lv_color_t   *s_logo_buf = NULL;
+static uint16_t     *s_panel_fb = NULL;
+static uint16_t     *s_logo_buf = NULL;
 static lv_image_dsc_t s_logo_dsc;
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
-    (void)area; (void)px_map;
+    (void)area;
+
+    /* JD9365's scanout is fixed at 800x1280 and cannot swap X/Y in
+     * hardware.  Keep LVGL's framebuffer in the product's native landscape
+     * coordinate system and rotate the completed frame into the DSI
+     * framebuffer.  In particular, do not use LVGL matrix rotation with a
+     * direct DSI framebuffer: its logical and physical strides differ after
+     * a 90-degree rotation, which produces repeated/tiled image fragments. */
+    const uint16_t *src = (const uint16_t *)px_map;
+    for (int y = 0; y < LCD_WIDTH; y++) {
+        for (int x = 0; x < LCD_HEIGHT; x++) {
+            s_panel_fb[(LCD_HEIGHT - 1 - x) * LCD_WIDTH + y] =
+                src[y * LCD_HEIGHT + x];
+        }
+    }
+
+    /* The first DPI framebuffer is already the active continuous-scan buffer.
+     * Writing it back to external memory is sufficient.  Calling
+     * esp_lcd_panel_draw_bitmap() here attempts a framebuffer switch and can
+     * fault in the ESP32-P4 GDMA ISR while DSI scanout is active. */
+    esp_err_t err = esp_cache_msync(s_panel_fb, LCD_WIDTH * LCD_HEIGHT * 2,
+                                    ESP_CACHE_MSYNC_FLAG_DIR_C2M |
+                                    ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "LCD frame flush failed: %s", esp_err_to_name(err));
+    }
     lv_display_flush_ready(disp);
 }
 
@@ -66,8 +93,21 @@ static lv_display_t *lcd_init(void)
     void *buf1 = NULL, *buf2 = NULL;
     if (esp_lcd_dpi_panel_get_frame_buffer(panel, 2, &buf1, &buf2) != ESP_OK) return NULL;
 
-    s_disp = lv_display_create(LCD_WIDTH, LCD_HEIGHT);
-    lv_display_set_buffers(s_disp, buf1, buf2, LCD_WIDTH * LCD_HEIGHT * 2, LV_DISPLAY_RENDER_MODE_DIRECT);
+    uint16_t *render_buf = heap_caps_malloc(LCD_WIDTH * LCD_HEIGHT * 2,
+                                            MALLOC_CAP_SPIRAM);
+    if (!render_buf) {
+        ESP_LOGE(TAG, "Unable to allocate landscape render buffer");
+        return NULL;
+    }
+
+    s_panel_fb = buf1;
+    memset(s_panel_fb, 0, LCD_WIDTH * LCD_HEIGHT * 2);
+
+    s_disp = lv_display_create(LCD_HEIGHT, LCD_WIDTH);
+    lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565);
+    lv_display_set_buffers(s_disp, render_buf, NULL,
+                           LCD_WIDTH * LCD_HEIGHT * 2,
+                           LV_DISPLAY_RENDER_MODE_FULL);
     lv_display_set_flush_cb(s_disp, flush_cb);
 
     /* Build the RGB565 logo descriptor once (PSRAM). */
@@ -117,30 +157,15 @@ static esp_err_t lcd_draw_raw(const uint8_t *data, size_t len)
         return ret;
     }
 
-    /* Rotate a landscape image onto the portrait panel. */
-    uint16_t disp_w = out.width, disp_h = out.height;
-    if (out.width > out.height && LCD_HEIGHT > LCD_WIDTH) {
-        uint16_t *src = (uint16_t *)s_rgb_buf;
-        uint16_t *dst = heap_caps_malloc(out.width * out.height * 2, MALLOC_CAP_SPIRAM);
-        if (dst) {
-            for (int y = 0; y < out.height; y++)
-                for (int x = 0; x < out.width; x++)
-                    dst[x * out.height + (out.height - 1 - y)] = src[y * out.width + x];
-            memcpy(s_rgb_buf, dst, out.width * out.height * 2);
-            free(dst);
-            disp_w = out.height; disp_h = out.width;
-        }
-    }
-
     lv_obj_t *scr = lv_display_get_screen_active(s_disp);
     lv_obj_clean(scr);
     lv_obj_t *img = lv_image_create(scr);
     static lv_image_dsc_t img_dsc;
     memset(&img_dsc, 0, sizeof(img_dsc));
-    img_dsc.header.w = disp_w;
-    img_dsc.header.h = disp_h;
+    img_dsc.header.w = out.width;
+    img_dsc.header.h = out.height;
     img_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
-    img_dsc.data_size = disp_w * disp_h * 2;
+    img_dsc.data_size = out.width * out.height * 2;
     img_dsc.data = s_rgb_buf;
     lv_image_set_src(img, &img_dsc);
     lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -160,8 +185,8 @@ static vellum_panel_t s_panel = {
     .sleep = lcd_off,
     .wake = lcd_wake,
     .off = lcd_off,
-    .width = LCD_WIDTH,
-    .height = LCD_HEIGHT,
+    .width = LCD_HEIGHT,
+    .height = LCD_WIDTH,
     .bpp = 16,
     .model = "d1001",
     .color_mode = "fullcolor",
