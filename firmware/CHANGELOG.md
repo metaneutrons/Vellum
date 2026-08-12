@@ -2,6 +2,15 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.3.4](https://github.com/metaneutrons/Vellum/compare/firmware-v1.3.3...firmware-v1.3.4) (2026-08-12)
+
+
+### Bug Fixes
+
+* **firmware:** put E1001 console on its CH340C UART bridge ([#180](https://github.com/metaneutrons/Vellum/issues/180)) ([c3faf51](https://github.com/metaneutrons/Vellum/commit/c3faf512b88f35c6ca6ab9c8bac69748f1404227))
+* **firmware:** read USB power from the charger on E1001 too ([#184](https://github.com/metaneutrons/Vellum/issues/184)) ([680a97b](https://github.com/metaneutrons/Vellum/commit/680a97b4465a4078a4fb4b42926a7bb4cbf7769d))
+* **firmware:** stop the D1001 flicker and pace retries after failures ([#186](https://github.com/metaneutrons/Vellum/issues/186)) ([a5cee2d](https://github.com/metaneutrons/Vellum/commit/a5cee2d670ff5acf83ace5877298d2a2fbaa99cd))
+
 ## [1.3.3](https://github.com/metaneutrons/Vellum/compare/firmware-v1.3.2...firmware-v1.3.3) (2026-08-12)
 
 
