@@ -329,7 +329,9 @@
     "serverStateFailed": "Handlungsbedarf",
     "updaterOutdated": "Der Update-Dienst läuft noch auf {current}; {available} ist verfügbar.",
     "updaterVersionUnknown": "Der Update-Dienst meldet keine Version — er ist damit älter als die Versionsmeldung und veraltet.",
-    "updaterManualHint": "Er kann seinen eigenen Container nicht ersetzen, deshalb ist dieser Schritt bewusst manuell. Im Stack-Verzeichnis ausführen:"
+    "updaterManualHint": "Er kann seinen eigenen Container nicht ersetzen, deshalb ist dieser Schritt bewusst manuell. Im Stack-Verzeichnis ausführen:",
+    "updaterSwapFailed": "Der Update-Dienst konnte sich nicht selbst ersetzen. Er läuft weiter auf der vorherigen Version.",
+    "updaterSwapRolledBack": "Eine Selbstaktualisierung des Update-Dienstes wurde zurückgenommen; die vorherige Version ist wieder aktiv."
   },
   "firmware": {
     "rolloutAdoption": "Geräte mit dieser Version",

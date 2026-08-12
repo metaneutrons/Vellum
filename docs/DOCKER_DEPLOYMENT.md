@@ -152,7 +152,20 @@ including the commands below; an updater that reports no version at all predates
 that reporting and is outdated by definition. Watch for it: this is the container
 holding the Docker socket, so it is the one component that never patches itself.
 
-Update it explicitly after reviewing a release:
+Setting `AUTO_UPDATE_UPDATER=true` automates it: after a *healthy* server update
+the updater verifies the new updater image against the `updater.yml` Sigstore
+identity, then hands the swap to a **detached one-shot helper** and exits. The
+helper is not a child process, so it survives its parent being replaced, and it
+runs from the currently deployed image on purpose — a helper built from the new
+image could not roll back a broken one. It recreates the service, waits for the
+container to report healthy, persists the `UPDATER_IMAGE` pin, and on failure
+restores the previous image. The outcome is written to the state volume so the
+replacement updater can report it in **System → Vellum Server**.
+
+It stays **off by default**: this is the one operation that can leave the stack
+with no updater at all, so watch it succeed once before enabling it fleet-wide.
+
+To do it by hand instead, update it explicitly after reviewing a release:
 
 ```bash
 docker compose pull updater

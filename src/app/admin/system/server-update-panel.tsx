@@ -119,6 +119,19 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
                   : t("serverManualSchedule"))}
             </p>
           </div>
+          {status.supported && status.updaterSwap && status.updaterSwap.outcome !== "succeeded" && (
+            /* A failed or rolled-back self-update is reported by the updater that
+             * replaced the one which attempted it — the attempting container is
+             * gone, so without this the only trace would be container logs. */
+            <div className="w-full order-last rounded-lg bg-red/10 border border-red/30 p-3">
+              <p className="text-sm font-semibold text-red">
+                {status.updaterSwap.outcome === "rolled-back" ? t("updaterSwapRolledBack") : t("updaterSwapFailed")}
+              </p>
+              {status.updaterSwap.detail && (
+                <p className="text-sm text-label-secondary mt-1">{status.updaterSwap.detail}</p>
+              )}
+            </div>
+          )}
           {status.supported && (status.updaterUpdateAvailable || !status.updaterVersion) && (
             /* The updater never replaces its own container, so this is the only
              * place an operator learns that the component holding the Docker

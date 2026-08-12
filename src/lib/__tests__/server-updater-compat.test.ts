@@ -29,6 +29,11 @@ const statusSchema = z.object({
   lastError: z.string().max(500).nullable(),
   updaterVersion: z.string().max(64).nullable().optional(),
   updaterUpdateAvailable: z.boolean().optional(),
+  updaterSwap: z.object({
+    outcome: z.enum(["succeeded", "failed", "rolled-back"]),
+    detail: z.string().max(300).nullable(),
+    at: z.string().nullable(),
+  }).nullable().optional(),
 });
 
 /** What the updater deployed before version reporting sends. */
@@ -52,6 +57,7 @@ function normalize(data: z.infer<typeof statusSchema>) {
     supported: true,
     updaterVersion: data.updaterVersion ?? null,
     updaterUpdateAvailable: data.updaterUpdateAvailable ?? false,
+    updaterSwap: data.updaterSwap ?? null,
   };
 }
 
@@ -79,9 +85,26 @@ describe("updater status compatibility", () => {
     expect(status.updaterUpdateAvailable).toBe(true);
   });
 
+  it("carries a failed self-update through so the UI can surface it", () => {
+    // The container that attempted the swap is gone; its replacement reports the
+    // outcome. Without this the only trace would be container logs.
+    const status = normalize(statusSchema.parse({
+      ...legacyPayload,
+      updaterVersion: "v1.9.5",
+      updaterSwap: { outcome: "rolled-back", detail: "restored ghcr.io/x/vellum-updater:v1.9.5", at: "2026-08-13T00:10:00.000Z" },
+    }));
+    expect(status.updaterSwap?.outcome).toBe("rolled-back");
+    expect(status.updaterSwap?.detail).toContain("restored");
+  });
+
+  it("defaults the swap outcome to null for an updater that never swapped", () => {
+    expect(normalize(statusSchema.parse(legacyPayload)).updaterSwap).toBeNull();
+  });
+
   it("still rejects a genuinely malformed payload", () => {
     expect(statusSchema.safeParse({ ...legacyPayload, state: "rebooting" }).success).toBe(false);
     expect(statusSchema.safeParse({ ...legacyPayload, maintenanceTime: "25:00" }).success).toBe(false);
     expect(statusSchema.safeParse({ ...legacyPayload, updaterVersion: 19 }).success).toBe(false);
+    expect(statusSchema.safeParse({ ...legacyPayload, updaterSwap: { outcome: "exploded", detail: null, at: null } }).success).toBe(false);
   });
 });

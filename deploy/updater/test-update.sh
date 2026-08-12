@@ -38,3 +38,63 @@ assert grep -Fx 'SOME_SETTING=preserved' "$VELLUM_ENV_FILE"
 assert grep -Fx 'VELLUM_IMAGE=ghcr.io/metaneutrons/vellum:v1.8.1' "$ENV_BACKUP_FILE"
 
 printf 'updater shell tests passed\n'
+
+# ── Updater self-update ───────────────────────────────────────────────
+# The pin rewrite must be surgical: one key, others untouched.
+assert persist_env_pin UPDATER_IMAGE 'ghcr.io/metaneutrons/vellum-updater:v1.8.2'
+assert grep -Fqx 'UPDATER_IMAGE=ghcr.io/metaneutrons/vellum-updater:v1.8.2' "$VELLUM_ENV_FILE"
+assert grep -Fqx 'VELLUM_IMAGE=ghcr.io/metaneutrons/vellum:v1.8.2' "$VELLUM_ENV_FILE"
+assert grep -Fqx 'SOME_SETTING=preserved' "$VELLUM_ENV_FILE"
+
+# Default off: a server update must never swap the updater implicitly.
+assert test "$AUTO_UPDATE_UPDATER" = "false"
+assert schedule_updater_swap v1.9.0
+
+# The enabled path needs its own process because the flag is readonly once sourced.
+update_sh="$(dirname "${BASH_SOURCE[0]}")/update.sh"
+
+swap_probe() {
+  # `env` rather than a command prefix: the flag is readonly in this shell once
+  # update.sh has been sourced, and bash rejects even a prefix assignment.
+  # The single-quoted body is deliberate — those variables must expand in the
+  # INNER shell, from the environment set here.
+  # shellcheck disable=SC2016
+  env AUTO_UPDATE_UPDATER=true UPDATER_VERSION="$1" UPDATE_ONCE=true \
+    COMPOSE_FILE="$COMPOSE_FILE" VELLUM_ENV_FILE="$VELLUM_ENV_FILE" \
+    ENV_BACKUP_FILE="$ENV_BACKUP_FILE" SWAP_RESULT_FILE="${test_directory}/state/swap.json" \
+    PROBE_LOG="$PROBE_LOG" UPDATE_SH="$update_sh" \
+    bash -c '
+    source "$UPDATE_SH"
+    verify_image() { return 0; }
+    updater_container_id() { printf "self-id"; }
+    docker() {
+      case "$1" in
+        inspect) printf "ghcr.io/metaneutrons/vellum-updater:%s\n" "${UPDATER_VERSION#v}" ;;
+        run) printf "%s\n" "$*" >>"$PROBE_LOG" ;;
+      esac
+    }
+    schedule_updater_swap "$1" || true
+  ' _ "$2"
+}
+
+export PROBE_LOG="${test_directory}/probe.log"
+: >"$PROBE_LOG"
+
+# Behind the release -> hand off to a detached helper for the right candidate.
+swap_probe v1.8.1 v1.8.2
+assert grep -q -- '--swap-updater ghcr.io/metaneutrons/vellum-updater:v1.8.2' "$PROBE_LOG"
+# Must inherit the mounts rather than pass container paths as host paths.
+assert grep -q -- '--volumes-from self-id' "$PROBE_LOG"
+# Must not reach the network while swapping.
+assert grep -q -- '--network none' "$PROBE_LOG"
+
+# Already current, and newer than the release: never launch a helper.
+: >"$PROBE_LOG"
+swap_probe v1.8.2 v1.8.2
+swap_probe v1.9.9 v1.8.2
+if [[ -s "$PROBE_LOG" ]]; then
+  printf 'FAILED: helper launched despite an up-to-date updater\n' >&2
+  exit 1
+fi
+
+printf 'updater self-update assertions passed\n'
