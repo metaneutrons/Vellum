@@ -22,11 +22,14 @@ export type ServerUpdateStatus = {
    * behind. See docs/DOCKER_DEPLOYMENT.md for the deliberate manual swap. */
   updaterVersion: string | null;
   updaterUpdateAvailable: boolean;
+  /** Outcome of the last updater self-update, reported by the updater that
+   * replaced the one which performed it. Null when none has run. */
+  updaterSwap: { outcome: "succeeded" | "failed" | "rolled-back"; detail: string | null; at: string | null } | null;
 };
 
 const unavailable: ServerUpdateStatus = { supported: false, state: "unavailable", currentVersion: null,
   availableVersion: null, updateAvailable: false, updateMode: "manual", maintenanceTime: "02:00", timezone: "UTC", lastCheckedAt: null,
-  lastUpdatedAt: null, lastError: null, updaterVersion: null, updaterUpdateAvailable: false };
+  lastUpdatedAt: null, lastError: null, updaterVersion: null, updaterUpdateAvailable: false, updaterSwap: null };
 
 const statusSchema = z.object({
   state: z.enum(["starting", "checking", "available", "updating", "current", "failed"]),
@@ -44,6 +47,11 @@ const statusSchema = z.object({
    * system as unavailable. */
   updaterVersion: z.string().max(64).nullable().optional(),
   updaterUpdateAvailable: z.boolean().optional(),
+  updaterSwap: z.object({
+    outcome: z.enum(["succeeded", "failed", "rolled-back"]),
+    detail: z.string().max(300).nullable(),
+    at: z.string().nullable(),
+  }).nullable().optional(),
 });
 
 async function request(path: string, method = "GET", body?: unknown): Promise<ServerUpdateStatus> {
@@ -66,6 +74,7 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
       supported: true,
       updaterVersion: parsed.data.updaterVersion ?? null,
       updaterUpdateAvailable: parsed.data.updaterUpdateAvailable ?? false,
+      updaterSwap: parsed.data.updaterSwap ?? null,
     };
   } catch {
     return unavailable;

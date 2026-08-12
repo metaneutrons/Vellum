@@ -329,7 +329,9 @@
     "serverStateFailed": "Intervento richiesto",
     "updaterOutdated": "Il servizio di aggiornamento è ancora alla {current}; è disponibile la {available}.",
     "updaterVersionUnknown": "Il servizio di aggiornamento non comunica la propria versione: precede questa funzione ed è obsoleto.",
-    "updaterManualHint": "Non può sostituire il proprio container, quindi questo passaggio è volutamente manuale. Eseguire nella directory dello stack:"
+    "updaterManualHint": "Non può sostituire il proprio container, quindi questo passaggio è volutamente manuale. Eseguire nella directory dello stack:",
+    "updaterSwapFailed": "Il servizio di aggiornamento non è riuscito a sostituirsi. Sta ancora eseguendo la versione precedente.",
+    "updaterSwapRolledBack": "Un aggiornamento del servizio di aggiornamento è stato annullato; è stata ripristinata la versione precedente."
   },
   "firmware": {
     "rolloutAdoption": "dispositivi con questa versione",

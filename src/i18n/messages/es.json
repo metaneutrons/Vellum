@@ -329,7 +329,9 @@
     "serverStateFailed": "Requiere atención",
     "updaterOutdated": "El servicio de actualización sigue en {current}; {available} está disponible.",
     "updaterVersionUnknown": "El servicio de actualización no informa de su versión: es anterior a esta función y está obsoleto.",
-    "updaterManualHint": "No puede reemplazar su propio contenedor, por lo que este paso es manual a propósito. Ejecuta esto en el directorio del stack:"
+    "updaterManualHint": "No puede reemplazar su propio contenedor, por lo que este paso es manual a propósito. Ejecuta esto en el directorio del stack:",
+    "updaterSwapFailed": "El servicio de actualización no pudo reemplazarse. Sigue ejecutando la versión anterior.",
+    "updaterSwapRolledBack": "Una autoactualización del servicio de actualización se revirtió; se restauró la versión anterior."
   },
   "firmware": {
     "rolloutAdoption": "dispositivos con esta versión",

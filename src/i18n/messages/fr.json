@@ -329,7 +329,9 @@
     "serverStateFailed": "Intervention requise",
     "updaterOutdated": "Le service de mise à jour est encore en {current} ; {available} est disponible.",
     "updaterVersionUnknown": "Le service de mise à jour ne communique pas sa version : il est antérieur à cette fonctionnalité et donc obsolète.",
-    "updaterManualHint": "Il ne peut pas remplacer son propre conteneur, cette étape est donc volontairement manuelle. À exécuter dans le répertoire de la pile :"
+    "updaterManualHint": "Il ne peut pas remplacer son propre conteneur, cette étape est donc volontairement manuelle. À exécuter dans le répertoire de la pile :",
+    "updaterSwapFailed": "Le service de mise à jour n'a pas pu se remplacer. Il fonctionne toujours avec la version précédente.",
+    "updaterSwapRolledBack": "Une mise à jour du service de mise à jour a été annulée ; la version précédente a été restaurée."
   },
   "firmware": {
     "rolloutAdoption": "appareils exécutant cette version",

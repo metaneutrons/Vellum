@@ -64,6 +64,11 @@ services:
       POLL_INTERVAL_SECONDS: "900"
       UPDATE_TIMEOUT_SECONDS: "900"
       AUTO_APPLY: ${AUTO_APPLY:-true}
+      # Let the updater replace ITSELF after a healthy server update, via a
+      # detached one-shot helper (it cannot recreate its own container directly).
+      # Off by default: this is the one operation that can leave the stack without
+      # an updater, so an operator should watch it succeed once before enabling.
+      AUTO_UPDATE_UPDATER: ${AUTO_UPDATE_UPDATER:-false}
       MAINTENANCE_TIME: ${MAINTENANCE_TIME:-02:00}
       TZ: ${TZ:-UTC}
       UPDATER_CONFIG_FILE: /state/config.json

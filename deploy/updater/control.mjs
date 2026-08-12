@@ -16,6 +16,23 @@ const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/meta
  * socket has fallen behind. An older updater simply omits the field, and the
  * server treats that absence as "outdated, version unknown". */
 const updaterVersion = (process.env.UPDATER_VERSION ?? "").trim() || null;
+const swapResultFile = process.env.SWAP_RESULT_FILE ?? "/state/updater-swap.json";
+/* Outcome of the last self-update, written by the detached helper that performed
+ * it. The container that did the swap is gone by the time anyone can ask, so the
+ * NEW updater reads the file and reports it — otherwise a failed or rolled-back
+ * swap would be invisible outside the container logs. */
+function lastSwap() {
+  try {
+    const value = JSON.parse(readFileSync(swapResultFile, "utf8"));
+    if (!value || typeof value.outcome !== "string") return null;
+    if (!["succeeded", "failed", "rolled-back"].includes(value.outcome)) return null;
+    return {
+      outcome: value.outcome,
+      detail: typeof value.detail === "string" ? value.detail.slice(0, 300) : null,
+      at: typeof value.at === "string" ? value.at : null,
+    };
+  } catch { return null; }
+}
 const target = process.env.TARGET_CONTAINER ?? "vellum";
 const configFile = process.env.UPDATER_CONFIG_FILE ?? "/state/config.json";
 const defaultConfig = {
@@ -71,7 +88,8 @@ const status = { state: "starting", currentVersion: null, availableVersion: null
 let active = false;
 
 function publicStatus() {
-  return { ...status, updateMode: config.mode, maintenanceTime: config.maintenanceTime, timezone: config.timezone };
+  return { ...status, updateMode: config.mode, maintenanceTime: config.maintenanceTime, timezone: config.timezone,
+    updaterSwap: lastSwap() };
 }
 function equalToken(candidate) {
   const a = Buffer.from(candidate ?? ""); const b = Buffer.from(token);
