@@ -246,14 +246,18 @@ updater_container_id() {
     ps --quiet "$UPDATER_SERVICE" 2>/dev/null | head -n1
 }
 
+# Recording the outcome must never abort a swap, so every step here is advisory.
 record_swap_result() {
-  local outcome="$1" detail="$2"
+  local outcome="$1" detail="$2" temporary="${SWAP_RESULT_FILE}.tmp"
   mkdir -p "$(dirname "$SWAP_RESULT_FILE")" 2>/dev/null || true
-  jq -n --arg outcome "$outcome" --arg detail "$detail" \
-        --arg at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-        '{outcome: $outcome, detail: $detail, at: $at}' \
-    >"${SWAP_RESULT_FILE}.tmp" 2>/dev/null &&
-    mv -f "${SWAP_RESULT_FILE}.tmp" "$SWAP_RESULT_FILE" 2>/dev/null || true
+  if jq -n --arg outcome "$outcome" --arg detail "$detail" \
+           --arg at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+           '{outcome: $outcome, detail: $detail, at: $at}' \
+       >"$temporary" 2>/dev/null; then
+    mv -f "$temporary" "$SWAP_RESULT_FILE" 2>/dev/null || rm -f "$temporary" 2>/dev/null || true
+  else
+    rm -f "$temporary" 2>/dev/null || true
+  fi
 }
 
 wait_for_container_health() {
