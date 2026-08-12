@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { readUpdateWindow, subscribeUpdateWindow, type UpdateWindow } from "@/lib/update-window";
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -24,6 +25,11 @@ export function DbDisconnectOverlay() {
   const t = useTranslations("common");
   const [health, setHealth] = useState<DbHealth | null>(null);
   const [visible, setVisible] = useState(false);
+  /* A server update replaces this very container, so its own health probe is
+   * expected to fail. Without this the operator saw a red database error in the
+   * middle of a deliberate, healthy update. */
+  const [updating, setUpdating] = useState<UpdateWindow | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let mounted = true;
@@ -44,11 +50,53 @@ export function DbDisconnectOverlay() {
     }
 
     poll();
-    const timer = setInterval(poll, POLL_INTERVAL_MS);
+    /* Poll faster while an update is running: the sooner the server answers, the
+     * sooner this overlay gets out of the way. */
+    const timer = setInterval(poll, updating ? 2_000 : POLL_INTERVAL_MS);
     return () => { mounted = false; clearInterval(timer); };
+  }, [updating]);
+
+  useEffect(() => {
+    const sync = () => setUpdating(readUpdateWindow());
+    sync();
+    return subscribeUpdateWindow(sync);
   }, []);
 
+  useEffect(() => {
+    if (!updating) return;
+    const tick = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(tick);
+  }, [updating]);
+
   if (!visible) return null;
+
+  if (updating) {
+    const elapsed = Math.max(0, Math.round((now - updating.startedAt) / 1000));
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center" role="status" aria-live="polite">
+        <div className="absolute inset-0 backdrop-blur-md bg-black/40" />
+        <div className="relative z-10 max-w-md w-full mx-4 rounded-2xl bg-gray-900/95 border border-gray-700 p-8 shadow-2xl text-center">
+          <div className="flex justify-center mb-6">
+            <svg className="w-12 h-12 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-white mb-2">{t("updateRestartTitle")}</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            {updating.toVersion
+              ? t("updateRestartToVersion", { version: updating.toVersion })
+              : t("updateRestartBody")}
+          </p>
+          <p className="text-gray-500 text-xs font-mono">
+            {t("updateRestartElapsed", { elapsed: minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s` })}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const failures = health?.consecutiveFailures ?? 0;
   const lastError = health?.lastError ?? "Connection lost";
@@ -103,7 +151,7 @@ export function DbDisconnectOverlay() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          Attempting to reconnect...
+          {t("databaseReconnecting")}
         </div>
       </div>
     </div>

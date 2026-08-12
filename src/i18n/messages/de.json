@@ -331,7 +331,16 @@
     "updaterVersionUnknown": "Der Update-Dienst meldet keine Version — er ist damit älter als die Versionsmeldung und veraltet.",
     "updaterManualHint": "Er kann seinen eigenen Container nicht ersetzen, deshalb ist dieser Schritt bewusst manuell. Im Stack-Verzeichnis ausführen:",
     "updaterSwapFailed": "Der Update-Dienst konnte sich nicht selbst ersetzen. Er läuft weiter auf der vorherigen Version.",
-    "updaterSwapRolledBack": "Eine Selbstaktualisierung des Update-Dienstes wurde zurückgenommen; die vorherige Version ist wieder aktiv."
+    "updaterSwapRolledBack": "Eine Selbstaktualisierung des Update-Dienstes wurde zurückgenommen; die vorherige Version ist wieder aktiv.",
+    "phaseVerifying": "Signatur des Images prüfen",
+    "phaseBackingUp": "Datenbank sichern",
+    "phaseDeploying": "Neue Version starten",
+    "phaseWaitingForHealth": "Auf Health-Meldung warten",
+    "serverConfirmSteps": "Schritte: Signatur prüfen, Datenbank sichern, neue Version starten, auf die Health-Meldung warten — und automatisch zurückrollen, falls sie ausbleibt.",
+    "serverConfirmDowntime": "Am Ende startet der Server neu. Diese Seite verliert dabei kurz die Verbindung und verbindet sich selbst wieder.",
+    "serverUpdateDone": "Von {from} auf {to} aktualisiert.",
+    "serverUpdateDoneShort": "Auf {version} aktualisiert.",
+    "serverUpdateDoneDismiss": "Ausblenden"
   },
   "firmware": {
     "rolloutAdoption": "Geräte mit dieser Version",
@@ -441,7 +450,12 @@
     "retry": "Erneut versuchen",
     "confirmDelete": "Sind Sie sicher?",
     "selectTimezone": "Zeitzone auswählen…",
-    "clearSearch": "Suche leeren"
+    "clearSearch": "Suche leeren",
+    "updateRestartTitle": "Server wird aktualisiert",
+    "updateRestartBody": "Der Server startet neu, um das Update abzuschließen. Diese Seite verbindet sich selbst wieder.",
+    "updateRestartToVersion": "Neustart, um das Update auf {version} abzuschließen. Diese Seite verbindet sich selbst wieder.",
+    "updateRestartElapsed": "Wartet seit {elapsed}",
+    "databaseReconnecting": "Verbindung wird wiederhergestellt…"
   },
   "contentTypes": {
     "room-booking": "Raumbelegung",

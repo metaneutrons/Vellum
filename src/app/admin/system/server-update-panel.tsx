@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/confirm";
 import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
 import type { ServerUpdateStatus } from "@/lib/server-updater";
+import { beginUpdateWindow, endUpdateWindow, readUpdateWindow } from "@/lib/update-window";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
@@ -20,6 +21,16 @@ const stateKeys = {
   updating: "serverStateUpdating",
   current: "serverStateCurrent",
   failed: "serverStateFailed",
+} as const;
+
+/* Ordered so the UI can mark earlier steps done; the terminal phases are handled
+ * separately because they end the sequence rather than advance it. */
+const PHASE_SEQUENCE = ["verifying", "backing-up", "deploying", "waiting-for-health"] as const;
+const PHASE_KEYS = {
+  verifying: "phaseVerifying",
+  "backing-up": "phaseBackingUp",
+  deploying: "phaseDeploying",
+  "waiting-for-health": "phaseWaitingForHealth",
 } as const;
 
 export function ServerUpdatePanel({ initialStatus, canUpdate }: {
@@ -35,13 +46,27 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
   const [maintenanceTime, setMaintenanceTime] = useState(status.maintenanceTime);
   const [timezone, setTimezone] = useState(status.timezone);
   const [scheduleDirty, setScheduleDirty] = useState(false);
+  /* Set when THIS browser started the update, so the database overlay can show a
+   * restart instead of an outage. Survives a reload during the downtime. */
+  const [completed, setCompleted] = useState<{ from: string | null; to: string | null } | null>(null);
 
   useEffect(() => {
     const refresh = () => fetch("/api/v1/admin/server-update", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
-      .then((value) => value && setStatus(value))
+      .then((value: ServerUpdateStatus | null) => {
+        if (!value) return;
+        setStatus(value);
+        /* The server answering again is the only reliable signal that the restart
+         * is over — the container that started the update is gone. */
+        const openWindow = readUpdateWindow();
+        if (openWindow && value.state !== "updating") {
+          endUpdateWindow();
+          setCompleted({ from: openWindow.fromVersion, to: value.currentVersion ?? openWindow.toVersion });
+        }
+      })
       .catch(() => undefined);
-    const timer = window.setInterval(refresh, status.state === "updating" ? 3_000 : 30_000);
+    const updating = status.state === "updating" || readUpdateWindow() !== null;
+    const timer = window.setInterval(refresh, updating ? 1_500 : 30_000);
     return () => window.clearInterval(timer);
   }, [status.state]);
 
@@ -67,7 +92,14 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
           : response.status === 503 ? t("serverUpdaterUnavailable") : t("serverActionFailed"));
         return;
       }
-      setStatus(await response.json());
+      const next: ServerUpdateStatus = await response.json();
+      setStatus(next);
+      if (action === "apply") {
+        /* Opened BEFORE the container goes away: once it is gone, this page can no
+         * longer be told anything. */
+        setCompleted(null);
+        beginUpdateWindow(status.currentVersion, status.availableVersion);
+      }
       toast("success", action === "apply" ? t("serverUpdateStarted") : t("serverCheckStarted"));
     } catch {
       toast("error", t("serverActionFailed"));
@@ -119,6 +151,41 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
                   : t("serverManualSchedule"))}
             </p>
           </div>
+          {status.supported && status.progress && status.state === "updating" && (
+            /* Real step-level progress. update.sh writes each phase to the state
+             * volume because the server cannot narrate its own restart. */
+            <ol className="w-full order-last space-y-1.5">
+              {PHASE_SEQUENCE.map((phase, index, sequence) => {
+                const active = status.progress?.phase;
+                const currentIndex = sequence.indexOf(active as typeof PHASE_SEQUENCE[number]);
+                const terminal = active === "done";
+                const state = terminal || (currentIndex >= 0 && index < currentIndex)
+                  ? "done" : currentIndex === index ? "active" : "pending";
+                return (
+                  <li key={phase} className="flex items-center gap-2 text-sm">
+                    <span aria-hidden="true" className={state === "done" ? "text-green" : state === "active" ? "text-accent" : "text-label-tertiary"}>
+                      {state === "done" ? "✓" : state === "active" ? "◐" : "○"}
+                    </span>
+                    <span className={state === "pending" ? "text-label-tertiary" : "text-label"}>{t(PHASE_KEYS[phase])}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+          {completed && (
+            /* The old "tada, new version" moment: say what happened instead. */
+            <div className="w-full order-last rounded-lg bg-green/10 border border-green/30 p-3">
+              <p className="text-sm font-semibold text-green">
+                {completed.from && completed.to
+                  ? t("serverUpdateDone", { from: completed.from, to: completed.to })
+                  : t("serverUpdateDoneShort", { version: completed.to ?? "" })}
+              </p>
+              <button onClick={() => setCompleted(null)}
+                className="mt-2 text-sm text-label-secondary underline focus-ring">
+                {t("serverUpdateDoneDismiss")}
+              </button>
+            </div>
+          )}
           {status.supported && status.updaterSwap && status.updaterSwap.outcome !== "succeeded" && (
             /* A failed or rolled-back self-update is reported by the updater that
              * replaced the one which attempted it — the attempting container is
@@ -199,7 +266,8 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
 
       <ConfirmDialog open={confirmUpdate} onClose={() => setConfirmUpdate(false)}
         onConfirm={() => runAction("apply")} pending={actionPending}
-        title={t("serverConfirmTitle")} message={t("serverConfirmMessage", { version: status.availableVersion ?? "" })}
+        title={t("serverConfirmTitle")}
+        message={`${t("serverConfirmMessage", { version: status.availableVersion ?? "" })}\n\n${t("serverConfirmSteps")}\n\n${t("serverConfirmDowntime")}`}
         confirmLabel={t("serverInstall")} />
     </>
   );

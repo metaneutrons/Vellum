@@ -7,6 +7,7 @@ test_directory="$(mktemp -d)"
 trap 'rm -rf "$test_directory"' EXIT
 export VELLUM_ENV_FILE="${test_directory}/.env"
 export ENV_BACKUP_FILE="${test_directory}/state/vellum.env.backup"
+export PROGRESS_FILE="${test_directory}/state/progress.json"
 printf '%s\n' \
   'VELLUM_IMAGE=ghcr.io/metaneutrons/vellum:v1.8.1' \
   'UPDATER_IMAGE=ghcr.io/metaneutrons/vellum-updater:v1.8.1' \
@@ -98,3 +99,28 @@ if [[ -s "$PROBE_LOG" ]]; then
 fi
 
 printf 'updater self-update assertions passed\n'
+
+# ── Phase journal ─────────────────────────────────────────────────────
+# The server cannot narrate its own restart, so the journal is the only progress
+# the UI can show. Pin its shape.
+export PHASE_STARTED_AT="2026-08-13T00:00:00Z"
+set_phase "deploying" "ghcr.io/metaneutrons/vellum:v1.8.2"
+assert test -f "$PROGRESS_FILE"
+assert jq -e '.phase == "deploying"' "$PROGRESS_FILE" >/dev/null
+assert jq -e '.detail == "ghcr.io/metaneutrons/vellum:v1.8.2"' "$PROGRESS_FILE" >/dev/null
+# startedAt must survive across phases so the UI can show elapsed time.
+assert jq -e '.startedAt == "2026-08-13T00:00:00Z"' "$PROGRESS_FILE" >/dev/null
+set_phase "done"
+assert jq -e '.phase == "done" and .detail == null' "$PROGRESS_FILE" >/dev/null
+assert jq -e '.startedAt == "2026-08-13T00:00:00Z"' "$PROGRESS_FILE" >/dev/null
+
+# A journal write must never abort an update, even if the path is unwritable.
+# Subshell because PROGRESS_FILE is readonly once update.sh has been sourced.
+# shellcheck disable=SC2016
+if ! env PROGRESS_FILE=/proc/nonexistent/progress.json UPDATE_SH="$update_sh" \
+     bash -c 'source "$UPDATE_SH"; set_phase "verifying"' >/dev/null 2>&1; then
+  printf 'FAILED: set_phase must stay advisory when the journal is unwritable\n' >&2
+  exit 1
+fi
+
+printf 'phase journal assertions passed\n'

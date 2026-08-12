@@ -17,6 +17,7 @@ const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/meta
  * server treats that absence as "outdated, version unknown". */
 const updaterVersion = (process.env.UPDATER_VERSION ?? "").trim() || null;
 const swapResultFile = process.env.SWAP_RESULT_FILE ?? "/state/updater-swap.json";
+const progressFile = process.env.PROGRESS_FILE ?? "/state/updater-progress.json";
 /* Outcome of the last self-update, written by the detached helper that performed
  * it. The container that did the swap is gone by the time anyone can ask, so the
  * NEW updater reads the file and reports it — otherwise a failed or rolled-back
@@ -87,9 +88,27 @@ const status = { state: "starting", currentVersion: null, availableVersion: null
   updaterVersion, updaterUpdateAvailable: false };
 let active = false;
 
+const PHASES = ["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"];
+/* The phase journal written by update.sh. The server is the thing being replaced,
+ * so it cannot report its own restart — this is the only progress the admin UI
+ * can show while the container is gone, and it is read back afterwards to
+ * reconstruct what happened. */
+function lastProgress() {
+  try {
+    const value = JSON.parse(readFileSync(progressFile, "utf8"));
+    if (!value || !PHASES.includes(value.phase)) return null;
+    return {
+      phase: value.phase,
+      detail: typeof value.detail === "string" ? value.detail.slice(0, 200) : null,
+      at: typeof value.at === "string" ? value.at : null,
+      startedAt: typeof value.startedAt === "string" ? value.startedAt : null,
+    };
+  } catch { return null; }
+}
+
 function publicStatus() {
   return { ...status, updateMode: config.mode, maintenanceTime: config.maintenanceTime, timezone: config.timezone,
-    updaterSwap: lastSwap() };
+    updaterSwap: lastSwap(), progress: lastProgress() };
 }
 function equalToken(candidate) {
   const a = Buffer.from(candidate ?? ""); const b = Buffer.from(token);

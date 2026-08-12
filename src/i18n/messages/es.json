@@ -331,7 +331,16 @@
     "updaterVersionUnknown": "El servicio de actualización no informa de su versión: es anterior a esta función y está obsoleto.",
     "updaterManualHint": "No puede reemplazar su propio contenedor, por lo que este paso es manual a propósito. Ejecuta esto en el directorio del stack:",
     "updaterSwapFailed": "El servicio de actualización no pudo reemplazarse. Sigue ejecutando la versión anterior.",
-    "updaterSwapRolledBack": "Una autoactualización del servicio de actualización se revirtió; se restauró la versión anterior."
+    "updaterSwapRolledBack": "Una autoactualización del servicio de actualización se revirtió; se restauró la versión anterior.",
+    "phaseVerifying": "Verificando la firma de la imagen",
+    "phaseBackingUp": "Copia de seguridad de la base de datos",
+    "phaseDeploying": "Iniciando la nueva versión",
+    "phaseWaitingForHealth": "Esperando que informe estado correcto",
+    "serverConfirmSteps": "Pasos: verificar la firma, copiar la base de datos, iniciar la nueva versión, esperar su señal de estado correcto — y revertir automáticamente si no llega.",
+    "serverConfirmDowntime": "Al final el servidor se reinicia: esta página pierde la conexión un momento y se reconecta por sí sola.",
+    "serverUpdateDone": "Actualizado de {from} a {to}.",
+    "serverUpdateDoneShort": "Actualizado a {version}.",
+    "serverUpdateDoneDismiss": "Ocultar"
   },
   "firmware": {
     "rolloutAdoption": "dispositivos con esta versión",
@@ -441,7 +450,12 @@
     "retry": "Reintentar",
     "confirmDelete": "¿Está seguro?",
     "selectTimezone": "Seleccionar zona horaria…",
-    "clearSearch": "Borrar búsqueda"
+    "clearSearch": "Borrar búsqueda",
+    "updateRestartTitle": "Actualizando el servidor",
+    "updateRestartBody": "El servidor se está reiniciando para terminar la actualización. Esta página se reconecta por sí sola.",
+    "updateRestartToVersion": "Reiniciando para terminar la actualización a {version}. Esta página se reconecta por sí sola.",
+    "updateRestartElapsed": "Esperando {elapsed}",
+    "databaseReconnecting": "Intentando reconectar…"
   },
   "contentTypes": {
     "room-booking": "Reserva de sala",

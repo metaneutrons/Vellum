@@ -331,7 +331,16 @@
     "updaterVersionUnknown": "Il servizio di aggiornamento non comunica la propria versione: precede questa funzione ed è obsoleto.",
     "updaterManualHint": "Non può sostituire il proprio container, quindi questo passaggio è volutamente manuale. Eseguire nella directory dello stack:",
     "updaterSwapFailed": "Il servizio di aggiornamento non è riuscito a sostituirsi. Sta ancora eseguendo la versione precedente.",
-    "updaterSwapRolledBack": "Un aggiornamento del servizio di aggiornamento è stato annullato; è stata ripristinata la versione precedente."
+    "updaterSwapRolledBack": "Un aggiornamento del servizio di aggiornamento è stato annullato; è stata ripristinata la versione precedente.",
+    "phaseVerifying": "Verifica della firma dell'immagine",
+    "phaseBackingUp": "Backup del database",
+    "phaseDeploying": "Avvio della nuova versione",
+    "phaseWaitingForHealth": "Attesa del segnale di integrità",
+    "serverConfirmSteps": "Passaggi: verificare la firma, eseguire il backup del database, avviare la nuova versione, attendere il segnale di integrità — e ripristinare automaticamente se non arriva.",
+    "serverConfirmDowntime": "Alla fine il server si riavvia: questa pagina perde brevemente la connessione e si riconnette da sola.",
+    "serverUpdateDone": "Aggiornato da {from} a {to}.",
+    "serverUpdateDoneShort": "Aggiornato alla {version}.",
+    "serverUpdateDoneDismiss": "Nascondi"
   },
   "firmware": {
     "rolloutAdoption": "dispositivi con questa versione",
@@ -441,7 +450,12 @@
     "retry": "Riprova",
     "confirmDelete": "Sei sicuro?",
     "selectTimezone": "Seleziona fuso orario…",
-    "clearSearch": "Cancella ricerca"
+    "clearSearch": "Cancella ricerca",
+    "updateRestartTitle": "Aggiornamento del server",
+    "updateRestartBody": "Il server si sta riavviando per completare l’aggiornamento. Questa pagina si riconnette da sola.",
+    "updateRestartToVersion": "Riavvio per completare l’aggiornamento alla {version}. Questa pagina si riconnette da sola.",
+    "updateRestartElapsed": "In attesa da {elapsed}",
+    "databaseReconnecting": "Tentativo di riconnessione…"
   },
   "contentTypes": {
     "room-booking": "Prenotazione sala",

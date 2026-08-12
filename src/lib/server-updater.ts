@@ -25,11 +25,20 @@ export type ServerUpdateStatus = {
   /** Outcome of the last updater self-update, reported by the updater that
    * replaced the one which performed it. Null when none has run. */
   updaterSwap: { outcome: "succeeded" | "failed" | "rolled-back"; detail: string | null; at: string | null } | null;
+  /** Which step the updater is on. The server cannot report its own restart, so
+   * this journal — written by the updater and read back after the container is
+   * up again — is the only progress the UI can show. */
+  progress: {
+    phase: "verifying" | "backing-up" | "deploying" | "waiting-for-health" | "done" | "rolling-back" | "failed";
+    detail: string | null;
+    at: string | null;
+    startedAt: string | null;
+  } | null;
 };
 
 const unavailable: ServerUpdateStatus = { supported: false, state: "unavailable", currentVersion: null,
   availableVersion: null, updateAvailable: false, updateMode: "manual", maintenanceTime: "02:00", timezone: "UTC", lastCheckedAt: null,
-  lastUpdatedAt: null, lastError: null, updaterVersion: null, updaterUpdateAvailable: false, updaterSwap: null };
+  lastUpdatedAt: null, lastError: null, updaterVersion: null, updaterUpdateAvailable: false, updaterSwap: null, progress: null };
 
 const statusSchema = z.object({
   state: z.enum(["starting", "checking", "available", "updating", "current", "failed"]),
@@ -51,6 +60,12 @@ const statusSchema = z.object({
     outcome: z.enum(["succeeded", "failed", "rolled-back"]),
     detail: z.string().max(300).nullable(),
     at: z.string().nullable(),
+  }).nullable().optional(),
+  progress: z.object({
+    phase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]),
+    detail: z.string().max(200).nullable(),
+    at: z.string().nullable(),
+    startedAt: z.string().nullable(),
   }).nullable().optional(),
 });
 
@@ -75,6 +90,7 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
       updaterVersion: parsed.data.updaterVersion ?? null,
       updaterUpdateAvailable: parsed.data.updaterUpdateAvailable ?? false,
       updaterSwap: parsed.data.updaterSwap ?? null,
+      progress: parsed.data.progress ?? null,
     };
   } catch {
     return unavailable;
