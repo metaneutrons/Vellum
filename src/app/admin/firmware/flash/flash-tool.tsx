@@ -10,6 +10,10 @@ import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { DISPLAY_REGISTRY } from "@/lib/display";
+import {
+  FLASH_MODEL_STORAGE_KEY,
+  resolveFlashModel,
+} from "@/lib/firmware-flash-preferences";
 import { useTranslations } from "next-intl";
 
 interface FirmwareVersion {
@@ -37,9 +41,13 @@ const selectCls =
   "w-full min-h-11 px-3.5 rounded-md bg-surface-secondary border border-separator " +
   "text-[15px] text-label focus-ring focus:border-accent transition";
 
+const displayModels = Object.entries(DISPLAY_REGISTRY);
+const displayModelIds = displayModels.map(([id]) => id);
+const defaultDisplayModel = displayModels[0]?.[0] ?? "";
+
 export function FlashTool({ versions }: Props) {
   const t = useTranslations("flash");
-  const [model, setModel] = useState("e1002");
+  const [model, setModel] = useState(defaultDisplayModel);
   const [channel, setChannel] = useState("stable");
   const [version, setVersion] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -52,6 +60,15 @@ export function FlashTool({ versions }: Props) {
   const provisioningHref = selectedIsNotLatest && selectedVersion
     ? `/admin/firmware/provision?firmwareChannel=${encodeURIComponent(channel)}&firmwarePinVersion=${encodeURIComponent(selectedVersion)}`
     : "/admin/firmware/provision";
+
+  useEffect(() => {
+    try {
+      setModel(resolveFlashModel(localStorage.getItem(FLASH_MODEL_STORAGE_KEY), displayModelIds));
+    } catch {
+      // Storage can be unavailable in locked-down/private browser contexts.
+      // The registry's first model remains the deterministic fallback.
+    }
+  }, []);
 
   useEffect(() => {
     if (loaded) return;
@@ -84,10 +101,18 @@ export function FlashTool({ versions }: Props) {
               id="flash-model"
               className={selectCls}
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={(e) => {
+                const nextModel = e.target.value;
+                setModel(nextModel);
+                try {
+                  localStorage.setItem(FLASH_MODEL_STORAGE_KEY, nextModel);
+                } catch {
+                  // Flashing remains functional when persistent storage is denied.
+                }
+              }}
               aria-label={t("model")}
             >
-              {Object.entries(DISPLAY_REGISTRY).map(([id, m]) => (
+              {displayModels.map(([id, m]) => (
                 <option key={id} value={id}>{m.name}</option>
               ))}
             </select>

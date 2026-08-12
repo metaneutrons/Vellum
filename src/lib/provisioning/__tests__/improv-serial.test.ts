@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   encodeWifiSettings,
   encodeScanWifi,
@@ -19,7 +19,12 @@ import {
   ImprovState,
   ImprovError,
   improvErrorMessage,
+  scanNetworksOverSerial,
 } from "../improv-serial";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /**
  * Mirror of firmware improv_try_parse + improv_handle_rpc + improv_handle_wifi_settings
@@ -319,5 +324,54 @@ describe("ImprovParser (device → browser)", () => {
     const { cmd, strings } = decodeRpcResult(f.payload);
     expect(cmd).toBe(ImprovCmd.WIFI_SETTINGS);
     expect(strings[0]).toBe("http://192.168.1.50/");
+  });
+});
+
+describe("Web Serial scan lifecycle", () => {
+  it("keeps a native USB port open from readiness probe through scan", async () => {
+    let controller: ReadableStreamDefaultController<Uint8Array>;
+    let openCount = 0;
+    let closeCount = 0;
+    const rpcResult = (strings: string[]) => {
+      const encoded = strings.flatMap((value) => {
+        const bytes = Array.from(new TextEncoder().encode(value));
+        return [bytes.length, ...bytes];
+      });
+      return encodeFrame(ImprovType.RPC_RESULT, [ImprovCmd.SCAN_WIFI, encoded.length, ...encoded]);
+    };
+
+    const readable = new ReadableStream<Uint8Array>({
+      start(nextController) {
+        controller = nextController;
+      },
+    });
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) {
+        const cmd = chunk[9];
+        if (cmd === ImprovCmd.GET_STATE) {
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.READY]));
+        } else if (cmd === ImprovCmd.SCAN_WIFI) {
+          controller.enqueue(rpcResult(["Office", "-42", "YES"]));
+          controller.enqueue(rpcResult([]));
+        }
+      },
+    });
+    const port = {
+      readable,
+      writable,
+      async open() { openCount += 1; },
+      async close() { closeCount += 1; },
+      async setSignals() {},
+    };
+    vi.stubGlobal("navigator", {
+      serial: { requestPort: async () => port },
+    });
+
+    await expect(scanNetworksOverSerial({ timeoutMs: 500 })).resolves.toEqual({
+      ok: true,
+      networks: [{ ssid: "Office", rssi: -42, secured: true }],
+    });
+    expect(openCount).toBe(1);
+    expect(closeCount).toBe(1);
   });
 });
