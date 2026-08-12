@@ -18,7 +18,7 @@
 #include "driver/gpio.h"
 #include "driver/usb_serial_jtag.h"
 #include <sys/time.h>
-#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+#if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
 #include "driver/i2c_master.h"
 #endif
 #include "sdkconfig.h"
@@ -34,18 +34,24 @@ static const char *TAG = "board";
 static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_cali_handle_t s_adc_cali = NULL;
 
-#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
-/* E1002/E1003 USB-C VBUS feeds an SY6974B charger. Their data paths go through
- * CH34x UART bridges, so usb_serial_jtag_is_connected() cannot observe host
- * power. REG08 exposes both BUS_STAT and power-good over model-specific I2C
- * pins (see the respective Seeed schematics). */
+#if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+/* Every E-Series board routes USB-C VBUS through an SY6974B charger, and none of
+ * them wire the S3's native USB to the connector — E1001/E1002 use a CH340C and
+ * E1003 a CH340K on UART0 — so usb_serial_jtag_is_connected() can never observe
+ * host power on any of them. REG08 exposes both BUS_STAT and power-good over
+ * model-specific I2C pins (see the respective Seeed schematics). */
 #define CHARGER_I2C_PORT       0
 #define CHARGER_I2C_ADDRESS    0x6B
 #define CHARGER_STATUS_REG     0x08
 #define CHARGER_READ_RETRIES   3
 #define CHARGER_TIMEOUT_MS     50
 
-#if CONFIG_VELLUM_PANEL_GDEP073E01
+#if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01
+/* E1001 and E1002 carry the charger on I2C1 (SDA39/SCL40). For E1001 this is
+ * corroborated by Seeed's own Zephyr board port, whose devicetree places
+ * `charger: sy6974b@6b` on i2c1 while i2c0 (SDA19/SCL20) holds only the SHT4x
+ * and the PCF8563 RTC — and whose battery divider enable (GPIO21, ADC0 ch0)
+ * matches this repo's VELLUM_BATTERY_EN_GPIO default. */
 #define CHARGER_I2C_SDA_GPIO   39
 #define CHARGER_I2C_SCL_GPIO   40
 #else
@@ -221,7 +227,9 @@ bool board_is_usb_powered(void)
      * the reTerminal, USB detection is independent of the battery voltage. */
     return d1001_usb_voltage() > 4000;
 #endif
-#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+#if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+    /* All three E-Series boards: read the charger, because their USB-C data path
+     * is a CH34x bridge and the native-USB signal below is always false there. */
     return charger_reports_usb_power();
 #else
     /* Native-USB models expose host presence directly through the
@@ -312,7 +320,7 @@ void board_buzzer_beep(uint32_t freq, uint32_t ms)
 void board_init(void)
 {
     battery_adc_init();
-#if CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
+#if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
     charger_init();
     /* Read once at boot even when the battery is healthy. Besides priming the
      * hardware path, the REG08 log makes field diagnostics distinguish a bad
