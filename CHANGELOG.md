@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.6](https://github.com/metaneutrons/Vellum/compare/v1.9.5...v1.9.6) (2026-08-12)
+
+
+### Bug Fixes
+
+* **api:** resolve the device model from its request header ([#185](https://github.com/metaneutrons/Vellum/issues/185)) ([935e10d](https://github.com/metaneutrons/Vellum/commit/935e10df4f66f93f8dbb0900d3fe6816b4744d73))
+* **db:** add missing orientation_override migration and guard the class ([#178](https://github.com/metaneutrons/Vellum/issues/178)) ([44d0b64](https://github.com/metaneutrons/Vellum/commit/44d0b647bcd9c405f727e5b36b601a843541a9a2))
+* **deploy:** grant the updater DAC_OVERRIDE so updates can persist ([#181](https://github.com/metaneutrons/Vellum/issues/181)) ([b679ce2](https://github.com/metaneutrons/Vellum/commit/b679ce2525c9ebe2805af3efc5f3da7bf5649204))
+* **firmware:** put E1001 console on its CH340C UART bridge ([#180](https://github.com/metaneutrons/Vellum/issues/180)) ([c3faf51](https://github.com/metaneutrons/Vellum/commit/c3faf512b88f35c6ca6ab9c8bac69748f1404227))
+* **firmware:** read USB power from the charger on E1001 too ([#184](https://github.com/metaneutrons/Vellum/issues/184)) ([680a97b](https://github.com/metaneutrons/Vellum/commit/680a97b4465a4078a4fb4b42926a7bb4cbf7769d))
+* **security:** reject shipped placeholder secrets instead of booting ([#179](https://github.com/metaneutrons/Vellum/issues/179)) ([e923bc4](https://github.com/metaneutrons/Vellum/commit/e923bc40b4f57abe4bd9ca80abcc897d40188e2e))
+
 ## [1.9.5](https://github.com/metaneutrons/Vellum/compare/v1.9.4...v1.9.5) (2026-08-12)
 
 
