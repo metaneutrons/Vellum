@@ -10,11 +10,14 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
 ## Repo layout / worktree
 
 - Server code is `src/` (Next.js App Router). Firmware is `firmware/` (ESP-IDF).
-  Docs in `docs/`, plus `README.md`, `ROADMAP.md`, `SECURITY.md`.
-- Some checkouts are **linked git worktrees**; the canonical clone is
-  `/Volumes/Dev/Source/Vellum` (branch `main`). `.git` in a worktree is a gitdir
-  pointer — run `git worktree list` to see which is which. Don't assume the dir
-  you're in is `main`.
+  Docs in `docs/`, plus `README.md`, `ROADMAP.md`, `SECURITY.md`. Production
+  deployment stack (compose + update sidecar) in `deploy/`.
+- This repo is worked in **many linked git worktrees** (~20 at time of writing),
+  and `/Volumes/Dev/Source/Vellum` is frequently NOT on `main`. **Always run
+  `git worktree list` and `git rev-parse --abbrev-ref HEAD` first** — do not
+  assume the directory you are in is `main`, and do not assume `main` is in the
+  clone with the plainest name. Many stale branches are already squash-merged;
+  check a branch against merged PRs before assuming its work is unlanded.
 
 ## Server (Next.js): build / test
 
@@ -22,134 +25,199 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   production Docker image builds & runs on **node:26-alpine** (`Dockerfile`,
   pinned by digest). Two different Node versions — don't assume one everywhere.
 - Install exactly with `pnpm install --frozen-lockfile` (CI + Docker parity).
-  pnpm is pinned in `package.json`; `pnpm-lock.yaml` is the only JavaScript
-  lockfile. `pnpm-workspace.yaml` denies dependency lifecycle scripts by default
-  and explicitly allows only reviewed native/tooling packages. Do not bypass the
-  allowlist with `--dangerously-allow-all-builds`.
-- Node 25+ no longer bundles Corepack. Install pnpm normally once (or use
-  `pnpm/action-setup` in CI); the repository's `packageManager` field pins and
-  selects the required pnpm version.
+  pnpm is pinned in `package.json` (`packageManager`); `pnpm-lock.yaml` is the
+  only JavaScript lockfile. `pnpm-workspace.yaml` denies dependency lifecycle
+  scripts by default and allows only reviewed native/tooling packages. Do not
+  bypass the allowlist with `--dangerously-allow-all-builds`.
+- Node 25+ no longer bundles Corepack (the `Dockerfile` installs pnpm globally
+  instead). Do not add `corepack enable` to instructions — it fails on current
+  Node; CI uses `pnpm/action-setup`.
 - Scripts (`package.json`): `dev`, `build`, `start`, `lint` (`eslint .`),
-  `test` (`vitest --run`), `test:coverage`, `db:migrate` (the idempotent
-  `scripts/migrate.mjs` runner),
-  `dev:mdns` / `mdns`. Type-check: `pnpm exec tsc --noEmit`.
-- Tests: **~20 vitest suites, node environment, fully self-contained — NO
-  Postgres / testcontainers / docker.** The workspace-wide snapdog note "tier-2
-  tests need `DOCKER_HOST=colima socket`" does NOT apply to Vellum.
+  `typecheck` (`tsc --noEmit` — the canonical type-check), `test`
+  (`vitest --run`), `test:coverage`, `i18n:check`, `release:check`,
+  `db:check`, `db:generate`, `db:migrate` (the idempotent `scripts/migrate.mjs`
+  runner), `dev:mdns` / `mdns`.
+- **`.githooks/pre-push` runs `i18n:check`, `typecheck`, `release:check` (and
+  `db:check`)** — each is also a required CI job. Run them before pushing or the
+  hook will surprise you.
+- Tests: ~two dozen vitest suites (`pnpm test` for the exact count), node
+  environment, fully self-contained — **NO Postgres / testcontainers / docker**.
+  The workspace-wide snapdog note "tier-2 tests need `DOCKER_HOST=colima
+  socket`" does NOT apply to Vellum.
 - Coverage is a **ratchet gate** (`vitest.config.ts`): statements 55 / branches
   44 / functions 44 / lines 56, enforced by the required CI "Test" job. Raise,
   never lower.
-- Runtime env (`.env.example` is the source of truth): `DATABASE_URL` (Postgres),
-  `ENCRYPTION_KEY`, `SESSION_SECRET` (**required, min 32 chars**, validated at
-  boot in `src/lib/env.ts` / `src/lib/session.ts` — omitting it = boot failure;
-  the README/Docker examples currently omit it), `ADMIN_API_KEY`, `ADMIN_USER`,
-  `ADMIN_PASS`, `NODE_ENV`, `LOG_LEVEL`. Workspace convention: real secrets live
-  in `~/.env_vars`, never in-repo.
+- Runtime env (`.env.example` + `deploy/vellum.env.example` are the source of
+  truth): `DATABASE_URL`, `ENCRYPTION_KEY`, `SESSION_SECRET`, `ADMIN_API_KEY`
+  (all **min 32 chars**), `ADMIN_USER`, `ADMIN_PASS` (min 8), `NODE_ENV`,
+  `LOG_LEVEL`; optional `ENTRA_TENANT_ID` / `ENTRA_CLIENT_ID` /
+  `ENTRA_CLIENT_SECRET` + `VELLUM_PUBLIC_URL` (Entra OIDC), `UPDATER_URL` /
+  `UPDATER_TOKEN` (update sidecar), `TRUST_PROXY_HEADERS` (**set `false` on a
+  directly-exposed instance** or `X-Forwarded-For` can be spoofed to bypass rate
+  limits — `src/lib/rate-limit.ts`; it is missing from both env templates).
+  Validated at boot in `src/lib/env.ts` / `src/lib/session.ts`; a failure
+  `process.exit(1)`s. Workspace convention: real secrets live in `~/.env_vars`,
+  never in-repo.
+
+## Schema ↔ migration parity (invariant)
+
+`scripts/migrate.mjs` applies the raw `drizzle/*.sql` files in order and records
+them in `__vellum_migrations`. Consequences:
+
+- **A column added to `src/db/schema.ts` needs a hand-written migration.**
+  Nothing else catches a missing one: the migrator never reads the model, `tsc`
+  only type-checks the model, and the test suite runs without Postgres. This
+  actually shipped broken — `devices.orientation_override` had no migration for
+  ~3 months, taking out `/api/v1/ink/render` on fresh databases.
+- **Do NOT trust `pnpm db:generate`.** `drizzle/meta/` snapshots stop at `0005`
+  while migrations run past `0010`, and those snapshots already list columns the
+  SQL never creates — so drizzle-kit believes they exist and will never emit
+  them. Migrations here are hand-written by convention; keep them idempotent
+  (`ADD COLUMN IF NOT EXISTS`) and forward-only (there are no down migrations).
+- `pnpm db:check` (`scripts/check-schema-migrations.mjs`, CI "Schema Guard")
+  asserts every `schema.ts` column is created by some `drizzle/*.sql`.
+- Migration numbering has a historical gap; use the next free number, and expect
+  server-rendered pages to guard optional columns with a fallback query.
 
 ## Firmware: build
 
 - Toolchain: **ESP-IDF v6.0**. Local build: `make build MODEL=<model>` from
-  `firmware/` (default `MODEL=e1002`). The Makefile sources a hardcoded IDF
-  activate script (`/Users/fabian/.espressif/tools/activate_idf_v6.0.sh`) +
-  `IDF_PATH=/Volumes/Dev/esp-idf/v6.0/esp-idf`. There is **no `make setup`**
-  target (the README claims one; it's wrong). CI builds in docker
-  `espressif/idf:v6.0`.
+  `firmware/` (default `MODEL=e1002`). CI builds in docker `espressif/idf:v6.0`.
+- ⚠️ **The Makefile hardcodes the maintainer's absolute paths** (`IDF_ACTIVATE :=
+  source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
+  and `IDF_PATH=/Volumes/Dev/esp-idf/v6.0/esp-idf`, `firmware/Makefile:72-73`).
+  They are `:=` (not overridable) and the redirect **swallows the failure**, so
+  on any other machine you get a confusing downstream `idf.py` error instead of
+  "ESP-IDF not found". Fix the Makefile rather than chasing the symptom.
 - **Always pass `-DVELLUM_MODEL=<model>`** (Makefile + CI do). It bakes the
   app-descriptor `project_name` `vellum-<model>` used by the OTA anti-brick
   cross-model check. A bare `idf.py build` falls back to generic
   `vellum-firmware` and **silently disables that check** — a wrong-model image
-  would pass signature verify and could brick a device (`CMakeLists.txt:24-31`).
-- **4 models** (`firmware/Makefile:37-55`, `firmware.yml` matrix):
-  | Model | Chip | Panel / controller | Display |
-  |-------|------|--------------------|---------|
-  | `e1001` | ESP32-S3 | GDEY075T7 / UC8179_BW | mono 800×480 |
-  | `e1002` | ESP32-S3 | GDEP073E01 / ACEP 6-color | 800×480 (default build) |
-  | `e1003` | ESP32-S3 | ED103TC2 / IT8951 | **16-gray / 4bpp, 1404×1872** |
-  | `d1001` | **ESP32-P4** | JD9365 MIPI-DSI **LCD** | 800×1280 (NOT in README hw table) |
-  e1001/e1002/e1003 differ only by panel Kconfig; d1001 is the P4 LCD target.
+  would pass signature verify and could brick a device (`CMakeLists.txt:14-31`).
+- **4 models** (`firmware/Makefile:40-60`, `firmware.yml` matrix):
+  | Model | Chip | Panel / controller | Display | USB serial transport |
+  |-------|------|--------------------|---------|----------------------|
+  | `e1001` | ESP32-S3 | GDEY075T7 / UC8179_BW | mono 800×480 | **native USB-Serial-JTAG** |
+  | `e1002` | ESP32-S3 | GDEP073E01 / ACeP **7-color** | 800×480 (default build) | **CH340C → UART0** |
+  | `e1003` | ESP32-S3 | ED103TC2 / IT8951 | **16-gray / 4bpp, 1872×1404** | **CH340K → UART0** |
+  | `d1001` | **ESP32-P4** + ESP32-C6 (Wi-Fi via `esp_wifi_remote`/ESP-Hosted) | JD9365 MIPI-DSI **LCD** | 800×1280 | **native USB-Serial-JTAG** |
+  Only e1001 has no overlay: e1002/e1003 add console/UART overlays
+  (`sdkconfig.defaults.e1002` / `.e1003`) on top of `sdkconfig.defaults.s3`, so
+  they differ by more than panel Kconfig.
+- **USB-C wiring is per-model and drives two separate behaviours — get it right
+  before debugging provisioning or power.** Only E1001 and D1001 wire USB-C to
+  the SoC's native USB; E1002 (CH340C) and E1003 (CH340K) terminate USB-C at a
+  UART bridge on UART0, so the browser sees `/dev/tty.wch*` there and
+  `/dev/cu.usbmodem*` on the native-USB models. Consequently
+  `usb_serial_jtag_is_connected()` **cannot observe host presence on E1002/E1003
+  at all** (their native USB pins go nowhere): those two read USB power from the
+  **SY6974B charger over I²C** instead (`components/board/board.c`,
+  `charger_reports_usb_power()`, host-tested in `test_sy6974b_power.c`), and only
+  the native-USB models use the USJ signal. A "fix" that routes either console or
+  USB-power detection uniformly across models WILL break two of the four.
+- Two label bugs to be aware of (code is the authority, not the menu string):
+  E1003 is **1872×1404** but `main/Kconfig.projbuild:19` labels it `1404x1872`;
+  E1002 reports a **7-entry** palette including orange
+  (`components/http_client/http_client.c`) but the Kconfig label and
+  `src/lib/display.ts` name it "6-Color".
+- Server-side `src/lib/display.ts` is a **static registry** used by the flash UI,
+  simulator and preview; the E-Series firmware actually reports
+  `orientations: []` (fixed). Runtime rendering resolves device-reported caps via
+  `resolveDisplayCaps()`, so the registry's `["portrait","landscape"]` for e1003
+  is intent, not an enforced capability — there is no rotation path in the
+  e-paper display component.
 - Display backend is a **3-way split**, not one esp_epaper: `panel_epaper.c`
   (S3 e-paper: custom `epaper_uc8179` for e1001/e1002, `epaper_it8951` for e1003)
   + `panel_lcd.c` (P4 d1001 LCD). `components-epaper/epaper_uc8179` is a
   **vendored fork** of `tuanpmt/esp_epaper` — do NOT re-pull it from the ESP-IDF
-  registry (would clobber Vellum's added `uc8179_bw.c` / `ed103tc2.c`).
-  esp_epaper is declared in `components/vellum_display/idf_component.yml` gated
-  `target==esp32s3`, NOT in `firmware/main/idf_component.yml`.
+  registry (would clobber Vellum's added `uc8179_bw.c` / `ed103tc2.c`). Note the
+  registry copy is still *declared and linked* alongside the fork
+  (`components/vellum_display/CMakeLists.txt`) — a real cleanup, not just a doc
+  nit. `components-lcd/esp_io_expander_pca9535` is likewise **vendored because
+  the registry version fails on IDF 6.0**; its README (verbatim upstream) tells
+  you to `idf.py add-dependency` it — don't.
+- **D1001 renders JPEG, not raw pixels.** `panel_lcd.c` decodes JPEG
+  (`esp_jpeg_decode()`) into RGB565; the server sends `image/jpeg` for `d1001`
+  (`src/lib/display.ts`, `api/v1/ink/render`). Only the S3 e-paper path takes a
+  raw buffer. `docs/firmware-display-architecture.md` still claims raw RGB565 —
+  it is wrong, and `panel_lcd.c` does no size validation.
 - **Secure Boot builds are opt-in**: `make build SECURE=1 SECURE_PROFILE=<rung>`
-  climbs a 3-rung ladder (`testsecure` → `secureboot` → `prod`); the eFuse-burning
-  rungs must be selected explicitly. See `docs/SECURE_BOOT_AND_KMS.md`.
+  climbs a 3-rung ladder (`testsecure` → `secureboot` → `prod`); default rung is
+  the reversible one. **ESP32-S3 only** — `firmware/Makefile:80` hard-errors on
+  `esp32p4`, so d1001 has no Secure Boot path. Every `SECURE=1` build is
+  **unsigned** by design (`BUILD_SIGNED_BINARIES=n`); images are signed
+  out-of-band by KMS. See `docs/SECURE_BOOT_AND_KMS.md` (accurate).
 - Firmware **host tests** (pure logic/crypto, no ESP-IDF):
   `cmake -S firmware/host_test -B firmware/host_test/build && cmake --build
   firmware/host_test/build && ctest --test-dir firmware/host_test/build`.
   Needs CMake ≥3.16, C11, OpenSSL. Golden vectors regenerated by
   `node firmware/host_test/scripts/gen_kat.mjs`.
-- `firmware-pr-build.yml` = compile-only smoke checks for e1001/native USB,
-  e1003/CH340 UART, and d1001/P4 on every `firmware/**` PR — catches model-
-  specific Kconfig and `-Werror` breaks before release.
+- `firmware-pr-build.yml` = compile-only smoke check for **all 4 models** on
+  every `firmware/**` PR — catches model-specific Kconfig and `-Werror` breaks
+  before release.
 - `firmware-host-test.yml` runs on EVERY push/PR to main with **no path filter
   on purpose** (required check; path-filtering would wedge unrelated PRs in
-  "Expected — Waiting for status"). `host_test/README.md` wrongly says it's
-  `firmware/**`-scoped — don't "fix" it by adding the filter.
+  "Expected — Waiting for status"). `host_test/README.md` states this correctly.
 
-## Release: TWO-component release-please (the big gotcha)
+## Release: TWO components, separate PRs
 
 Driven by `release-please-config.json` + `.release-please-manifest.json`
-(config-file mode, NOT inline release-type), workflow `release-please.yml`, needs
-`secrets.RELEASE_PAT` (real actor) so the release PR fires CI and the published
-release fires the build workflows (falls back to `GITHUB_TOKEN` with no
-downstream triggers).
+(config-file mode), workflow `release-please.yml`. **`secrets.RELEASE_PAT` is
+mandatory and fails closed** — `release-please.yml` `exit 1`s when it is empty,
+and `pnpm release:check` asserts that no `|| secrets.GITHUB_TOKEN` fallback is
+reintroduced (a fallback would produce plausible-looking releases with no
+container or firmware assets).
 
 - **Server** = component `server`, package `.` (release-type `node`,
-  `exclude-paths:["firmware"]`,
-  tag `vX.Y.Z`) → built by `docker.yml` (multi-arch amd64+arm64, SBOM + SLSA
-  provenance, cosign keyless, moves `latest`).
+  `exclude-paths:["firmware"]`, tag `vX.Y.Z`) → `docker.yml` (multi-arch
+  amd64+arm64, SBOM + SLSA provenance, cosign keyless, `release-presentation`
+  moves `latest`), `updater.yml` (the second image, `vellum-updater`), and
+  `deployment-assets.yml` (versioned `docker-compose.yml`, `vellum.env.example`,
+  `SHA256SUMS`; blocks on `cosign verify` of **both** images and rejects
+  `:latest` pins).
 - **Firmware** = package `firmware` (release-type `simple`,
-  `include-component-in-tag`, `tag-separator "-"`, tag `firmware-vX.Y.Z`) → built
-  by `firmware.yml` (4-model matrix, Ed25519-signs each OTA image, uploads
-  `firmware-manifest.json` last).
+  `include-component-in-tag`, `tag-separator "-"`, tag `firmware-vX.Y.Z`) →
+  `firmware.yml` (4-model matrix, Ed25519-signs each OTA image, SLSA
+  provenance, uploads `firmware-manifest.json` **last** so a device polling
+  mid-publish never sees a manifest before its assets).
 - release-please routes each commit by path: `firmware/**` → firmware component;
   everything else → server. A server `fix:` does NOT rebuild firmware and vice
-  versa.
-- `separate-pull-requests: true` and the explicit title pattern produce one
-  parseable PR per changed component (`chore(main): release server X.Y.Z` /
-  `chore(main): release firmware X.Y.Z`). Keep `${component}` and `${version}`
-  in that pattern: grouped `chore: release main` titles can leave a server-only
-  release merged but untagged. `pnpm release:check` enforces these invariants in
-  pre-push and CI.
-- **MERGE-COMMIT the two `chore: release` PRs — do NOT squash.** Squash rewrites
-  the release commit and release-please fails to create the GitHub Release object
-  (hit on v1.2.1; tag/release had to be hand-created). Ordinary PRs stay
-  squash-merged.
-- **If a merged release PR is left UNTAGGED** (the post-merge run aborts with
-  `⚠ There are untagged, merged release PRs outstanding - aborting` and
-  `No latest release found ... but a previous version (X.Y.Z) was specified in
-  the manifest` — i.e. the manifest bumped but no tag/Release exists): this can
-  happen **even with a correct merge-commit** (hit on v1.3.0) and is
-  **deterministic** — `gh run rerun` reproduces the abort, it does NOT self-heal.
-  The `commit could not be parsed: ... Merge pull request #N` log lines are
-  benign, not the cause. Recover by hand-creating it:
-  `gh release create vX.Y.Z --target <release/merge SHA> --latest --notes-file
-  <CHANGELOG X.Y.Z section>` (create it as a **real user via PAT** so it fires
-  `docker.yml`'s `release: published` build — `GITHUB_TOKEN` would not), then
-  `gh pr edit <#> --remove-label "autorelease: pending" --add-label
-  "autorelease: tagged"` so release-please's state stays consistent.
+  versa. The two components are independent — **no merge order is required.**
+- `separate-pull-requests: true` yields one PR per changed component on branches
+  `release-please--branches--main--components--{server,firmware}`. **The server
+  PR title does NOT contain the word "server"** (`chore(main): release 1.9.5`) —
+  that is structural, because `include-component-in-tag: false` empties
+  `${component}` for `.`; only firmware renders it. Do not "fix" this by setting
+  `include-component-in-tag: true` on `.`: server tags would become
+  `server-vX.Y.Z` and break `deployment-assets.yml` + `docker.yml` tag gates
+  (`release:check` fails first).
+- **Either merge style works.** Squash and merge-commit release PRs both cut
+  releases correctly — `scripts/classify-release-commit.mjs` is a shared,
+  component-aware classifier used by `firmware.yml`, `docker.yml` and
+  `updater.yml`, with fixtures for both forms in `scripts/check-release-config.mjs`.
+  (Historical: an old grouped-PR config with an empty component left server
+  releases merged-but-untagged; that was fixed in #158. **Do NOT hand-create
+  releases or relabel `autorelease:` any more** — it corrupts release-please
+  state, and `gh release create --latest` would steal the Latest badge that
+  `docker.yml`/`firmware.yml` manage.)
 - Firmware version **SSOT**: the `firmware` key in
   `.release-please-manifest.json` → `firmware/main/Kconfig.projbuild`
   `default "X.Y.Z" # x-release-please-version`. Read the manifest for the
-  current value; do not hard-code it in documentation.
-  `firmware/version.txt` is **gitignored + build-generated** for `PROJECT_VER`
-  and is NOT authoritative (working copies may show junk like `1.3.0-localtest`).
-- Tag state: `firmware-v1.2.0` is a release-please **anchor tag with NO GitHub
-  Release** (fleet never sees it). `firmware-v1.2.1` is the **first real
-  firmware release in that lineage**. The next firmware version is
-  **whatever release-please computes** from `firmware/**` commits since its
-  latest release; do not assume a specific version.
+  current value; **never hard-code a version in documentation** (both
+  `docs/RELEASING.md` and `firmware-refactor-tasks.md` currently violate this).
+  `firmware/version.txt` is gitignored + build-generated and NOT authoritative.
 - `firmware.yml` `if:`-gotchas — don't "fix" them into misfiring: the `version`
   job skips server (`v*`) releases; `build`/`sign-and-release` then skip via
   default `success()` gating (adding `always()`/`!cancelled()` would run firmware
-  on server releases). The redundant-beta skip matches both squash subjects
-  `chore(main|firmware): release ` AND the merge-commit marker
-  `release-please--branches`.
-- See `docs/RELEASING.md` for the full model.
+  on server releases). The release-please push skip is now
+  `release_component == 'none'` from the classifier — a bare
+  `release-please--branches` is **deliberately not** a marker (only the
+  component-qualified branch is).
+- Historical tag note: `firmware-v1.2.0` is an anchor tag with **no** GitHub
+  Release (fleet never sees it); `firmware-v1.2.1` was the first real release in
+  that lineage.
+- See `docs/RELEASING.md` for the full model (accurate, apart from a stale
+  "firmware version of record" paragraph).
 
 ## Fleet OTA discovery invariant
 
@@ -173,66 +241,112 @@ hand-feed events to a packer assuming order. Regression covered by
 
 ## Provisioning (current reality)
 
-- **USB-serial provisioning (Improv Wi-Fi Serial over the model's USB-exposed
-  serial transport) is the PRIMARY onboarding path** (shipped
-  firmware-v1.2.1), replacing SoftAP as the
-  intended flow. Operator flashes + provisions from the WebUI over a cable:
-  Admin → Firmware → **Flash** (`flash-tool.tsx`, ESP Web Tools) then
-  **Provision** (`provision-tool.tsx`, Web Serial API). Protocol client:
+- **USB-serial provisioning (Improv Wi-Fi Serial) is the PRIMARY onboarding
+  path**, replacing SoftAP as the intended flow. Operator flashes + provisions
+  from the WebUI over a cable: Admin → Firmware → **Flash Device**
+  (`flash-tool.tsx`, ESP Web Tools) then **Provision over USB**
+  (`provision-tool.tsx`, Web Serial API). Protocol client:
   `src/lib/provisioning/improv-serial.ts`. Firmware side:
-  `firmware/components/vellum_serial/` (native USB-Serial-JTAG on E1001/E1002
-  and D1001, CH340K/UART0 on E1003; Improv binary frames interleaved with a text
-  console; console cmds wifi/server/token/info/nvs-erase/reboot).
-- **SoftAP is NOT removed** — it remains the first-boot **fallback** (open AP +
-  captive DNS) whenever NVS has no Wi-Fi credentials
-  (`firmware/main/main.c:399-411`, `wifi_manager.c`). WebUI copy that says "no
-  SoftAP setup" refers to the USB flow, not to SoftAP being deleted.
-  `vellum_serial_init()` runs on every boot, so Improv is always available over
-  USB.
-- **Optional zero-touch voucher** (`provisioning_vouchers` table,
-  `src/db/schema.ts:109-119`): mint via `createProvisioningVoucher(label,
-  ttlHours)` in `src/app/admin/actions.ts` (default TTL 7 days). The voucher
-  token **IS the device bearer token**, sent as the 4th cleartext string in the
-  Improv WIFI_SETTINGS frame. Claim is single-use and atomic (bound to first
-  presenting MAC via `UPDATE ... WHERE claimed_by_mac IS NULL`; enrol+claim in
-  one transaction — `src/lib/auth/index.ts:78-104`). Expiry is opt-in:
-  `expiresAt` NULL = never expires. Device then enrols via the normal
-  `POST/GET /api/v1/ink/hello` path; post-approval the handshake public key is
-  frozen (MAC-spoof protection). There is no dedicated `/api` provisioning route
-  — provisioning is client-side serial + the voucher server action.
-- Known trade-offs (tracked in `ROADMAP.md`, not yet closed): voucher not
-  MAC-bound at mint time (first unclaimed-voucher presenter wins); Wi-Fi creds +
-  token cross the USB cable in cleartext (relies on physical-trust of the
-  provisioning window); no voucher revoke/delete UI.
+  `firmware/components/vellum_serial/` (which has a thorough, accurate README —
+  read it before touching the protocol). Per-model transport is in the model
+  table above; **it is not uniform**, and getting it wrong sends you to the
+  wrong layer when provisioning fails.
+- The one stream carries **binary Improv frames interleaved with a text
+  console**, so line-ending translation MUST stay disabled
+  (`ESP_LINE_ENDINGS_LF` on both JTAG and UART) or frames get corrupted. Console
+  commands: `wifi`, `server`, `token`, `info`, `nvs-erase`, `reboot` (+ `help`).
+- `WIFI_SETTINGS` carries **six** length-prefixed strings: SSID, password,
+  server URL, device token, NTP override, UTC timestamp. Vellum adds a
+  non-standard Improv error `INSECURE_URL (0x04)`: an `http://` server URL aborts
+  provisioning unless `CONFIG_VELLUM_ALLOW_INSECURE_PRIVATE_HTTP` is built in
+  (`make build DEV_HTTP=1`) — the likeliest field failure.
+- **SoftAP is NOT removed and NOT model-gated** — every model, D1001 included,
+  falls back to an open AP + captive DNS when NVS has no Wi-Fi credentials
+  (`firmware/main/main.c:580-591`, `wifi_manager.c`). `vellum_serial_init()`
+  runs on every boot (`main.c:489`), unconditionally — there is no Secure
+  Boot/prod gate on the console, so a cable always reaches `token` and
+  `nvs-erase` (SECURITY.md claims otherwise; SECURITY.md is wrong).
+- **Optional zero-touch voucher** (`provisioning_vouchers`,
+  `src/db/schema.ts:272`): mint via `createProvisioningVoucher()` in
+  `src/app/admin/actions.ts`. The voucher token **IS the device bearer token**,
+  sent in **cleartext** in the Improv frame. Claim is single-use and atomic
+  (bound to first presenting MAC; enrol+claim in one transaction —
+  `src/lib/auth/index.ts`). The mint path **always** sets a 7-day expiry;
+  `expiresAt = NULL` exists only for legacy rows. It can also pin a firmware
+  channel/version applied on claim. The device then enrols via
+  **`POST`** `/api/v1/ink/hello` (no `GET`); post-approval the handshake public
+  key is frozen (MAC-spoof protection).
+- Open trade-offs (`ROADMAP.md`): voucher not MAC-bound at mint; Wi-Fi creds +
+  token cross USB in cleartext; no voucher revoke/delete UI.
+
+## Access control (server)
+
+`src/proxy.ts` is only the outer gate (signed session cookie or `x-api-key`).
+The real authorization boundary is per-route `requestHasPermission`, backed by
+`admin_users`, `access_roles`, `role_permissions`, `user_role_assignments`,
+revocable `admin_sessions`, `admin_invitations`, `oidc_identities`,
+`service_accounts`, `audit_logs` (`src/db/schema.ts`, `src/lib/access/`): 7
+system roles, 21 permissions, scrypt password hashing, Entra OIDC
+(`src/app/api/auth/oidc/entra/`), `vls_` service-account tokens.
+**`ADMIN_API_KEY` currently resolves to a wildcard (`*`) bootstrap principal**
+marked "transitional compatibility only" in `src/lib/access/index.ts` — treat it
+as a root credential. `admin_users.mfa_required`/`mfa_enrolled_at` exist in the
+schema but **MFA is not implemented**, and **passkeys are not implemented**
+either (only an unread `access.passkeyPolicy` setting) despite the README
+advertising them.
 
 ## Signing — two INDEPENDENT trust chains (don't conflate)
 
-- **OTA app signature** = Ed25519 (PureEdDSA), verified in software by
-  `ota_manager.c`. Public key: repo-root `vellum-firmware-signing.pub` == Kconfig
-  `CONFIG_VELLUM_OTA_SIGNING_PUBKEY` default. One key signs all 4 models.
+- **OTA app signature** = Ed25519 (pure EdDSA over the device-computed 32-byte
+  digest), verified in software by `ota_manager.c` via **libsodium**
+  (`crypto_sign_verify_detached`) — not PSA, which cannot import Ed25519 keys in
+  IDF 6.0. Public key: repo-root `vellum-firmware-signing.pub` (PEM SPKI) whose
+  raw 32 bytes equal the Kconfig `CONFIG_VELLUM_OTA_SIGNING_PUBKEY` default. One
+  key signs all 4 models. There is a **2-slot rotation trust store** plus a
+  **revocation list** (`CONFIG_VELLUM_OTA_REVOKED_KEY_IDS`).
 - **Secure Boot v2** = RSA-3072-PSS, verified by ROM/bootloader. Gated behind
-  `OTA_SECURE_BOOT` in `firmware.yml` + `partitions.secure.csv`. Phase 3 (Secure
-  Boot on hardware + KMS/HSM) is still OPEN per ROADMAP.
+  `OTA_SECURE_BOOT` in `firmware.yml` + `partitions.secure.csv`; S3 only.
+  Phase 3 (Secure Boot on hardware + KMS/HSM) is still OPEN per ROADMAP.
 - Private keys live in **cloud KMS via GitHub OIDC (keyless)**;
   `OTA_KMS_KEY_VERSION` preferred, `FIRMWARE_SIGNING_KEY` secret is the legacy
-  fallback. `firmware/keys/` + `vellum-firmware-signing.pub` hold PUBLIC material
-  only; `*.pem` / `*.der` / `hsm_config.ini` are gitignored. See
-  `docs/SECURE_BOOT_AND_KMS.md` (accurate).
+  fallback. `firmware/keys/` + `vellum-firmware-signing.pub` hold PUBLIC
+  material only (public keys and eFuse digests **are** committed on purpose, so
+  a KMS key deletion cannot orphan the fleet); `*.pem` / `*.key` / `*.der` /
+  `hsm_config.ini` are gitignored.
 
-## Doc trust notes (as of the 2026-07-14 audit)
+## Doc trust notes (as of the 2026-08-12 audit)
 
-- **Accurate**: `docs/RELEASING.md` (except a stale "next firmware = v1.3.0"
-  onboarding paragraph), `docs/SECURE_BOOT_AND_KMS.md`, both CHANGELOGs,
-  `firmware/keys` + `firmware/host_test` READMEs.
-- **Stale / incomplete — verify against source before trusting**: `README.md`
-  (SoftAP-only onboarding, bogus `make setup`, missing `SESSION_SECRET`, wrong
-  test count), `SECURITY.md` (no voucher/USB coverage; §1 "token E2E-encrypted"
-  claim vs the cleartext voucher path), `docs/firmware-display-architecture.md` +
-  `docs/firmware-refactor-tasks.md` (E1003 shown as TBD/mono, D1001 omitted,
-  deps/version-sync/provisioning-UI marked open though shipped),
-  `ADDING_PANELS.md` + `epaper_uc8179/README.md` (missing UC8179_BW/ED103TC2
-  controllers). No README exists for `firmware/components/vellum_serial`.
-- `firmware/CHANGELOG.md` is baselined at the `firmware-v1.2.0` anchor, so all
-  firmware history before it (Improv/vellum_serial, panel drivers, OTA) lives
-  ONLY in the root `CHANGELOG.md`. The near-empty firmware changelog is correct
-  release-please behavior, not a bug.
+Every doc listed as stale in the previous edition of this section has since been
+fixed. **Accurate now**: `docs/RELEASING.md` (minus one stale firmware-version
+paragraph), `docs/SECURE_BOOT_AND_KMS.md`, `docs/DOCKER_DEPLOYMENT.md`,
+`README.md` (minus the items below), both CHANGELOGs,
+`firmware/components/vellum_serial/README.md`, `firmware/host_test/README.md`,
+`firmware/keys/README.md`, `ADDING_PANELS.md`, `epaper_uc8179/README.md`.
+
+**Known-wrong — verify against source before trusting:**
+
+- `SECURITY.md` (oldest top-level doc, predates RBAC/OIDC, the update sidecar
+  and the D1001 work): claims the USB console is "locked out by Secure Boot" (it
+  is not, see Provisioning); states an absolute "never over plaintext" while a
+  `DEV_HTTP=1` build profile exists; §5's Secure Boot runbook generates a local
+  signing key and flashes an **unsigned** image, skipping the supported
+  `make build SECURE=1` ladder — dangerous, it precedes an irreversible eFuse
+  burn; §7 describes only the old single-admin model; misattributes OTA
+  verification to PSA; no supported-versions table; no reporting channel.
+- `README.md`: advertises **passkeys** (not implemented); says "production
+  firmware enables encrypted NVS" though release images never include the `prod`
+  profile (NVS is unencrypted in everything the flash tool and OTA serve); says
+  E1001 uses a UART bridge (it is native USB); scopes the SoftAP fallback to
+  E-Series (it is all models); documents `corepack enable`.
+- `docs/firmware-display-architecture.md`: D1001 documented as raw RGB565 (it is
+  JPEG); its "Migration Plan" and two "Open Questions" are shipped history.
+- `docs/firmware-refactor-tasks.md`: structurally stale — nothing from D1001
+  bring-up, RTC, NTP policy, WPA3, or the OTA trust store is listed.
+- `components-lcd/esp_io_expander_pca9535/README.md`: verbatim upstream, tells
+  you to pull the registry version that breaks on IDF 6.0.
+- `ROADMAP.md`: the "Path to 100" scorecard is anchored to a 2026-07-12 snapshot
+  (~160 commits stale) and links a private artifact URL; the D1001 item is
+  shipped; stale host-test count; the whole RBAC/OIDC surface is untracked.
+- `firmware/CHANGELOG.md` is baselined at the `firmware-v1.2.0` anchor, so
+  firmware history before it lives ONLY in the root `CHANGELOG.md`. That is
+  correct release-please behavior, not a bug.
