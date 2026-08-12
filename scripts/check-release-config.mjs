@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { readFileSync } from "node:fs";
+import { classifyReleaseCommit } from "./classify-release-commit.mjs";
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const config = readJson("release-please-config.json");
 const manifest = readJson(".release-please-manifest.json");
 const packageJson = readJson("package.json");
 const workflow = readFileSync(".github/workflows/release-please.yml", "utf8");
+const firmwareWorkflow = readFileSync(".github/workflows/firmware.yml", "utf8");
+const dockerWorkflow = readFileSync(".github/workflows/docker.yml", "utf8");
 const deploymentAssetsWorkflow = readFileSync(".github/workflows/deployment-assets.yml", "utf8");
 const dependabotConfig = readFileSync(".github/dependabot.yml", "utf8");
 const productionCompose = readFileSync("deploy/docker-compose.yml", "utf8");
@@ -58,6 +61,36 @@ expect(workflow.includes("config-file: release-please-config.json"),
   "release workflow must use the manifest configuration");
 expect(workflow.includes("manifest-file: .release-please-manifest.json"),
   "release workflow must use the version manifest");
+expect(workflow.includes("Require release automation token") &&
+  workflow.includes("token: ${{ secrets.RELEASE_PAT }}") &&
+  !workflow.includes("secrets.RELEASE_PAT || secrets.GITHUB_TOKEN"),
+"release automation must fail closed without RELEASE_PAT");
+
+const releaseCommitFixtures = [
+  ["chore(main): release firmware 1.3.3 (#174)", "firmware"],
+  ["chore(firmware): release firmware 2.0.0", "firmware"],
+  ["Merge pull request #174 from metaneutrons/release-please--branches--main--components--firmware", "firmware"],
+  ["chore(main): release 1.9.4 (#175)", "server"],
+  ["chore(main): release server 2.0.0", "server"],
+  ["Merge pull request #175 from metaneutrons/release-please--branches--main--components--server", "server"],
+  ["fix(firmware): mention chore(main): release firmware 9.9.9 in docs", "none"],
+  ["fix: release-please--branches is not a component marker", "none"],
+];
+for (const [message, expected] of releaseCommitFixtures) {
+  expect(classifyReleaseCommit(message) === expected,
+    `release commit classifier must map ${JSON.stringify(message)} to ${expected}`);
+}
+for (const [name, contents] of [
+  ["firmware", firmwareWorkflow],
+  ["Docker", dockerWorkflow],
+]) {
+  expect(contents.includes("node scripts/classify-release-commit.mjs"),
+    `${name} workflow must use the shared release commit classifier`);
+}
+expect(firmwareWorkflow.includes("needs.version.outputs.release_component == 'none'"),
+  "firmware workflow must suppress all Release Please push builds");
+expect(dockerWorkflow.includes("needs.routing.outputs.release_component == 'none'"),
+  "Docker workflow must suppress all Release Please push builds");
 
 expect(deploymentAssetsWorkflow.includes("release:\n    types: [published]"),
   "deployment assets must be published with each GitHub release");

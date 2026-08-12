@@ -11,15 +11,23 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
+      - name: Require release automation token
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -z "$RELEASE_PAT" ]; then
+            echo "::error::RELEASE_PAT is required. Refusing to create a release whose downstream artifact workflows cannot run."
+            exit 1
+          fi
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         with:
-          # A PAT is a real actor, so the release PR fires CI (green checks, no
-          # --admin) and the published release fires firmware.yml's `release:
-          # published` build. GITHUB_TOKEN can't — GitHub suppresses downstream
-          # events for token-created PRs/releases. Falls back to GITHUB_TOKEN when
-          # RELEASE_PAT is unset (then downstream triggering won't work).
-          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          # A PAT is a real actor, so the release PR fires CI and a published
+          # release fires its artifact workflows. GitHub suppresses downstream
+          # events created with GITHUB_TOKEN, which can silently publish an empty
+          # release; the preflight above therefore fails closed when the PAT is
+          # unavailable instead of creating a partial release.
+          token: ${{ secrets.RELEASE_PAT }}
           # Drive from the manifest config, NOT an inline release-type. The inline
           # `release-type: node` put the action in simple mode and IGNORED
           # release-please-config.json — so its `extra-files` rule that syncs
