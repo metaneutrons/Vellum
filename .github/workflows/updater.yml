@@ -48,6 +48,8 @@ jobs:
         with:
           context: deploy/updater
           platforms: ${{ matrix.platform }}
+          build-args: |
+            UPDATER_VERSION=${{ github.event.release.tag_name || github.ref_name }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           sbom: true
