@@ -37,6 +37,12 @@ docker compose pull
 docker compose up -d
 ```
 
+Replacing the placeholders is enforced, not merely advised: the template values
+are the same length as real secrets, so the server and the updater both reject
+the shipped placeholder text outright and refuse to start. An unedited `.env`
+fails closed with the offending variable named, rather than booting with secrets
+that are public repository content.
+
 The host needs no repository checkout. `releases/latest/download` resolves to
 the latest stable Vellum Server release; replace it with
 `releases/download/vX.Y.Z` to pin a particular release. `SHA256SUMS` detects a
