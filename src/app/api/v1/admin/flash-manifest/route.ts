@@ -63,6 +63,14 @@ export async function GET(request: NextRequest) {
     name: `Vellum ${model.toUpperCase()}`,
     version: target.version,
     new_install_prompt_erase: true,
+    // ESP Web Tools defaults this to true and would offer its own Wi-Fi step
+    // after flashing. Vellum provisions over the same cable with its own Improv
+    // frames, which additionally carry the server URL, the device token, an NTP
+    // override and the wall clock — none of which the generic dialog can supply.
+    // Leaving it enabled lets an operator end up with a device that has Wi-Fi
+    // but no server, so the step is disabled and "Provision over USB" stays the
+    // single path.
+    improv: false,
     builds: [
       {
         chipFamily,
