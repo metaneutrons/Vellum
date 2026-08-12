@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.4](https://github.com/metaneutrons/Vellum/compare/v1.9.3...v1.9.4) (2026-08-12)
+
+
+### Bug Fixes
+
+* complete D1001 bring-up and native USB provisioning ([#173](https://github.com/metaneutrons/Vellum/issues/173)) ([9b80d46](https://github.com/metaneutrons/Vellum/commit/9b80d46a882def6a1990ed871c5532d74e8a1125))
+
 ## [1.9.3](https://github.com/metaneutrons/Vellum/compare/v1.9.2...v1.9.3) (2026-08-12)
 
 
