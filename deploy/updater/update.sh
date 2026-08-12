@@ -35,6 +35,10 @@ readonly UPDATER_SWAP_TIMEOUT_SECONDS="${UPDATER_SWAP_TIMEOUT_SECONDS:-180}"
 # The swap outcome outlives the container that performed it, so the NEW updater
 # can report what happened to the admin UI.
 readonly SWAP_RESULT_FILE="${SWAP_RESULT_FILE:-/state/updater-swap.json}"
+# Phase journal. The server cannot narrate its own restart — it is the thing being
+# replaced — so the updater records each step here and the admin UI reads it back
+# through /v1/status. Without this the operator only ever saw a state badge.
+readonly PROGRESS_FILE="${PROGRESS_FILE:-/state/updater-progress.json}"
 
 log() {
   printf '%s vellum-updater: %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
@@ -128,6 +132,7 @@ backup_database() {
   destination="${BACKUP_DIR}/vellum-pre-${1}-$(date -u +'%Y%m%dT%H%M%SZ').dump"
   temporary="${destination}.tmp"
 
+  set_phase "backing-up"
   log "creating pre-update database backup"
   if ! docker exec "$DATABASE_CONTAINER" pg_dump \
       --username "$DATABASE_USER" --dbname "$DATABASE_NAME" --format custom >"$temporary"; then
@@ -193,6 +198,7 @@ persist_server_image() {
 
 wait_for_readiness() {
   local deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))
+  set_phase "waiting-for-health"
   while (( SECONDS < deadline )); do
     if curl --fail --silent --show-error --max-time 5 "$READINESS_URL" |
         jq -e '.status == "ok" and .database.connected == true' >/dev/null; then
@@ -209,19 +215,24 @@ deploy_with_rollback() {
   rollback_ref="${IMAGE_REPOSITORY}:rollback"
   docker image tag "$old_id" "$rollback_ref"
 
+  set_phase "deploying" "$candidate"
   log "deploying $candidate"
   if compose_deploy "$candidate" && wait_for_readiness; then
     if persist_server_image "$candidate"; then
       log "deployment healthy: $candidate"
+      set_phase "done" "$candidate"
       return 0
     fi
     log "deployment healthy but image pin persistence failed; rolling back"
   fi
 
   log "deployment failed; rolling back to $old_id"
+  set_phase "rolling-back" "$rollback_ref"
   if ! compose_deploy "$rollback_ref" || ! wait_for_readiness; then
+    set_phase "failed" "automatic rollback failed; operator intervention required"
     die "automatic rollback failed; operator intervention required"
   fi
+  set_phase "failed" "rolled back because the new release did not become ready"
   die "deployment rolled back because the new release did not become ready"
 }
 
@@ -244,6 +255,24 @@ updater_container_id() {
     --project-name "$COMPOSE_PROJECT" \
     --file "$COMPOSE_FILE" \
     ps --quiet "$UPDATER_SERVICE" 2>/dev/null | head -n1
+}
+
+# Advisory like record_swap_result: a failed journal write must never abort an
+# update. `phase` is the step now running, `outcome` closes the journal out.
+set_phase() {
+  local phase="$1" detail="${2:-}" temporary="${PROGRESS_FILE}.tmp"
+  log "phase: $phase${detail:+ ($detail)}"
+  mkdir -p "$(dirname "$PROGRESS_FILE")" 2>/dev/null || true
+  if jq -n --arg phase "$phase" --arg detail "$detail" \
+           --arg at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+           --arg started "${PHASE_STARTED_AT:-}" \
+           '{phase: $phase, detail: (if $detail == "" then null else $detail end),
+             at: $at, startedAt: (if $started == "" then $at else $started end)}' \
+       >"$temporary" 2>/dev/null; then
+    mv -f "$temporary" "$PROGRESS_FILE" 2>/dev/null || rm -f "$temporary" 2>/dev/null || true
+  else
+    rm -f "$temporary" 2>/dev/null || true
+  fi
 }
 
 # Recording the outcome must never abort a swap, so every step here is advisory.
@@ -387,6 +416,9 @@ update_once() {
   fi
 
   log "new server release detected: ${current:-unknown} -> $tag"
+  PHASE_STARTED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  export PHASE_STARTED_AT
+  set_phase "verifying" "$tag"
   if ! verify_image "$candidate"; then
     die "image signature verification failed"
     return 1

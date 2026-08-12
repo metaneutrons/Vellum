@@ -331,7 +331,16 @@
     "updaterVersionUnknown": "Le service de mise à jour ne communique pas sa version : il est antérieur à cette fonctionnalité et donc obsolète.",
     "updaterManualHint": "Il ne peut pas remplacer son propre conteneur, cette étape est donc volontairement manuelle. À exécuter dans le répertoire de la pile :",
     "updaterSwapFailed": "Le service de mise à jour n'a pas pu se remplacer. Il fonctionne toujours avec la version précédente.",
-    "updaterSwapRolledBack": "Une mise à jour du service de mise à jour a été annulée ; la version précédente a été restaurée."
+    "updaterSwapRolledBack": "Une mise à jour du service de mise à jour a été annulée ; la version précédente a été restaurée.",
+    "phaseVerifying": "Vérification de la signature de l'image",
+    "phaseBackingUp": "Sauvegarde de la base de données",
+    "phaseDeploying": "Démarrage de la nouvelle version",
+    "phaseWaitingForHealth": "Attente du signal de bonne santé",
+    "serverConfirmSteps": "Étapes : vérifier la signature, sauvegarder la base, démarrer la nouvelle version, attendre son signal de bonne santé — et revenir en arrière automatiquement sinon.",
+    "serverConfirmDowntime": "Le serveur redémarre à la fin : cette page perd brièvement la connexion et se reconnecte d'elle-même.",
+    "serverUpdateDone": "Mise à jour de {from} vers {to}.",
+    "serverUpdateDoneShort": "Mise à jour vers {version}.",
+    "serverUpdateDoneDismiss": "Masquer"
   },
   "firmware": {
     "rolloutAdoption": "appareils exécutant cette version",
@@ -441,7 +450,12 @@
     "retry": "Réessayer",
     "confirmDelete": "Êtes-vous sûr ?",
     "selectTimezone": "Sélectionner le fuseau horaire…",
-    "clearSearch": "Effacer la recherche"
+    "clearSearch": "Effacer la recherche",
+    "updateRestartTitle": "Mise à jour du serveur",
+    "updateRestartBody": "Le serveur redémarre pour terminer la mise à jour. Cette page se reconnecte d'elle-même.",
+    "updateRestartToVersion": "Redémarrage pour terminer la mise à jour vers {version}. Cette page se reconnecte d'elle-même.",
+    "updateRestartElapsed": "En attente depuis {elapsed}",
+    "databaseReconnecting": "Tentative de reconnexion…"
   },
   "contentTypes": {
     "room-booking": "Réservation de salle",

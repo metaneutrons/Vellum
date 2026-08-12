@@ -331,7 +331,16 @@
     "updaterVersionUnknown": "The update service does not report its version, so it predates version reporting and is out of date.",
     "updaterManualHint": "It cannot replace its own container, so this step is deliberately manual. Run these in the stack directory:",
     "updaterSwapFailed": "The update service could not replace itself. It is still running the previous version.",
-    "updaterSwapRolledBack": "A self-update of the update service was rolled back; the previous version was restored."
+    "updaterSwapRolledBack": "A self-update of the update service was rolled back; the previous version was restored.",
+    "phaseVerifying": "Verifying the image signature",
+    "phaseBackingUp": "Backing up the database",
+    "phaseDeploying": "Starting the new version",
+    "phaseWaitingForHealth": "Waiting for it to report healthy",
+    "serverConfirmSteps": "Steps: verify the signature, back up the database, start the new version, wait for it to report healthy — and roll back automatically if it does not.",
+    "serverConfirmDowntime": "The server restarts at the end, so this page loses its connection for a moment and reconnects on its own.",
+    "serverUpdateDone": "Updated from {from} to {to}.",
+    "serverUpdateDoneShort": "Updated to {version}.",
+    "serverUpdateDoneDismiss": "Dismiss"
   },
   "firmware": {
     "rolloutAdoption": "devices currently running this version",
@@ -441,7 +450,12 @@
     "retry": "Retry",
     "confirmDelete": "Are you sure?",
     "selectTimezone": "Select timezone…",
-    "clearSearch": "Clear search"
+    "clearSearch": "Clear search",
+    "updateRestartTitle": "Updating the server",
+    "updateRestartBody": "The server is restarting to finish the update. This page reconnects on its own.",
+    "updateRestartToVersion": "Restarting to finish the update to {version}. This page reconnects on its own.",
+    "updateRestartElapsed": "Waiting for {elapsed}",
+    "databaseReconnecting": "Attempting to reconnect…"
   },
   "contentTypes": {
     "room-booking": "Room Booking",
