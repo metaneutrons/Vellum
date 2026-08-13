@@ -11,6 +11,12 @@ const { version } = JSON.parse(readFileSync("./package.json", "utf8")) as { vers
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // `next dev` otherwise appends a "This is NOT the Next.js you know" block to
+  // CLAUDE.md on every dev-server start, competing with the hand-maintained,
+  // audited content above it (see the "Doc trust notes" section). Disabling
+  // generation is the fix, not committing the block or gitignoring the diff —
+  // this file is meant to be authoritative for both humans and agents.
+  agentRules: false,
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
   },
