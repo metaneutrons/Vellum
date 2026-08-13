@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.10.0](https://github.com/metaneutrons/Vellum/compare/v1.9.6...v1.10.0) (2026-08-13)
+
+
+### Features
+
+* **deploy:** let the updater replace itself via a detached helper ([#189](https://github.com/metaneutrons/Vellum/issues/189)) ([394436e](https://github.com/metaneutrons/Vellum/commit/394436efb623f5dc645889c8b7c6d541b79b73b2))
+* **firmware:** give D1001 an audible confirmation chime ([#194](https://github.com/metaneutrons/Vellum/issues/194)) ([b281df8](https://github.com/metaneutrons/Vellum/commit/b281df89f54c14f9a3a2f4a3862ed83c7ea7fca7))
+* **server:** operator-chosen default profile, and a responsive cadence while awaiting content ([#197](https://github.com/metaneutrons/Vellum/issues/197)) ([d8c0aa5](https://github.com/metaneutrons/Vellum/commit/d8c0aa5e55b03d8552189a537a87d1ba89b1629a))
+* **system:** narrate the server update instead of failing mid-way ([#190](https://github.com/metaneutrons/Vellum/issues/190)) ([2296ac3](https://github.com/metaneutrons/Vellum/commit/2296ac3e5b91fbef7be52e4ee6dd638107041f2d))
+* **system:** surface the updater's own version so a stale sidecar is visible ([#187](https://github.com/metaneutrons/Vellum/issues/187)) ([f5c92a2](https://github.com/metaneutrons/Vellum/commit/f5c92a28a20eb4eaaae74219b296ac2ffba2684b))
+
+
+### Bug Fixes
+
+* **ci:** make the Schema Guard compare table+column, not bare names ([#196](https://github.com/metaneutrons/Vellum/issues/196)) ([792b427](https://github.com/metaneutrons/Vellum/commit/792b4274c5ba269afa459fc9f31618a068655403))
+* **firmware:** status screens that fit the panel and tell the truth ([#191](https://github.com/metaneutrons/Vellum/issues/191)) ([cc1528d](https://github.com/metaneutrons/Vellum/commit/cc1528d232d4fcbc00ca3edf05853940deb639ee))
+* one-command install, three false README claims, and the E1002 palette ([#193](https://github.com/metaneutrons/Vellum/issues/193)) ([037f5be](https://github.com/metaneutrons/Vellum/commit/037f5bee61bea77c4aaa6f12d7a8a704fcfba30b))
+* **provisioning:** explain a busy serial port instead of leaking the DOMException ([#195](https://github.com/metaneutrons/Vellum/issues/195)) ([c0235d3](https://github.com/metaneutrons/Vellum/commit/c0235d3eb629198c3b9dad8a80bd98ff4d4359fe))
+
 ## [1.9.6](https://github.com/metaneutrons/Vellum/compare/v1.9.5...v1.9.6) (2026-08-12)
 
 
