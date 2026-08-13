@@ -151,6 +151,13 @@ export async function GET(request: NextRequest) {
     ).catch((err) => log.warn("expectedIntervalS update failed", { mac: validation.data.mac, error: String(err) }));
   }
 
+  // Retry ladder for failed cycles. Sent as seconds, ascending, comma-separated;
+  // omitted entirely when the profile defines no ladder, in which case the device
+  // keeps its normal cadence on failure. See errorBackoffS in @/lib/sleep.
+  const backoffHeader: Record<string, string> = {};
+  const ladder = profile?.errorBackoffS ?? [];
+  if (ladder.length > 0) backoffHeader["X-Error-Backoff"] = ladder.join(",");
+
   // Compute content hash for client-side caching (skip refresh if unchanged)
   const { createHash } = await import("crypto");
   const contentHash = createHash("sha256").update(new Uint8Array(pixelBuffer)).digest("hex").slice(0, 16);
@@ -163,6 +170,7 @@ export async function GET(request: NextRequest) {
       headers: {
         "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
         "X-Sleep-Mode": sleepMode,
+        ...backoffHeader,
       },
     });
   }
@@ -173,6 +181,7 @@ export async function GET(request: NextRequest) {
       "Content-Type": display.format === "jpeg" ? "image/jpeg" : (display.colorMode === "fullcolor" ? "image/png" : "application/octet-stream"),
       "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
       "X-Sleep-Mode": sleepMode,
+      ...backoffHeader,
       "ETag": contentHash,
     },
   });

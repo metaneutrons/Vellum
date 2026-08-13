@@ -164,19 +164,21 @@ static void display_server_url(char *out, size_t out_len)
 static void display_transport_error(vellum_http_failure_t failure)
 {
     char safe_url[NVS_MAX_URL_LEN];
-    char message[NVS_MAX_URL_LEN + 72];
+    char detail[NVS_MAX_URL_LEN + 40];
     display_server_url(safe_url, sizeof(safe_url));
 
+    /* The URL belongs in the detail line, not crammed into the headline: it is
+     * the longest and least urgent part, and at title size it forced the whole
+     * screen down a font rung. */
     if (failure == VELLUM_HTTP_FAILURE_TLS_CERTIFICATE) {
-        snprintf(message, sizeof(message),
-                 "Secure connection failed\nCheck server certificate\n%s", safe_url);
+        snprintf(detail, sizeof(detail), "Check server certificate\n%s", safe_url);
+        display_show_status_message(VD_ICON_SERVER, "Secure connection failed", detail);
     } else if (failure == VELLUM_HTTP_FAILURE_TLS_HANDSHAKE) {
-        snprintf(message, sizeof(message),
-                 "Secure connection failed\nCheck server TLS settings\n%s", safe_url);
+        snprintf(detail, sizeof(detail), "Check server TLS settings\n%s", safe_url);
+        display_show_status_message(VD_ICON_SERVER, "Secure connection failed", detail);
     } else {
-        snprintf(message, sizeof(message), "Server unavailable\n%s", safe_url);
+        display_show_status_message(VD_ICON_SERVER, "Server unavailable", safe_url);
     }
-    display_show_error(message);
 }
 
 static vellum_telemetry_t gather_telemetry(void)
@@ -194,9 +196,16 @@ static vellum_telemetry_t gather_telemetry(void)
  * TOFU hello handshake
  * ----------------------------------------------------------------------- */
 
-static bool perform_hello(vellum_http_failure_t *failure)
+/**
+ * @param pending  Set true when the server answered normally and said this
+ *                 device is awaiting operator approval. Without this, the caller
+ *                 cannot tell a correctly-enrolled device from an unreachable
+ *                 server, and showed a red "No Server" fault for both.
+ */
+static bool perform_hello(vellum_http_failure_t *failure, bool *pending)
 {
     if (failure) *failure = VELLUM_HTTP_FAILURE_NONE;
+    if (pending) *pending = false;
     ESP_LOGI(TAG, "Performing hello handshake");
 
     vellum_http_response_t resp = {0};
@@ -256,6 +265,7 @@ static bool perform_hello(vellum_http_failure_t *failure)
                 if (cJSON_IsString(status_obj) &&
                     strcmp(status_obj->valuestring, "pending") == 0) {
                     ESP_LOGI(TAG, "Device is pending approval");
+                    if (pending) *pending = true;
                     cJSON_Delete(root);
                     http_client_free_response(&resp);
                     return false;
@@ -291,8 +301,35 @@ static bool perform_hello(vellum_http_failure_t *failure)
  * a no-op on the e-paper models. */
 RTC_DATA_ATTR static uint32_t s_render_failures;
 
-/* Pace retries: a healthy cycle keeps the server's cadence, each failure
- * doubles the wait up to the configured cap. */
+/* Retry ladder from the assigned refresh profile (X-Error-Backoff). Also in RTC
+ * memory: the streak is useless without the ladder that goes with it, and a cold
+ * boot into an unreachable server never receives a header at all — hence the
+ * built-in default below, which mirrors errorBackoffS in src/lib/sleep. */
+RTC_DATA_ATTR static uint32_t s_backoff_ladder[RENDER_BACKOFF_MAX_STEPS];
+RTC_DATA_ATTR static uint32_t s_backoff_steps;
+
+static const uint32_t k_default_backoff[] = { 60, 300, 900, 3600 };
+
+/* How often a device that is enrolled but not yet approved checks back. Short
+ * enough that approving a display in the admin UI visibly wakes it, long enough
+ * not to burn a battery in the approval queue. Deliberately NOT the backoff
+ * ladder — see the 401 branch in perform_render(). */
+#define VELLUM_APPROVAL_POLL_SEC 300
+
+/* Adopt a ladder the server just sent. Ignored when the header is absent so a
+ * 304 or an error response never silently clears a good ladder. */
+static void adopt_backoff_ladder(const char *header)
+{
+    uint32_t parsed[RENDER_BACKOFF_MAX_STEPS];
+    size_t n = render_backoff_parse(header, parsed, RENDER_BACKOFF_MAX_STEPS);
+    if (n == 0) return;
+    for (size_t i = 0; i < n; i++) s_backoff_ladder[i] = parsed[i];
+    s_backoff_steps = (uint32_t)n;
+}
+
+/* Pace retries: a healthy cycle keeps the server's cadence, a failing one walks
+ * the ladder — which starts BELOW the cadence, so one dropped request costs a
+ * minute rather than the doubled cadence this used to impose. */
 static uint32_t pace_retry(uint32_t base_sec, bool ok)
 {
     if (ok) {
@@ -304,8 +341,17 @@ static uint32_t pace_retry(uint32_t base_sec, bool ok)
         return base_sec;
     }
     if (s_render_failures < UINT32_MAX) s_render_failures++;
-    uint32_t delay = render_backoff_delay(base_sec, s_render_failures,
-                                          CONFIG_VELLUM_ERROR_BACKOFF_MAX_SEC);
+
+    const uint32_t *ladder = s_backoff_steps > 0 ? s_backoff_ladder : k_default_backoff;
+    size_t steps = s_backoff_steps > 0 ? s_backoff_steps
+                                       : sizeof(k_default_backoff) / sizeof(k_default_backoff[0]);
+
+    uint32_t delay = render_backoff_delay(base_sec, s_render_failures, ladder, steps);
+#if CONFIG_VELLUM_ERROR_BACKOFF_MAX_SEC > 0
+    if (delay > CONFIG_VELLUM_ERROR_BACKOFF_MAX_SEC) {
+        delay = CONFIG_VELLUM_ERROR_BACKOFF_MAX_SEC;
+    }
+#endif
     if (delay != base_sec) {
         ESP_LOGW(TAG, "Backing off after %lu consecutive failure(s): %lu s instead of %lu s",
                  (unsigned long)s_render_failures, (unsigned long)delay,
@@ -338,6 +384,7 @@ static uint32_t perform_render(bool *render_ok)
     if (resp.sleep_duration > 0) {
         sleep_sec = (uint32_t)resp.sleep_duration;
     }
+    adopt_backoff_ladder(resp.error_backoff);
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Render request failed: %s", esp_err_to_name(err));
@@ -363,14 +410,17 @@ static uint32_t perform_render(bool *render_ok)
 #endif
             if (display_update_raw(resp.binary_body, resp.binary_len) != ESP_OK) {
                 ESP_LOGW(TAG, "Malformed pixel buffer (%zu bytes)", resp.binary_len);
-                display_show_error("Error");
+                display_show_status_message(VD_ICON_WARNING, "Image rejected",
+                                            "The server sent a frame this panel "
+                                            "could not draw");
             } else {
                 ok = true;           /* frame drawn successfully */
                 if (render_ok) *render_ok = true;
             }
         } else {
             ESP_LOGW(TAG, "Empty render response body");
-            display_show_error("Error");
+            display_show_status_message(VD_ICON_SERVER, "Empty response",
+                                        "The server returned no image");
         }
     } else if (resp.status_code == 304) {
         ESP_LOGI(TAG, "Content unchanged — skipping display refresh");
@@ -380,17 +430,47 @@ static uint32_t perform_render(bool *render_ok)
         display_show_no_content();
         ok = true; if (render_ok) *render_ok = true;   /* legitimate configured idle state */
     } else if (resp.status_code == 401) {
+        /* Not a fault the operator can fix at the device: the stored token was
+         * revoked, and the very next thing this branch does is re-enrol. The old
+         * red "Unauthorized" made a normal re-enrolment look like a failure. */
         ESP_LOGW(TAG, "401 Unauthorized");
-        display_show_error("Unauthorized");
         nvs_manager_store_token("");
         http_client_set_token(NULL);
-        perform_hello(NULL);
+        bool pending = false;
+        bool re_enrolled = perform_hello(NULL, &pending);
+        if (pending) {
+            display_show_status_message(VD_ICON_PENDING, "Waiting for approval",
+                                        "An administrator must approve this "
+                                        "display");
+        } else if (re_enrolled) {
+            display_show_status_message(VD_ICON_REFRESH, "Reconnected",
+                                        "Fetching content");
+        } else {
+            display_show_status_message(VD_ICON_PENDING, "Reconnecting",
+                                        "The server no longer accepts this "
+                                        "display's token");
+        }
+
+        /* Neither waiting for approval nor having just re-enrolled is a failure,
+         * so neither may enter the backoff ladder: a display sitting in the
+         * approval queue used to drift out to the ladder's last rung, so after an
+         * operator finally approved it, it could stay blank for another hour.
+         * Fixed brisk cadence, streak reset. */
+        if (pending || re_enrolled) {
+            s_render_failures = 0;
+            http_client_free_response(&resp);
+            return VELLUM_APPROVAL_POLL_SEC;
+        }
     } else if (resp.status_code >= 500 || resp.status_code == -1) {
         ESP_LOGW(TAG, "Server error (%d)", resp.status_code);
-        display_show_error("Server Error");
+        display_show_status_message(VD_ICON_SERVER, "Server error",
+                                    "Retrying automatically");
     } else {
+        char detail[48];
         ESP_LOGW(TAG, "Unexpected status %d", resp.status_code);
-        display_show_error("Error");
+        snprintf(detail, sizeof(detail), "Unexpected response (HTTP %d)",
+                 resp.status_code);
+        display_show_status_message(VD_ICON_SERVER, "Server error", detail);
     }
 
     http_client_free_response(&resp);
@@ -462,13 +542,15 @@ static void d1001_button_task(void *arg)
                     if (rem < 0) rem = 0;
                     if (rem != last_cd) {
                         char msg[48];
-                        snprintf(msg, sizeof(msg), "Factory Reset in %d", rem);
-                        display_show_error(msg);
+                        snprintf(msg, sizeof(msg), "Factory reset in %d", rem);
+                        display_show_status_message(VD_ICON_REFRESH, msg,
+                                                    "Release the button to cancel");
                         last_cd = rem;
                     }
                 }
                 if (held >= 10000) {
-                    display_show_error("Factory Reset...");
+                    display_show_status_message(VD_ICON_REFRESH, "Factory reset",
+                                                "Erasing configuration");
                     vTaskDelay(pdMS_TO_TICKS(500));
                     nvs_flash_erase();
                     esp_restart();
@@ -546,14 +628,16 @@ void app_main(void)
             if (held_ms >= 3000) {
                 int rem = (10000 - held_ms) / 1000;
                 char msg[32];
-                snprintf(msg, sizeof(msg), "Factory Reset in %d", rem);
-                display_show_error(msg);
+                snprintf(msg, sizeof(msg), "Factory reset in %d", rem);
+                display_show_status_message(VD_ICON_REFRESH, msg,
+                                            "Release the button to cancel");
             }
             vTaskDelay(pdMS_TO_TICKS(200));
             held_ms += 200;
         }
         if (held_ms >= 10000) {
-            display_show_error("Factory Reset...");
+            display_show_status_message(VD_ICON_REFRESH, "Factory reset",
+                                        "Erasing configuration");
             vTaskDelay(pdMS_TO_TICKS(500));
             nvs_flash_erase();
             esp_restart();
@@ -582,7 +666,8 @@ void app_main(void)
     if (battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !board_is_usb_powered()) {
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
-        display_show_error("Low Battery");
+        display_show_status_message(VD_ICON_BATTERY, "Low battery",
+                                    "Connect USB power to continue");
         display_sleep_unless_usb_powered();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
         /* LCD mode returns after a bounded delay and re-checks the battery. */
@@ -602,7 +687,8 @@ void app_main(void)
     /* Prepare SNTP before DHCP so a network-provided NTP server (option 42)
      * is captured alongside the lease. */
     if (!time_sync_prepare()) {
-        display_show_error("Time synchronization setup failed");
+        display_show_status_message(VD_ICON_WARNING, "Clock unavailable",
+                                    "Time synchronization could not start");
         display_sleep_unless_usb_powered();
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
         esp_restart();
@@ -646,7 +732,8 @@ void app_main(void)
      * verification or send device credentials until NTP has set the time. */
     if (!time_sync_wait_for_valid_clock()) {
         ESP_LOGW(TAG, "NTP did not provide a valid system time");
-        display_show_error("Time synchronization failed\nCheck network access");
+        display_show_status_message(VD_ICON_WIFI, "Clock not set",
+                                    "Check network access to the time server");
         display_sleep_unless_usb_powered();
         sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
         esp_restart();
@@ -714,16 +801,30 @@ void app_main(void)
         http_client_set_token(token);
     } else {
         vellum_http_failure_t hello_failure;
-        while (!perform_hello(&hello_failure)) {
+        bool hello_pending = false;
+        while (!perform_hello(&hello_failure, &hello_pending)) {
             ESP_LOGW(TAG, "No token after hello — device may be pending or server unreachable");
-            if (hello_failure == VELLUM_HTTP_FAILURE_TLS_CERTIFICATE ||
-                hello_failure == VELLUM_HTTP_FAILURE_TLS_HANDSHAKE) {
+            if (hello_pending) {
+                /* The server answered and enrolled this device; it is simply not
+                 * approved yet. This is the single most common state a new
+                 * display sits in, and it used to render as a red "No Server". */
+                display_show_status_message(VD_ICON_PENDING, "Waiting for approval",
+                                            "An administrator must approve this "
+                                            "display in Vellum");
+            } else if (hello_failure == VELLUM_HTTP_FAILURE_TLS_CERTIFICATE ||
+                       hello_failure == VELLUM_HTTP_FAILURE_TLS_HANDSHAKE) {
                 display_transport_error(hello_failure);
             } else {
-                display_show_error("No Server");
+                char safe_url[NVS_MAX_URL_LEN];
+                display_server_url(safe_url, sizeof(safe_url));
+                display_show_status_message(VD_ICON_SERVER, "No server", safe_url);
             }
             display_sleep_unless_usb_powered();
-            sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+            /* Approval is the state an operator is actively waiting on, so poll
+             * briskly for it rather than at the 15-minute fallback cadence. */
+            sleep_manager_enter(hello_pending ? VELLUM_APPROVAL_POLL_SEC
+                                              : CONFIG_VELLUM_FALLBACK_SLEEP_SEC,
+                                buttons_get_wake_mask());
             /* On D1001 this returns after delay; on E-Paper it does not return */
         }
     }

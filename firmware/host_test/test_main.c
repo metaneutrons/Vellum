@@ -16,6 +16,7 @@ void run_sy6974b_power_tests(void);
 void run_transport_policy_tests(void);
 void run_wifi_failure_tests(void);
 void run_render_backoff_tests(void);
+void run_status_layout_tests(void);
 
 int main(void)
 {
@@ -28,5 +29,6 @@ int main(void)
     run_transport_policy_tests();
     run_wifi_failure_tests();
     run_render_backoff_tests();
+    run_status_layout_tests();
     return UNITY_END();
 }

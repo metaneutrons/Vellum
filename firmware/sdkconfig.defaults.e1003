@@ -9,3 +9,10 @@ CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 # CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG is not set
 CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+
+# NOTE on fonts: E1003 needs glyphs larger than 48px (its 1404px short side is
+# ~3x the E-Series panels, so 48px text renders at roughly a third of the
+# intended optical size). There is no Kconfig switch for that — LVGL's bundled
+# Montserrat stops at 48. The two larger sizes are therefore pre-generated
+# assets compiled only into this model; see components/vellum_display/fonts/
+# and assets/render-fonts.sh.
