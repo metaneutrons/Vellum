@@ -291,7 +291,14 @@
     "moveDown": "Descendre",
     "overnight": "Règle nocturne (franchit minuit)",
     "deleteTitle": "Supprimer le profil",
-    "deleteMessage": "Supprimer ce profil ? Les appareils utiliseront les valeurs par défaut."
+    "deleteMessage": "Supprimer ce profil ? Les appareils utiliseront les valeurs par défaut.",
+    "setAsDefault": "Définir par défaut",
+    "defaultSet": "Profil par défaut mis à jour",
+    "defaultHint": "Les nouveaux écrans et ceux sans profil utilisent « {name} ».",
+    "noDefaultHint": "Aucun profil par défaut — les écrans sans profil utilisent les intervalles intégrés (60 s sur USB, 15 min sur batterie).",
+    "whileWaiting": "En attente de contenu",
+    "whileWaitingHint": "Les écrans enregistrés sans contenu attribué se reconnectent à cette fréquence, afin que l’attribution de contenu pendant l’installation prenne effet rapidement. Cela ne fait que raccourcir les intervalles ci-dessus ; les écrans dont la batterie est critique conservent leur intervalle de batterie faible.",
+    "default": "Par défaut"
   },
   "system": {
     "title": "Système",

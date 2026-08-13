@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createTheme, updateTheme, deleteTheme } from "../actions";
+import { createTheme, updateTheme, deleteTheme, setDefaultTheme } from "../actions";
 import { useToast } from "@/components/toast";
 import { ThemePreview } from "@/components/theme-preview";
 import { Modal } from "@/components/modal";
@@ -34,6 +34,8 @@ interface DbTheme { id: string; name: string; config: unknown; isDefault: boolea
 
 export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
   const tt = useTranslations("themes");
+  // The "Set as default" label lives under profiles; both objects share it.
+  const tp = useTranslations("profiles");
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
@@ -54,6 +56,13 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
         toast("success", editing === "new" ? tt("created") : tt("updated"));
         setEditing(null);
     } catch { toast("error", tt("saveFailed")); }
+    });
+  }
+
+  function makeDefault(id: string) {
+    startTransition(async () => {
+      try { await setDefaultTheme(id); toast("success", tp("defaultSet")); }
+      catch { toast("error", "Failed to set default"); }
     });
   }
 
@@ -95,6 +104,9 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {!t.isDefault && (
+                <Button size="sm" variant="plain" onClick={() => makeDefault(t.id)}>{tp("setAsDefault")}</Button>
+              )}
               <Button size="sm" variant="plain" onClick={() => startEdit(t)} leading={<Pencil size={16} aria-hidden="true" />}>{tt("edit")}</Button>
               <Button size="sm" variant="plain" aria-label={tt("delete")} onClick={() => setDeleting(t.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
             </div>

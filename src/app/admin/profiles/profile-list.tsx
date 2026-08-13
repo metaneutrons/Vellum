@@ -4,7 +4,7 @@
 
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
-import { createRefreshProfile, updateRefreshProfile, deleteRefreshProfile } from "../actions";
+import { createRefreshProfile, updateRefreshProfile, deleteRefreshProfile, setDefaultRefreshProfile } from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
@@ -18,7 +18,7 @@ import { Search, Plus, Pencil, Trash2, CalendarClock, Clock, ChevronUp, ChevronD
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
-interface Profile { id: string; name: string; config: unknown; }
+interface Profile { id: string; name: string; config: unknown; isDefault: boolean; }
 interface ScheduleRule { name: string; days: number[]; startHour: number; endHour: number; intervalS: number; }
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -124,6 +124,7 @@ const MAX_BACKOFF_STEPS = 8;
 const DEFAULT_CONFIG = {
   usbIntervalS: 60, batteryIntervalS: 900, lowBatteryIntervalS: 3600,
   lowBatteryThresholdPct: 20, imminentEventWindowS: 1200, wakeBeforeEventS: 300,
+  unassignedIntervalS: 300,
   schedule: [] as ScheduleRule[],
   errorBackoffS: [60, 300, 900, 3600],
 };
@@ -177,7 +178,15 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
     });
   }
 
+  function makeDefault(id: string) {
+    startTransition(async () => {
+      try { await setDefaultRefreshProfile(id); toast("success", t("defaultSet")); }
+      catch { toast("error", "Failed to set default"); }
+    });
+  }
+
   const filtered = profiles.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
+  const defaultProfile = profiles.find(p => p.isDefault);
 
   return (
     <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
@@ -186,6 +195,12 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         <div className="flex-1 min-w-0">
         <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
         <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
+        {/* Name the inherited behaviour instead of leaving it implied: the device
+            picker offers a "Default" that used to resolve to constants in the
+            source, so an operator could not see what an unconfigured display did. */}
+        <p className="text-[13px] text-label-tertiary mt-1">
+          {defaultProfile ? t("defaultHint", { name: defaultProfile.name }) : t("noDefaultHint")}
+        </p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
@@ -207,6 +222,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold tracking-tight text-label">{p.name}</span>
+                    {p.isDefault && <StatusPill tone="accent">{t("default")}</StatusPill>}
                     {rules.length > 0 && (
                       <StatusPill tone="accent">{rules.length} rule{rules.length > 1 ? "s" : ""}</StatusPill>
                     )}
@@ -221,6 +237,9 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {!p.isDefault && (
+                    <Button size="sm" variant="plain" onClick={() => makeDefault(p.id)}>{t("setAsDefault")}</Button>
+                  )}
                   <Button size="sm" variant="gray" onClick={() => startEdit(p)} leading={<Pencil size={15} aria-hidden="true" />}>{t("edit")}</Button>
                   <Button size="sm" variant="plain" aria-label={t("delete")} onClick={() => setDeleting(p.id)} className="text-red px-2"><Trash2 size={16} aria-hidden="true" /></Button>
                 </div>
@@ -273,6 +292,13 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
               )}
             </div>
           ))}
+        </div>
+
+        <h3 className="text-sm font-semibold text-label mb-1">{t("whileWaiting")}</h3>
+        <p className="text-xs text-label-secondary mb-3">{t("whileWaitingHint")}</p>
+        <div className="mb-6">
+          <IntervalPicker value={(config.unassignedIntervalS as number) ?? 300}
+            onChange={v => setConfig(c => ({ ...c, unassignedIntervalS: v }))} />
         </div>
 
         <h3 className="text-sm font-semibold text-label mb-1">Error Retry Ladder</h3>

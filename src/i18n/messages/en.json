@@ -291,7 +291,14 @@
     "moveDown": "Move down",
     "overnight": "Overnight rule (wraps past midnight)",
     "deleteTitle": "Delete profile",
-    "deleteMessage": "Delete this refresh profile? Devices using it will fall back to defaults."
+    "deleteMessage": "Delete this refresh profile? Devices using it will fall back to defaults.",
+    "setAsDefault": "Set as default",
+    "defaultSet": "Default profile updated",
+    "defaultHint": "New displays and displays without a profile use “{name}”.",
+    "noDefaultHint": "No default set — displays without a profile use the built-in intervals (60 s on USB, 15 min on battery).",
+    "whileWaiting": "While waiting for content",
+    "whileWaitingHint": "Enrolled displays with nothing assigned check back this often, so assigning content during setup takes effect promptly. It only ever shortens the intervals above; displays on a critical battery keep their low-battery interval.",
+    "default": "Default"
   },
   "system": {
     "title": "System",

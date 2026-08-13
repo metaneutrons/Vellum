@@ -64,13 +64,28 @@ export const contentInstances = pgTable("content_instances", {
 
 /* ── Refresh Profiles ─────────────────────────────────────────── */
 
-export const refreshProfiles = pgTable("refresh_profiles", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  config: jsonb("config").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const refreshProfiles = pgTable(
+  "refresh_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    config: jsonb("config").notNull(),
+    /**
+     * The profile a display uses when none is assigned to it explicitly.
+     *
+     * Deliberately operator-chosen rather than seeded: the device picker has
+     * always offered a "Default" option, but it resolved to hard-coded constants
+     * in src/lib/sleep, so nobody could see or change what an unconfigured
+     * display actually did. At most one row may hold this — enforced by a partial
+     * unique index (drizzle/0011), which makes "two defaults" unrepresentable
+     * rather than something application code has to remember.
+     */
+    isDefault: boolean("is_default").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("refresh_profiles_is_default_idx").on(t.isDefault)],
+);
 
 /* ── Settings (KV store) ──────────────────────────────────────── */
 
