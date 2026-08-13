@@ -291,7 +291,14 @@
     "moveDown": "Nach unten",
     "overnight": "Übernachtregel (über Mitternacht)",
     "deleteTitle": "Profil löschen",
-    "deleteMessage": "Dieses Aktualisierungsprofil löschen? Geräte wechseln zu den Standardwerten."
+    "deleteMessage": "Dieses Aktualisierungsprofil löschen? Geräte wechseln zu den Standardwerten.",
+    "setAsDefault": "Als Standard festlegen",
+    "defaultSet": "Standardprofil aktualisiert",
+    "defaultHint": "Neue Displays und Displays ohne Profil verwenden „{name}“.",
+    "noDefaultHint": "Kein Standard festgelegt – Displays ohne Profil verwenden die eingebauten Intervalle (60 s an USB, 15 Min. im Akkubetrieb).",
+    "whileWaiting": "Während auf Inhalte gewartet wird",
+    "whileWaitingHint": "Angemeldete Displays ohne zugewiesene Inhalte fragen so oft nach, damit das Zuweisen von Inhalten bei der Einrichtung schnell wirkt. Die Intervalle oben werden dadurch nur verkürzt, nie verlängert; Displays mit kritischem Akku behalten ihr Akku-Intervall.",
+    "default": "Standard"
   },
   "system": {
     "title": "System",

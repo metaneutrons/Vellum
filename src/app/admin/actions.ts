@@ -408,6 +408,55 @@ export async function deleteRefreshProfile(id: string) {
   }
 }
 
+/**
+ * Designate the refresh profile used by displays with none assigned, or pass null
+ * to clear it (they then fall back to the built-in intervals).
+ *
+ * Both writes happen in one transaction because a partial unique index allows only
+ * one row to hold the flag — clearing and setting separately would violate it
+ * halfway through. That constraint is deliberate: it makes "two defaults"
+ * impossible to represent rather than something this function must remember.
+ */
+export async function setDefaultRefreshProfile(id: string | null) {
+  const actor = await requireAdmin("profiles.manage");
+  try {
+    await withDb(() => db.transaction(async (tx) => {
+      await tx.update(refreshProfiles).set({ isDefault: false }).where(eq(refreshProfiles.isDefault, true));
+      if (id) await tx.update(refreshProfiles).set({ isDefault: true }).where(eq(refreshProfiles.id, id));
+    }), "set-default-refresh-profile");
+    revalidatePath("/admin/profiles");
+    revalidatePath("/admin/devices");
+    await writeAudit(actor, "profile.setDefault", "refresh_profile", id ?? undefined);
+  } catch (err) {
+    log.error("Failed to set default refresh profile", { id, error: String(err) });
+    throw err;
+  }
+}
+
+/**
+ * Designate the theme used by displays with none assigned, or null to clear it.
+ *
+ * `themes.is_default` and the render route's fallback to it have existed since the
+ * initial schema, and the themes UI has always rendered a "Default" badge — but
+ * nothing could ever write the flag, so that badge was unreachable. This is the
+ * missing half.
+ */
+export async function setDefaultTheme(id: string | null) {
+  const actor = await requireAdmin("themes.manage");
+  try {
+    await withDb(() => db.transaction(async (tx) => {
+      await tx.update(themes).set({ isDefault: false }).where(eq(themes.isDefault, true));
+      if (id) await tx.update(themes).set({ isDefault: true }).where(eq(themes.id, id));
+    }), "set-default-theme");
+    revalidatePath("/admin/themes");
+    revalidatePath("/admin/devices");
+    await writeAudit(actor, "theme.setDefault", "theme", id ?? undefined);
+  } catch (err) {
+    log.error("Failed to set default theme", { id, error: String(err) });
+    throw err;
+  }
+}
+
 /* ── Firmware ──────────────────────────────────────────────────── */
 
 export async function getAvailableVersions() {

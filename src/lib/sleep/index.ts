@@ -69,6 +69,23 @@ export const refreshProfileSchema = z.object({
     .array(z.number().int().positive())
     .max(8)
     .default([60, 300, 900, 3600]),
+  /**
+   * Ceiling on the refresh interval while a display has no content assigned.
+   *
+   * Commissioning is the one moment an operator is standing in front of the
+   * display waiting for it to react, and it used to be the slowest: the render
+   * route answered 204 before computing any cadence, so the device fell back to
+   * its firmware default of 900s and the profile never applied at all.
+   *
+   * A ceiling rather than its own interval, so it inherits the USB / battery
+   * tiers below instead of duplicating them — it can only make a display more
+   * responsive, never less. The low-battery tier is exempt (see computeSleep):
+   * protecting a critical cell outranks commissioning convenience.
+   *
+   * 300s matches VELLUM_APPROVAL_POLL_SEC in the firmware, which is already the
+   * cadence for the analogous "enrolled but waiting for an operator" state.
+   */
+  unassignedIntervalS: z.number().int().positive().default(300),
 });
 
 export type RefreshProfile = z.infer<typeof refreshProfileSchema>;
@@ -83,6 +100,13 @@ export interface SleepContext {
   profile?: RefreshProfile | null;
   rendererOverrideS?: number | null;
   timezone?: string;
+  /**
+   * False while the display has nothing assigned to render. Caps the result at
+   * `unassignedIntervalS` so assigning content during setup takes effect
+   * promptly. Defaults to true: a caller that does not know cannot accidentally
+   * make a configured display poll faster than its profile asks.
+   */
+  hasContent?: boolean;
 }
 
 export interface SleepResult {
@@ -121,12 +145,24 @@ function secondsUntilHour(now: Date, targetHour: number): number {
 export function computeSleep(ctx: SleepContext): SleepResult {
   const p = ctx.profile ?? DEFAULT_PROFILE;
 
+  /* A display with nothing assigned is being commissioned, which is exactly when
+   * an operator is waiting on it — so cap whatever the tiers below decide. Only
+   * ever shortens: `min` cannot make a configured display slower. Applied to the
+   * result rather than as a separate interval so it inherits the USB / battery
+   * distinction instead of duplicating it. */
+  const awaitingContent = ctx.hasContent === false;
+  const cap = (r: SleepResult): SleepResult =>
+    awaitingContent && r.durationS > p.unassignedIntervalS
+      ? { durationS: p.unassignedIntervalS, mode: r.mode }
+      : r;
+
   // 1. Content renderer override (always poll mode)
   if (ctx.rendererOverrideS != null && ctx.rendererOverrideS > 0) {
     return { durationS: ctx.rendererOverrideS, mode: "poll" };
   }
 
-  // 2. Low battery → sleep to conserve
+  // 2. Low battery → sleep to conserve. NOT capped: a near-dead cell outranks
+  // commissioning convenience, and this is the one tier meant to be slow.
   if (ctx.powerSource === "battery" && ctx.batteryLevel < p.lowBatteryThresholdPct) {
     return { durationS: p.lowBatteryIntervalS, mode: "sleep" };
   }
@@ -136,9 +172,9 @@ export function computeSleep(ctx: SleepContext): SleepResult {
     if (matchesRule(rule, ctx.now)) {
       if (rule.mode === "sleep") {
         // Sleep until the rule's endHour
-        return { durationS: secondsUntilHour(ctx.now, rule.endHour), mode: "sleep" };
+        return cap({ durationS: secondsUntilHour(ctx.now, rule.endHour), mode: "sleep" });
       }
-      return { durationS: rule.intervalS, mode: "poll" };
+      return cap({ durationS: rule.intervalS, mode: "poll" });
     }
   }
 
@@ -152,7 +188,7 @@ export function computeSleep(ctx: SleepContext): SleepResult {
 
   // 5. Default based on power source
   const durationS = ctx.powerSource === "usb" ? p.usbIntervalS : p.batteryIntervalS;
-  return { durationS, mode: p.defaultMode };
+  return cap({ durationS, mode: p.defaultMode });
 }
 
 /** Legacy wrapper — returns just the duration in seconds */

@@ -46,9 +46,9 @@ interface FirmwareVersion {
 
 interface Props {
   devices: Record<string, unknown>[];
-  themes: { id: string; name: string }[];
+  themes: { id: string; name: string; isDefault?: boolean }[];
   contentInstances: { id: string; name: string; typeSlug: string; config: unknown }[];
-  refreshProfiles: { id: string; name: string }[];
+  refreshProfiles: { id: string; name: string; isDefault?: boolean }[];
   firmwareVersions: FirmwareVersion[];
   providers: { id: string; type: string; name: string }[];
   knownDisplays: { label: string; width: number; height: number }[];
@@ -61,6 +61,13 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
   const devices = rawDevices as unknown as Device[];
   const { toast } = useToast();
   const t = useTranslations("devices");
+  /* Name what "default" actually resolves to. Leaving it bare meant an operator
+   * could not tell which profile (or theme) an unassigned display would use — the
+   * answer used to be constants in the source. */
+  const inheritedLabel = (items: { name: string; isDefault?: boolean }[]) => {
+    const designated = items.find((i) => i.isDefault);
+    return designated ? `${t("default")} · ${designated.name}` : t("default");
+  };
   const [pending, startTransition] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string | null>(null);
@@ -205,13 +212,13 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                   </label>
                   <label className="flex items-center gap-1.5">{t("theme")}
                     <select className={selectCls} value={d.theme_id ?? ""} aria-label={t("theme")} onChange={(e) => update(d.mac, { themeId: e.target.value || null })}>
-                      <option value="">{t("default")}</option>
+                      <option value="">{inheritedLabel(themes)}</option>
                       {themes.map((th) => <option key={th.id} value={th.id}>{th.name}</option>)}
                     </select>
                   </label>
                   <label className="flex items-center gap-1.5">{t("profile")}
                     <select className={selectCls} value={d.refresh_profile_id ?? ""} aria-label={t("profile")} onChange={(e) => update(d.mac, { refreshProfileId: e.target.value || null })}>
-                      <option value="">{t("default")}</option>
+                      <option value="">{inheritedLabel(refreshProfiles)}</option>
                       {refreshProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </label>
