@@ -34,6 +34,20 @@ function fromTemplate(file: string, key: string): string {
   return line.slice(key.length + 1);
 }
 
+/**
+ * The production template no longer ships a DATABASE_URL: docker-compose.yml
+ * derives it from POSTGRES_* so the password is defined once. An operator who
+ * leaves POSTGRES_PASSWORD unedited therefore reaches the server as a *derived*
+ * URL carrying the placeholder, which is the shape the guard has to catch. Kept in
+ * step with the `DATABASE_URL:` expression in deploy/docker-compose.yml.
+ */
+function derivedProdDatabaseUrl(): string {
+  const password = fromTemplate("deploy/vellum.env.example", "POSTGRES_PASSWORD");
+  const user = fromTemplate("deploy/vellum.env.example", "POSTGRES_USER");
+  const database = fromTemplate("deploy/vellum.env.example", "POSTGRES_DB");
+  return `postgresql://${user}:${password}@postgres:5432/${database}`;
+}
+
 describe("env schema", () => {
   it("accepts a fully populated, real configuration", () => {
     expect(envSchema.safeParse(validEnv).success).toBe(true);
@@ -60,7 +74,6 @@ describe("placeholder rejection", () => {
     ["deploy/vellum.env.example", "SESSION_SECRET"],
     ["deploy/vellum.env.example", "ADMIN_API_KEY"],
     ["deploy/vellum.env.example", "ADMIN_PASS"],
-    ["deploy/vellum.env.example", "DATABASE_URL"],
     [".env.example", "ENCRYPTION_KEY"],
     [".env.example", "SESSION_SECRET"],
     [".env.example", "ADMIN_API_KEY"],
@@ -71,9 +84,19 @@ describe("placeholder rejection", () => {
     expect(result.success, `${key} from ${file} (${shipped}) must not validate`).toBe(false);
   });
 
+  it("rejects a DATABASE_URL derived from an unedited POSTGRES_PASSWORD", () => {
+    // The production failure mode since docker-compose.yml started deriving the
+    // connection string: the operator never sees a DATABASE_URL placeholder to
+    // edit, so the guard has to catch the password carried inside the derived URL.
+    const derived = derivedProdDatabaseUrl();
+    expect(derived).toMatch(/replace[-_]with/); // the template still ships one
+    const result = envSchema.safeParse({ ...validEnv, DATABASE_URL: derived });
+    expect(result.success, `${derived} must not validate`).toBe(false);
+  });
+
   it("rejects an unedited prod template wholesale, naming every offender", () => {
     const result = envSchema.safeParse({
-      DATABASE_URL: fromTemplate("deploy/vellum.env.example", "DATABASE_URL"),
+      DATABASE_URL: derivedProdDatabaseUrl(),
       ENCRYPTION_KEY: fromTemplate("deploy/vellum.env.example", "ENCRYPTION_KEY"),
       SESSION_SECRET: fromTemplate("deploy/vellum.env.example", "SESSION_SECRET"),
       ADMIN_API_KEY: fromTemplate("deploy/vellum.env.example", "ADMIN_API_KEY"),

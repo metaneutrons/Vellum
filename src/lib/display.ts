@@ -26,6 +26,16 @@ export const displayCapsSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   palette: z.array(z.tuple([z.number(), z.number(), z.number()])).min(0),
+  /**
+   * Palette positions that exist as on-wire pixel codes but that the panel cannot
+   * actually produce, and which the renderer must therefore never select.
+   *
+   * E1002 is the case this exists for: GDEP073E01 is a six-color Spectra panel
+   * whose codes are 0x0–0x3, 0x5, 0x6 — 0x4 is unused. Because a palette position
+   * IS its pixel code, that gap cannot be closed by shortening the array without
+   * sliding blue onto 0x4 and green onto 0x5.
+   */
+  reservedPaletteIndices: z.array(z.number().int().nonnegative()).default([]),
   /** Output format: raw binary pixels or JPEG-compressed */
   format: z.enum(["raw", "jpeg"]).default("raw"),
   /** Color mode of the display hardware */
@@ -45,6 +55,8 @@ export interface ResolvedDisplay {
   width: number;
   height: number;
   palette: ColorPalette;
+  /** Palette positions the renderer must never select. See displayCapsSchema. */
+  reservedPaletteIndices: number[];
   format: OutputFormat;
   colorMode: ColorMode;
   colorCount: number;
@@ -57,6 +69,7 @@ const DEFAULT_CAPS: DisplayCaps = {
   width: 800,
   height: 480,
   palette: [[0, 0, 0], [255, 255, 255]],
+  reservedPaletteIndices: [],
   format: "raw",
   colorMode: "mono",
   orientations: [],
@@ -73,6 +86,8 @@ export const DISPLAY_REGISTRY: Record<string, {
   format: OutputFormat;
   colorMode: ColorMode;
   palette: [number, number, number][];
+  /** See displayCapsSchema — positions that are pixel codes but not usable colors. */
+  reservedPaletteIndices?: number[];
   orientations: ("portrait" | "landscape")[];
 }> = {
   e1001: {
@@ -86,7 +101,22 @@ export const DISPLAY_REGISTRY: Record<string, {
     name: "E1002 (7.3\" 6-Color)",
     width: 800, height: 480,
     format: "raw", colorMode: "indexed",
-    palette: [[0, 0, 0], [255, 255, 255], [0, 128, 0], [0, 0, 255], [255, 0, 0], [255, 255, 0], [255, 128, 0]],
+    /* Positions are on-wire pixel codes, so this must match the firmware's order
+     * exactly (components/http_client/http_client.c, EPD_PIXEL_* in
+     * epaper_config.h). It previously listed the same seven colors in the ACeP
+     * Gallery order — green and blue at 0x2/0x3, red at 0x4 — which is a different
+     * panel family, so every preview disagreed with the hardware.
+     * 0x4 is reserved: unused on Spectra 6. */
+    palette: [
+      [0, 0, 0],          // 0x0 black
+      [255, 255, 255],    // 0x1 white
+      [255, 255, 0],      // 0x2 yellow
+      [255, 0, 0],        // 0x3 red
+      [255, 255, 255],    // 0x4 reserved
+      [0, 0, 255],        // 0x5 blue
+      [0, 255, 0],        // 0x6 green
+    ],
+    reservedPaletteIndices: [4],
     orientations: ["landscape"],
   },
   e1003: {
@@ -142,13 +172,20 @@ export function resolveDisplayCaps(raw: unknown, orientationOverride?: "portrait
   const wantPortrait = orientation === "portrait";
   const needSwap = nativePortrait !== wantPortrait;
 
+  // Only positions that exist in the palette can be reserved; a device reporting a
+  // stray index must not shrink the count below what it can actually print.
+  const reserved = caps.reservedPaletteIndices.filter((i) => i < caps.palette.length);
+
   return {
     width: needSwap ? caps.height : caps.width,
     height: needSwap ? caps.width : caps.height,
     palette: caps.palette,
+    reservedPaletteIndices: reserved,
     format,
     colorMode,
-    colorCount: caps.palette.length,
+    // What the panel can print, which is what operators are shown — not the length
+    // of the code space.
+    colorCount: caps.palette.length - reserved.length,
     orientation,
   };
 }

@@ -4,10 +4,15 @@
  * Rendering pipeline — quantization and pixel buffer conversion.
  */
 
-export { floydSteinbergDither, type ColorPalette } from "./dither";
+export { floydSteinbergDither, type ColorPalette, type ReservedIndices } from "./dither";
 
 import type { Canvas } from "@napi-rs/canvas";
-import { floydSteinbergDither, nearestPaletteIndex, type ColorPalette } from "./dither";
+import {
+  floydSteinbergDither,
+  nearestPaletteIndex,
+  type ColorPalette,
+  type ReservedIndices,
+} from "./dither";
 import type { OutputFormat, ColorMode } from "@/lib/display";
 
 /** @deprecated — use OutputFormat + ColorMode */
@@ -22,12 +27,13 @@ function nearestColorQuantize(
   imageData: Uint8ClampedArray,
   width: number,
   height: number,
-  palette: ColorPalette
+  palette: ColorPalette,
+  reserved: ReservedIndices = []
 ): Buffer {
   const output = Buffer.alloc(width * height);
   for (let i = 0; i < width * height; i++) {
     output[i] = nearestPaletteIndex(
-      imageData[i * 4], imageData[i * 4 + 1], imageData[i * 4 + 2], palette
+      imageData[i * 4], imageData[i * 4 + 1], imageData[i * 4 + 2], palette, reserved
     );
   }
   return output;
@@ -47,7 +53,8 @@ export function canvasToPixelBuffer(
   canvas: Canvas,
   palette: ColorPalette = DEFAULT_PALETTE,
   format: OutputFormat | QuantizeMode = "raw",
-  colorMode: ColorMode = "mono"
+  colorMode: ColorMode = "mono",
+  reserved: ReservedIndices = []
 ): Buffer {
   // Legacy QuantizeMode support
   if (format === "none") return canvas.toBuffer("image/png");
@@ -66,13 +73,18 @@ export function canvasToPixelBuffer(
   const data = new Uint8ClampedArray(ctx.getImageData(0, 0, width, height).data);
 
   if (colorMode === "indexed") {
-    // Snap anti-aliasing artifacts to palette colors
+    // Snap anti-aliasing artifacts to palette colors. Reserved positions are
+    // skipped here too: snapping toward a color the panel cannot print would
+    // reintroduce it as the nearest match in the quantise pass below.
     const AA_THRESHOLD = 3000;
+    const hasReserved = reserved.length > 0;
     for (let i = 0; i < width * height; i++) {
       const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
       let bestDist = Infinity;
       let bestR = 0, bestG = 0, bestB = 0;
-      for (const [pr, pg, pb] of palette) {
+      for (let p = 0; p < palette.length; p++) {
+        if (hasReserved && reserved.includes(p)) continue;
+        const [pr, pg, pb] = palette[p];
         const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
         if (dist < bestDist) { bestDist = dist; bestR = pr; bestG = pg; bestB = pb; }
       }
@@ -83,15 +95,15 @@ export function canvasToPixelBuffer(
         data[i * 4] = v; data[i * 4 + 1] = v; data[i * 4 + 2] = v;
       }
     }
-    return packTo4bit(nearestColorQuantize(data, width, height, palette), width, height);
+    return packTo4bit(nearestColorQuantize(data, width, height, palette, reserved), width, height);
   }
 
   if (colorMode === "grayscale") {
-    return packTo4bit(nearestColorQuantize(data, width, height, palette), width, height);
+    return packTo4bit(nearestColorQuantize(data, width, height, palette, reserved), width, height);
   }
 
   // mono — Floyd-Steinberg dither then pack to 1-bit
-  return packTo1bit(floydSteinbergDither(data, width, height, palette), width, height);
+  return packTo1bit(floydSteinbergDither(data, width, height, palette, reserved), width, height);
 }
 
 /**

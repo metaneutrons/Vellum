@@ -250,8 +250,30 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
     cJSON_AddNumberToObject(display, "height", 480);
     cJSON_AddStringToObject(display, "format", "raw");
     cJSON_AddStringToObject(display, "colorMode", "indexed");
+    /* GDEP073E01 is a SIX-color Spectra panel. This used to advertise seven,
+     * including orange at index 4, so the server's quantiser could pick a color
+     * the panel cannot produce — every rendered image could be skewed toward it.
+     *
+     * The array position IS the on-wire pixel code (EPD_PIXEL_* in
+     * epaper_config.h), so index 4 cannot simply be dropped: that would slide
+     * blue onto 0x4 and green onto 0x5. The slot stays, holding a duplicate of
+     * white so that even a server predating `reservedPaletteIndices` can never
+     * emit 0x4, and is reported as reserved so a current server excludes it from
+     * quantisation and from the color count it shows operators.
+     *
+     * The codes below mirror EPD_PIXEL_* by value rather than by include: this
+     * component does not depend on a display driver, and the e-paper drivers are
+     * not built at all for the P4 target. */
     cJSON *palette = cJSON_CreateArray();
-    int colors[][3] = {{0,0,0},{255,255,255},{255,255,0},{255,0,0},{255,128,0},{0,0,255},{0,255,0}};
+    int colors[][3] = {
+        {  0,   0,   0},    /* 0x0 EPD_PIXEL_BLACK  */
+        {255, 255, 255},    /* 0x1 EPD_PIXEL_WHITE  */
+        {255, 255,   0},    /* 0x2 EPD_PIXEL_YELLOW */
+        {255,   0,   0},    /* 0x3 EPD_PIXEL_RED    */
+        {255, 255, 255},    /* 0x4 reserved — orange exists only on 7-color ACeP */
+        {  0,   0, 255},    /* 0x5 EPD_PIXEL_BLUE   */
+        {  0, 255,   0},    /* 0x6 EPD_PIXEL_GREEN  */
+    };
     for (int i = 0; i < 7; i++) {
         cJSON *c = cJSON_CreateArray();
         cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][0]));
@@ -260,6 +282,9 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
         cJSON_AddItemToArray(palette, c);
     }
     cJSON_AddItemToObject(display, "palette", palette);
+    cJSON *reserved = cJSON_CreateArray();
+    cJSON_AddItemToArray(reserved, cJSON_CreateNumber(4));
+    cJSON_AddItemToObject(display, "reservedPaletteIndices", reserved);
 #elif defined(CONFIG_VELLUM_PANEL_GDEY075T7)
     cJSON_AddNumberToObject(display, "width", 800);
     cJSON_AddNumberToObject(display, "height", 480);
