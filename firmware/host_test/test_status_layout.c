@@ -126,6 +126,28 @@ void test_status_layout_never_reports_a_negative_budget(void)
     TEST_ASSERT_EQUAL_INT(0, status_layout_budget(480, 900, LINE(14)));
 }
 
+void test_status_layout_row_gap_is_readable_and_proportional(void)
+{
+    TEST_ASSERT_TRUE(status_layout_row_gap(E1001_H, LINE(14)) >= LINE(14));
+    TEST_ASSERT_TRUE(status_layout_row_gap(E1003_H, LINE(24)) >= LINE(24));
+    TEST_ASSERT_TRUE(status_layout_row_gap(D1001_H, LINE(16)) >= LINE(16));
+    TEST_ASSERT_TRUE(status_layout_row_gap(E1003_H, LINE(24))
+                     > status_layout_row_gap(E1001_H, LINE(14)));
+}
+
+void test_status_layout_ota_stack_fits_on_every_model(void)
+{
+    /* E-paper shows a static title plus safety instruction; the LCD adds its
+     * live bar and percentage rows. This catches the former fixed OTA offsets,
+     * which overlapped the title and bar on the compact panels. */
+    const int e1001 = LINE(48) + LINE(14) + LINE(18);
+    const int e1003 = LINE(96) + LINE(28) + LINE(48);
+    const int d1001 = LINE(32) + LINE(16) + 24 + LINE(16) + LINE(32) + LINE(16) + LINE(24);
+    TEST_ASSERT_TRUE(e1001 <= status_layout_budget(E1001_H, E1001_LOGO, LINE(14)));
+    TEST_ASSERT_TRUE(e1003 <= status_layout_budget(E1003_H, E1003_LOGO, LINE(24)));
+    TEST_ASSERT_TRUE(d1001 <= status_layout_budget(D1001_H, D1001_LOGO, LINE(16)));
+}
+
 void run_status_layout_tests(void)
 {
     RUN_TEST(test_status_layout_logo_share_is_45_percent);
@@ -135,4 +157,6 @@ void run_status_layout_tests(void)
     RUN_TEST(test_status_layout_rejects_what_does_not_fit);
     RUN_TEST(test_status_layout_is_monotonic_and_ordered);
     RUN_TEST(test_status_layout_never_reports_a_negative_budget);
+    RUN_TEST(test_status_layout_row_gap_is_readable_and_proportional);
+    RUN_TEST(test_status_layout_ota_stack_fits_on_every_model);
 }

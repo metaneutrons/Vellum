@@ -50,9 +50,9 @@ static void wait_for_wifi_transport(void)
 #define WIFI_FAIL_BIT       BIT1
 #define WIFI_SCAN_STA_STARTED_BIT BIT0
 #define WIFI_SCAN_START_TIMEOUT_MS 5000
-#define WIFI_SCAN_READY_SETTLE_MS 250
-#define WIFI_SCAN_STATE_RETRIES 10
-#define WIFI_SCAN_STATE_RETRY_MS 200
+#define WIFI_SCAN_READY_SETTLE_MS 750
+#define WIFI_SCAN_STATE_RETRIES 15
+#define WIFI_SCAN_STATE_RETRY_MS 300
 
 static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_count = 0;
@@ -428,10 +428,10 @@ int wifi_manager_scan(wifi_ap_info_t *out, int max)
     esp_err_t scan_err = ESP_ERR_WIFI_STATE;
     for (int attempt = 0; attempt <= WIFI_SCAN_STATE_RETRIES; attempt++) {
         scan_err = esp_wifi_scan_start(&scan_cfg, true); /* blocking */
-        if (scan_err != ESP_ERR_WIFI_STATE) break;
+        if (scan_err != ESP_ERR_WIFI_STATE && scan_err != ESP_ERR_WIFI_NOT_STARTED) break;
         if (attempt < WIFI_SCAN_STATE_RETRIES) {
-            ESP_LOGW(TAG, "Wi-Fi scan not ready; retrying (%d/%d)",
-                     attempt + 1, WIFI_SCAN_STATE_RETRIES);
+            ESP_LOGW(TAG, "Wi-Fi scan not ready (%s); retrying (%d/%d)",
+                     esp_err_to_name(scan_err), attempt + 1, WIFI_SCAN_STATE_RETRIES);
             vTaskDelay(pdMS_TO_TICKS(WIFI_SCAN_STATE_RETRY_MS));
         }
     }
