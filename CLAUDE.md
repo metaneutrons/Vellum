@@ -130,6 +130,19 @@ them in `__vellum_migrations`. Consequences:
 - Unused E1001/E1003 hardware, for reference: both carry a **PCF8563 RTC** and an
   **SHT4x** temperature/humidity sensor on `i2c0`; Vellum currently implements RTC
   support only for D1001 and reads neither sensor on the E-Series.
+- **Audible feedback is not uniform either.** The E-Series have a PWM buzzer on
+  `CONFIG_VELLUM_BUZZER_GPIO`; D1001 has **no buzzer** but an **ES8311 codec at
+  0x18 on I2C bus 1** driving a 2 W mono speaker, so `board_buzzer_beep()` plays a
+  recorded chime there (`components/vellum_audio`, P4-only, `esp_codec_dev`).
+  Do NOT route D1001 through the LEDC path: `LEDC_TIMER_0`/`LEDC_CHANNEL_0` are the
+  **LCD backlight**, so a "beep" left the display dark at 0% duty — which is why
+  the model was deliberately silent before. I2S is MCLK33/BCLK32/WS31/DOUT30, and
+  the power amplifier is gated by `D1001_EXP_AMP_EN` (PCA9535 pin 11 = Seeed's
+  P13), driven only while a chime plays. **Seeed documents the microphone input on
+  GPIO11, which is this firmware's `D1001_WIFI_SDIO_CLK`** — adding capture means
+  resolving that conflict, not just filling in the pin. Frequency/duration
+  arguments are meaningless on D1001: every event plays the same sample, where the
+  E-Series distinguish events by pitch.
 - Panel-capability inconsistencies — **unresolved, do not "fix" one side blindly;
   confirm against the physical panel first**:
   - E1003: code and server use **1872×1404** (landscape) while

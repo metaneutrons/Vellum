@@ -27,6 +27,9 @@
  * transitive esp_io_expander include) on esp32p4 — see CMakeLists.txt — so the
  * public header can be included directly for proper signature type-checking. */
 #include "d1001_board.h"
+/* board_buzzer_beep() plays a recorded chime on this model — the LEDC channel it
+ * would otherwise use drives the LCD backlight. */
+#include "vellum_audio.h"
 #endif
 
 static const char *TAG = "board";
@@ -298,12 +301,18 @@ static void buzzer_init(void)
 void board_buzzer_beep(uint32_t freq, uint32_t ms)
 {
 #if CONFIG_VELLUM_PANEL_D1001
-    /* D1001 has an ES8311-driven speaker, not the E-Series PWM buzzer. Using
-     * the generic LEDC channel here reprograms the LCD backlight channel and
-     * leaves it at 0% after every attempted beep. Audio feedback requires the
-     * codec path; until that is initialised, preserve the display instead. */
+    /* D1001 has an ES8311-driven speaker, not the E-Series PWM buzzer, and the
+     * generic LEDC channel used below is the one driving the LCD backlight — a
+     * "beep" here used to leave the display dark at 0% duty, so this was a no-op
+     * and the model was simply silent.
+     *
+     * It now plays a recorded chime. The tone arguments have no meaning on a
+     * sample: every event sounds the same here, where the E-Series distinguishes
+     * them by pitch. Mapping events to distinct sounds would need a second asset
+     * and an event-shaped API, not a frequency. */
     (void)freq;
     (void)ms;
+    vellum_audio_play_chime();
     return;
 #else
     ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0, freq);
