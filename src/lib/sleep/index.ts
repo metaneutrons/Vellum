@@ -50,6 +50,25 @@ export const refreshProfileSchema = z.object({
   defaultMode: z.enum(["poll", "sleep"]).default("sleep"),
   /** Schedule rules — checked in order, first match wins */
   schedule: z.array(scheduleRuleSchema).default([]),
+  /**
+   * Retry ladder, in seconds, walked on consecutive failed render cycles: the
+   * first failure waits `errorBackoffS[0]`, the second `[1]`, and so on, holding
+   * at the last rung.
+   *
+   * It replaces doubling the normal cadence, which made recovery *worse* the
+   * slower the profile: on a 15-minute battery cadence, a single failed cycle
+   * pushed the next attempt out to 30 minutes, so a display that dropped one
+   * request stayed stale for half an hour. A ladder that starts well below the
+   * cadence recovers in a minute and still backs off to hourly if the server is
+   * genuinely gone.
+   *
+   * Not sent when empty — the device then keeps its normal cadence on failure,
+   * which is the safe direction (retries too often, never too rarely).
+   */
+  errorBackoffS: z
+    .array(z.number().int().positive())
+    .max(8)
+    .default([60, 300, 900, 3600]),
 });
 
 export type RefreshProfile = z.infer<typeof refreshProfileSchema>;

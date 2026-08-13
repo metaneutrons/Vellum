@@ -118,10 +118,14 @@ const BASE_FIELDS: { key: string; label: string; type: "interval" | "number" | "
   { key: "wakeBeforeEventS", label: "Wake Before Event", type: "interval" },
 ];
 
+/** Mirrors RENDER_BACKOFF_MAX_STEPS in firmware/components/sleep_manager. */
+const MAX_BACKOFF_STEPS = 8;
+
 const DEFAULT_CONFIG = {
   usbIntervalS: 60, batteryIntervalS: 900, lowBatteryIntervalS: 3600,
   lowBatteryThresholdPct: 20, imminentEventWindowS: 1200, wakeBeforeEventS: 300,
   schedule: [] as ScheduleRule[],
+  errorBackoffS: [60, 300, 900, 3600],
 };
 
 export function ProfileList({ profiles }: { profiles: Profile[] }) {
@@ -133,6 +137,9 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Record<string, unknown>>(DEFAULT_CONFIG);
+
+  const backoff = (config.errorBackoffS ?? []) as number[];
+  function setBackoff(steps: number[]) { setConfig(c => ({ ...c, errorBackoffS: steps })); }
 
   const schedule = (config.schedule ?? []) as ScheduleRule[];
   function setSchedule(s: ScheduleRule[]) { setConfig(c => ({ ...c, schedule: s })); }
@@ -266,6 +273,38 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
               )}
             </div>
           ))}
+        </div>
+
+        <h3 className="text-sm font-semibold text-label mb-1">Error Retry Ladder</h3>
+        <p className="text-xs text-label-secondary mb-3">
+          How long a display waits after a failed refresh: the first failure uses
+          step 1, the second step 2, and so on, holding at the last step. Keep the
+          first step well below the refresh interval so a single dropped request
+          recovers quickly. Remove every step to keep the normal interval on
+          failure.
+        </p>
+        <div className="space-y-3 mb-6">
+          {backoff.map((step, i) => (
+            <div key={i}>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-label-secondary">
+                  Step {i + 1}{i === backoff.length - 1 && backoff.length > 1 ? " (held)" : ""}
+                </label>
+                <Button size="sm" variant="plain" className="text-red"
+                  onClick={() => setBackoff(backoff.filter((_, j) => j !== i))}>
+                  {t("remove")}
+                </Button>
+              </div>
+              <IntervalPicker value={step}
+                onChange={v => setBackoff(backoff.map((s, j) => j === i ? v : s))} />
+            </div>
+          ))}
+          <Button size="sm" variant="gray"
+            disabled={backoff.length >= MAX_BACKOFF_STEPS}
+            leading={<Plus size={14} aria-hidden="true" />}
+            onClick={() => setBackoff([...backoff, backoff.length ? backoff[backoff.length - 1] * 2 : 60])}>
+            Add step
+          </Button>
         </div>
 
         <div className="flex justify-between items-center mb-2">
