@@ -4,7 +4,9 @@ if("${IDF_TARGET}" STREQUAL "esp32p4")
     # board support (d1001_board), which owns the P4 ADC. esp_io_expander is
     # d1001_board.h's transitive include, needed so board.c can include that
     # header. No cycle — d1001_board does not require board.
-    list(APPEND board_requires d1001_board esp_io_expander)
+    # vellum_audio: the buzzer call plays a chime through the ES8311 speaker on
+    # this model, because the LEDC channel below drives the LCD backlight.
+    list(APPEND board_requires d1001_board esp_io_expander vellum_audio)
 endif()
 
 idf_component_register(

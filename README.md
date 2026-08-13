@@ -335,6 +335,9 @@ documented in [docs/RELEASING.md](docs/RELEASING.md); planned work lives in
 - [Next.js](https://nextjs.org/) — server and administration interface
 - [Project Nayuki](https://www.nayuki.io/page/qr-code-generator-library) — QR code generation
 - [Inter](https://rsms.me/inter/) — display typeface
+- [Pixabay](https://pixabay.com/sound-effects/correct-choice-43861/) — the D1001
+  confirmation chime ("Correct Choice", `freesound_community`), trimmed and
+  embedded as PCM by `assets/render-audio.sh`
 
 ## License
 
