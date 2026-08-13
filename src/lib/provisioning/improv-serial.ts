@@ -429,6 +429,27 @@ export function improvErrorMessage(error: number): string {
 }
 
 /**
+ * Turn a thrown serial error into something an operator can act on.
+ *
+ * The case worth naming is a port already held by ESP Web Tools or another tab.
+ * That does NOT fail at `requestPort()` — selecting a port always succeeds — it
+ * fails later at `port.open()`, where the browser throws a bare DOMException:
+ * Chrome says "Failed to open serial port." when another context holds it and
+ * "The port is already open." for a double-open. Neither tells the operator that
+ * closing the flash tool is the fix.
+ *
+ * Anything else is passed through unchanged: an invented explanation for an
+ * unknown fault is worse than the browser's own wording.
+ */
+export function describeSerialError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : "Serial I/O error.";
+  if (/already open|in use|failed to open/i.test(msg)) {
+    return "Couldn't open the serial port — it's already in use. Close the flash tool or other tabs using it, then retry.";
+  }
+  return msg;
+}
+
+/**
  * Provision a Vellum device over USB via Web Serial. Prompts the user for a
  * serial port, pushes the profile, and resolves once the device reports
  * PROVISIONED (or an error / timeout). Browser-only.
@@ -550,16 +571,7 @@ export async function provisionOverSerial(opts: ProvisionOptions): Promise<Provi
       }
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Serial I/O error.";
-    // A port already held by the flash tool or another tab fails here at
-    // port.open() (not at requestPort) — surface an actionable hint.
-    const inUse = /already open|in use|failed to open/i.test(msg);
-    finish({
-      ok: false,
-      error: inUse
-        ? "Couldn't open the serial port — it's already in use. Close the flash tool or other tabs using it, then retry."
-        : msg,
-    });
+    finish({ ok: false, error: describeSerialError(e) });
   } finally {
     if (timer) clearTimeout(timer);
     if (graceTimer) clearTimeout(graceTimer);
@@ -650,7 +662,9 @@ export async function scanNetworksOverSerial(opts?: {
       }
     }
   } catch (e) {
-    error = e instanceof Error ? e.message : "Serial I/O error.";
+    // Same failure as provisioning: the flash tool holding the port is the most
+    // likely reason a scan cannot open it either.
+    error = describeSerialError(e);
   } finally {
     if (timer) clearTimeout(timer);
     if (opened) await closeSerial(port, reader, writer);
