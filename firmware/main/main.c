@@ -563,6 +563,10 @@ static void d1001_button_task(void *arg)
                 esp_restart();
             }
             /* Short press (<5s): trigger immediate refresh/retry */
+            /* D1001 has an ES8311 speaker instead of the E-Series PWM buzzer.
+             * board_buzzer_beep() maps to its confirmation chime, so acknowledge
+             * the press before the network/render work begins. */
+            board_buzzer_beep(1000, 100);
             s_button_pressed = true;
         }
         vTaskDelay(pdMS_TO_TICKS(50));
