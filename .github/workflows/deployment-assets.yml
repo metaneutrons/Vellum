@@ -72,6 +72,7 @@ jobs:
           mkdir -p dist
           install -m 0644 deploy/docker-compose.yml dist/docker-compose.yml
           install -m 0644 deploy/vellum.env.example dist/vellum.env.example
+          install -m 0755 deploy/install.sh dist/install.sh
           server_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}"
           updater_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum-updater:${RELEASE_TAG}"
           sed -i \
@@ -85,7 +86,9 @@ jobs:
             exit 1
           fi
           cd dist
-          sha256sum docker-compose.yml vellum.env.example > SHA256SUMS
+          # install.sh verifies the other two against this file, so it is listed
+          # here for the operator to check the installer itself before running it.
+          sha256sum docker-compose.yml vellum.env.example install.sh > SHA256SUMS
 
       - name: Upload assets to the server release
         env:

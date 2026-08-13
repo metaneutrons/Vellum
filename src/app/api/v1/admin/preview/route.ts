@@ -10,12 +10,16 @@ import { resolveDisplayCaps, DISPLAY_REGISTRY, type ResolvedDisplay } from "@/li
 import { requestHasPermission } from "@/lib/access";
 
 const _defaultModel = DISPLAY_REGISTRY.e1002;
+const _defaultReserved = _defaultModel.reservedPaletteIndices ?? [];
 const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
   width: _defaultModel.width, height: _defaultModel.height,
   palette: _defaultModel.palette,
+  // Reserved positions are pixel codes, not colors: a preview that used them
+  // would show the operator a color the panel cannot print.
+  reservedPaletteIndices: _defaultReserved,
   format: _defaultModel.format,
   colorMode: _defaultModel.colorMode,
-  colorCount: _defaultModel.palette.length,
+  colorCount: _defaultModel.palette.length - _defaultReserved.length,
   orientation: "landscape",
 };
 

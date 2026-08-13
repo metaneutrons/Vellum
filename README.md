@@ -30,8 +30,8 @@ updates over HTTPS; no browser engine or provider credential lives on a display.
 | **One fleet** | Provision, approve, assign, monitor, and update every supported display from the Web UI. |
 | **Provider-independent content** | Use Microsoft 365, Google Calendar, anny, or iCalendar without coupling display firmware to a booking system. |
 | **Pixel-perfect output** | Server-side rendering, model-aware color conversion, orientation support, themes, and live previews. |
-| **Enterprise access** | Local recovery accounts, Microsoft Entra ID OIDC, passkeys, scoped roles, service accounts, and audit events. |
-| **Secure device lifecycle** | USB provisioning, encrypted enrollment, HTTPS, production NVS hardening, and Ed25519-signed OTA firmware. |
+| **Enterprise access** | Local recovery accounts, Microsoft Entra ID OIDC, scoped roles, service accounts, and audit events. |
+| **Secure device lifecycle** | USB provisioning, encrypted enrollment, HTTPS, and Ed25519-signed OTA firmware. |
 | **Safe operations** | A production Compose stack with PostgreSQL, release discovery, scheduled or manual updates, backups, health checks, and rollback. |
 
 ## Install for production — Docker Compose
@@ -46,46 +46,60 @@ daily maintenance time.
 ### Requirements
 
 - Docker Engine with Docker Compose v2, or Docker Desktop on macOS
-- HTTPS reverse proxy with a publicly trusted certificate
 - A writable directory for the stack and its persistent data
-- A DNS name that resolves to the reverse proxy from the display network
+
+Before displays can use the server, additionally:
+
+- An HTTPS reverse proxy with a publicly trusted certificate in front of
+  `127.0.0.1:3000` — displays validate the certificate and reject cleartext
+- A DNS name that resolves to that proxy from the display network
 
 ### Deploy
 
 ```bash
-# Choose any writable location. The complete installation stays in this folder.
-mkdir -p "$HOME/vellum"
-cd "$HOME/vellum"
-
-# Download the deployment files from the latest stable Vellum Server release.
-release="https://github.com/metaneutrons/Vellum/releases/latest/download"
-curl --fail --silent --show-error --location \
-  --remote-name "$release/docker-compose.yml"
-curl --fail --silent --show-error --location \
-  --remote-name "$release/vellum.env.example"
-curl --fail --silent --show-error --location \
-  --remote-name "$release/SHA256SUMS"
-
-# Verify on Linux or macOS, then turn the template into Compose's automatic .env.
-if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum --check SHA256SUMS
-else
-  shasum --algorithm 256 --check SHA256SUMS
-fi
-mv vellum.env.example .env
-rm SHA256SUMS
-chmod 600 .env
-
-# Replace every placeholder. Generate each secret independently.
-openssl rand -hex 32
-${EDITOR:-vi} .env
-
-docker compose pull
-docker compose up -d
+curl -fsSL https://github.com/metaneutrons/Vellum/releases/latest/download/install.sh | bash
 ```
 
-Compose automatically reads `.env`. Relative bind mounts keep configuration,
-PostgreSQL, backups, and updater state together in the directory you selected:
+That is the whole installation. It verifies the release assets against the release
+`SHA256SUMS`, generates every secret, writes a `0600` `.env`, starts the stack,
+waits for the server to report healthy, and prints the owner password once. Then
+sign in at `http://127.0.0.1:3000/admin`.
+
+Run from a terminal it offers two questions, both answerable with Enter — your
+public HTTPS URL and your timezone. Everything else is generated or detected. Add
+`--yes` to skip them, which is also what happens when no terminal is attached.
+
+For a real deployment, name the directory and the public origin:
+
+```bash
+curl -fsSL https://github.com/metaneutrons/Vellum/releases/latest/download/install.sh \
+  | bash -s -- --dir /srv/vellum --url https://vellum.example.com
+```
+
+`--version vX.Y.Z` installs a specific release, `--dry-run` prepares the directory
+without starting anything, `--from <dir>` installs from assets already on an
+air-gapped host, and `--help` lists the rest. The installer refuses to overwrite an
+existing `.env`, so it can never replace the secrets of a running stack.
+
+To check the script before running it, download `install.sh` and `SHA256SUMS` from
+the same release and verify it:
+`grep ' install.sh$' SHA256SUMS | sha256sum --check`.
+
+**Prefer to wire it up yourself?** The stack is a single file —
+[`deploy/docker-compose.yml`](deploy/docker-compose.yml), also attached to every
+release with [`vellum.env.example`](deploy/vellum.env.example). Fill in the
+template's placeholders, save it as `.env` with mode `0600`, and run
+`docker compose up -d`. The
+[production deployment guide](docs/DOCKER_DEPLOYMENT.md) covers the details.
+Placeholders are enforced rather than advised: they are the same length as real
+secrets, and both the server and the updater reject the shipped text outright
+instead of booting on credentials that are public repository content.
+
+Compose automatically reads `.env`. `DATABASE_URL` is derived from `POSTGRES_*`,
+so the database password is defined in one place; set `DATABASE_URL` explicitly
+only to use a database outside this stack. Relative bind mounts keep
+configuration, PostgreSQL, backups, and updater state together in the directory
+you selected:
 
 The release-provided `.env` pins both the server and updater images to the same
 exact `vX.Y.Z` release. Compose fails closed when either setting is missing; it
@@ -111,6 +125,7 @@ Set `VELLUM_PUBLIC_URL` to the canonical HTTPS origin, then open
 `https://your-vellum-host/admin`. Database migrations run automatically when the
 container starts.
 
+> The installer generates `ADMIN_PASS` and prints it once.
 > `ADMIN_USER` and `ADMIN_PASS` bootstrap the first local Owner account only
 > when the user database is empty. Keep that local account as a protected
 > break-glass path. `ADMIN_API_KEY` remains a legacy global API credential for
@@ -147,7 +162,7 @@ fleet, content, and policy model without sharing an incompatible firmware image.
 | Model | Platform | Display | Server output | Orientation |
 |---|---|---|---|---|
 | [reTerminal E1001](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/)) | ESP32-S3 | 7.5″, 800×480, monochrome E-Paper | Raw 1-bit | Landscape |
-| [reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/)) | ESP32-S3 | 7.3″, 800×480, seven-color E-Paper | Raw indexed color | Landscape |
+| [reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/)) | ESP32-S3 | 7.3″, 800×480, six-color E-Paper | Raw indexed color | Landscape |
 | [reTerminal E1003](https://www.seeedstudio.com/reTerminal-E1003-p-6731.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/)) | ESP32-S3 | 10.3″, 1872×1404, 16-gray E-Paper | Raw 4-bit grayscale | Portrait or landscape |
 | [reTerminal D1001](https://wiki.seeedstudio.com/getting_started_with_reterminal_d1001/) | ESP32-P4 + ESP32-C6 | 8″, 800×1280, full-color LCD | JPEG | Portrait or landscape |
 
@@ -179,8 +194,7 @@ its RTC and uses the ESP32-C6 as the wireless coprocessor for the ESP32-P4.
 
 ### Identity and access
 
-- Local accounts with scrypt-hashed passwords and passkey enrollment
-- Configurable recommended or required passkey policy
+- Local accounts with scrypt-hashed passwords
 - Microsoft Entra ID OIDC with verified-claim account linking and optional
   role-controlled auto-provisioning
 - Owner, Administrator, Fleet Operator, Content Manager, Firmware Operator,
@@ -213,8 +227,10 @@ an HTTPS origin without a path, query, or fragment.
   channel; stored server-side credentials use AES-256-GCM.
 - OTA firmware is verified with Ed25519 and SHA-256 before the staged partition
   becomes bootable.
-- Production firmware enables encrypted NVS and the supported platform hardening
-  controls; development builds intentionally do not.
+- Encrypted NVS and Secure Boot v2 are available as an opt-in build profile
+  (`make build SECURE=1 SECURE_PROFILE=prod`, ESP32-S3 only) and are **not** part
+  of released images: everything the flash tool and OTA serve stores NVS
+  unencrypted. See [Secure Boot and KMS](docs/SECURE_BOOT_AND_KMS.md).
 - Admin sessions use HTTP-only cookies, local passwords are scrypt-hashed, and
   authorization is enforced through scoped permissions.
 - Server container releases are keylessly signed and verified by the Compose
@@ -235,7 +251,8 @@ integration are documented in [Secure Boot and KMS](docs/SECURE_BOOT_AND_KMS.md)
 ```bash
 git clone https://github.com/metaneutrons/Vellum.git
 cd Vellum
-corepack enable
+# Node 25 and newer no longer bundle Corepack; install the pinned pnpm directly.
+npm install --global pnpm@11.20.0
 pnpm install --frozen-lockfile
 cp .env.example .env
 
@@ -292,7 +309,7 @@ subsystem is described in [Firmware display architecture](docs/firmware-display-
 | `src/lib/calendar` | Provider registry and calendar integrations |
 | `src/lib/content` | Content renderer registry |
 | `src/lib/render` | Canvas, quantization, dithering, fonts, and display output |
-| `src/lib/access` | Local identity, passkeys, OIDC, roles, and service accounts |
+| `src/lib/access` | Local identity, OIDC, roles, and service accounts |
 | `firmware` | ESP-IDF application and board/display components |
 | `deploy` | Production Compose stack, updater, and environment template |
 | `docs` | Deployment, security, release, and firmware design guides |

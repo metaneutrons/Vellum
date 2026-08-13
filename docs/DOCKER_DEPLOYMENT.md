@@ -8,34 +8,53 @@ Linux host path; the same stack works with Docker Engine or Docker Desktop.
 ## Install
 
 ```bash
-# Choose any writable location for the complete Vellum installation.
-mkdir -p "$HOME/vellum"
-cd "$HOME/vellum"
-
-release="https://github.com/metaneutrons/Vellum/releases/latest/download"
-curl --fail --silent --show-error --location \
-  --remote-name "$release/docker-compose.yml"
-curl --fail --silent --show-error --location \
-  --remote-name "$release/vellum.env.example"
-curl --fail --silent --show-error --location \
-  --remote-name "$release/SHA256SUMS"
-
-if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum --check SHA256SUMS
-else
-  shasum --algorithm 256 --check SHA256SUMS
-fi
-mv vellum.env.example .env
-rm SHA256SUMS
-chmod 600 .env
-
-# Generate every placeholder secret independently, including UPDATER_TOKEN:
-openssl rand -hex 32
-${EDITOR:-vi} .env
-
-docker compose pull
-docker compose up -d
+curl -fsSL https://github.com/metaneutrons/Vellum/releases/latest/download/install.sh \
+  | bash -s -- --dir /srv/vellum --url https://vellum.example.com
 ```
+
+Both flags are optional, and so is every question the installer asks. Given
+neither, it installs into `./vellum` and offers two prompts — public URL and
+timezone — that Enter skips; `--yes`, or no attached terminal, skips them outright.
+Prompts are read from `/dev/tty`, not stdin, so they work when the script is piped
+from `curl`.
+
+Leaving `VELLUM_PUBLIC_URL` unset is enough to sign in at
+`http://127.0.0.1:3000/admin` and look around. Set it before putting Vellum behind
+HTTPS or enabling Entra ID — unset, the server validates browser mutations against
+the request origin instead of a canonical one (`src/lib/request-origin.ts`).
+
+The installer checks the prerequisites up front (Docker, Compose v2, curl,
+openssl, a checksum tool, a reachable daemon), verifies `docker-compose.yml` and
+`vellum.env.example` against the release `SHA256SUMS`, generates all six secrets,
+writes a `0600` `.env`, starts the stack, waits for `/api/v1/health`, and prints
+the generated owner password once.
+
+| Flag | Effect |
+|---|---|
+| `--dir <path>` | Installation directory (default `./vellum`) |
+| `--url <origin>` | Public HTTPS origin, no path. Omit to decide later |
+| `--tz <zone>` | IANA timezone for the maintenance window; defaults to the host's |
+| `--admin-user <name>` | Bootstrap owner name (default `admin`) |
+| `--version <tag>` | Install a specific release instead of the latest |
+| `--from <dir>` | Use assets already on disk — air-gapped hosts |
+| `--dry-run` | Prepare the directory and `.env`, start nothing |
+| `--yes` | Take every default without prompting |
+| `--force` | Overwrite an existing `.env` (destructive) |
+
+It refuses to overwrite an existing `.env` without `--force`, so it cannot
+silently replace the secrets of a live stack. It is a first-install tool: later
+server upgrades belong to the updater.
+
+To review the script first, download `install.sh` and `SHA256SUMS` from the same
+release and check it with
+`grep ' install.sh$' SHA256SUMS | sha256sum --check` before running it.
+
+### Or configure it yourself
+
+The stack is a single file. Download `docker-compose.yml` and
+`vellum.env.example` from the release (or take them from `deploy/`), replace every
+placeholder with an independently generated `openssl rand -hex 32`, save the
+template as `.env` with mode `0600`, and run `docker compose up -d`.
 
 Replacing the placeholders is enforced, not merely advised: the template values
 are the same length as real secrets, so the server and the updater both reject
@@ -43,9 +62,22 @@ the shipped placeholder text outright and refuse to start. An unedited `.env`
 fails closed with the offending variable named, rather than booting with secrets
 that are public repository content.
 
+`DATABASE_URL` is derived from `POSTGRES_USER`, `POSTGRES_PASSWORD` and
+`POSTGRES_DB` by the Compose file, so the database password is defined in exactly
+one place. It previously had to be typed identically into both
+`POSTGRES_PASSWORD` and `DATABASE_URL`, and a mismatch produced a stack that
+started and then failed to authenticate against its own database — a runtime
+failure far from the typo. Two consequences:
+
+- If you set `POSTGRES_PASSWORD` by hand, keep it URL-safe (no `@ : / % #`), since
+  it is interpolated into a `postgresql://` URL. The installer's generated
+  password is hex.
+- To use a database outside this stack, set `DATABASE_URL` in `.env`; an explicit
+  value overrides the derived one.
+
 The host needs no repository checkout. `releases/latest/download` resolves to
-the latest stable Vellum Server release; replace it with
-`releases/download/vX.Y.Z` to pin a particular release. `SHA256SUMS` detects a
+the latest stable Vellum Server release; `--version vX.Y.Z` pins a particular one
+(or `releases/download/vX.Y.Z` when installing by hand). `SHA256SUMS` detects a
 truncated or mismatched download before anything is installed. Each release's
 environment template pins `VELLUM_IMAGE` and `UPDATER_IMAGE` to that exact
 release tag. Later server upgrades remain controlled by the verified updater;

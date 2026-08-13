@@ -136,20 +136,21 @@ them in `__vellum_migrations`. Consequences:
     `main/Kconfig.projbuild:19` labels it `1404x1872`. Not a typo — the vendor
     spec is portrait 1404×1872 and Vellum drives the panel landscape, so the two
     are the same panel under different orientation conventions. Leave both alone.
-  - **E1002 is a 6-colour panel (hardware-confirmed), but the firmware reports a
-    7-entry palette including orange** — `http_client.c` sends
-    `{black, white, yellow, red, orange, blue, green}` while the driver correctly
-    declares `.ctrl = EPD_CTRL_ACEP_6COLOR`. README's "Spectra 6 … 7 colors" is
-    wrong for the same reason (Spectra 6 has no orange). **Do not just delete the
-    orange entry**: the palette array index *is* the on-wire pixel code
-    (`EPD_PIXEL_BLACK 0x0` … `ORANGE 0x4`, `BLUE 0x5`, `GREEN 0x6` in
-    `epaper_config.h`), so removing an element shifts blue and green onto the
-    wrong codes. Fixing it needs the panel's real 6-colour code assignment from
-    the GDEP073E01 datasheet (does 0x4 become blue, or stay unused?). Until then
-    every rendered E1002 image can be mis-quantised toward a colour the panel
-    cannot show. `src/lib/display.ts` also carries a 7-entry e1002 palette in a
-    *different order* than the firmware's; runtime uses the device-reported one,
-    so the registry copy only skews the simulator/preview.
+  - **E1002's 6-colour palette is RESOLVED — do not "re-fix" it.** A palette
+    position *is* the on-wire pixel code, and GDEP073E01's code space has a hole:
+    `0x0` black, `0x1` white, `0x2` yellow, `0x3` red, **`0x4` unused**, `0x5`
+    blue, `0x6` green. The gap is why deleting the orange entry is wrong — it
+    slides blue onto `0x4` and green onto `0x5`. The open question in earlier
+    editions ("does 0x4 become blue, or stay unused?") was answered from the
+    driver itself: `epaper_lvgl.c`'s own palette has always had six entries and
+    skipped `0x4`. Position 4 therefore stays, holds a duplicate of white, and is
+    reported in the new optional caps field **`reservedPaletteIndices: [4]`**
+    (`displayCapsSchema`), which the renderer excludes from both nearest-colour
+    passes and from `colorCount`. Firmware predating the field reports nothing
+    reserved and behaves as before. `src/lib/display.ts`'s registry entry now
+    matches the firmware's order — it previously listed the same colours in ACeP
+    *Gallery* order (green/blue at `0x2`/`0x3`), a different panel family, so every
+    simulator preview disagreed with the hardware.
   - **E1001's panel does 4-level grayscale (hardware-confirmed) but the firmware
     drives it 1-bit mono** (`PANEL_BPP 1`, `PANEL_COLORS "mono"`, `UC8179_BW`;
     server palette is 2 entries). The library already has `EPD_COLOR_4GRAY`, so

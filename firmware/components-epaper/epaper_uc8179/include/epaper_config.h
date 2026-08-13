@@ -60,11 +60,20 @@ typedef enum {
     EPD_COLOR_6COLOR,           // 6-color (B/W/R/Y/Green/Blue)
 } epd_color_mode_t;
 
-// E-paper color indices (for multi-color panels)
+/* On-wire pixel codes for multi-color panels.
+ *
+ * These are the values written into the framebuffer, not array positions — a
+ * 6-color panel still uses 0x5 for blue and 0x6 for green, with 0x4 UNUSED. The
+ * driver's own LVGL palette (epaper_lvgl.c) has always had six entries and
+ * skipped 0x4, but components/http_client advertised a seven-color palette to the
+ * server including orange at 0x4, so the renderer could quantise toward a color
+ * GDEP073E01 cannot show. Anything that reports a palette must keep these codes
+ * and mark 0x4 unusable rather than closing the gap by renumbering. */
 #define EPD_PIXEL_BLACK     0x0
 #define EPD_PIXEL_WHITE     0x1
 #define EPD_PIXEL_YELLOW    0x2
 #define EPD_PIXEL_RED       0x3
+/** 7-color (ACeP Gallery) panels only. Reserved and unusable on 6-color Spectra. */
 #define EPD_PIXEL_ORANGE    0x4
 #define EPD_PIXEL_BLUE      0x5
 #define EPD_PIXEL_GREEN     0x6

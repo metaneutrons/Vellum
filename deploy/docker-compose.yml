@@ -34,6 +34,14 @@ services:
       - ./.env
     environment:
       UPDATER_URL: http://updater:8080
+      # Derived from POSTGRES_* so the database password lives in exactly one
+      # place. It used to be typed into both POSTGRES_PASSWORD and DATABASE_URL,
+      # and a mismatch produced a stack that started and then failed to
+      # authenticate against its own database — a runtime failure far from the
+      # typo. Setting DATABASE_URL in .env still wins, for a database outside
+      # this stack. If you set POSTGRES_PASSWORD by hand, keep it URL-safe
+      # (no @ : / % #) or set DATABASE_URL explicitly.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-vellum}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vellum}}
     depends_on:
       postgres:
         condition: service_healthy

@@ -113,7 +113,13 @@ export async function GET(request: NextRequest) {
     return Response.json(errorResponse("Render failed"), { status: 500 });
   }
 
-  const pixelBuffer = canvasToPixelBuffer(renderResult.canvas, display.palette, display.format, display.colorMode);
+  const pixelBuffer = canvasToPixelBuffer(
+    renderResult.canvas,
+    display.palette,
+    display.format,
+    display.colorMode,
+    display.reservedPaletteIndices,
+  );
   log.info("Render output", { mac: validation.data.mac, format: display.format, colorMode: display.colorMode, canvasW: renderResult.canvas.width, canvasH: renderResult.canvas.height, bufferSize: pixelBuffer.length });
 
   // Sleep duration

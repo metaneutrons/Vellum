@@ -25,8 +25,9 @@ const optionalEnv = <T extends z.ZodTypeAny>(schema: T) =>
  * An operator who edits only POSTGRES_PASSWORD would boot a fully "validated"
  * server whose session-signing key, provider-credential master key and global
  * API key are public repository content. Fail closed on the placeholder text
- * instead. Matched anywhere in the value, because the prod template embeds the
- * placeholder password inside DATABASE_URL. */
+ * instead. Matched anywhere in the value, not just as the whole value: the prod
+ * stack derives DATABASE_URL from POSTGRES_PASSWORD, so an unedited password
+ * arrives embedded in a connection string that is otherwise well-formed. */
 const PLACEHOLDER_RE = /replace[-_]with|change[-_]?me/i;
 
 /** Secret-bearing value: enforces a minimum length AND refuses example text. */
