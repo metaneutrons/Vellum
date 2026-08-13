@@ -20,6 +20,8 @@ import {
   ImprovError,
   improvErrorMessage,
   scanNetworksOverSerial,
+  provisionOverSerial,
+  describeSerialError,
 } from "../improv-serial";
 
 afterEach(() => {
@@ -373,5 +375,89 @@ describe("Web Serial scan lifecycle", () => {
     });
     expect(openCount).toBe(1);
     expect(closeCount).toBe(1);
+  });
+});
+
+/**
+ * A port already held by ESP Web Tools or another tab is the most common
+ * provisioning failure, and it does NOT surface at requestPort() — selecting a
+ * port always succeeds. It fails at port.open(), where the browser throws a bare
+ * DOMException that says nothing about closing the flash tool.
+ */
+describe("serial error explanations", () => {
+  it("recognises the wordings browsers actually use for a busy port", () => {
+    // Chrome: another context holds the port.
+    expect(describeSerialError(new Error("Failed to open serial port.")))
+      .toMatch(/already in use/);
+    // Chrome: opening a port this tab already opened.
+    expect(describeSerialError(new Error("The port is already open.")))
+      .toMatch(/already in use/);
+    // Both point at the fix rather than restating the failure.
+    expect(describeSerialError(new Error("Failed to open serial port.")))
+      .toMatch(/Close the flash tool/);
+  });
+
+  it("passes an unrelated fault through verbatim", () => {
+    // An invented explanation for an unknown fault is worse than the browser's.
+    expect(describeSerialError(new Error("The device has been lost.")))
+      .toBe("The device has been lost.");
+  });
+
+  it("survives a non-Error throw", () => {
+    expect(describeSerialError("nope")).toBe("Serial I/O error.");
+    expect(describeSerialError(undefined)).toBe("Serial I/O error.");
+  });
+
+  it("explains a busy port instead of leaking the DOMException, end to end", async () => {
+    const port = {
+      readable: new ReadableStream<Uint8Array>(),
+      writable: new WritableStream<Uint8Array>(),
+      async open() { throw new Error("Failed to open serial port."); },
+      async close() {},
+      async setSignals() {},
+    };
+    vi.stubGlobal("navigator", { serial: { requestPort: async () => port } });
+
+    const result = await scanNetworksOverSerial({ timeoutMs: 200 });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/already in use/);
+    expect(result.error).not.toMatch(/Failed to open serial port/);
+  });
+
+  it("does not blame another tab when the operator simply cancelled the picker", async () => {
+    // The regression this change exists for, on the path that had it:
+    // provisionOverSerial's requestPort() catch told the operator to close other
+    // tabs, but requestPort() rejects when the dialog is DISMISSED — so cancelling
+    // produced advice about a problem the operator did not have.
+    vi.stubGlobal("navigator", {
+      serial: {
+        requestPort: async () => { throw new Error("No port selected by the user."); },
+      },
+    });
+
+    const result = await provisionOverSerial({ ssid: "Office", password: "secret" });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/No serial port selected/);
+    expect(result.error).not.toMatch(/another tab|already in use/);
+  });
+
+  it("explains a busy port during provisioning too", async () => {
+    const port = {
+      readable: new ReadableStream<Uint8Array>(),
+      writable: new WritableStream<Uint8Array>(),
+      async open() { throw new Error("The port is already open."); },
+      async close() {},
+      async setSignals() {},
+    };
+    vi.stubGlobal("navigator", { serial: { requestPort: async () => port } });
+
+    const result = await provisionOverSerial({
+      ssid: "Office",
+      password: "secret",
+      timeoutMs: 200,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/already in use/);
+    expect(result.error).not.toMatch(/The port is already open/);
   });
 });
