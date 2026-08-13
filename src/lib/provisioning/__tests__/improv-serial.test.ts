@@ -376,6 +376,34 @@ describe("Web Serial scan lifecycle", () => {
     expect(openCount).toBe(1);
     expect(closeCount).toBe(1);
   });
+
+  it("does not toggle reset-capable control lines when an awake device answers", async () => {
+    let controller: ReadableStreamDefaultController<Uint8Array>;
+    const signalCalls: unknown[] = [];
+    const readable = new ReadableStream<Uint8Array>({
+      start(nextController) { controller = nextController; },
+    });
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) {
+        if (chunk[9] === ImprovCmd.GET_STATE) {
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.READY]));
+        } else if (chunk[9] === ImprovCmd.SCAN_WIFI) {
+          controller.enqueue(encodeFrame(ImprovType.RPC_RESULT, [ImprovCmd.SCAN_WIFI, 0]));
+        }
+      },
+    });
+    const port = {
+      readable,
+      writable,
+      async open() {},
+      async close() {},
+      async setSignals(signals: unknown) { signalCalls.push(signals); },
+    };
+    vi.stubGlobal("navigator", { serial: { requestPort: async () => port } });
+
+    await expect(scanNetworksOverSerial({ timeoutMs: 500 })).resolves.toMatchObject({ ok: true });
+    expect(signalCalls).toEqual([]);
+  });
 });
 
 /**

@@ -33,6 +33,12 @@ int status_layout_budget(int height, int logo_h, int xs_line_h)
     return budget < 0 ? 0 : budget;
 }
 
+int status_layout_row_gap(int height, int xs_line_h)
+{
+    int gap = height * STATUS_ROW_GAP_PCT / 100;
+    return gap < xs_line_h ? xs_line_h : gap;
+}
+
 bool status_layout_fits(int height, int logo_h, int xs_line_h,
                         int title_lines, int title_line_h,
                         int detail_lines, int detail_line_h,

@@ -23,6 +23,8 @@
 #define STATUS_GAP_PCT 6
 /** Space kept free at the bottom edge. */
 #define STATUS_BOTTOM_PCT 5
+/** Breathing room between consecutive rows in a status-content stack. */
+#define STATUS_ROW_GAP_PCT 2
 
 /** Y of the logo's top edge. */
 int status_layout_logo_top(int height);
@@ -38,6 +40,9 @@ int status_layout_content_top(int height, int logo_h, int xs_line_h);
 
 /** Vertical room the content may occupy before it would run off the panel. */
 int status_layout_budget(int height, int logo_h, int xs_line_h);
+
+/** A readable gap between content rows, never smaller than the small font. */
+int status_layout_row_gap(int height, int xs_line_h);
 
 /**
  * @brief Does a title + detail block fit inside the budget?

@@ -329,16 +329,16 @@ void display_show_connecting(const char *ssid)
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, p->bg, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(scr, 20, 0);
-
-    add_branded_mark(scr);
+    lv_obj_set_layout(scr, LV_LAYOUT_NONE);
+    add_status_logo(scr);
 
     lv_obj_t *lbl = lv_label_create(scr);
     lv_label_set_text_fmt(lbl, "Connecting to %s...", ssid);
     lv_obj_set_style_text_font(lbl, p->font_md, 0);
     lv_obj_set_style_text_color(lbl, p->muted, 0);
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(lbl, p->width * 3 / 4);
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, status_content_top(p));
 
     lvgl_refresh();
 }
@@ -346,57 +346,14 @@ void display_show_connecting(const char *ssid)
 void display_show_wifi_error(const char *detail, uint32_t retry_after_seconds)
 {
     if (!s_lvgl_disp) return;
-    const vellum_panel_t *p = vellum_panel();
-    char screen_id[96];
-    snprintf(screen_id, sizeof(screen_id), "wifi-error:%s:%lu", detail ? detail : "",
-             (unsigned long)retry_after_seconds);
-    if (screen_unchanged(screen_id)) return;
-
-    lv_obj_t *scr = lv_screen_active();
-    lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, p->bg, 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_set_layout(scr, LV_LAYOUT_NONE);
-    int content_top = status_content_top(p);
-    int step = p->height > 1000 ? 88 : 44;
-
-    add_status_logo(scr);
-
-    lv_obj_t *icon = lv_label_create(scr);
-    lv_label_set_text(icon, LV_SYMBOL_WARNING);
-    lv_obj_set_style_text_font(icon, p->font_lg, 0);
-    lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
-    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, content_top);
-
-    lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Wi-Fi unavailable");
-    lv_obj_set_style_text_font(title, p->font_lg, 0);
-    lv_obj_set_style_text_color(title, p->fg, 0);
-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(title, p->width * 3 / 4);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, content_top + step);
-
-    lv_obj_t *reason = lv_label_create(scr);
-    lv_label_set_text(reason, detail && detail[0] ? detail : "Could not join saved Wi-Fi");
-    lv_obj_set_style_text_font(reason, p->font_md, 0);
-    lv_obj_set_style_text_color(reason, p->muted, 0);
-    lv_obj_set_style_text_align(reason, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(reason, p->width * 3 / 4);
-    lv_obj_align(reason, LV_ALIGN_TOP_MID, 0, content_top + step * 2);
-
     uint32_t minutes = (retry_after_seconds + 59) / 60;
-    char retry[80];
-    snprintf(retry, sizeof(retry), "Retrying automatically\nin about %lu minute%s",
+    char message[192];
+    snprintf(message, sizeof(message), "%s\nRetrying automatically in about %lu minute%s",
+             detail && detail[0] ? detail : "Could not join saved Wi-Fi",
              (unsigned long)minutes, minutes == 1 ? "" : "s");
-    lv_obj_t *hint = lv_label_create(scr);
-    lv_label_set_text(hint, retry);
-    lv_obj_set_style_text_font(hint, p->font_sm, 0);
-    lv_obj_set_style_text_color(hint, p->muted, 0);
-    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(hint, p->width * 3 / 4);
-    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, content_top + step * 3);
-
-    lvgl_refresh();
+    /* Use the same measured stack as every other operational status.  The
+     * former bespoke three-step layout diverged on short panels. */
+    display_show_status_message(VD_ICON_WARNING, "Wi-Fi unavailable", message);
 }
 
 void display_show_ota_progress(uint8_t percent)
@@ -414,7 +371,6 @@ void display_show_ota_progress(uint8_t percent)
             lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
             lv_obj_set_layout(scr, LV_LAYOUT_NONE);
             int content_top = status_content_top(p);
-            int step = p->height > 1000 ? 72 : 36;
 
             add_status_logo(scr);
 
@@ -426,11 +382,16 @@ void display_show_ota_progress(uint8_t percent)
             lv_label_set_text(s_ota_title, "Updating firmware...");
             lv_obj_set_style_text_font(s_ota_title, p->font_md, 0);
             lv_obj_set_style_text_color(s_ota_title, p->fg, 0);
-            lv_obj_align(s_ota_title, LV_ALIGN_TOP_MID, 0, content_top);
+            const int row_gap = status_layout_row_gap(p->height, p->font_xs->line_height);
+            const int title_top = content_top;
+            const int bar_top = title_top + p->font_md->line_height + row_gap;
+            const int percent_top = bar_top + (p->height > 1000 ? 40 : 24) + row_gap;
+            const int warning_top = percent_top + p->font_md->line_height + row_gap;
+            lv_obj_align(s_ota_title, LV_ALIGN_TOP_MID, 0, title_top);
 
             s_ota_bar = lv_bar_create(scr);
             lv_obj_set_size(s_ota_bar, p->width / 2, p->height > 1000 ? 40 : 24);
-            lv_obj_align(s_ota_bar, LV_ALIGN_TOP_MID, 0, content_top + step);
+            lv_obj_align(s_ota_bar, LV_ALIGN_TOP_MID, 0, bar_top);
 
             s_ota_percent = lv_label_create(scr);
             /* Fixed opaque bounds are important on e-paper: variable-width
@@ -442,7 +403,7 @@ void display_show_ota_progress(uint8_t percent)
             lv_obj_set_style_bg_opa(s_ota_percent, LV_OPA_COVER, 0);
             lv_obj_set_style_text_font(s_ota_percent, p->font_md, 0);
             lv_obj_set_style_text_color(s_ota_percent, p->fg, 0);
-            lv_obj_align(s_ota_percent, LV_ALIGN_TOP_MID, 0, content_top + step * 2);
+            lv_obj_align(s_ota_percent, LV_ALIGN_TOP_MID, 0, percent_top);
 
             s_ota_warning = lv_label_create(scr);
             lv_obj_set_width(s_ota_warning, p->width / 2);
@@ -450,9 +411,9 @@ void display_show_ota_progress(uint8_t percent)
             lv_obj_set_style_bg_color(s_ota_warning, p->bg, 0);
             lv_obj_set_style_bg_opa(s_ota_warning, LV_OPA_COVER, 0);
             lv_label_set_text(s_ota_warning, "Do not power off");
-            lv_obj_set_style_text_font(s_ota_warning, p->font_xs, 0);
-            lv_obj_set_style_text_color(s_ota_warning, p->muted, 0);
-            lv_obj_align(s_ota_warning, LV_ALIGN_TOP_MID, 0, content_top + step * 3);
+            lv_obj_set_style_text_font(s_ota_warning, p->font_sm, 0);
+            lv_obj_set_style_text_color(s_ota_warning, p->fg, 0);
+            lv_obj_align(s_ota_warning, LV_ALIGN_TOP_MID, 0, warning_top);
         }
 
         lv_bar_set_value(s_ota_bar, percent, LV_ANIM_OFF);
@@ -475,7 +436,7 @@ void display_show_ota_progress(uint8_t percent)
         lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
         lv_obj_set_layout(scr, LV_LAYOUT_NONE);
         int content_top = status_content_top(p);
-        int step = p->height > 1000 ? 84 : 42;
+        const int row_gap = status_layout_row_gap(p->height, p->font_xs->line_height);
 
         add_status_logo(scr);
 
@@ -488,8 +449,9 @@ void display_show_ota_progress(uint8_t percent)
         lv_obj_t *warn = lv_label_create(scr);
         lv_label_set_text(warn, "Do not power off");
         lv_obj_set_style_text_font(warn, p->font_sm, 0);
-        lv_obj_set_style_text_color(warn, p->muted, 0);
-        lv_obj_align(warn, LV_ALIGN_TOP_MID, 0, content_top + step);
+        lv_obj_set_style_text_color(warn, p->fg, 0);
+        lv_obj_align(warn, LV_ALIGN_TOP_MID, 0,
+                     content_top + p->font_lg->line_height + row_gap);
 
         lvgl_refresh();
     }
@@ -617,35 +579,9 @@ void display_show_error(const char *message)
 
 void display_show_no_content(void)
 {
-    if (!s_lvgl_disp) return;
-    const vellum_panel_t *p = vellum_panel();
-    if (screen_unchanged("no-content")) return;
-
-    lv_obj_t *scr = lv_screen_active();
-    lv_obj_clean(scr);
-    lv_obj_set_style_bg_color(scr, p->bg, 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_set_layout(scr, LV_LAYOUT_NONE);
-    add_status_logo(scr);
-
-    const int content_top = status_content_top(p);
-    lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "No content assigned");
-    lv_obj_set_style_text_font(title, p->font_lg, 0);
-    lv_obj_set_style_text_color(title, p->fg, 0);
-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(title, p->width * 3 / 4);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, content_top + (p->height > 1000 ? 90 : 54));
-
-    lv_obj_t *hint = lv_label_create(scr);
-    lv_label_set_text(hint, "Assign content in Vellum");
-    lv_obj_set_style_text_font(hint, p->font_sm, 0);
-    lv_obj_set_style_text_color(hint, p->muted, 0);
-    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(hint, p->width * 3 / 4);
-    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, content_top + (p->height > 1000 ? 148 : 100));
-
-    lvgl_refresh();
+    /* Informational rather than an error: same measured grid, no warning row. */
+    display_show_status_message(VD_ICON_NONE, "No content assigned",
+                                "Assign content in Vellum");
 }
 
 void display_show_low_battery(void)

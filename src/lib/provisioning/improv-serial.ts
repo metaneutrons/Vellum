@@ -301,11 +301,12 @@ export interface ProvisionOptions {
 }
 
 const SERIAL_BAUD_RATE = 115_200;
-const PROBE_TIMEOUT_MS = 900;
 const RESET_PULSE_MS = 150;
 // D1001 initialises its LCD and ESP-Hosted C6 coprocessor before exposing the
 // Improv handler, which takes about 6.2 seconds on hardware. Leave safety
-// margin for a cold boot without penalising an already responsive device.
+// margin for a cold boot. A reset-capable bridge is used only after this
+// non-disruptive readiness probe has genuinely failed.
+const READY_PROBE_WINDOW_MS = 8_000;
 const RESET_BOOT_WAIT_MS = 8_000;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -333,11 +334,9 @@ interface ReadySerialConnection {
 
 /**
  * Open the port exactly once and keep it open through readiness probing and
- * the real command. Native USB CDC/JTAG devices such as D1001 reset on
- * `port.open()`: closing the probe and reopening for SCAN_WIFI used to reset
- * the device a second time and send the command several seconds before its
- * Improv task existed. USB-UART displays generally do not reset on open, so a
- * silent device still gets one safe RTS/EN pulse.
+ * the real command. Do not touch DTR/RTS while checking an already awake
+ * display: bridge control-line transitions can reset a D1001. A silent device
+ * receives one explicit RTS/EN wake pulse only after a full cold-boot window.
  */
 async function openReadyImprovConnection(
   port: SerialPortLike,
@@ -345,7 +344,6 @@ async function openReadyImprovConnection(
 ): Promise<ReadySerialConnection> {
   onPhase?.("connecting");
   await port.open({ baudRate: SERIAL_BAUD_RATE });
-  await port.setSignals?.({ dataTerminalReady: false, requestToSend: false });
 
   const reader = port.readable?.getReader();
   const writer = port.writable?.getWriter();
@@ -357,11 +355,9 @@ async function openReadyImprovConnection(
   onPhase?.("checking");
   const parser = new ImprovParser();
   const startedAt = Date.now();
-  const deadline = startedAt + RESET_BOOT_WAIT_MS + 3_000;
+  const deadline = startedAt + READY_PROBE_WINDOW_MS + RESET_BOOT_WAIT_MS + 3_000;
   let nextProbeAt = 0;
   let pendingRead: Promise<ReadableStreamReadResult<Uint8Array>> | undefined;
-  let sawDeviceOutput = false;
-  let resetDecisionMade = false;
   let resetAttempted = false;
 
   try {
@@ -372,19 +368,14 @@ async function openReadyImprovConnection(
         nextProbeAt = now + 500;
       }
 
-      if (!resetDecisionMade && now - startedAt >= PROBE_TIMEOUT_MS) {
-        resetDecisionMade = true;
-        /* Boot text means a native USB device was reset by port.open() and is
-         * already coming up. Do not restart that healthy boot a second time. */
-        if (!sawDeviceOutput && port.setSignals) {
-          onPhase?.("waking");
-          await port.setSignals({ dataTerminalReady: false, requestToSend: false });
-          await sleep(50);
-          await port.setSignals({ requestToSend: true });
-          await sleep(RESET_PULSE_MS);
-          await port.setSignals({ requestToSend: false });
-          resetAttempted = true;
-        }
+      if (!resetAttempted && now - startedAt >= READY_PROBE_WINDOW_MS && port.setSignals) {
+        onPhase?.("waking");
+        await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+        await sleep(50);
+        await port.setSignals({ requestToSend: true });
+        await sleep(RESET_PULSE_MS);
+        await port.setSignals({ requestToSend: false });
+        resetAttempted = true;
       }
 
       pendingRead ??= reader.read();
@@ -397,7 +388,6 @@ async function openReadyImprovConnection(
       pendingRead = undefined;
       if (outcome.result.done) throw new Error("Serial connection closed unexpectedly.");
       if (!outcome.result.value) continue;
-      sawDeviceOutput = true;
       if (parser.push(outcome.result.value).length > 0) {
         return { reader, writer, resetAttempted };
       }
@@ -641,7 +631,10 @@ export async function scanNetworksOverSerial(opts?: {
       timedOut = true;
       finished = true;
       reader?.cancel().catch(() => {});
-    }, opts?.timeoutMs ?? 8000);
+    // ESP-Hosted may need a short period after STA_START before its C6 radio
+    // accepts the scan. Leave room for that readiness retry and an all-channel
+    // scan instead of racing the device at eight seconds.
+    }, opts?.timeoutMs ?? 15_000);
     await writer.write(encodeScanWifi());
     while (!finished) {
       const { value, done: streamDone } = await reader.read();
