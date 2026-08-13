@@ -36,6 +36,9 @@ typedef enum {
 typedef struct {
     int       status_code;    /**< HTTP status (200, 400, 401, 5xx, or -1) */
     int       sleep_duration; /**< Parsed X-Sleep-Duration header (0 if absent) */
+    /** Raw X-Error-Backoff value ("60,300,900,3600"); empty when absent. Kept as
+     *  text so parsing stays in render_backoff.c, where the host tests reach it. */
+    char      error_backoff[64];
     char     *body;           /**< Text body (caller must free via http_client_free_response) */
     size_t    body_len;       /**< Length of text body */
     uint8_t  *binary_body;    /**< Binary body for render endpoint (caller must free) */

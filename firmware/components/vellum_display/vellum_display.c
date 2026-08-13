@@ -12,6 +12,7 @@
 
 #include "vellum_display.h"
 #include "vellum_panel.h"
+#include "status_layout.h"
 
 #include <string.h>
 #include "lvgl.h"
@@ -65,22 +66,41 @@ static lv_obj_t *add_logo(lv_obj_t *parent)
 /* Every branded transient/status screen uses this anchor. Do not centre logo
  * and content as one flex group: a longer error message would otherwise move
  * the Vellum mark to a different height. */
+/* The vertical grid lives in status_layout.c: pure arithmetic, no LVGL, so the
+ * host tests exercise the real thing instead of a copy. Logo assets are
+ * pre-rendered at 45% of the panel height (assets/render-logos.sh) — no runtime
+ * scaling, which on 1-bit e-paper would be visibly nearest-neighbour. */
 static int status_logo_top(const vellum_panel_t *p)
 {
-    return p->height > 1000 ? 140 : 32;
+    return status_layout_logo_top(p->height);
 }
 
 static int firmware_identity_gap(const vellum_panel_t *p)
 {
-    /* Keep the version visually separate from the mark at both density tiers. */
-    return p->height > 1000 ? 18 : 12;
+    return status_layout_identity_gap(p->height);
 }
 
 static int status_content_top(const vellum_panel_t *p)
 {
     int logo_h = p->logo ? p->logo->header.h : 0;
-    /* Reserve space for the firmware identity line rendered below the mark. */
-    return status_logo_top(p) + logo_h + (p->height > 1000 ? 84 : 46);
+    return status_layout_content_top(p->height, logo_h, p->font_xs->line_height);
+}
+
+/* Rough wrap estimate for font selection. LVGL can only measure once the label
+ * exists, and by then the font is already chosen; a conservative average glyph
+ * width of 0.55em errs toward the smaller font rather than toward drawing
+ * off-screen. Explicit newlines are honoured. */
+static int estimate_lines(const char *text, const lv_font_t *font, int width)
+{
+    if (!text || !font || width <= 0) return 1;
+    int per_line = width / (font->line_height * 55 / 100);
+    if (per_line < 1) per_line = 1;
+    int lines = 1, run = 0;
+    for (const char *c = text; *c; c++) {
+        if (*c == '\n') { lines++; run = 0; continue; }
+        if (++run > per_line) { lines++; run = 1; }
+    }
+    return lines;
 }
 
 static lv_obj_t *add_firmware_identity(lv_obj_t *parent)
@@ -475,46 +495,124 @@ void display_show_ota_progress(uint8_t percent)
     }
 }
 
-void display_show_error(const char *message)
+/* Glyph for each icon. NULL means "draw no icon row at all", which is what
+ * distinguishes an informational screen from a fault. */
+static const char *icon_glyph(vellum_display_icon_t icon)
 {
-    if (!s_lvgl_disp) return;
+    switch (icon) {
+        case VD_ICON_WARNING: return LV_SYMBOL_WARNING;
+        case VD_ICON_BATTERY: return LV_SYMBOL_BATTERY_EMPTY;
+        case VD_ICON_WIFI:    return LV_SYMBOL_WIFI;
+        case VD_ICON_SERVER:  return LV_SYMBOL_DRIVE;
+        case VD_ICON_PENDING: return LV_SYMBOL_EYE_OPEN;
+        case VD_ICON_REFRESH: return LV_SYMBOL_REFRESH;
+        case VD_ICON_NONE:
+        default:              return NULL;
+    }
+}
+
+/* Red is reserved for states an operator must fix. A pending approval or a
+ * deliberate in-progress step is drawn in the muted foreground, so the colour
+ * carries the same message as the glyph. */
+static lv_color_t icon_color(const vellum_panel_t *p, vellum_display_icon_t icon)
+{
+    switch (icon) {
+        case VD_ICON_WARNING: return lv_color_hex(0xCC0000);
+        case VD_ICON_PENDING:
+        case VD_ICON_REFRESH: return p->muted;
+        default:              return p->fg;
+    }
+}
+
+void display_show_status_message(vellum_display_icon_t icon, const char *title,
+                                 const char *detail)
+{
+    if (!s_lvgl_disp || !title) return;
     const vellum_panel_t *p = vellum_panel();
-    char screen_id[64];
-    snprintf(screen_id, sizeof(screen_id), "error:%s", message);
+
+    char screen_id[128];
+    snprintf(screen_id, sizeof(screen_id), "status:%d:%s:%s",
+             (int)icon, title, detail ? detail : "");
     if (screen_unchanged(screen_id)) return;
+
     lv_obj_t *scr = lv_screen_active();
     lv_obj_clean(scr);
     lv_obj_set_style_bg_color(scr, p->bg, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_set_layout(scr, LV_LAYOUT_NONE);
-    int content_top = status_content_top(p);
-    const bool large_panel = p->height > 1000;
-    /* Give the warning mark its own, symmetric visual space.  Transform scale
-     * expands from the glyph centre, hence the half-expansion top inset. */
-    int warning_top = content_top + (large_panel ? 32 : 18);
-    /* 48px glyph × 150% = 72px. status_content_top() already reserves the
-     * visual top margin below the logo (36px / 18px), so mirror it below the
-     * visible warning glyph before the message begins. */
-    int message_top = content_top + (large_panel ? 148 : 108);
+
+    const int content_top = status_content_top(p);
+    const int logo_h = p->logo ? p->logo->header.h : 0;
+    const int text_w = p->width * 3 / 4;
+    const int gap = p->height / 40;
+    const char *glyph = icon_glyph(icon);
+    const int icon_rows = glyph ? 1 : 0;
 
     add_status_logo(scr);
 
-    lv_obj_t *icon = lv_label_create(scr);
-    lv_label_set_text(icon, LV_SYMBOL_WARNING);
-    lv_obj_set_style_text_font(icon, p->font_lg, 0);
-    lv_obj_set_style_text_color(icon, lv_color_hex(0xCC0000), 0);
-    lv_obj_set_style_transform_scale(icon, 384, 0); /* 150%; 256 is 100% */
-    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, warning_top);
+    /* Pick the largest rung whose whole block fits. The old screen forced
+     * font_lg unconditionally, which is how a 480px panel ended up laying its
+     * message out below its own bottom edge. The measurement below covers exactly
+     * what the code after it draws: the icon row, the wrapped title, then the
+     * detail one rung smaller. */
+    const lv_font_t *const ladder[] = { p->font_lg, p->font_md, p->font_sm };
+    const size_t rungs = sizeof(ladder) / sizeof(ladder[0]);
+    const lv_font_t *title_font = ladder[0];
+    const lv_font_t *detail_font = ladder[1];
+    int title_lines = 1, detail_lines = 0;
 
+    for (size_t i = 0; i < rungs; i++) {
+        title_font = ladder[i];
+        detail_font = ladder[i + 1 < rungs ? i + 1 : rungs - 1];
+        title_lines = estimate_lines(title, title_font, text_w);
+        detail_lines = detail ? estimate_lines(detail, detail_font, text_w) : 0;
+        if (status_layout_fits(p->height, logo_h, p->font_xs->line_height,
+                               icon_rows + title_lines, title_font->line_height,
+                               detail_lines, detail_font->line_height, gap)) {
+            break;
+        }
+    }
+
+    /* Icon in the title's own size — the old screen drew a fixed 48px glyph at a
+     * 150% transform, which reserved a block of its own regardless of panel. */
+    if (glyph) {
+        lv_obj_t *ico = lv_label_create(scr);
+        lv_label_set_text(ico, glyph);
+        lv_obj_set_style_text_font(ico, title_font, 0);
+        lv_obj_set_style_text_color(ico, icon_color(p, icon), 0);
+        lv_obj_align(ico, LV_ALIGN_TOP_MID, 0, content_top);
+    }
+
+    const int title_top = content_top + icon_rows * title_font->line_height;
     lv_obj_t *lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, message);
-    lv_obj_set_style_text_font(lbl, p->font_lg, 0);
+    lv_label_set_text(lbl, title);
+    lv_obj_set_style_text_font(lbl, title_font, 0);
     lv_obj_set_style_text_color(lbl, p->fg, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl, p->width * 3 / 4);
-    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, message_top);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_MODE_WRAP);
+    lv_obj_set_width(lbl, text_w);
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, title_top);
+
+    if (detail) {
+        lv_obj_t *sub = lv_label_create(scr);
+        lv_label_set_text(sub, detail);
+        lv_obj_set_style_text_font(sub, detail_font, 0);
+        lv_obj_set_style_text_color(sub, p->muted, 0);
+        lv_obj_set_style_text_align(sub, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(sub, LV_LABEL_LONG_MODE_WRAP);
+        lv_obj_set_width(sub, text_w);
+        lv_obj_align(sub, LV_ALIGN_TOP_MID, 0,
+                     title_top + title_lines * title_font->line_height + gap);
+    }
 
     lvgl_refresh();
+}
+
+void display_show_error(const char *message)
+{
+    /* Kept so every existing caller keeps compiling; a caller that wants an
+     * honest non-fault icon should call display_show_status_message() directly. */
+    display_show_status_message(VD_ICON_WARNING, message, NULL);
 }
 
 void display_show_no_content(void)

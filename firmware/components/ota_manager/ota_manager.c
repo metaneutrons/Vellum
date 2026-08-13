@@ -102,7 +102,8 @@ static void ota_defer_retry(const char *version)
 static ota_check_result_t ota_show_failure_and_restore(const char *version)
 {
     ota_defer_retry(version);
-    display_show_error("Firmware update failed\nWill retry later");
+    display_show_status_message(VD_ICON_WARNING, "Firmware update failed",
+                                "The display keeps running and will retry later");
     board_buzzer_beep(500, 500);
     /* Error feedback needs to be visible, but must not become the display's
      * steady state. The caller redraws normal content immediately afterwards. */

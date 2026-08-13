@@ -78,10 +78,12 @@ menu "Vellum Configuration"
             default 3600
             range 0 86400
             help
-                Each failed render cycle doubles the wait before the next
-                attempt, up to this cap; a successful cycle resets it. Retrying
-                a dead backend at the normal cadence wastes wake-ups and radio
-                time on a battery device. 0 disables the cap (not the backoff).
+                Ceiling for the retry ladder walked after failed render cycles;
+                a successful cycle resets the streak. The ladder itself comes
+                from the assigned refresh profile (X-Error-Backoff), or from a
+                built-in default until the server has answered once. This is only
+                the device-side clamp, for an operator who wants a tighter bound
+                than the server's. 0 disables the clamp, not the backoff.
         config VELLUM_WIFI_CONNECT_TIMEOUT_MS
             int "Wi-Fi connection timeout (ms)"
             default 30000

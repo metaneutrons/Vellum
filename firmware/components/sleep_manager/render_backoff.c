@@ -2,30 +2,46 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 #include "render_backoff.h"
 
-/* Doubling past this is pointless and risks shifting a uint32_t into oblivion;
- * 2^12 * a 15-minute cadence is already far beyond any sane cap. */
-#define BACKOFF_MAX_SHIFT 12
-
 uint32_t render_backoff_delay(uint32_t base_sec,
                               uint32_t consecutive_failures,
-                              uint32_t cap_sec)
+                              const uint32_t *ladder,
+                              size_t ladder_len)
 {
-    if (base_sec == 0) return 0;
     if (consecutive_failures == 0) return base_sec;
+    if (!ladder || ladder_len == 0) return base_sec;
 
-    /* A cadence that is already longer than the cap is deliberate — never
-     * shorten it just because the cap is lower. */
-    if (cap_sec != 0 && base_sec >= cap_sec) return base_sec;
+    if (ladder_len > RENDER_BACKOFF_MAX_STEPS) ladder_len = RENDER_BACKOFF_MAX_STEPS;
 
-    uint32_t shift = consecutive_failures;
-    if (shift > BACKOFF_MAX_SHIFT) shift = BACKOFF_MAX_SHIFT;
+    size_t idx = consecutive_failures - 1;
+    if (idx >= ladder_len) idx = ladder_len - 1;
 
-    uint32_t delay = base_sec;
-    for (uint32_t i = 0; i < shift; i++) {
-        /* Saturate instead of wrapping. */
-        if (delay > UINT32_MAX / 2) return cap_sec != 0 ? cap_sec : UINT32_MAX;
-        delay *= 2;
-        if (cap_sec != 0 && delay >= cap_sec) return cap_sec;
+    /* A zero rung would busy-loop the radio; fall back to the cadence instead. */
+    return ladder[idx] > 0 ? ladder[idx] : base_sec;
+}
+
+size_t render_backoff_parse(const char *value, uint32_t *out, size_t out_cap)
+{
+    if (!value || !out || out_cap == 0) return 0;
+    if (out_cap > RENDER_BACKOFF_MAX_STEPS) out_cap = RENDER_BACKOFF_MAX_STEPS;
+
+    size_t n = 0;
+    const char *p = value;
+
+    while (*p && n < out_cap) {
+        while (*p == ' ' || *p == '\t' || *p == ',') p++;
+        if (*p < '0' || *p > '9') break;          /* garbage — keep what we have */
+
+        uint64_t v = 0;
+        while (*p >= '0' && *p <= '9') {
+            v = v * 10 + (uint64_t)(*p - '0');
+            if (v > UINT32_MAX) return n;         /* absurd value — stop here */
+            p++;
+        }
+        if (v == 0) return n;                    /* never accept a zero delay */
+        out[n++] = (uint32_t)v;
+
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p && *p != ',') break;              /* unexpected trailing token */
     }
-    return delay;
+    return n;
 }

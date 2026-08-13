@@ -19,19 +19,18 @@
 #include "d1001_board.h"
 #include "lcd_jd9365.h"
 #include "jpeg_decoder.h"
-#include "vellum_logo_rgb565.h"
+/* Static image descriptor in flash. Building it in PSRAM at boot (malloc + a
+ * full-image memcpy) bought nothing for an asset that never changes, and held
+ * ~190 KB of PSRAM for the lifetime of the device. */
+extern const lv_image_dsc_t vellum_logo_color_360px;
 
 static const char *TAG = "panel_lcd";
 
 #define LCD_WIDTH  800
 #define LCD_HEIGHT 1280
-#define VELLUM_LOGO_W VELLUM_LOGO_RGB565_W
-#define VELLUM_LOGO_H VELLUM_LOGO_RGB565_H
 
 static lv_display_t *s_disp = NULL;
 static uint16_t     *s_panel_fb = NULL;
-static uint16_t     *s_logo_buf = NULL;
-static lv_image_dsc_t s_logo_dsc;
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
@@ -120,20 +119,6 @@ static lv_display_t *lcd_init(void)
                            LV_DISPLAY_RENDER_MODE_FULL);
     lv_display_set_flush_cb(s_disp, flush_cb);
 
-    /* Build the RGB565 logo descriptor once (PSRAM). */
-    if (!s_logo_buf) {
-        s_logo_buf = heap_caps_malloc(VELLUM_LOGO_W * VELLUM_LOGO_H * 2, MALLOC_CAP_SPIRAM);
-        if (s_logo_buf) {
-            memcpy(s_logo_buf, vellum_logo_rgb565, VELLUM_LOGO_W * VELLUM_LOGO_H * 2);
-            memset(&s_logo_dsc, 0, sizeof(s_logo_dsc));
-            s_logo_dsc.header.w = VELLUM_LOGO_W;
-            s_logo_dsc.header.h = VELLUM_LOGO_H;
-            s_logo_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
-            s_logo_dsc.data_size = VELLUM_LOGO_W * VELLUM_LOGO_H * 2;
-            s_logo_dsc.data = (const uint8_t *)s_logo_buf;
-        }
-    }
-
     vTaskDelay(pdMS_TO_TICKS(100));
     d1001_backlight_on();
     ESP_LOGI(TAG, "LCD initialized: %dx%d", LCD_WIDTH, LCD_HEIGHT);
@@ -216,6 +201,6 @@ const vellum_panel_t *vellum_panel(void)
     s_panel.fg    = lv_color_white();
     s_panel.muted = lv_color_hex(0x999999);
     s_panel.dim   = lv_color_hex(0x666666);
-    s_panel.logo  = s_logo_buf ? &s_logo_dsc : NULL;
+    s_panel.logo  = &vellum_logo_color_360px;
     return &s_panel;
 }

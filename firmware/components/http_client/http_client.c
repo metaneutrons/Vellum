@@ -415,6 +415,14 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
             }
         }
 
+        /* Retry ladder for failed cycles; absent unless the device has a refresh
+         * profile that defines one. */
+        char *backoff_val = NULL;
+        esp_http_client_get_header(client, "X-Error-Backoff", &backoff_val);
+        if (backoff_val) {
+            strlcpy(resp->error_backoff, backoff_val, sizeof(resp->error_backoff));
+        }
+
         /* Store ETag for next request */
         char *etag_val = NULL;
         esp_http_client_get_header(client, "ETag", &etag_val);

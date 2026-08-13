@@ -70,9 +70,21 @@ static const char *TAG = "panel_epaper";
 /* ── Scaled fonts (based on shorter panel dimension) ──────────── */
 #define PANEL_SHORT_SIDE ((PANEL_WIDTH < PANEL_HEIGHT) ? PANEL_WIDTH : PANEL_HEIGHT)
 #if PANEL_SHORT_SIDE > 1000
-  /* High-res (E1003: 1404px short side) */
-  #define FONT_LG   (&lv_font_montserrat_48)
-  #define FONT_MD   (&lv_font_montserrat_48)
+  /* High-res (E1003: 1404px short side).
+   *
+   * All four rungs used to be 48px, i.e. the same absolute glyph size as the
+   * 480px models — about a third of the intended optical size on this panel, and
+   * with no distinction left between LG, MD and SM for the status screens to step
+   * through.
+   *
+   * LVGL's bundled Montserrat stops at 48, so the top two rungs are pre-generated
+   * assets (fonts/, assets/render-fonts.sh) compiled only into this model. They
+   * carry ASCII plus the six LV_SYMBOL_* glyphs vellum_display_icon_t can show —
+   * a symbol outside that set renders as a missing glyph. */
+  extern const lv_font_t vellum_font_montserrat_96;
+  extern const lv_font_t vellum_font_montserrat_64;
+  #define FONT_LG   (&vellum_font_montserrat_96)
+  #define FONT_MD   (&vellum_font_montserrat_64)
   #define FONT_SM   (&lv_font_montserrat_48)
   #define FONT_XS   (&lv_font_montserrat_24)
 #else
@@ -88,8 +100,8 @@ static const char *TAG = "panel_epaper";
 extern const lv_img_dsc_t vellum_logo_16grey_600px;
 #define LOGO_DSC (&vellum_logo_16grey_600px)
 #else
-extern const lv_img_dsc_t vellum_logo_mono_300px;
-#define LOGO_DSC (&vellum_logo_mono_300px)
+extern const lv_img_dsc_t vellum_logo_mono_216px;
+#define LOGO_DSC (&vellum_logo_mono_216px)
 #endif
 
 static epd_handle_t s_epd = NULL;
