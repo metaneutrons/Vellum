@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/metaneutrons/Vellum/compare/v1.10.0...v1.10.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **firmware:** stabilize status screens and USB Wi-Fi scans ([#199](https://github.com/metaneutrons/Vellum/issues/199)) ([87ab4c1](https://github.com/metaneutrons/Vellum/commit/87ab4c1e5395600032ad7689d1eac7ca06c091f7))
+
 ## [1.10.0](https://github.com/metaneutrons/Vellum/compare/v1.9.6...v1.10.0) (2026-08-13)
 
 
