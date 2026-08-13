@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Validate updater scripts
         run: |
-          shellcheck deploy/updater/update.sh deploy/updater/test-update.sh
+          shellcheck deploy/updater/update.sh deploy/updater/test-update.sh deploy/install.sh
           bash deploy/updater/test-update.sh
           node --check deploy/updater/control.mjs
           node --test deploy/updater/control.test.mjs
@@ -30,6 +30,49 @@ jobs:
         run: |
           cp deploy/vellum.env.example deploy/.env
           docker compose -f deploy/docker-compose.yml config --quiet
+      - name: Installer produces a complete .env
+        run: |
+          # --dry-run stops before `compose up`, so this exercises the whole
+          # fill-in path (asset verification, secret generation, template
+          # rewriting) without starting containers.
+          bash deploy/install.sh --from deploy --dir "$RUNNER_TEMP/vellum" \
+            --url https://vellum.example.com --tz Europe/Berlin --dry-run --yes
+          env_file="$RUNNER_TEMP/vellum/.env"
+          # The guard that matters: a placeholder reaching a real install is a
+          # stack that either refuses to boot or boots on public secrets.
+          if grep -nE '^[A-Z_]+=(replace-with|change-me)' "$env_file"; then
+            echo "::error::installer left a placeholder in .env"
+            exit 1
+          fi
+          # Each required secret must be present, non-empty, and distinct.
+          for key in ENCRYPTION_KEY SESSION_SECRET ADMIN_API_KEY UPDATER_TOKEN \
+                     POSTGRES_PASSWORD ADMIN_PASS VELLUM_PUBLIC_URL; do
+            grep -qE "^${key}=.+" "$env_file" || { echo "::error::${key} missing"; exit 1; }
+          done
+          secrets=$(grep -E '^(ENCRYPTION_KEY|SESSION_SECRET|ADMIN_API_KEY|UPDATER_TOKEN)=' \
+            "$env_file" | cut -d= -f2 | sort -u | wc -l)
+          [ "$secrets" -eq 4 ] || { echo "::error::secrets are not independent"; exit 1; }
+          # 0600, or the updater's own preflight would be the first to notice.
+          [ "$(stat -c '%a' "$env_file")" = "600" ] || { echo "::error::.env is not 0600"; exit 1; }
+          # And the file it wrote must actually configure the stack.
+          docker compose -f "$RUNNER_TEMP/vellum/docker-compose.yml" config --quiet
+          # Refusing to clobber live secrets is a safety property, not a nicety.
+          if bash deploy/install.sh --from deploy --dir "$RUNNER_TEMP/vellum" \
+               --url https://vellum.example.com --dry-run --yes 2>/dev/null; then
+            echo "::error::installer overwrote an existing .env without --force"
+            exit 1
+          fi
+          # The documented install is `curl … | bash`, where stdin IS the script.
+          # A prompt that read stdin instead of /dev/tty would swallow the rest of
+          # the script, so exercise that exact shape.
+          cat deploy/install.sh | bash -s -- --from deploy \
+            --dir "$RUNNER_TEMP/vellum-piped" --dry-run
+          grep -qE '^ADMIN_PASS=.+' "$RUNNER_TEMP/vellum-piped/.env" \
+            || { echo "::error::piped install did not complete"; exit 1; }
+          # No terminal and no --url: the public origin must be left empty rather
+          # than half-written, since an invalid value would exit(1) the server.
+          grep -qE '^VELLUM_PUBLIC_URL=$' "$RUNNER_TEMP/vellum-piped/.env" \
+            || { echo "::error::unset public URL was not written empty"; exit 1; }
       - name: Build updater image
         run: docker build --file deploy/updater/Dockerfile deploy/updater
 
