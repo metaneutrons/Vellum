@@ -3,9 +3,23 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Sun, Moon, Contrast } from "lucide-react";
 
 type Theme = "light" | "dark" | "system";
-const OPTIONS: Theme[] = ["light", "dark", "system"];
+
+/**
+ * Icon per appearance, matching the platform's own vocabulary: sun, moon, and a
+ * half-filled circle for "follow the system" (Apple's circle.lefthalf.filled).
+ *
+ * The labels stay as accessible names and tooltips rather than visible text — as
+ * three spelled-out words the control was wider than everything around it, and in
+ * German ("Heller Modus", "Dunkler Modus") it dominated the login page.
+ */
+const OPTIONS: { value: Theme; Icon: typeof Sun; key: string }[] = [
+  { value: "light", Icon: Sun, key: "lightMode" },
+  { value: "dark", Icon: Moon, key: "darkMode" },
+  { value: "system", Icon: Contrast, key: "systemMode" },
+];
 
 function apply(theme: Theme) {
   const dark =
@@ -45,20 +59,31 @@ export function ThemeToggle() {
   }
 
   return (
-    <div role="radiogroup" aria-label={t("appearance")} className="inline-flex p-0.5 bg-fill-tertiary rounded-md gap-0.5">
-      {OPTIONS.map((o) => (
-        <button
-          key={o}
-          role="radio"
-          aria-checked={theme === o}
-          onClick={() => choose(o)}
-          className={`px-2.5 min-h-7 text-[13px] font-medium rounded-[7px] focus-ring transition ${
-            theme === o ? "bg-surface text-label shadow-e1" : "text-label-secondary hover:text-label"
-          }`}
-        >
-          {t(o === "light" ? "lightMode" : o === "dark" ? "darkMode" : "systemMode")}
-        </button>
-      ))}
+    <div
+      role="radiogroup"
+      aria-label={t("appearance")}
+      className="inline-flex p-0.5 bg-fill-tertiary rounded-lg gap-0.5"
+    >
+      {OPTIONS.map(({ value, Icon, key }) => {
+        const label = t(key);
+        return (
+          <button
+            key={value}
+            role="radio"
+            aria-checked={theme === value}
+            aria-label={label}
+            title={label}
+            onClick={() => choose(value)}
+            className={`grid place-items-center size-7 rounded-[7px] focus-ring transition ${
+              theme === value
+                ? "bg-surface text-label shadow-e1"
+                : "text-label-secondary hover:text-label"
+            }`}
+          >
+            <Icon size={15} strokeWidth={2} aria-hidden="true" />
+          </button>
+        );
+      })}
     </div>
   );
 }
