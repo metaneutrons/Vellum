@@ -291,7 +291,14 @@
     "moveDown": "Bajar",
     "overnight": "Regla nocturna (cruza medianoche)",
     "deleteTitle": "Eliminar perfil",
-    "deleteMessage": "¿Eliminar este perfil? Los dispositivos volverán a los valores predeterminados."
+    "deleteMessage": "¿Eliminar este perfil? Los dispositivos volverán a los valores predeterminados.",
+    "setAsDefault": "Establecer como predeterminado",
+    "defaultSet": "Perfil predeterminado actualizado",
+    "defaultHint": "Las pantallas nuevas y las que no tienen perfil usan «{name}».",
+    "noDefaultHint": "Sin predeterminado: las pantallas sin perfil usan los intervalos integrados (60 s con USB, 15 min con batería).",
+    "whileWaiting": "Mientras espera contenido",
+    "whileWaitingHint": "Las pantallas registradas sin contenido asignado consultan con esta frecuencia, para que asignar contenido durante la instalación surta efecto pronto. Solo acorta los intervalos anteriores, nunca los alarga; las pantallas con batería crítica mantienen su intervalo de batería baja.",
+    "default": "Predeterminado"
   },
   "system": {
     "title": "Sistema",

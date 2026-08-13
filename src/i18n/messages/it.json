@@ -291,7 +291,14 @@
     "moveDown": "Sposta giù",
     "overnight": "Regola notturna (oltre mezzanotte)",
     "deleteTitle": "Elimina profilo",
-    "deleteMessage": "Eliminare questo profilo? I dispositivi useranno i valori predefiniti."
+    "deleteMessage": "Eliminare questo profilo? I dispositivi useranno i valori predefiniti.",
+    "setAsDefault": "Imposta come predefinito",
+    "defaultSet": "Profilo predefinito aggiornato",
+    "defaultHint": "I nuovi display e quelli senza profilo usano «{name}».",
+    "noDefaultHint": "Nessun predefinito: i display senza profilo usano gli intervalli integrati (60 s con USB, 15 min a batteria).",
+    "whileWaiting": "In attesa di contenuti",
+    "whileWaitingHint": "I display registrati senza contenuti assegnati si ricollegano con questa frequenza, così l’assegnazione dei contenuti durante l’installazione ha effetto rapidamente. Riduce soltanto gli intervalli sopra, non li allunga; i display con batteria critica mantengono il loro intervallo di batteria scarica.",
+    "default": "Predefinito"
   },
   "system": {
     "title": "Sistema",

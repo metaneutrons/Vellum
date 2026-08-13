@@ -9,12 +9,69 @@ import { validateRequest, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { canvasToPixelBuffer } from "@/lib/render";
-import { computeSleep, parseRefreshProfile, applyJitter } from "@/lib/sleep";
+import { computeSleep, parseRefreshProfile, applyJitter, type RefreshProfile } from "@/lib/sleep";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { resolveDisplayCaps } from "@/lib/display";
 import { getContentRenderer } from "@/lib/content";
 import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/theme";
+
+/**
+ * Resolve the refresh profile for a device: its own assignment, else the profile
+ * an operator designated as the default, else null (which computeSleep turns into
+ * the built-in constants).
+ *
+ * Mirrors how the theme is resolved further down this file. The middle step is
+ * new: the device picker has always offered a "Default" option, but it resolved
+ * straight to hard-coded constants, so nobody could see or change it.
+ */
+async function resolveRefreshProfile(refreshProfileId: string | null) {
+  if (refreshProfileId) {
+    const [rp] = await withDb(() => db.select().from(refreshProfiles)
+      .where(eq(refreshProfiles.id, refreshProfileId)).limit(1), "render-get-refresh-profile");
+    if (rp) return parseRefreshProfile(rp.config);
+  }
+  const [fallback] = await withDb(() => db.select().from(refreshProfiles)
+    .where(eq(refreshProfiles.isDefault, true)).limit(1), "render-get-default-refresh-profile");
+  return fallback ? parseRefreshProfile(fallback.config) : null;
+}
+
+/**
+ * The cadence headers every response carries — including 204 and 304, which are
+ * the states a device spends most of its life in. Shared so a new response path
+ * cannot silently omit them: a 204 without X-Sleep-Duration sent displays back to
+ * their 900s firmware fallback, ignoring the profile entirely.
+ */
+function sleepHeaders(
+  durationS: number,
+  mode: string,
+  profile: RefreshProfile | null,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "X-Sleep-Duration": String(Math.round(applyJitter(durationS))),
+    "X-Sleep-Mode": mode,
+  };
+  // Omitted when the profile defines no ladder; the device then keeps its normal
+  // cadence on failure. See errorBackoffS in @/lib/sleep.
+  const ladder = profile?.errorBackoffS ?? [];
+  if (ladder.length > 0) headers["X-Error-Backoff"] = ladder.join(",");
+  return headers;
+}
+
+/**
+ * Record the cadence just handed to this device so the admin UI can judge
+ * connectivity against its own schedule (src/lib/connectivity.ts) rather than a
+ * fixed window. Only writes on change — skips a round-trip on the steady-state
+ * render path — and is non-fatal.
+ */
+async function recordExpectedInterval(mac: string, current: number | null, durationS: number) {
+  const rounded = Math.round(durationS);
+  if (current === rounded) return;
+  await withDb(
+    () => db.update(devices).set({ expectedIntervalS: rounded }).where(eq(devices.mac, mac)),
+    "render-update-expected-interval",
+  ).catch((err) => log.warn("expectedIntervalS update failed", { mac, error: String(err) }));
+}
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -49,8 +106,29 @@ export async function GET(request: NextRequest) {
     return Response.json(errorResponse("Device not found"), { status: 404 });
   }
 
+  const USB_VOLTAGE_THRESHOLD = 4.5;
+  const powerSource =
+    telemetryData && telemetryData.batteryVoltage > USB_VOLTAGE_THRESHOLD ? "usb" : "battery";
+  const profile = await resolveRefreshProfile(device.refreshProfileId);
+
   if (!device.contentInstanceId) {
-    return new Response(null, { status: 204 });
+    /* Enrolled, healthy, nothing assigned yet — the commissioning state. This used
+     * to return bare, so the device fell back to its 900s firmware default and an
+     * operator assigning content could wait a quarter of an hour to see it. The
+     * profile's unassignedIntervalS caps it instead. */
+    const idle = computeSleep({
+      powerSource,
+      batteryLevel: telemetryData?.batteryLevel ?? 100,
+      nextEventStart: null,
+      now: new Date(),
+      profile,
+      hasContent: false,
+    });
+    await recordExpectedInterval(validation.data.mac, device.expectedIntervalS, idle.durationS);
+    return new Response(null, {
+      status: 204,
+      headers: sleepHeaders(idle.durationS, idle.mode, profile),
+    });
   }
 
   // Load content instance
@@ -122,20 +200,8 @@ export async function GET(request: NextRequest) {
   );
   log.info("Render output", { mac: validation.data.mac, format: display.format, colorMode: display.colorMode, canvasW: renderResult.canvas.width, canvasH: renderResult.canvas.height, bufferSize: pixelBuffer.length });
 
-  // Sleep duration
-  const USB_VOLTAGE_THRESHOLD = 4.5;
-  const powerSource =
-    telemetryData && telemetryData.batteryVoltage > USB_VOLTAGE_THRESHOLD ? "usb" : "battery";
-
-  // Load refresh profile if assigned
-  let profile = null;
-  if (device.refreshProfileId) {
-    const refreshProfileId = device.refreshProfileId;
-    const [rp] = await withDb(() => db.select().from(refreshProfiles)
-      .where(eq(refreshProfiles.id, refreshProfileId)).limit(1), "render-get-refresh-profile");
-    if (rp) profile = parseRefreshProfile(rp.config);
-  }
-
+  // Sleep duration. powerSource and profile were resolved before the no-content
+  // check above; only the renderer's own override needs the finished render.
   const { durationS: sleepDuration, mode: sleepMode } = computeSleep({
     powerSource,
     batteryLevel: telemetryData?.batteryLevel ?? 100,
@@ -145,24 +211,7 @@ export async function GET(request: NextRequest) {
     rendererOverrideS: renderResult.sleepOverrideS ?? null,
   });
 
-  // Record the cadence we just handed this device so the admin UI can judge
-  // connectivity relative to its own schedule (src/lib/connectivity.ts), not a
-  // fixed window. Only write when it actually changed — skips a DB round-trip on
-  // the steady-state render path. Non-fatal — falls back to a default interval.
-  const roundedInterval = Math.round(sleepDuration);
-  if (device.expectedIntervalS !== roundedInterval) {
-    await withDb(
-      () => db.update(devices).set({ expectedIntervalS: roundedInterval }).where(eq(devices.mac, validation.data.mac)),
-      "render-update-expected-interval",
-    ).catch((err) => log.warn("expectedIntervalS update failed", { mac: validation.data.mac, error: String(err) }));
-  }
-
-  // Retry ladder for failed cycles. Sent as seconds, ascending, comma-separated;
-  // omitted entirely when the profile defines no ladder, in which case the device
-  // keeps its normal cadence on failure. See errorBackoffS in @/lib/sleep.
-  const backoffHeader: Record<string, string> = {};
-  const ladder = profile?.errorBackoffS ?? [];
-  if (ladder.length > 0) backoffHeader["X-Error-Backoff"] = ladder.join(",");
+  await recordExpectedInterval(validation.data.mac, device.expectedIntervalS, sleepDuration);
 
   // Compute content hash for client-side caching (skip refresh if unchanged)
   const { createHash } = await import("crypto");
@@ -173,11 +222,7 @@ export async function GET(request: NextRequest) {
   if (ifNoneMatch === contentHash) {
     return new Response(null, {
       status: 304,
-      headers: {
-        "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
-        "X-Sleep-Mode": sleepMode,
-        ...backoffHeader,
-      },
+      headers: sleepHeaders(sleepDuration, sleepMode, profile),
     });
   }
 
@@ -185,9 +230,7 @@ export async function GET(request: NextRequest) {
     status: 200,
     headers: {
       "Content-Type": display.format === "jpeg" ? "image/jpeg" : (display.colorMode === "fullcolor" ? "image/png" : "application/octet-stream"),
-      "X-Sleep-Duration": String(Math.round(applyJitter(sleepDuration))),
-      "X-Sleep-Mode": sleepMode,
-      ...backoffHeader,
+      ...sleepHeaders(sleepDuration, sleepMode, profile),
       "ETag": contentHash,
     },
   });
