@@ -210,7 +210,7 @@
     "noProvidersHint": "Fügen Sie einen Anbieter hinzu, um Kalender- oder andere Datenquellen zu verbinden.",
     "noMatch": "Keine Anbieter gefunden",
     "deleteTitle": "Anbieter löschen",
-    "deleteMessage": "Diesen Anbieter löschen? Inhaltsinstanzen, die ihn verwenden, funktionieren nicht mehr.",
+    "deleteMessage": "Diesen Anbieter löschen? Anbieter, die noch von Inhalten verwendet werden, können nicht gelöscht werden.",
     "icalHint": "iCal-Anbieter benötigen keine Zugangsdaten. Die URL wird pro Inhaltsinstanz konfiguriert.",
     "types": {
       "microsoft365": "Microsoft 365 — Kalender",

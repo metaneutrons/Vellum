@@ -27,6 +27,7 @@ const HEALTH_CHECK_INTERVAL_MS = 10_000;
 /* ── Types ────────────────────────────────────────────────────── */
 
 export type CircuitState = "closed" | "open" | "half-open";
+export type DbOperationKind = "read" | "write" | "transaction";
 
 export interface DbHealthState {
   connected: boolean;
@@ -79,7 +80,7 @@ function isTransientError(err: unknown): boolean {
 
 /* ── Resilience Manager (Singleton) ──────────────────────────── */
 
-class DbResilienceManager extends EventEmitter {
+export class DbResilienceManager extends EventEmitter {
   private circuit: CircuitState = "closed";
   private consecutiveFailures = 0;
   private lastError: string | null = null;
@@ -125,7 +126,7 @@ class DbResilienceManager extends EventEmitter {
   }
 
   /** Execute a database operation with retry and circuit breaker */
-  async execute<T>(operation: () => Promise<T>, label?: string): Promise<T> {
+  async execute<T>(operation: () => Promise<T>, label?: string, kind: DbOperationKind = "read"): Promise<T> {
     // Circuit breaker: reject immediately if open
     if (this.circuit === "open") {
       const elapsed = Date.now() - this.circuitOpenedAt;
@@ -142,7 +143,12 @@ class DbResilienceManager extends EventEmitter {
 
     // Retry loop with exponential backoff
     let lastErr: unknown;
-    for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+    // Reads are safe to replay after any transient transport failure. A plain
+    // write is not: PostgreSQL may have committed it before the connection was
+    // lost, so replaying could duplicate the effect. Transactions are retried
+    // only for SQLSTATEs that guarantee PostgreSQL rolled them back.
+    const maxAttempts = kind === "write" ? 1 : RETRY_ATTEMPTS;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const result = await operation();
         this.recordSuccess();
@@ -155,21 +161,29 @@ class DbResilienceManager extends EventEmitter {
           throw err;
         }
 
+        const code = errorCode(err);
+        const retryIsSafe = kind === "read" ||
+          (kind === "transaction" && (code === "40001" || code === "40P01"));
+        if (!retryIsSafe) {
+          this.recordFailure(err);
+          throw err;
+        }
+
         this.totalRetries++;
         const delay = Math.min(
           RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1),
           RETRY_MAX_DELAY_MS
         );
 
-        if (attempt < RETRY_ATTEMPTS) {
+        if (attempt < maxAttempts) {
           log.warn("Database operation failed, retrying", {
             label,
             attempt,
-            maxAttempts: RETRY_ATTEMPTS,
+            maxAttempts,
             delay,
             error: String(err),
           });
-          this.emitEvent({ type: "retry", attempt, maxAttempts: RETRY_ATTEMPTS, error: String(err) });
+          this.emitEvent({ type: "retry", attempt, maxAttempts, error: String(err) });
           await sleep(delay);
         }
       }
@@ -260,4 +274,15 @@ export const dbResilience = new DbResilienceManager();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorCode(err: unknown): string | undefined {
+  if (!err || typeof err !== "object") return undefined;
+  const value = err as Record<string, unknown>;
+  if (typeof value.code === "string") return value.code;
+  if (value.cause && typeof value.cause === "object") {
+    const cause = value.cause as Record<string, unknown>;
+    if (typeof cause.code === "string") return cause.code;
+  }
+  return undefined;
 }

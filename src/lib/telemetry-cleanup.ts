@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
-import { db, withDb } from "@/db";
+import { db, withDbWrite } from "@/db";
 import { telemetry } from "@/db/schema";
 import { lt } from "drizzle-orm";
 import { log } from "@/lib/logger";
@@ -16,13 +16,13 @@ export function scheduleTelemetryCleanup() {
 async function runCleanup() {
   try {
     const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400_000);
-    await withDb(
+    await withDbWrite(
       () => db.delete(telemetry).where(lt(telemetry.timestamp, cutoff)),
       "telemetry-cleanup"
     );
     log.info("Telemetry cleanup complete", { retentionDays: RETENTION_DAYS });
   } catch (err) {
-    // withDb already logged retries and circuit state — just note the final failure
+    // The database boundary already recorded circuit state; note final failure.
     log.warn("Telemetry cleanup skipped", { error: String(err) });
   }
 }

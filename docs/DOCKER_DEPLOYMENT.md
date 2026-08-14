@@ -175,7 +175,8 @@ the safe artifacts to back up while the stack is running; copying the live
 server deployment rolls the image back automatically but never restores a
 database backup automatically; database restore is an explicit operator action.
 Server migrations must therefore follow expand/contract compatibility across
-adjacent releases.
+adjacent releases. Container startup is fail-closed: a server accepts traffic
+only after its checksummed migrations commit successfully.
 
 The updater cannot recreate its own running container directly — that would kill
 the process performing the swap. With the default `AUTO_UPDATE_UPDATER=true`,

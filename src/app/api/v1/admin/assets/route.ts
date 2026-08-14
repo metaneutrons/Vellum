@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
-import { db, withDb } from "@/db";
+import { db, withDbRead } from "@/db";
 import { assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { UUID_RE } from "@/lib/validation";
-import { requestHasPermission } from "@/lib/access";
+import { getRequestPrincipal, hasPermission, requestHasPermission, withAuditedTransaction } from "@/lib/access";
+import { hasTrustedMutationOrigin } from "@/lib/request-origin";
+import { env } from "@/lib/env";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/svg+xml", "image/jpeg"];
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "") || DEFAULT_LIMIT, 200);
   const offset = parseInt(request.nextUrl.searchParams.get("offset") ?? "") || 0;
 
-  const rows = await withDb(() => db.select({
+  const rows = await withDbRead(() => db.select({
     id: assets.id,
     name: assets.name,
     mimeType: assets.mimeType,
@@ -29,7 +31,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
-  if (!(await requestHasPermission(request, "content.manage"))) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const principal = await getRequestPrincipal(request);
+  if (!principal || !hasPermission(principal, "content.manage")) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user")) return Response.json({ error: "Invalid origin" }, { status: 403 });
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const name = (formData.get("name") as string) || file?.name || "untitled";
@@ -67,18 +71,46 @@ export async function POST(request: Request) {
     }
   }
 
-  const [row] = await withDb(() => db.insert(assets).values({ name, mimeType: file.type, width, height, data: buffer })
-    .returning({ id: assets.id }), "insert-asset");
+  const [row] = await withAuditedTransaction(
+    principal,
+    (created: { id: string }[]) => ({ action: "asset.create", targetType: "asset", targetId: created[0].id, metadata: { name, mimeType: file.type, width, height } }),
+    (tx) => tx.insert(assets).values({ name, mimeType: file.type, width, height, data: buffer }).returning({ id: assets.id }),
+    "insert-asset",
+  );
 
   return Response.json({ id: row.id, name, mimeType: file.type, width, height }, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
-  if (!(await requestHasPermission(request, "content.manage"))) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const principal = await getRequestPrincipal(request);
+  if (!principal || !hasPermission(principal, "content.manage")) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user")) return Response.json({ error: "Invalid origin" }, { status: 403 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id || !UUID_RE.test(id)) return Response.json({ error: "Invalid or missing id" }, { status: 400 });
 
-  await withDb(() => db.delete(assets).where(eq(assets.id, id)), "delete-asset");
+  try {
+    await withAuditedTransaction(
+      principal,
+      { action: "asset.delete", targetType: "asset", targetId: id },
+      async (tx) => {
+        const deleted = await tx.delete(assets).where(eq(assets.id, id)).returning({ id: assets.id });
+        if (deleted.length === 0) throw new Error("asset_not_found");
+      },
+      "delete-asset",
+    );
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return Response.json({ error: "Asset is still used by content" }, { status: 409 });
+    }
+    throw error;
+  }
   return new Response(null, { status: 204 });
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; cause?: { code?: unknown } };
+  return candidate.code === "23503" || candidate.code === "23001" ||
+    candidate.cause?.code === "23503" || candidate.cause?.code === "23001";
 }

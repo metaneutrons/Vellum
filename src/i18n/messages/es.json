@@ -201,7 +201,7 @@
     "loadingCredentials": "Cargando credenciales...",
     "noProviders": "Sin proveedores de datos",
     "noProvidersHint": "Añada un proveedor para conectar el calendario u otras fuentes de datos.",
-    "deleteMessage": "¿Eliminar este proveedor? Las instancias de contenido que lo usan dejarán de funcionar.",
+    "deleteMessage": "¿Eliminar este proveedor? Un proveedor que aún usa algún contenido no se puede eliminar.",
     "icalHint": "Los proveedores iCal no necesitan credenciales. La URL se configura en cada instancia de contenido.",
     "types": {
       "microsoft365": "Microsoft 365 — Calendario",

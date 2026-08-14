@@ -88,19 +88,24 @@ cost stays near zero and the bound only matters on a cold cache.
 
 ## Database migrations (server)
 
-Server schema changes ship as `drizzle/*.sql` files — generate with
-`pnpm db:generate` after editing `src/db/schema.ts`, and commit the SQL plus
-`drizzle/meta`. They are applied by **`pnpm db:migrate`** (`scripts/migrate.mjs`),
-**not** `drizzle-kit migrate` — whose journal is empty here because the databases
-were created with `drizzle-kit push`, so `drizzle-kit migrate` would try to replay
-`0000…` against existing tables. The runner is idempotent and **self-baselining**:
-a statement whose object already exists is recorded rather than failed, so it
-adopts a pre-existing DB and applies only genuinely-new statements.
+Server schema changes ship as the next numbered, hand-written `drizzle/*.sql`
+file alongside the matching `src/db/schema.ts` change. Do not rely on
+`db:generate`: the historical `drizzle/meta` snapshots intentionally stop before
+the current schema. `pnpm db:check` verifies that every declared table and column
+has a migration and that every direct query uses an explicit read, write, or
+transaction boundary.
 
-The Docker image runs `db:migrate` on container start (**fail-open** — see the
-Dockerfile `CMD`), so a server release deploys with no manual migration step.
-Migrations are additive, and the app degrades gracefully if it happens to start
-before the schema catches up.
+Migrations are applied by **`pnpm db:migrate`** (`scripts/migrate.mjs`), not
+`drizzle-kit migrate`. The runner serializes concurrent replica startups with a
+PostgreSQL advisory lock, executes each migration transactionally with savepoint-
+safe self-baselining, records the journal entry in the same commit, and verifies
+SHA-256 checksums so an applied migration can never be silently edited. Never
+modify an already released migration; add the next numbered file.
+
+The Docker image runs `db:migrate` before starting the server. Startup is
+**fail-closed**: all migrations must commit before the application accepts
+traffic. Compose retries after a transient database outage; a genuine migration
+error remains visible instead of running new code against an old schema.
 
 ## Onboarding the firmware component (one-time)
 

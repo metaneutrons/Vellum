@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead } from "@/db";
 import { contentInstances, devices, themes } from "@/db/schema";
 import { getContentRenderer } from "@/lib/content";
 import { resolveTheme, parseTheme } from "@/lib/theme";
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   const themeId = request.nextUrl.searchParams.get("themeId");
   if (!instanceId) return new Response("Missing instanceId", { status: 400 });
 
-  const [instance] = await withDb(() => db.select().from(contentInstances).where(eq(contentInstances.id, instanceId)).limit(1), "preview-get-content-instance");
+  const [instance] = await withDbRead(() => db.select().from(contentInstances).where(eq(contentInstances.id, instanceId)).limit(1), "preview-get-content-instance");
   if (!instance) return new Response("Not found", { status: 404 });
 
   const renderer = getContentRenderer(instance.typeSlug);
@@ -39,13 +39,13 @@ export async function GET(request: NextRequest) {
   let display: ResolvedDisplay = DEFAULT_PREVIEW_DISPLAY;
   const mac = request.nextUrl.searchParams.get("mac");
   if (mac) {
-    const [device] = await withDb(() => db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
+    const [device] = await withDbRead(() => db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
       .from(devices).where(eq(devices.mac, mac)).limit(1), "preview-get-device-by-mac");
     if (device?.displayCaps) {
       display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
     }
   } else {
-    const [device] = await withDb(() => db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
+    const [device] = await withDbRead(() => db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
       .from(devices).where(eq(devices.contentInstanceId, instanceId)).limit(1), "preview-get-device-by-instance");
     if (device?.displayCaps) {
       display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
   let theme = resolveTheme(display.colorCount);
   if (themeId) {
-    const [dbTheme] = await withDb(() => db.select().from(themes).where(eq(themes.id, themeId)).limit(1), "preview-get-theme");
+    const [dbTheme] = await withDbRead(() => db.select().from(themes).where(eq(themes.id, themeId)).limit(1), "preview-get-theme");
     const parsed = parseTheme(dbTheme?.config);
     if (parsed) theme = parsed;
   }

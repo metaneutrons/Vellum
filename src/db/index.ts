@@ -12,6 +12,11 @@ const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 3_000,
+  statement_timeout: 30_000,
+  query_timeout: 35_000,
+  idle_in_transaction_session_timeout: 15_000,
+  keepAlive: true,
+  application_name: "vellum-server",
 });
 
 pool.on("error", (err) => {
@@ -45,9 +50,21 @@ export async function checkDbHealth(): Promise<boolean> {
 /** Get database health state for API/WebUI. */
 export { dbResilience, DbUnavailableError };
 
-/** Execute a database operation with retry + circuit breaker. */
-export async function withDb<T>(operation: () => Promise<T>, label?: string): Promise<T> {
-  return dbResilience.execute(operation, label);
+export const db = drizzle(pool, { schema });
+
+export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Reads may be replayed after transient transport failures. */
+export async function withDbRead<T>(operation: () => Promise<T>, label?: string): Promise<T> {
+  return dbResilience.execute(operation, label, "read");
 }
 
-export const db = drizzle(pool, { schema });
+/** Plain writes are never replayed because their commit outcome may be unknown. */
+export async function withDbWrite<T>(operation: () => Promise<T>, label?: string): Promise<T> {
+  return dbResilience.execute(operation, label, "write");
+}
+
+/** Transactions retry only when PostgreSQL guarantees the prior attempt rolled back. */
+export async function withDbTransaction<T>(operation: () => Promise<T>, label?: string): Promise<T> {
+  return dbResilience.execute(operation, label, "transaction");
+}

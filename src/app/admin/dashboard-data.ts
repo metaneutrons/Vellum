@@ -10,7 +10,7 @@
  * Other thresholds: low battery < 20%, weak signal < −70 dBm.
  */
 import { sql } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead } from "@/db";
 import {
   getAvailableVersions,
   getAllContentInstances,
@@ -113,32 +113,13 @@ function fillCheckins(rows: { day: string; count: number }[], now: number): { da
   return out;
 }
 
-const EMPTY: DashboardData = {
-  fleet: { total: 0, approved: 0, pending: 0, rejected: 0, online: 0, late: 0, offline: 0, never: 0, lowBattery: 0, weakSignal: 0, withContent: 0, noContent: 0, avgBattery: null },
-  attention: [],
-  recent: [],
-  firmware: { latestStable: null, latestBeta: null, upToDate: 0, behind: 0, unknown: 0, byVersion: [] },
-  checkins: [],
-  reports: [],
-  catalog: { contentInstances: 0, providers: 0, providersByType: [], themes: 0, profiles: 0 },
-  generatedAt: new Date().toISOString(),
-};
-
 export async function getDashboardData(): Promise<DashboardData> {
   const now = Date.now();
 
-  let deviceRows: DeviceRow[] = [];
-  let checkinRows: { day: string; count: number }[] = [];
-  let reportRows: { mac: string; issue: string | null; timestamp: string }[] = [];
-  let versions: { version: string; channel: string }[] = [];
-  let content: unknown[] = [];
-  let providers: { type: string }[] = [];
-  let themes: unknown[] = [];
-  let profiles: unknown[] = [];
-
-  try {
-    [deviceRows, checkinRows, reportRows, versions, content, providers, themes, profiles] = await Promise.all([
-      withDb(() => db.execute(sql`
+  // Never turn a database outage into a believable "zero devices" dashboard.
+  // Let the route error boundary surface operational failure explicitly.
+  const [deviceRows, checkinRows, reportRows, versions, content, providers, themes, profiles] = await Promise.all([
+      withDbRead(() => db.execute(sql`
         SELECT d.mac, d.status, d.content_instance_id, d.last_seen, d.expected_interval_s,
                t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
         FROM devices d
@@ -148,13 +129,13 @@ export async function getDashboardData(): Promise<DashboardData> {
         ) t ON true
         ORDER BY d.last_seen DESC NULLS LAST
       `), "dashboard-devices").then((r) => r.rows as unknown as DeviceRow[]),
-      withDb(() => db.execute(sql`
+      withDbRead(() => db.execute(sql`
         SELECT to_char(date_trunc('day', timestamp), 'YYYY-MM-DD') AS day, count(*)::int AS count
         FROM telemetry
         WHERE timestamp > now() - make_interval(days => ${CHECKIN_DAYS})
         GROUP BY 1 ORDER BY 1
       `), "dashboard-checkins").then((r) => r.rows as unknown as { day: string; count: number }[]),
-      withDb(() => db.execute(sql`
+      withDbRead(() => db.execute(sql`
         SELECT mac, issue, to_char(timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS timestamp
         FROM reports ORDER BY timestamp DESC LIMIT 8
       `), "dashboard-reports").then((r) => r.rows as unknown as { mac: string; issue: string | null; timestamp: string }[]),
@@ -163,10 +144,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       getAllProviders(),
       getAllThemes(),
       getAllRefreshProfiles(),
-    ]);
-  } catch {
-    return { ...EMPTY, generatedAt: new Date().toISOString() };
-  }
+  ]);
 
   // ── Fleet ──────────────────────────────────────────────────────
   const approved = deviceRows.filter((d) => d.status === "approved");

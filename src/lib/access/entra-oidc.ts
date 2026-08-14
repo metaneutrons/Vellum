@@ -6,7 +6,7 @@ import "server-only";
 import crypto from "node:crypto";
 import * as oidc from "openid-client";
 import { and, eq } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead, withDbTransaction } from "@/db";
 import { adminUsers, auditLogs, oidcIdentities, userRoleAssignments } from "@/db/schema";
 import { env } from "@/lib/env";
 import { getSetting } from "@/lib/settings";
@@ -104,33 +104,48 @@ export async function completeEntraLogin(currentUrl: URL, transactionCookie: str
 
 /** Links only a signed identity from the configured tenant; email is never a credential. */
 export async function resolveEntraUser(identity: EntraIdentity): Promise<{ id: string; displayName: string } | null> {
-  const [known] = await withDb(() => db.select({ userId: oidcIdentities.userId, displayName: adminUsers.displayName, status: adminUsers.status })
+  const [known] = await withDbRead(() => db.select({ userId: oidcIdentities.userId, displayName: adminUsers.displayName, status: adminUsers.status })
     .from(oidcIdentities).innerJoin(adminUsers, eq(oidcIdentities.userId, adminUsers.id))
     .where(and(eq(oidcIdentities.issuer, identity.issuer), eq(oidcIdentities.subject, identity.subject))).limit(1), "entra-known-identity");
   if (known) {
     if (known.status !== "active") return null;
-    await withDb(() => db.update(oidcIdentities).set({ lastLoginAt: new Date(), email: identity.email }).where(and(eq(oidcIdentities.issuer, identity.issuer), eq(oidcIdentities.subject, identity.subject))), "entra-identity-login");
+    const loggedIn = await withDbTransaction(() => db.transaction(async (tx) => {
+      const now = new Date();
+      const active = await tx.update(adminUsers)
+        .set({ lastLoginAt: now, updatedAt: now })
+        .where(and(eq(adminUsers.id, known.userId), eq(adminUsers.status, "active")))
+        .returning({ id: adminUsers.id });
+      if (active.length === 0) return false;
+      await tx.update(oidcIdentities).set({ lastLoginAt: now, email: identity.email }).where(and(eq(oidcIdentities.issuer, identity.issuer), eq(oidcIdentities.subject, identity.subject)));
+      await tx.insert(auditLogs).values({ actorType: "user", actorId: known.userId, action: "access.login.oidc", targetType: "user", targetId: known.userId, metadata: { tenantId: identity.tenantId } });
+      return true;
+    }), "entra-identity-login");
+    if (!loggedIn) return null;
     return { id: known.userId, displayName: known.displayName };
   }
   const autoProvision = await getSetting("access.oidcAutoProvision");
-  const [matchingUser] = await withDb(() => db.select().from(adminUsers).where(eq(adminUsers.email, identity.email)).limit(1), "entra-email-link");
+  const [matchingUser] = await withDbRead(() => db.select().from(adminUsers).where(eq(adminUsers.email, identity.email)).limit(1), "entra-email-link");
   if (matchingUser?.status === "suspended" || (!matchingUser && !autoProvision)) return null;
   const defaultRole = await getSetting("access.oidcDefaultRole");
   const groupRoleMap = await getSetting("access.oidcGroupRoleMap");
   const mappedRole = identity.groups.map((group) => groupRoleMap[group]).find((role) => typeof role === "string");
   const roleId = (mappedRole ?? defaultRole) as string;
   if (!SYSTEM_ROLES.some((role) => role.id === roleId && role.id !== "owner")) return null;
-  return withDb(() => db.transaction(async (tx) => {
-    let user = matchingUser;
+  return withDbTransaction(() => db.transaction(async (tx) => {
+    let user = matchingUser
+      ? (await tx.select().from(adminUsers).where(eq(adminUsers.id, matchingUser.id)).limit(1))[0]
+      : undefined;
+    if (matchingUser && user?.status !== "active") return null;
     if (!user) {
       const [created] = await tx.insert(adminUsers).values({ email: identity.email, displayName: identity.displayName }).returning();
       user = created;
       await tx.insert(userRoleAssignments).values({ userId: user.id, roleId });
     }
+    await tx.update(adminUsers).set({ lastLoginAt: new Date(), updatedAt: new Date() }).where(eq(adminUsers.id, user.id));
     await tx.insert(oidcIdentities).values({ userId: user.id, issuer: identity.issuer, subject: identity.subject, tenantId: identity.tenantId, email: identity.email });
     await tx.insert(auditLogs).values({ actorType: "user", actorId: user.id, action: matchingUser ? "access.oidc.link" : "access.oidc.provision", targetType: "user", targetId: user.id, metadata: { tenantId: identity.tenantId, roleId: matchingUser ? undefined : roleId } });
     return { id: user.id, displayName: user.displayName };
-  }), "entra-resolve-user");
+  }, { isolationLevel: "serializable" }), "entra-resolve-user");
 }
 
 export { TX_COOKIE };

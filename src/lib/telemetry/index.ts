@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
-import { db } from "@/db";
+import { db, withDbTransaction } from "@/db";
 import { telemetry, devices } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { TelemetryEntry } from "@/lib/types";
@@ -33,15 +33,15 @@ export function extractTelemetry(
  * Log a telemetry entry to the database, associated with the given device MAC.
  */
 export async function logTelemetry(entry: TelemetryEntry): Promise<void> {
-  await Promise.all([
-    db.insert(telemetry).values({
+  await withDbTransaction(() => db.transaction(async (tx) => {
+    await tx.insert(telemetry).values({
       mac: entry.mac,
       batteryVoltage: entry.batteryVoltage,
       batteryLevel: entry.batteryLevel,
       wifiRssi: entry.wifiRssi,
       firmwareVersion: entry.firmwareVersion,
       timestamp: entry.timestamp,
-    }),
-    db.update(devices).set({ lastSeen: entry.timestamp }).where(eq(devices.mac, entry.mac)),
-  ]);
+    });
+    await tx.update(devices).set({ lastSeen: entry.timestamp }).where(eq(devices.mac, entry.mac));
+  }), "log-device-telemetry");
 }

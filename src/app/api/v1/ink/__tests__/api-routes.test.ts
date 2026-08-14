@@ -45,7 +45,7 @@ vi.mock("@/db", () => ({
       values: vi.fn(),
     })),
   },
-  withDb: vi.fn((fn: () => unknown) => fn()),
+  withDbRead: vi.fn((fn: () => unknown) => fn()),
 }));
 
 import { handleHello, validateToken } from "@/lib/auth";

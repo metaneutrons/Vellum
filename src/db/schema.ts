@@ -13,7 +13,9 @@ import {
   customType,
   index,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Vellum Database Schema
@@ -48,7 +50,10 @@ export const themes = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [index("themes_is_default_idx").on(t.isDefault)],
+  (t) => [
+    index("themes_is_default_idx").on(t.isDefault),
+    uniqueIndex("themes_one_default_idx").on(t.isDefault).where(sql`${t.isDefault}`),
+  ],
 );
 
 /* ── Content Instances ────────────────────────────────────────── */
@@ -84,7 +89,10 @@ export const refreshProfiles = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [index("refresh_profiles_is_default_idx").on(t.isDefault)],
+  (t) => [
+    index("refresh_profiles_is_default_idx").on(t.isDefault),
+    uniqueIndex("refresh_profiles_one_default_idx").on(t.isDefault).where(sql`${t.isDefault}`),
+  ],
 );
 
 /* ── Settings (KV store) ──────────────────────────────────────── */
@@ -116,7 +124,7 @@ export const adminUsers = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("admin_users_email_ci_idx").on(t.email)],
+  (t) => [uniqueIndex("admin_users_email_ci_idx").on(sql`lower(${t.email})`)],
 );
 
 /** System roles are seeded in code; custom roles use the same permission rows. */
@@ -150,7 +158,10 @@ export const userRoleAssignments = pgTable(
     scopeId: text("scope_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("user_role_assignments_user_idx").on(t.userId)],
+  (t) => [
+    index("user_role_assignments_user_idx").on(t.userId),
+    index("user_role_assignments_role_idx").on(t.roleId),
+  ],
 );
 
 /** Opaque, revocable server-side sessions. Only a SHA-256 token digest is stored. */
@@ -185,7 +196,12 @@ export const adminInvitations = pgTable(
     createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("admin_invitations_token_hash_idx").on(t.tokenHash), index("admin_invitations_email_idx").on(t.email)],
+  (t) => [
+    uniqueIndex("admin_invitations_token_hash_idx").on(t.tokenHash),
+    index("admin_invitations_email_idx").on(t.email),
+    index("admin_invitations_role_idx").on(t.roleId),
+    index("admin_invitations_created_by_idx").on(t.createdBy),
+  ],
 );
 
 /** Immutable, issuer-bound SSO identities. Email is metadata, never the key. */
@@ -218,7 +234,10 @@ export const serviceAccounts = pgTable(
     createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("service_accounts_token_hash_idx").on(t.tokenHash)],
+  (t) => [
+    uniqueIndex("service_accounts_token_hash_idx").on(t.tokenHash),
+    index("service_accounts_created_by_idx").on(t.createdBy),
+  ],
 );
 
 export const serviceAccountPermissions = pgTable(
@@ -255,27 +274,35 @@ export const auditLogs = pgTable(
 
 /* ── Devices ──────────────────────────────────────────────────── */
 
-export const devices = pgTable("devices", {
-  mac: text("mac").primaryKey(),
-  status: text("status").notNull().default("pending"),  /* "pending" | "approved" | "rejected" */
-  token: text("token"),
-  publicKey: text("public_key"),
-  displayCaps: jsonb("display_caps"),
-  orientationOverride: text("orientation_override"),  /* null = use device-reported, "portrait" | "landscape" */
-  contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id),
-  themeId: uuid("theme_id").references(() => themes.id),
-  refreshProfileId: uuid("refresh_profile_id").references(() => refreshProfiles.id),
-  firmwareChannel: text("firmware_channel").default("stable"),
-  firmwarePinVersion: text("firmware_pin_version"),
-  approvedAt: timestamp("approved_at"),
-  lastSeen: timestamp("last_seen"),
-  /* Expected check-in cadence (seconds) — the sleep interval last handed to the
-   * device by the render route. Lets the admin UI judge connectivity relative
-   * to the device's own schedule instead of a fixed window. Null until the
-   * device has rendered once (connectivity falls back to a default). */
-  expectedIntervalS: integer("expected_interval_s"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const devices = pgTable(
+  "devices",
+  {
+    mac: text("mac").primaryKey(),
+    status: text("status").notNull().default("pending"),  /* "pending" | "approved" | "rejected" */
+    token: text("token"),
+    publicKey: text("public_key"),
+    displayCaps: jsonb("display_caps"),
+    orientationOverride: text("orientation_override"),  /* null = use device-reported, "portrait" | "landscape" */
+    contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id, { onDelete: "set null" }),
+    themeId: uuid("theme_id").references(() => themes.id, { onDelete: "set null" }),
+    refreshProfileId: uuid("refresh_profile_id").references(() => refreshProfiles.id, { onDelete: "set null" }),
+    firmwareChannel: text("firmware_channel").default("stable"),
+    firmwarePinVersion: text("firmware_pin_version"),
+    approvedAt: timestamp("approved_at"),
+    lastSeen: timestamp("last_seen"),
+    /* Expected check-in cadence (seconds) — the sleep interval last handed to the
+     * device by the render route. Lets the admin UI judge connectivity relative
+     * to the device's own schedule instead of a fixed window. Null until the
+     * device has rendered once (connectivity falls back to a default). */
+    expectedIntervalS: integer("expected_interval_s"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("devices_content_instance_idx").on(t.contentInstanceId),
+    index("devices_theme_idx").on(t.themeId),
+    index("devices_refresh_profile_idx").on(t.refreshProfileId),
+  ],
+);
 
 /**
  * Pre-provisioning vouchers for zero-touch USB enrolment. An admin mints a
@@ -324,13 +351,45 @@ export const assets = pgTable("assets", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/* ── Normalized content dependencies ─────────────────────────── */
+
+/**
+ * Renderer configuration remains JSONB, but resource ownership must still be
+ * relationally enforceable. A database trigger refreshes these dependency rows
+ * whenever content config changes, making dangling provider/asset references
+ * impossible even for writes that bypass the Console.
+ */
+export const contentProviderDependencies = pgTable(
+  "content_provider_dependencies",
+  {
+    contentInstanceId: uuid("content_instance_id").notNull().references(() => contentInstances.id, { onDelete: "cascade" }),
+    providerId: uuid("provider_id").notNull().references(() => dataProviders.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.contentInstanceId, t.providerId] }),
+    index("content_provider_dependencies_provider_idx").on(t.providerId),
+  ],
+);
+
+export const contentAssetDependencies = pgTable(
+  "content_asset_dependencies",
+  {
+    contentInstanceId: uuid("content_instance_id").notNull().references(() => contentInstances.id, { onDelete: "cascade" }),
+    assetId: uuid("asset_id").notNull().references(() => assets.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.contentInstanceId, t.assetId] }),
+    index("content_asset_dependencies_asset_idx").on(t.assetId),
+  ],
+);
+
 /* ── Telemetry ────────────────────────────────────────────────── */
 
 export const telemetry = pgTable(
   "telemetry",
   {
     id: serial("id").primaryKey(),
-    mac: text("mac").notNull().references(() => devices.mac),
+    mac: text("mac").notNull().references(() => devices.mac, { onDelete: "cascade" }),
     batteryVoltage: real("battery_voltage"),
     batteryLevel: integer("battery_level"),
     wifiRssi: integer("wifi_rssi"),
@@ -339,7 +398,7 @@ export const telemetry = pgTable(
   },
   (t) => [
     // battery-history queries filter by mac and order by timestamp
-    index("telemetry_mac_timestamp_idx").on(t.mac, t.timestamp),
+    index("telemetry_mac_timestamp_idx").on(t.mac, t.timestamp.desc()),
     // telemetry-cleanup deletes by timestamp across all devices
     index("telemetry_timestamp_idx").on(t.timestamp),
   ],
@@ -347,12 +406,16 @@ export const telemetry = pgTable(
 
 /* ── Reports ──────────────────────────────────────────────────── */
 
-export const reports = pgTable("reports", {
-  id: serial("id").primaryKey(),
-  mac: text("mac").notNull().references(() => devices.mac),
-  issue: text("issue"),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-});
+export const reports = pgTable(
+  "reports",
+  {
+    id: serial("id").primaryKey(),
+    mac: text("mac").notNull().references(() => devices.mac, { onDelete: "cascade" }),
+    issue: text("issue"),
+    timestamp: timestamp("timestamp").defaultNow().notNull(),
+  },
+  (t) => [index("reports_mac_timestamp_idx").on(t.mac, t.timestamp.desc())],
+);
 
 /* ── OTA events ───────────────────────────────────────────────────
  * Per-device OTA outcome reports. Powers (a) fleet OTA observability and
@@ -366,7 +429,7 @@ export const otaEvents = pgTable(
   "ota_events",
   {
     id: serial("id").primaryKey(),
-    mac: text("mac").notNull().references(() => devices.mac),
+    mac: text("mac").notNull().references(() => devices.mac, { onDelete: "cascade" }),
     model: text("model"),
     fromVersion: text("from_version"),
     toVersion: text("to_version"),
