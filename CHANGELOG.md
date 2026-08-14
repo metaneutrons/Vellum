@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.4](https://github.com/metaneutrons/Vellum/compare/v1.10.3...v1.10.4) (2026-08-14)
+
+
+### Bug Fixes
+
+* **server:** harden database integrity and migrations ([201c46d](https://github.com/metaneutrons/Vellum/commit/201c46d89a8b27fdd01067734884a943b6255084))
+* **server:** harden database integrity and migrations ([aafb7d6](https://github.com/metaneutrons/Vellum/commit/aafb7d6a51c8212baa355ad0e2668d018bfb1d85))
+
 ## [1.10.3](https://github.com/metaneutrons/Vellum/compare/v1.10.2...v1.10.3) (2026-08-14)
 
 
