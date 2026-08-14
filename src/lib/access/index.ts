@@ -13,7 +13,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { cookies } from "next/headers";
-import { db, withDb } from "@/db";
+import { db, withDbRead, withDbTransaction, withDbWrite, type DbTransaction } from "@/db";
 import {
   accessRoles,
   adminInvitations,
@@ -26,6 +26,7 @@ import {
   userRoleAssignments,
 } from "@/db/schema";
 import { env } from "@/lib/env";
+import { log } from "@/lib/logger";
 import { SESSION_COOKIE, createSessionToken, getSessionTokenSubject, safeEqualSecret } from "@/lib/session";
 import { PERMISSIONS, type Permission } from "./permissions";
 export { PERMISSIONS, type Permission } from "./permissions";
@@ -47,6 +48,14 @@ export type Principal = {
   id: string;
   displayName: string;
   permissions: { permission: string; scopeType: string; scopeId: string | null }[];
+};
+
+export type AuditEvent = {
+  action: string;
+  targetType: string;
+  targetId?: string | null;
+  metadata?: Record<string, unknown>;
+  outcome?: "success" | "failure";
 };
 
 export class AuthorizationError extends Error {
@@ -85,7 +94,7 @@ export function verifyPassword(password: string, encoded: string | null): boolea
 }
 
 export async function seedAccessControl(): Promise<void> {
-  await withDb(() => db.transaction(async (tx) => {
+  await withDbTransaction(() => db.transaction(async (tx) => {
     for (const role of SYSTEM_ROLES) {
       await tx.insert(accessRoles).values({ id: role.id, name: role.name, description: role.description, isSystem: true })
         .onConflictDoUpdate({ target: accessRoles.id, set: { name: role.name, description: role.description, isSystem: true, updatedAt: new Date() } });
@@ -97,7 +106,7 @@ export async function seedAccessControl(): Promise<void> {
 }
 
 async function permissionRowsForUser(userId: string) {
-  return withDb(() => db
+  return withDbRead(() => db
     .select({ permission: rolePermissions.permission, scopeType: userRoleAssignments.scopeType, scopeId: userRoleAssignments.scopeId })
     .from(userRoleAssignments)
     .innerJoin(rolePermissions, eq(userRoleAssignments.roleId, rolePermissions.roleId))
@@ -123,7 +132,7 @@ async function principalFromSessionToken(token: string | undefined | null): Prom
   if (!sessionId || sessionId === "admin") return null; // invalidate pre-RBAC stateless sessions
   if (!token) return null;
   const tokenHash = digest(token);
-  const [row] = await withDb(() => db
+  const [row] = await withDbRead(() => db
     .select({ id: adminUsers.id, displayName: adminUsers.displayName })
     .from(adminSessions)
     .innerJoin(adminUsers, eq(adminSessions.userId, adminUsers.id))
@@ -157,40 +166,50 @@ async function ensureBootstrapOwner(identity: string, password: string) {
   const configured = digest(env.ADMIN_PASS);
   if (normalizeIdentity(identity) !== normalizeIdentity(env.ADMIN_USER) || !crypto.timingSafeEqual(Buffer.from(supplied, "hex"), Buffer.from(configured, "hex"))) return null;
   await seedAccessControl();
-  const existing = await withDb(() => db.select().from(adminUsers).where(eq(adminUsers.email, normalizeIdentity(identity))).limit(1), "bootstrap-owner-find");
-  if (existing[0]) return existing[0];
-  const users = await withDb(() => db.select({ id: adminUsers.id }).from(adminUsers).limit(1), "bootstrap-owner-count");
-  if (users.length) return null; // bootstrap cannot create a second owner
-  const [user] = await withDb(() => db.transaction(async (tx) => {
-    const created = await tx.insert(adminUsers).values({ email: normalizeIdentity(identity), displayName: identity.trim(), passwordHash: hashPassword(password) }).returning();
-    await tx.insert(userRoleAssignments).values({ userId: created[0].id, roleId: "owner" });
-    await tx.insert(auditLogs).values({ actorType: "bootstrap", action: "access.bootstrap_owner", targetType: "user", targetId: created[0].id });
+  return withDbTransaction(() => db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(adminUsers).where(eq(adminUsers.email, normalizeIdentity(identity))).limit(1);
+    if (existing) return existing;
+    const users = await tx.select({ id: adminUsers.id }).from(adminUsers).limit(1);
+    if (users.length) return null; // bootstrap cannot create a second owner
+    const [created] = await tx.insert(adminUsers).values({ email: normalizeIdentity(identity), displayName: identity.trim(), passwordHash: hashPassword(password) }).returning();
+    await tx.insert(userRoleAssignments).values({ userId: created.id, roleId: "owner" });
+    await tx.insert(auditLogs).values({ actorType: "bootstrap", action: "access.bootstrap_owner", targetType: "user", targetId: created.id });
     return created;
-  }), "bootstrap-owner-create");
-  return user;
+  }, { isolationLevel: "serializable" }), "bootstrap-owner-create");
 }
 
 export async function authenticateLocalUser(identity: string, password: string): Promise<{ id: string; displayName: string } | null> {
   const normalized = normalizeIdentity(identity);
-  const existing = await withDb(() => db.select().from(adminUsers).where(eq(adminUsers.email, normalized)).limit(1), "local-auth-find");
+  const existing = await withDbRead(() => db.select().from(adminUsers).where(eq(adminUsers.email, normalized)).limit(1), "local-auth-find");
   let user: (typeof existing)[number] | null = existing[0] ?? null;
   if (!user) user = await ensureBootstrapOwner(identity, password);
   if (!user || user.status !== "active" || !verifyPassword(password, user.passwordHash)) return null;
-  await withDb(() => db.update(adminUsers).set({ lastLoginAt: new Date(), updatedAt: new Date() }).where(eq(adminUsers.id, user.id)), "local-auth-last-login");
+  await withDbTransaction(() => db.transaction(async (tx) => {
+    await tx.update(adminUsers).set({ lastLoginAt: new Date(), updatedAt: new Date() }).where(eq(adminUsers.id, user.id));
+    await tx.insert(auditLogs).values({ actorType: "user", actorId: user.id, action: "access.login.local", targetType: "user", targetId: user.id });
+  }), "local-auth-login");
   return { id: user.id, displayName: user.displayName };
 }
 
 export async function createUserSession(userId: string, metadata: { ip?: string; userAgent?: string } = {}): Promise<string> {
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
-  const [session] = await withDb(() => db.insert(adminSessions).values({ userId, tokenHash: "pending", expiresAt, ip: metadata.ip ?? null, userAgent: metadata.userAgent ?? null }).returning({ id: adminSessions.id }), "create-admin-session");
-  const token = await createSessionToken(session.id, expiresAt.getTime() - Date.now());
-  await withDb(() => db.update(adminSessions).set({ tokenHash: digest(token) }).where(eq(adminSessions.id, session.id)), "bind-admin-session-token");
+  const sessionId = crypto.randomUUID();
+  const token = await createSessionToken(sessionId, expiresAt.getTime() - Date.now());
+  await withDbWrite(() => db.insert(adminSessions).values({
+    id: sessionId,
+    userId,
+    tokenHash: digest(token),
+    expiresAt,
+    ip: metadata.ip ?? null,
+    userAgent: metadata.userAgent ?? null,
+  }), "create-admin-session");
   return token;
 }
 
 export async function revokeSession(sessionId: string, actor: Principal): Promise<void> {
-  await withDb(() => db.transaction(async (tx) => {
-    await tx.update(adminSessions).set({ revokedAt: new Date() }).where(eq(adminSessions.id, sessionId));
+  await withDbTransaction(() => db.transaction(async (tx) => {
+    const updated = await tx.update(adminSessions).set({ revokedAt: new Date() }).where(eq(adminSessions.id, sessionId)).returning({ id: adminSessions.id });
+    if (updated.length === 0) throw new Error("session_not_found");
     await tx.insert(auditLogs).values({ actorType: actor.type, actorId: actor.id, action: "access.session.revoke", targetType: "session", targetId: sessionId });
   }), "revoke-admin-session");
 }
@@ -202,7 +221,7 @@ export async function createInvitation(input: { email: string; displayName: stri
   const scopeType = input.scope?.type ?? "workspace";
   const scopeId = input.scope?.id ?? null;
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  await withDb(() => db.transaction(async (tx) => {
+  await withDbTransaction(() => db.transaction(async (tx) => {
     await tx.insert(adminInvitations).values({ email: normalizeIdentity(input.email), displayName: input.displayName.trim(), tokenHash: digest(token), roleId: input.roleId, scopeType, scopeId, expiresAt, createdBy: actor.id });
     await tx.insert(auditLogs).values({ actorType: actor.type, actorId: actor.id, action: "access.invitation.create", targetType: "invitation", metadata: { email: normalizeIdentity(input.email), roleId: input.roleId, scopeType } });
   }), "create-admin-invitation");
@@ -212,7 +231,7 @@ export async function createInvitation(input: { email: string; displayName: stri
 export async function acceptInvitation(token: string, password: string): Promise<{ id: string; displayName: string } | null> {
   if (password.length < 12) throw new Error("Use a password with at least 12 characters");
   const tokenHash = digest(token);
-  return withDb(() => db.transaction(async (tx) => {
+  return withDbTransaction(() => db.transaction(async (tx) => {
     const [invitation] = await tx.select().from(adminInvitations).where(and(eq(adminInvitations.tokenHash, tokenHash), isNull(adminInvitations.acceptedAt), gt(adminInvitations.expiresAt, new Date()))).limit(1);
     if (!invitation) return null;
     const [existing] = await tx.select().from(adminUsers).where(eq(adminUsers.email, invitation.email)).limit(1);
@@ -232,7 +251,7 @@ export async function acceptInvitation(token: string, password: string): Promise
     await tx.update(adminInvitations).set({ acceptedAt: new Date() }).where(eq(adminInvitations.id, invitation.id));
     await tx.insert(auditLogs).values({ actorType: "user", actorId: userId, action: "access.invitation.accept", targetType: "invitation", targetId: invitation.id });
     return { id: userId, displayName };
-  }), "accept-admin-invitation");
+  }, { isolationLevel: "serializable" }), "accept-admin-invitation");
 }
 
 export async function createServiceAccount(input: { name: string; permissions: Permission[]; expiresAt?: Date | null }, actor: Principal): Promise<{ id: string; token: string }> {
@@ -241,7 +260,7 @@ export async function createServiceAccount(input: { name: string; permissions: P
   }
   const token = `vls_${crypto.randomBytes(32).toString("base64url")}`;
   const prefix = token.slice(0, 12);
-  const [account] = await withDb(() => db.transaction(async (tx) => {
+  const [account] = await withDbTransaction(() => db.transaction(async (tx) => {
     const created = await tx.insert(serviceAccounts).values({ name: input.name.trim(), tokenPrefix: prefix, tokenHash: digest(token), expiresAt: input.expiresAt ?? null, createdBy: actor.id }).returning({ id: serviceAccounts.id });
     for (const permission of input.permissions) {
       await tx.insert(serviceAccountPermissions).values({ serviceAccountId: created[0].id, permission });
@@ -253,10 +272,11 @@ export async function createServiceAccount(input: { name: string; permissions: P
 }
 
 async function principalFromServiceToken(token: string): Promise<Principal | null> {
-  const [account] = await withDb(() => db.select().from(serviceAccounts).where(and(eq(serviceAccounts.tokenHash, digest(token)), eq(serviceAccounts.status, "active"), or(isNull(serviceAccounts.expiresAt), gt(serviceAccounts.expiresAt, new Date())))).limit(1), "service-account-principal");
+  const [account] = await withDbRead(() => db.select().from(serviceAccounts).where(and(eq(serviceAccounts.tokenHash, digest(token)), eq(serviceAccounts.status, "active"), or(isNull(serviceAccounts.expiresAt), gt(serviceAccounts.expiresAt, new Date())))).limit(1), "service-account-principal");
   if (!account) return null;
-  const permissions = await withDb(() => db.select({ permission: serviceAccountPermissions.permission, scopeType: serviceAccountPermissions.scopeType, scopeId: serviceAccountPermissions.scopeId }).from(serviceAccountPermissions).where(eq(serviceAccountPermissions.serviceAccountId, account.id)), "service-account-permissions");
-  await withDb(() => db.update(serviceAccounts).set({ lastUsedAt: new Date() }).where(eq(serviceAccounts.id, account.id)), "service-account-last-used");
+  const permissions = await withDbRead(() => db.select({ permission: serviceAccountPermissions.permission, scopeType: serviceAccountPermissions.scopeType, scopeId: serviceAccountPermissions.scopeId }).from(serviceAccountPermissions).where(eq(serviceAccountPermissions.serviceAccountId, account.id)), "service-account-permissions");
+  await withDbWrite(() => db.update(serviceAccounts).set({ lastUsedAt: new Date() }).where(eq(serviceAccounts.id, account.id)), "service-account-last-used")
+    .catch((error) => log.warn("Failed to update service account last-used timestamp", { accountId: account.id, error: String(error) }));
   return { type: "service_account", id: account.id, displayName: account.name, permissions };
 }
 
@@ -280,6 +300,37 @@ export async function requestHasPermission(request: Request, permission: Permiss
   return hasPermission(await getRequestPrincipal(request), permission, scope);
 }
 
-export async function writeAudit(actor: Principal, action: string, targetType: string, targetId?: string | null, metadata: Record<string, unknown> = {}): Promise<void> {
-  await withDb(() => db.insert(auditLogs).values({ actorType: actor.type, actorId: actor.id, action, targetType, targetId: targetId ?? null, metadata }), "write-audit-log");
+export async function writeAudit(actor: Principal, action: string, targetType: string, targetId?: string | null, metadata: Record<string, unknown> = {}, outcome: "success" | "failure" = "success"): Promise<void> {
+  await withDbWrite(() => db.insert(auditLogs).values({ actorType: actor.type, actorId: actor.id, action, targetType, targetId: targetId ?? null, metadata, outcome }), "write-audit-log");
+}
+
+/**
+ * Commit a state change and its security audit record as one database unit.
+ * Callers never observe a successful mutation without the corresponding audit
+ * event, nor a misleading failure after the mutation already committed.
+ */
+export async function withAuditedTransaction<T>(
+  actor: Principal,
+  event: AuditEvent | ((result: T) => AuditEvent),
+  operation: (tx: DbTransaction) => Promise<T>,
+  label: string,
+  isolationLevel: "read committed" | "repeatable read" | "serializable" = "read committed",
+): Promise<T> {
+  return withDbTransaction(
+    () => db.transaction(async (tx) => {
+      const result = await operation(tx);
+      const resolvedEvent = typeof event === "function" ? event(result) : event;
+      await tx.insert(auditLogs).values({
+        actorType: actor.type,
+        actorId: actor.id,
+        action: resolvedEvent.action,
+        targetType: resolvedEvent.targetType,
+        targetId: resolvedEvent.targetId ?? null,
+        metadata: resolvedEvent.metadata ?? {},
+        outcome: resolvedEvent.outcome ?? "success",
+      });
+      return result;
+    }, { isolationLevel }),
+    label,
+  );
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
-import { db, withDb } from "@/db";
+import { db, withDbWrite } from "@/db";
 import { otaEvents } from "@/db/schema";
 import { otaReportSchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await withDb(
+    await withDbWrite(
       () =>
         db.insert(otaEvents).values({
           mac: validation.data.mac,

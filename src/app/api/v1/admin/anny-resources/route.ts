@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead } from "@/db";
 import { dataProviders } from "@/db/schema";
 import { decryptCredentials } from "@/lib/encryption";
 import { fetchAnnyResources } from "@/lib/calendar/providers/anny";
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Missing providerId" }, { status: 400 });
   }
 
-  const [provider] = await withDb(() => db.select().from(dataProviders).where(eq(dataProviders.id, providerId)).limit(1), "get-anny-provider");
+  const [provider] = await withDbRead(() => db.select().from(dataProviders).where(eq(dataProviders.id, providerId)).limit(1), "get-anny-provider");
   if (!provider || provider.type !== "anny") {
     return Response.json({ error: "Provider not found or not anny type" }, { status: 404 });
   }

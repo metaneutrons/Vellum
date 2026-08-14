@@ -125,8 +125,8 @@ deployment, replace `releases/latest/download` with `releases/download/vX.Y.Z`.
 
 The server listens on `127.0.0.1:3000`; terminate HTTPS at the reverse proxy.
 Set `VELLUM_PUBLIC_URL` to the canonical HTTPS origin, then open
-`https://your-vellum-host/admin`. Database migrations run automatically when the
-container starts.
+`https://your-vellum-host/admin`. Checksummed database migrations run
+automatically and must complete successfully before the server accepts traffic.
 
 > The installer generates `ADMIN_PASS` and prints it once.
 > `ADMIN_USER` and `ADMIN_PASS` bootstrap the first local Owner account only

@@ -29,7 +29,7 @@ const UPDATED_TEXT: Record<string, string> = {
 };
 import { eq } from "drizzle-orm";
 import path from "path";
-import { db } from "@/db";
+import { db, withDbRead } from "@/db";
 import { dataProviders } from "@/db/schema";
 import { getCalendarProvider } from "@/lib/calendar/registry";
 import { applyRoomPolicy } from "@/lib/calendar/policy";
@@ -183,11 +183,10 @@ export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema
     if (cached) return cached;
   }
 
-  const [provider] = await db
-    .select()
-    .from(dataProviders)
-    .where(eq(dataProviders.id, config.providerId))
-    .limit(1);
+  const [provider] = await withDbRead(
+    () => db.select().from(dataProviders).where(eq(dataProviders.id, config.providerId)).limit(1),
+    "room-booking-provider",
+  );
 
   if (!provider) throw new Error(`Calendar provider ${config.providerId} not found`);
 
@@ -211,11 +210,10 @@ export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema
 export async function resolveBookingUrl(config: z.infer<typeof roomBookingConfigSchema>): Promise<string | null> {
   if (config.bookingQr.source === "custom") return normalizeBookingUrl(config.bookingQr.customUrl);
 
-  const [provider] = await db
-    .select()
-    .from(dataProviders)
-    .where(eq(dataProviders.id, config.providerId))
-    .limit(1);
+  const [provider] = await withDbRead(
+    () => db.select().from(dataProviders).where(eq(dataProviders.id, config.providerId)).limit(1),
+    "room-booking-url-provider",
+  );
   if (!provider) return null;
 
   const impl = getCalendarProvider(provider.type);

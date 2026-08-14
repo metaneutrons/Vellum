@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import crypto from "crypto";
 import { eq, and, isNull, or, gt } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead, withDbTransaction, withDbWrite } from "@/db";
 import { devices, provisioningVouchers } from "@/db/schema";
 import { encryptForDevice } from "@/lib/crypto";
 import { constantTimeEqual } from "@/lib/constant-time";
@@ -45,7 +45,7 @@ export interface DeviceRepository {
 
 export const drizzleDeviceRepo: DeviceRepository = {
   async findByMac(mac) {
-    const rows = await withDb(() => db
+    const rows = await withDbRead(() => db
       .select({
         mac: devices.mac,
         status: devices.status,
@@ -58,25 +58,25 @@ export const drizzleDeviceRepo: DeviceRepository = {
     return rows[0] ?? null;
   },
   async insertPending(mac, publicKey) {
-    await withDb(() => db.insert(devices).values({ mac, status: "pending", publicKey }), "auth-insert-pending-device");
+    await withDbWrite(() => db.insert(devices).values({ mac, status: "pending", publicKey }).onConflictDoNothing(), "auth-insert-pending-device");
   },
   async updatePublicKey(mac, publicKey) {
-    await withDb(() => db.update(devices).set({ publicKey }).where(eq(devices.mac, mac)), "auth-update-public-key");
+    await withDbWrite(() => db.update(devices).set({ publicKey }).where(eq(devices.mac, mac)), "auth-update-public-key");
   },
   async updateDisplayCaps(mac, caps) {
-    await withDb(() => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, mac)), "auth-update-display-caps");
+    await withDbWrite(() => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, mac)), "auth-update-display-caps");
   },
   async updateApproved(mac, token) {
-    await withDb(() => db
+    await withDbWrite(() => db
       .update(devices)
       .set({ status: "approved", token, approvedAt: new Date() })
       .where(eq(devices.mac, mac)), "auth-update-approved");
   },
   async updateLastSeen(mac) {
-    await withDb(() => db.update(devices).set({ lastSeen: new Date() }).where(eq(devices.mac, mac)), "auth-update-last-seen");
+    await withDbWrite(() => db.update(devices).set({ lastSeen: new Date() }).where(eq(devices.mac, mac)), "auth-update-last-seen");
   },
   async claimVoucherAndEnroll(token, mac) {
-    return withDb(() => db.transaction(async (tx) => {
+    return withDbTransaction(() => db.transaction(async (tx) => {
       // Single atomic UPDATE ... WHERE claimed_by_mac IS NULL RETURNING — prevents
       // two devices claiming the same voucher (single-use, bound to the first MAC).
       const rows = await tx

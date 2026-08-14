@@ -3,6 +3,7 @@ import { getRequestPrincipal, hasPermission, writeAudit } from "@/lib/access";
 import { configureServerUpdates, getServerUpdateStatus, requestServerUpdate, requestServerUpdateCheck } from "@/lib/server-updater";
 import { hasTrustedMutationOrigin } from "@/lib/request-origin";
 import { env } from "@/lib/env";
+import { log } from "@/lib/logger";
 import { z } from "zod";
 
 const timezoneSchema = z.string().min(1).max(100).refine((value) => {
@@ -34,12 +35,31 @@ export async function POST(request: Request) {
   const parsed = actionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Invalid action" }, { status: 400 });
   const body = parsed.data;
-  const result = body.action === "apply" ? await requestServerUpdate() : body.action === "check"
-    ? await requestServerUpdateCheck() : await configureServerUpdates(body);
+  const requestMetadata = body.action === "configure"
+    ? { mode: body.mode, maintenanceTime: body.maintenanceTime, timezone: body.timezone }
+    : {};
+  // External updater work cannot share a PostgreSQL transaction. Record intent
+  // first so a committed external action is never invisible if the completion
+  // audit cannot be written during a later database outage.
+  await writeAudit(principal, `server.update.${body.action}.requested`, "server", undefined, requestMetadata);
+
+  let result;
+  try {
+    result = body.action === "apply" ? await requestServerUpdate() : body.action === "check"
+      ? await requestServerUpdateCheck() : await configureServerUpdates(body);
+  } catch (error) {
+    await writeAudit(principal, `server.update.${body.action}.failed`, "server", undefined, {
+      ...requestMetadata,
+      error: String(error),
+    }, "failure").catch((auditError) => log.error("Failed to record server update failure", { error: String(auditError) }));
+    throw error;
+  }
+
+  await writeAudit(principal, `server.update.${body.action}.${result.supported ? "accepted" : "rejected"}`, "server", undefined, {
+    ...requestMetadata,
+    currentVersion: result.currentVersion,
+    availableVersion: result.availableVersion,
+  }, result.supported ? "success" : "failure").catch((error) => log.error("Failed to record server update completion", { error: String(error) }));
   if (!result.supported) return Response.json(result, { status: 503 });
-  await writeAudit(principal, `server.update.${body.action}`, "server", undefined, {
-    currentVersion: result.currentVersion, availableVersion: result.availableVersion,
-    ...(body.action === "configure" ? { mode: body.mode, maintenanceTime: body.maintenanceTime, timezone: body.timezone } : {}),
-  });
   return Response.json(result, { status: 202, headers: { "cache-control": "no-store" } });
 }

@@ -16,6 +16,7 @@
  * local dev the package-manager script loads .env via --env-file-if-exists).
  */
 import { readdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import pg from "pg";
@@ -43,22 +44,39 @@ if (!url) {
 const client = new pg.Client({ connectionString: url });
 await client.connect();
 try {
+  // Multiple application replicas may start on the same release. Exactly one
+  // migrates; the others wait and then observe its committed journal entries.
+  await client.query("SELECT pg_advisory_lock(hashtext('vellum-schema-migrations'))");
   await client.query(
     `CREATE TABLE IF NOT EXISTS __vellum_migrations (
        name text PRIMARY KEY,
-       applied_at timestamptz NOT NULL DEFAULT now()
+       applied_at timestamptz NOT NULL DEFAULT now(),
+       checksum text
      )`,
   );
-  const done = new Set(
-    (await client.query("SELECT name FROM __vellum_migrations")).rows.map((r) => r.name),
+  await client.query("ALTER TABLE __vellum_migrations ADD COLUMN IF NOT EXISTS checksum text");
+  const done = new Map(
+    (await client.query("SELECT name, checksum FROM __vellum_migrations")).rows.map((r) => [r.name, r.checksum]),
   );
   const files = readdirSync(DRIZZLE_DIR).filter((f) => f.endsWith(".sql")).sort();
 
   let applied = 0;
   let baselined = 0;
   for (const file of files) {
-    if (done.has(file)) continue;
     const sql = readFileSync(join(DRIZZLE_DIR, file), "utf8");
+    const checksum = createHash("sha256").update(sql).digest("hex");
+    if (done.has(file)) {
+      const recorded = done.get(file);
+      if (recorded && recorded !== checksum) {
+        throw new Error(`migrate: checksum mismatch for already-applied ${file}`);
+      }
+      if (!recorded) {
+        // Adopt journals created by pre-checksum Vellum releases once. From
+        // this point onward, any edited historical migration fails closed.
+        await client.query("UPDATE __vellum_migrations SET checksum = $2 WHERE name = $1", [file, checksum]);
+      }
+      continue;
+    }
     // drizzle separates statements with a `--> statement-breakpoint` marker.
     const statements = sql
       .split(/-->\s*statement-breakpoint/)
@@ -67,23 +85,39 @@ try {
 
     let ran = 0;
     let skipped = 0;
-    for (const stmt of statements) {
-      try {
-        await client.query(stmt);
-        ran++;
-      } catch (err) {
-        if (ALREADY_EXISTS.has(err.code)) {
-          skipped++; // object already present — pre-existing schema
-        } else {
-          console.error(`migrate: FAILED in ${file} [${err.code}]: ${err.message}`);
-          throw err;
+    await client.query("BEGIN");
+    try {
+      for (const stmt of statements) {
+        // A PostgreSQL error aborts its transaction. A savepoint lets the
+        // self-baselining path recover from a known duplicate without giving
+        // up the all-or-nothing guarantee for the migration file.
+        await client.query("SAVEPOINT vellum_migration_statement");
+        try {
+          await client.query(stmt);
+          await client.query("RELEASE SAVEPOINT vellum_migration_statement");
+          ran++;
+        } catch (err) {
+          await client.query("ROLLBACK TO SAVEPOINT vellum_migration_statement");
+          await client.query("RELEASE SAVEPOINT vellum_migration_statement");
+          if (ALREADY_EXISTS.has(err.code)) {
+            skipped++; // object already present — pre-existing schema
+          } else {
+            console.error(`migrate: FAILED in ${file} [${err.code}]: ${err.message}`);
+            throw err;
+          }
         }
       }
+      // Recording completion is part of the same transaction: a migration can
+      // never be marked applied unless every required statement committed.
+      await client.query(
+        "INSERT INTO __vellum_migrations(name, checksum) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [file, checksum],
+      );
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
     }
-    await client.query(
-      "INSERT INTO __vellum_migrations(name) VALUES ($1) ON CONFLICT DO NOTHING",
-      [file],
-    );
     if (ran > 0) {
       applied++;
       console.log(`migrate: applied ${file} (${ran} statement(s)${skipped ? `, ${skipped} already present` : ""})`);

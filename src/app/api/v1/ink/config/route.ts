@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead, withDbWrite } from "@/db";
 import { devices } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
@@ -10,6 +10,7 @@ import { validateToken } from "@/lib/auth";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
+import { log } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
 
   // Load device for channel + pin info — through the resilience layer (circuit
   // breaker + retry) like every other DB access on the hot device path.
-  const [device] = await withDb(
+  const [device] = await withDbRead(
     () => db.select().from(devices).where(eq(devices.mac, validation.data.mac)).limit(1),
     "config-get-device"
   );
@@ -54,12 +55,13 @@ export async function GET(request: NextRequest) {
   // served the default 800x480 mono raw frame instead of its real format.
   if (device && headerModel && storedModel !== headerModel) {
     const caps = { ...((device.displayCaps as Record<string, unknown>) ?? {}), model: headerModel };
-    await withDb(
+    await withDbWrite(
       () => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, validation.data.mac)),
       "config-backfill-display-model",
-    ).catch(() => {
-      // Non-fatal: the header already drives this response.
-    });
+    ).catch((error) => log.warn("Failed to persist display model backfill", {
+      mac: validation.data.mac,
+      error: String(error),
+    }));
   }
 
   const ota = await resolveOta(
@@ -71,7 +73,8 @@ export async function GET(request: NextRequest) {
   );
 
   const t = extractTelemetry(request.headers);
-  if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch(() => {});
+  if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() })
+    .catch((error) => log.warn("Config telemetry persistence failed", { mac: validation.data.mac, error: String(error) }));
 
   return Response.json(
     okResponse({

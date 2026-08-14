@@ -210,7 +210,7 @@
     "noProvidersHint": "Add a provider to connect calendar or other data sources.",
     "noMatch": "No providers match your search",
     "deleteTitle": "Delete Provider",
-    "deleteMessage": "Delete this provider? Content instances using it will stop working.",
+    "deleteMessage": "Delete this provider? Providers still used by content cannot be deleted.",
     "icalHint": "iCal providers don't need credentials. The URL is configured per content instance.",
     "types": {
       "microsoft365": "Microsoft 365 — Calendar",

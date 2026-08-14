@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead, withDbWrite } from "@/db";
 import { devices, contentInstances, themes, refreshProfiles } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, errorResponse } from "@/lib/api-response";
@@ -27,11 +27,11 @@ import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/
  */
 async function resolveRefreshProfile(refreshProfileId: string | null) {
   if (refreshProfileId) {
-    const [rp] = await withDb(() => db.select().from(refreshProfiles)
+    const [rp] = await withDbRead(() => db.select().from(refreshProfiles)
       .where(eq(refreshProfiles.id, refreshProfileId)).limit(1), "render-get-refresh-profile");
     if (rp) return parseRefreshProfile(rp.config);
   }
-  const [fallback] = await withDb(() => db.select().from(refreshProfiles)
+  const [fallback] = await withDbRead(() => db.select().from(refreshProfiles)
     .where(eq(refreshProfiles.isDefault, true)).limit(1), "render-get-default-refresh-profile");
   return fallback ? parseRefreshProfile(fallback.config) : null;
 }
@@ -67,7 +67,7 @@ function sleepHeaders(
 async function recordExpectedInterval(mac: string, current: number | null, durationS: number) {
   const rounded = Math.round(durationS);
   if (current === rounded) return;
-  await withDb(
+  await withDbWrite(
     () => db.update(devices).set({ expectedIntervalS: rounded }).where(eq(devices.mac, mac)),
     "render-update-expected-interval",
   ).catch((err) => log.warn("expectedIntervalS update failed", { mac, error: String(err) }));
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch device with content instance and theme
-  const [device] = await withDb(() => db
+  const [device] = await withDbRead(() => db
     .select()
     .from(devices)
     .where(eq(devices.mac, validation.data.mac))
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
 
   // Load content instance
   const contentInstanceId = device.contentInstanceId;
-  const [instance] = await withDb(() => db
+  const [instance] = await withDbRead(() => db
     .select()
     .from(contentInstances)
     .where(eq(contentInstances.id, contentInstanceId))
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
   let theme: Theme = resolveTheme(display.colorCount);
   if (device.themeId) {
     const themeId = device.themeId;
-    const [dbTheme] = await withDb(() => db
+    const [dbTheme] = await withDbRead(() => db
       .select()
       .from(themes)
       .where(eq(themes.id, themeId))
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
     const parsed = parseTheme(dbTheme?.config);
     if (parsed) theme = parsed;
   } else {
-    const [defaultTheme] = await withDb(() => db
+    const [defaultTheme] = await withDbRead(() => db
       .select()
       .from(themes)
       .where(eq(themes.isDefault, true))

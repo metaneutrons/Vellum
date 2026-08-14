@@ -4,15 +4,13 @@
 
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db, withDb } from "@/db";
+import { db, withDbRead } from "@/db";
 import { safeFetch } from "@/lib/safe-fetch";
 import {
   devices,
   themes,
   dataProviders,
   contentInstances,
-  telemetry,
-  reports,
   refreshProfiles,
   firmwareRollouts,
   otaEvents,
@@ -20,10 +18,9 @@ import {
 } from "@/db/schema";
 import type { RolloutState } from "@/lib/rollout";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
-import { approveDevice as approveDeviceAuth } from "@/lib/auth";
 import { log } from "@/lib/logger";
 import { randomBytes } from "node:crypto";
-import { requirePermission, type Permission, writeAudit } from "@/lib/access";
+import { requirePermission, type Permission, withAuditedTransaction } from "@/lib/access";
 
 /** Central RBAC guard for every server action. */
 async function requireAdmin(permission: Permission) {
@@ -35,8 +32,19 @@ async function requireAdmin(permission: Permission) {
 export async function approveDevice(mac: string) {
   const actor = await requireAdmin("devices.approve");
   try {
-    await approveDeviceAuth(mac);
-    await writeAudit(actor, "device.approve", "device", mac);
+    const token = randomBytes(32).toString("hex");
+    await withAuditedTransaction(
+      actor,
+      { action: "device.approve", targetType: "device", targetId: mac },
+      async (tx) => {
+        const updated = await tx.update(devices)
+          .set({ status: "approved", token, approvedAt: new Date() })
+          .where(eq(devices.mac, mac))
+          .returning({ mac: devices.mac });
+        if (updated.length === 0) throw new Error("device_not_found");
+      },
+      "approve-device",
+    );
     revalidatePath("/admin/devices");
   } catch (err) {
     log.error("Failed to approve device", { mac, error: String(err) });
@@ -69,8 +77,19 @@ export async function createProvisioningVoucher(
   }
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
-  await withDb(
-    () => db.insert(provisioningVouchers).values({
+  await withAuditedTransaction(
+    actor,
+    {
+      action: "device.voucher.create",
+      targetType: "provisioning_voucher",
+      metadata: {
+        label: label.trim(),
+        expiresAt: expiresAt.toISOString(),
+        firmwareChannel: firmware?.channel,
+        firmwarePinVersion: firmware?.version,
+      },
+    },
+    (tx) => tx.insert(provisioningVouchers).values({
       token,
       label: label.trim() || null,
       expiresAt,
@@ -79,12 +98,6 @@ export async function createProvisioningVoucher(
     }),
     "create-voucher",
   );
-  await writeAudit(actor, "device.voucher.create", "provisioning_voucher", undefined, {
-    label: label.trim(),
-    expiresAt: expiresAt.toISOString(),
-    firmwareChannel: firmware?.channel,
-    firmwarePinVersion: firmware?.version,
-  });
   revalidatePath("/admin/devices");
   return token;
 }
@@ -95,9 +108,16 @@ export async function updateDevice(
 ) {
   const actor = await requireAdmin("devices.manage");
   try {
-    await withDb(() => db.update(devices).set(data).where(eq(devices.mac, mac)), "update-device");
+    await withAuditedTransaction(
+      actor,
+      { action: "device.update", targetType: "device", targetId: mac, metadata: { fields: Object.keys(data) } },
+      async (tx) => {
+        const updated = await tx.update(devices).set(data).where(eq(devices.mac, mac)).returning({ mac: devices.mac });
+        if (updated.length === 0) throw new Error("device_not_found");
+      },
+      "update-device",
+    );
     revalidatePath("/admin/devices");
-    await writeAudit(actor, "device.update", "device", mac, { fields: Object.keys(data) });
   } catch (err) {
     log.error("Failed to update device", { mac, error: String(err) });
     throw err;
@@ -107,11 +127,19 @@ export async function updateDevice(
 export async function deleteDevice(mac: string) {
   const actor = await requireAdmin("devices.manage");
   try {
-    await withDb(() => db.delete(telemetry).where(eq(telemetry.mac, mac)), "delete-device-telemetry");
-    await withDb(() => db.delete(reports).where(eq(reports.mac, mac)), "delete-device-reports");
-    await withDb(() => db.delete(devices).where(eq(devices.mac, mac)), "delete-device");
+    // Device-owned telemetry, reports, and OTA history are removed atomically
+    // by their ON DELETE CASCADE constraints. Keeping this as one statement
+    // prevents a failed deletion from leaving a half-deleted device history.
+    await withAuditedTransaction(
+      actor,
+      { action: "device.delete", targetType: "device", targetId: mac },
+      async (tx) => {
+        const deleted = await tx.delete(devices).where(eq(devices.mac, mac)).returning({ mac: devices.mac });
+        if (deleted.length === 0) throw new Error("device_not_found");
+      },
+      "delete-device",
+    );
     revalidatePath("/admin/devices");
-    await writeAudit(actor, "device.delete", "device", mac);
   } catch (err) {
     log.error("Failed to delete device", { mac, error: String(err) });
     throw err;
@@ -122,23 +150,41 @@ export async function deleteDevice(mac: string) {
 
 export async function createTheme(name: string, config: Record<string, string>) {
   const actor = await requireAdmin("themes.manage");
-  await withDb(() => db.insert(themes).values({ name, config }), "create-theme");
-  await writeAudit(actor, "theme.create", "theme", undefined, { name });
+  await withAuditedTransaction(
+    actor,
+    (created: { id: string }[]) => ({ action: "theme.create", targetType: "theme", targetId: created[0].id, metadata: { name } }),
+    (tx) => tx.insert(themes).values({ name, config }).returning({ id: themes.id }),
+    "create-theme",
+  );
   revalidatePath("/admin/themes");
 }
 
 export async function updateTheme(id: string, name: string, config: Record<string, string>) {
   const actor = await requireAdmin("themes.manage");
-  await withDb(() => db.update(themes).set({ name, config, updatedAt: new Date() }).where(eq(themes.id, id)), "update-theme");
+  await withAuditedTransaction(
+    actor,
+    { action: "theme.update", targetType: "theme", targetId: id, metadata: { name } },
+    async (tx) => {
+      const updated = await tx.update(themes).set({ name, config, updatedAt: new Date() }).where(eq(themes.id, id)).returning({ id: themes.id });
+      if (updated.length === 0) throw new Error("theme_not_found");
+    },
+    "update-theme",
+  );
   revalidatePath("/admin/themes");
-  await writeAudit(actor, "theme.update", "theme", id, { name });
 }
 
 export async function deleteTheme(id: string) {
   const actor = await requireAdmin("themes.manage");
-  await withDb(() => db.delete(themes).where(eq(themes.id, id)), "delete-theme");
+  await withAuditedTransaction(
+    actor,
+    { action: "theme.delete", targetType: "theme", targetId: id },
+    async (tx) => {
+      const deleted = await tx.delete(themes).where(eq(themes.id, id)).returning({ id: themes.id });
+      if (deleted.length === 0) throw new Error("theme_not_found");
+    },
+    "delete-theme",
+  );
   revalidatePath("/admin/themes");
-  await writeAudit(actor, "theme.delete", "theme", id);
 }
 
 /* ── Calendar Providers ───────────────────────────────────────── */
@@ -151,9 +197,13 @@ export async function createProvider(
   const actor = await requireAdmin("providers.manage");
   try {
     const encrypted = encryptCredentials(credentials);
-    await withDb(() => db.insert(dataProviders).values({ type, name, encryptedCredentials: encrypted }), "create-provider");
+    await withAuditedTransaction(
+      actor,
+      (created: { id: string }[]) => ({ action: "provider.create", targetType: "provider", targetId: created[0].id, metadata: { type, name } }),
+      (tx) => tx.insert(dataProviders).values({ type, name, encryptedCredentials: encrypted }).returning({ id: dataProviders.id }),
+      "create-provider",
+    );
     revalidatePath("/admin/providers");
-    await writeAudit(actor, "provider.create", "provider", undefined, { type, name });
   } catch (err) {
     log.error("Failed to create provider", { error: String(err) });
     throw err;
@@ -171,9 +221,16 @@ export async function updateProvider(
     if (credentials && Object.keys(credentials).length > 0) {
       data.encryptedCredentials = encryptCredentials(credentials);
     }
-    await withDb(() => db.update(dataProviders).set(data).where(eq(dataProviders.id, id)), "update-provider");
+    await withAuditedTransaction(
+      actor,
+      { action: "provider.update", targetType: "provider", targetId: id, metadata: { name, credentialsChanged: !!credentials && Object.keys(credentials).length > 0 } },
+      async (tx) => {
+        const updated = await tx.update(dataProviders).set(data).where(eq(dataProviders.id, id)).returning({ id: dataProviders.id });
+        if (updated.length === 0) throw new Error("provider_not_found");
+      },
+      "update-provider",
+    );
     revalidatePath("/admin/providers");
-    await writeAudit(actor, "provider.update", "provider", id, { name, credentialsChanged: !!credentials && Object.keys(credentials).length > 0 });
   } catch (err) {
     log.error("Failed to update provider", { id, error: String(err) });
     throw err;
@@ -182,9 +239,16 @@ export async function updateProvider(
 
 export async function deleteProvider(id: string) {
   const actor = await requireAdmin("providers.manage");
-  await withDb(() => db.delete(dataProviders).where(eq(dataProviders.id, id)), "delete-provider");
+  await withAuditedTransaction(
+    actor,
+    { action: "provider.delete", targetType: "provider", targetId: id },
+    async (tx) => {
+      const deleted = await tx.delete(dataProviders).where(eq(dataProviders.id, id)).returning({ id: dataProviders.id });
+      if (deleted.length === 0) throw new Error("provider_not_found");
+    },
+    "delete-provider",
+  );
   revalidatePath("/admin/providers");
-  await writeAudit(actor, "provider.delete", "provider", id);
 }
 
 /* ── Content Instances ────────────────────────────────────────── */
@@ -195,9 +259,13 @@ export async function createContentInstance(
   config: Record<string, unknown>
 ) {
   const actor = await requireAdmin("content.manage");
-  await withDb(() => db.insert(contentInstances).values({ typeSlug, name, config }), "create-content-instance");
+  await withAuditedTransaction(
+    actor,
+    (created: { id: string }[]) => ({ action: "content.create", targetType: "content", targetId: created[0].id, metadata: { typeSlug, name } }),
+    (tx) => tx.insert(contentInstances).values({ typeSlug, name, config }).returning({ id: contentInstances.id }),
+    "create-content-instance",
+  );
   revalidatePath("/admin/content");
-  await writeAudit(actor, "content.create", "content", undefined, { typeSlug, name });
 }
 
 export async function updateContentInstance(
@@ -206,33 +274,47 @@ export async function updateContentInstance(
   config: Record<string, unknown>
 ) {
   const actor = await requireAdmin("content.manage");
-  await withDb(() => db.update(contentInstances).set({ name, config, updatedAt: new Date() }).where(eq(contentInstances.id, id)), "update-content-instance");
+  await withAuditedTransaction(
+    actor,
+    { action: "content.update", targetType: "content", targetId: id, metadata: { name } },
+    async (tx) => {
+      const updated = await tx.update(contentInstances).set({ name, config, updatedAt: new Date() }).where(eq(contentInstances.id, id)).returning({ id: contentInstances.id });
+      if (updated.length === 0) throw new Error("content_not_found");
+    },
+    "update-content-instance",
+  );
   revalidatePath("/admin/content");
-  await writeAudit(actor, "content.update", "content", id, { name });
 }
 
 export async function deleteContentInstance(id: string) {
   const actor = await requireAdmin("content.manage");
-  await withDb(() => db.delete(contentInstances).where(eq(contentInstances.id, id)), "delete-content-instance");
+  await withAuditedTransaction(
+    actor,
+    { action: "content.delete", targetType: "content", targetId: id },
+    async (tx) => {
+      const deleted = await tx.delete(contentInstances).where(eq(contentInstances.id, id)).returning({ id: contentInstances.id });
+      if (deleted.length === 0) throw new Error("content_not_found");
+    },
+    "delete-content-instance",
+  );
   revalidatePath("/admin/content");
-  await writeAudit(actor, "content.delete", "content", id);
 }
 
 /* ── Lookups ──────────────────────────────────────────────────── */
 
 export async function getAllDevices() {
   await requireAdmin("devices.read");
-  return withDb(() => db.select().from(devices).orderBy(devices.createdAt), "get-all-devices");
+  return withDbRead(() => db.select().from(devices).orderBy(devices.createdAt), "get-all-devices");
 }
 
 export async function getAllThemes() {
   await requireAdmin("content.read");
-  return withDb(() => db.select().from(themes).orderBy(themes.name), "get-all-themes");
+  return withDbRead(() => db.select().from(themes).orderBy(themes.name), "get-all-themes");
 }
 
 export async function getAllProviders() {
   await requireAdmin("providers.read");
-  return withDb(() => db.select({
+  return withDbRead(() => db.select({
     id: dataProviders.id,
     type: dataProviders.type,
     name: dataProviders.name,
@@ -242,7 +324,7 @@ export async function getAllProviders() {
 
 export async function getProviderCredentials(id: string): Promise<Record<string, string>> {
   await requireAdmin("providers.manage_secrets");
-  const [provider] = await withDb(() => db
+  const [provider] = await withDbRead(() => db
     .select({ encrypted: dataProviders.encryptedCredentials })
     .from(dataProviders)
     .where(eq(dataProviders.id, id))
@@ -257,7 +339,7 @@ export async function getProviderCredentials(id: string): Promise<Record<string,
 
 export async function getAllContentInstances() {
   await requireAdmin("content.read");
-  return withDb(() => db.select().from(contentInstances).orderBy(contentInstances.name), "get-all-content-instances");
+  return withDbRead(() => db.select().from(contentInstances).orderBy(contentInstances.name), "get-all-content-instances");
 }
 
 export async function getAllContentTypes() {
@@ -269,7 +351,7 @@ export async function getAllContentTypes() {
 
 export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string }> {
   await requireAdmin("providers.manage_secrets");
-  const [provider] = await withDb(() => db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1), "test-provider-get");
+  const [provider] = await withDbRead(() => db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1), "test-provider-get");
   if (!provider) return { ok: false, message: "Provider not found" };
 
   try {
@@ -326,7 +408,7 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
 
 export async function testContentInstance(id: string): Promise<{ ok: boolean; message: string }> {
   await requireAdmin("content.manage");
-  const [instance] = await withDb(() => db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1), "test-content-instance-get");
+  const [instance] = await withDbRead(() => db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1), "test-content-instance-get");
   if (!instance) return { ok: false, message: "Content instance not found" };
 
   try {
@@ -369,15 +451,19 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
 
 export async function getAllRefreshProfiles() {
   await requireAdmin("content.read");
-  return withDb(() => db.select().from(refreshProfiles).orderBy(refreshProfiles.name), "get-all-refresh-profiles");
+  return withDbRead(() => db.select().from(refreshProfiles).orderBy(refreshProfiles.name), "get-all-refresh-profiles");
 }
 
 export async function createRefreshProfile(name: string, config: Record<string, unknown>) {
   const actor = await requireAdmin("profiles.manage");
   try {
-    await withDb(() => db.insert(refreshProfiles).values({ name, config }), "create-refresh-profile");
+    await withAuditedTransaction(
+      actor,
+      (created: { id: string }[]) => ({ action: "profile.create", targetType: "refresh_profile", targetId: created[0].id, metadata: { name } }),
+      (tx) => tx.insert(refreshProfiles).values({ name, config }).returning({ id: refreshProfiles.id }),
+      "create-refresh-profile",
+    );
     revalidatePath("/admin/profiles");
-    await writeAudit(actor, "profile.create", "refresh_profile", undefined, { name });
   } catch (err) {
     log.error("Failed to create refresh profile", { error: String(err) });
     throw err;
@@ -387,9 +473,16 @@ export async function createRefreshProfile(name: string, config: Record<string, 
 export async function updateRefreshProfile(id: string, name: string, config: Record<string, unknown>) {
   const actor = await requireAdmin("profiles.manage");
   try {
-    await withDb(() => db.update(refreshProfiles).set({ name, config, updatedAt: new Date() }).where(eq(refreshProfiles.id, id)), "update-refresh-profile");
+    await withAuditedTransaction(
+      actor,
+      { action: "profile.update", targetType: "refresh_profile", targetId: id, metadata: { name } },
+      async (tx) => {
+        const updated = await tx.update(refreshProfiles).set({ name, config, updatedAt: new Date() }).where(eq(refreshProfiles.id, id)).returning({ id: refreshProfiles.id });
+        if (updated.length === 0) throw new Error("refresh_profile_not_found");
+      },
+      "update-refresh-profile",
+    );
     revalidatePath("/admin/profiles");
-    await writeAudit(actor, "profile.update", "refresh_profile", id, { name });
   } catch (err) {
     log.error("Failed to update refresh profile", { id, error: String(err) });
     throw err;
@@ -399,9 +492,16 @@ export async function updateRefreshProfile(id: string, name: string, config: Rec
 export async function deleteRefreshProfile(id: string) {
   const actor = await requireAdmin("profiles.manage");
   try {
-    await withDb(() => db.delete(refreshProfiles).where(eq(refreshProfiles.id, id)), "delete-refresh-profile");
+    await withAuditedTransaction(
+      actor,
+      { action: "profile.delete", targetType: "refresh_profile", targetId: id },
+      async (tx) => {
+        const deleted = await tx.delete(refreshProfiles).where(eq(refreshProfiles.id, id)).returning({ id: refreshProfiles.id });
+        if (deleted.length === 0) throw new Error("refresh_profile_not_found");
+      },
+      "delete-refresh-profile",
+    );
     revalidatePath("/admin/profiles");
-    await writeAudit(actor, "profile.delete", "refresh_profile", id);
   } catch (err) {
     log.error("Failed to delete refresh profile", { id, error: String(err) });
     throw err;
@@ -420,13 +520,22 @@ export async function deleteRefreshProfile(id: string) {
 export async function setDefaultRefreshProfile(id: string | null) {
   const actor = await requireAdmin("profiles.manage");
   try {
-    await withDb(() => db.transaction(async (tx) => {
-      await tx.update(refreshProfiles).set({ isDefault: false }).where(eq(refreshProfiles.isDefault, true));
-      if (id) await tx.update(refreshProfiles).set({ isDefault: true }).where(eq(refreshProfiles.id, id));
-    }), "set-default-refresh-profile");
+    await withAuditedTransaction(
+      actor,
+      { action: "profile.setDefault", targetType: "refresh_profile", targetId: id },
+      async (tx) => {
+        if (id) {
+          const target = await tx.select({ id: refreshProfiles.id }).from(refreshProfiles).where(eq(refreshProfiles.id, id)).limit(1);
+          if (target.length === 0) throw new Error("refresh_profile_not_found");
+        }
+        await tx.update(refreshProfiles).set({ isDefault: false }).where(eq(refreshProfiles.isDefault, true));
+        if (id) await tx.update(refreshProfiles).set({ isDefault: true }).where(eq(refreshProfiles.id, id));
+      },
+      "set-default-refresh-profile",
+      "serializable",
+    );
     revalidatePath("/admin/profiles");
     revalidatePath("/admin/devices");
-    await writeAudit(actor, "profile.setDefault", "refresh_profile", id ?? undefined);
   } catch (err) {
     log.error("Failed to set default refresh profile", { id, error: String(err) });
     throw err;
@@ -444,13 +553,22 @@ export async function setDefaultRefreshProfile(id: string | null) {
 export async function setDefaultTheme(id: string | null) {
   const actor = await requireAdmin("themes.manage");
   try {
-    await withDb(() => db.transaction(async (tx) => {
-      await tx.update(themes).set({ isDefault: false }).where(eq(themes.isDefault, true));
-      if (id) await tx.update(themes).set({ isDefault: true }).where(eq(themes.id, id));
-    }), "set-default-theme");
+    await withAuditedTransaction(
+      actor,
+      { action: "theme.setDefault", targetType: "theme", targetId: id },
+      async (tx) => {
+        if (id) {
+          const target = await tx.select({ id: themes.id }).from(themes).where(eq(themes.id, id)).limit(1);
+          if (target.length === 0) throw new Error("theme_not_found");
+        }
+        await tx.update(themes).set({ isDefault: false }).where(eq(themes.isDefault, true));
+        if (id) await tx.update(themes).set({ isDefault: true }).where(eq(themes.id, id));
+      },
+      "set-default-theme",
+      "serializable",
+    );
     revalidatePath("/admin/themes");
     revalidatePath("/admin/devices");
-    await writeAudit(actor, "theme.setDefault", "theme", id ?? undefined);
   } catch (err) {
     log.error("Failed to set default theme", { id, error: String(err) });
     throw err;
@@ -469,19 +587,38 @@ export async function getAvailableVersions() {
 
 export async function updateSetting(key: string, value: unknown) {
   const actor = await requireAdmin("firmware.rollout");
-  const { setSetting } = await import("@/lib/settings");
+  const { cacheCommittedSetting, setSettingInTransaction } = await import("@/lib/settings");
   const { syncAutoPoll } = await import("@/lib/firmware");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await setSetting(key as any, value as any);
-  if (key.startsWith("firmware.")) await syncAutoPoll();
+  if (key !== "firmware.autoPoll" && key !== "firmware.pollIntervalS") {
+    throw new Error("unsupported_setting");
+  }
+  if (key === "firmware.autoPoll" && typeof value !== "boolean") {
+    throw new Error("invalid_setting_value");
+  }
+  if (key === "firmware.pollIntervalS" &&
+      (typeof value !== "number" || !Number.isInteger(value) || value < 60 || value > 86_400)) {
+    throw new Error("invalid_setting_value");
+  }
+
+  await withAuditedTransaction(
+    actor,
+    { action: "setting.update", targetType: "setting", targetId: key },
+    (tx) => key === "firmware.autoPoll"
+      ? setSettingInTransaction(tx, key, value as boolean)
+      : setSettingInTransaction(tx, key, value as number),
+    "update-setting",
+  );
+  // Cache publication must happen only after the transaction commits.
+  if (key === "firmware.autoPoll") cacheCommittedSetting(key, value as boolean);
+  else cacheCommittedSetting(key, value as number);
+  await syncAutoPoll();
   revalidatePath("/admin/firmware");
-  await writeAudit(actor, "setting.update", "setting", key);
 }
 
 export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
   await requireAdmin("content.read");
   const { KNOWN_DISPLAYS } = await import("@/lib/content/renderers/door-sign-types");
-  const rows = await withDb(() => db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
+  const rows = await withDbRead(() => db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
     .where(sql`${devices.displayCaps} IS NOT NULL`), "get-known-display-sizes");
   const seen = new Set<string>();
   const sizes: { label: string; width: number; height: number }[] = [];
@@ -513,7 +650,7 @@ export async function getKnownDisplaySizes(): Promise<{ label: string; width: nu
 /** All rollout records (for the rollout dashboard), newest-touched first. */
 export async function getRollouts() {
   await requireAdmin("firmware.read");
-  return withDb(
+  return withDbRead(
     () => db.select().from(firmwareRollouts).orderBy(sql`${firmwareRollouts.updatedAt} DESC`),
     "get-rollouts",
   );
@@ -531,9 +668,11 @@ export async function setRollout(
 ) {
   const actor = await requireAdmin("firmware.rollout");
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
-  await withDb(
-    () =>
-      db
+  await withAuditedTransaction(
+    actor,
+    { action: "firmware.rollout.set", targetType: "firmware_rollout", targetId: `${version}:${channel}`, metadata: { state, percent: pct } },
+    (tx) =>
+      tx
         .insert(firmwareRollouts)
         .values({ version, channel, state, percent: pct, updatedAt: new Date() })
         .onConflictDoUpdate({
@@ -543,7 +682,6 @@ export async function setRollout(
     "set-rollout",
   );
   revalidatePath("/admin/firmware");
-  await writeAudit(actor, "firmware.rollout.set", "firmware_rollout", `${version}:${channel}`, { state, percent: pct });
 }
 
 /** One-click kill-switch: stop offering `version` on `channel` fleet-wide. */
@@ -555,7 +693,7 @@ export async function haltRollout(version: string, channel: string) {
 /** Recent OTA outcome events (for the rollout dashboard / failure triage). */
 export async function getRecentOtaEvents(limit = 100) {
   await requireAdmin("firmware.read");
-  return withDb(
+  return withDbRead(
     () =>
       db.select().from(otaEvents).orderBy(sql`${otaEvents.timestamp} DESC`).limit(limit),
     "get-ota-events",
@@ -581,10 +719,10 @@ export interface RolloutOverview {
 export async function getRolloutOverview(): Promise<RolloutOverview> {
   await requireAdmin("firmware.read");
   const [rollouts, adoption, health, recentEvents] = await Promise.all([
-    getRollouts().catch(() => []),
+    getRollouts(),
     // Adoption: how many devices are running each firmware version (latest
     // telemetry row per device).
-    withDb(
+    withDbRead(
       () =>
         db.execute(sql`
           SELECT t.firmware_version AS version, count(*)::int AS count
@@ -596,11 +734,9 @@ export async function getRolloutOverview(): Promise<RolloutOverview> {
           GROUP BY t.firmware_version ORDER BY count DESC
         `),
       "rollout-adoption",
-    )
-      .then((r) => r.rows as { version: string; count: number }[])
-      .catch(() => []),
+    ).then((r) => r.rows as { version: string; count: number }[]),
     // Health: OTA outcome counts per target version (last 30 days).
-    withDb(
+    withDbRead(
       () =>
         db.execute(sql`
           SELECT to_version AS version, phase, count(*)::int AS count
@@ -609,10 +745,8 @@ export async function getRolloutOverview(): Promise<RolloutOverview> {
           GROUP BY to_version, phase
         `),
       "rollout-health",
-    )
-      .then((r) => r.rows as { version: string; phase: string; count: number }[])
-      .catch(() => []),
-    withDb(
+    ).then((r) => r.rows as { version: string; phase: string; count: number }[]),
+    withDbRead(
       () =>
         db.execute(sql`
           SELECT mac, model, from_version AS "fromVersion", to_version AS "toVersion",
@@ -621,9 +755,7 @@ export async function getRolloutOverview(): Promise<RolloutOverview> {
           FROM ota_events ORDER BY timestamp DESC LIMIT 50
         `),
       "rollout-events",
-    )
-      .then((r) => r.rows as RolloutOverview["recentEvents"])
-      .catch(() => []),
+    ).then((r) => r.rows as RolloutOverview["recentEvents"]),
   ]);
   return {
     rollouts: rollouts as RolloutOverview["rollouts"],

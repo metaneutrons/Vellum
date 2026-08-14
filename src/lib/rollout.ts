@@ -19,8 +19,9 @@
  */
 import crypto from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, withDb } from "@/db";
+import { db, withDbRead } from "@/db";
 import { firmwareRollouts, otaEvents } from "@/db/schema";
+import { log } from "@/lib/logger";
 
 export type RolloutState = "paused" | "canary" | "percent" | "full" | "halted";
 
@@ -46,7 +47,7 @@ export function deviceBucket(mac: string): number {
 /** True if this device already reported a failed OTA for `version`. */
 export async function deviceFailedTarget(mac: string, version: string): Promise<boolean> {
   try {
-    const rows = await withDb(
+    const rows = await withDbRead(
       () =>
         db
           .select({ id: otaEvents.id })
@@ -62,9 +63,11 @@ export async function deviceFailedTarget(mac: string, version: string): Promise<
       "ota-failed-check",
     );
     return rows.length > 0;
-  } catch {
-    // Fail OPEN on a DB hiccup: better to (rarely) re-offer than to wedge OTA.
-    return false;
+  } catch (error) {
+    // Fail closed: without the persistent failure record we cannot prove this
+    // target is safe to re-offer to the device.
+    log.error("OTA failure blocklist unavailable; suppressing update", { mac, version, error: String(error) });
+    return true;
   }
 }
 
@@ -79,7 +82,7 @@ export async function isDeviceInRollout(
 ): Promise<boolean> {
   let rollout: { state: string; percent: number } | undefined;
   try {
-    [rollout] = await withDb(
+    [rollout] = await withDbRead(
       () =>
         db
           .select({ state: firmwareRollouts.state, percent: firmwareRollouts.percent })
@@ -88,9 +91,11 @@ export async function isDeviceInRollout(
           .limit(1),
       "rollout-lookup",
     );
-  } catch {
-    // DB unavailable → fall back to the default state (ship as before).
-    rollout = undefined;
+  } catch (error) {
+    // A missing row means the default rollout, but an unavailable database is
+    // different: we cannot prove an operator has not halted this release.
+    log.error("OTA rollout state unavailable; suppressing update", { mac, version, channel, error: String(error) });
+    return false;
   }
 
   const state = (rollout?.state as RolloutState) ?? DEFAULT_ROLLOUT_STATE;

@@ -210,7 +210,7 @@
     "noProvidersHint": "Aggiungi un fornitore per collegare fonti di calendario o dati.",
     "noMatch": "Nessun provider trovato",
     "deleteTitle": "Elimina provider",
-    "deleteMessage": "Eliminare questo fornitore? Le istanze di contenuto che lo utilizzano smetteranno di funzionare.",
+    "deleteMessage": "Eliminare questo fornitore? Un provider ancora utilizzato dai contenuti non può essere eliminato.",
     "icalHint": "I fornitori iCal non necessitano di credenziali. L'URL è configurato per istanza di contenuto.",
     "types": {
       "microsoft365": "Microsoft 365 — Calendario",
