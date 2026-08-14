@@ -9,7 +9,11 @@ const token = process.env.UPDATER_TOKEN ?? "";
 const intervalSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 900);
 const operationTimeoutMs = Number(process.env.UPDATE_TIMEOUT_SECONDS ?? 900) * 1000;
 const port = Number(process.env.CONTROL_PORT ?? 8080);
-const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases/latest";
+// This repository publishes independent server and firmware releases. GitHub's
+// /releases/latest endpoint is repository-wide, so a newer firmware-v* release
+// can hide the newest server release. Fetch the release collection and select by
+// component instead.
+const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases?per_page=100";
 /* Own image version, baked in at build time (Dockerfile ARG UPDATER_VERSION).
  * Current updaters can hand their replacement to a detached, health-checked
  * helper. Older updaters omit these fields, which lets the UI show the one-time
@@ -127,6 +131,18 @@ function newer(current, candidate) {
   for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return b[i] > a[i]; }
   return false;
 }
+function stableServerReleaseTag(payload) {
+  const releases = Array.isArray(payload) ? payload : [payload];
+  return releases
+    .filter((release) => release && release.draft === false && release.prerelease === false
+      && /^v\d+\.\d+\.\d+$/.test(release.tag_name ?? ""))
+    .map((release) => release.tag_name)
+    .sort((left, right) => {
+      const a = parts(left); const b = parts(right);
+      for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return b[i] - a[i]; }
+      return 0;
+    })[0] ?? null;
+}
 function zonedClock(date, timezone) {
   const values = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric",
     month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
@@ -152,10 +168,9 @@ async function releaseVersion() {
   if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   const response = await fetch(releaseApi, { headers, signal: AbortSignal.timeout(30_000) });
   if (!response.ok) throw new Error(`GitHub Releases returned HTTP ${response.status}`);
-  const release = await response.json();
-  if (release.draft || release.prerelease || !/^v\d+\.\d+\.\d+$/.test(release.tag_name ?? ""))
-    throw new Error("GitHub latest is not a stable Vellum server release");
-  return release.tag_name;
+  const tag = stableServerReleaseTag(await response.json());
+  if (!tag) throw new Error("GitHub Releases contains no stable Vellum server release");
+  return tag;
 }
 async function check() {
   if (active) return;
@@ -249,4 +264,4 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
   setInterval(() => void tryScheduledApply(), 30_000).unref();
 }
 
-export { equalToken, newer, validateConfig, zonedClock, publicStatus };
+export { equalToken, newer, stableServerReleaseTag, validateConfig, zonedClock, publicStatus };

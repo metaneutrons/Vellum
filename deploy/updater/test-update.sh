@@ -26,12 +26,17 @@ if version_is_newer v2.0.0 v1.9.9; then exit 1; fi
 
 # Invoked indirectly by latest_server_tag; ShellCheck versions use either code.
 # shellcheck disable=SC2317,SC2329
-github_curl() { printf '%s' '{"tag_name":"v1.8.2","draft":false,"prerelease":false}'; }
+github_curl() { printf '%s' '[{"tag_name":"firmware-v1.3.2","draft":false,"prerelease":false},{"tag_name":"v1.8.1","draft":false,"prerelease":false},{"tag_name":"v1.8.2","draft":false,"prerelease":false}]'; }
 assert test "$(latest_server_tag)" = "v1.8.2"
 
 # shellcheck disable=SC2317,SC2329
-github_curl() { printf '%s' '{"tag_name":"firmware-v1.3.2","draft":false,"prerelease":false}'; }
+github_curl() { printf '%s' '[{"tag_name":"firmware-v1.3.2","draft":false,"prerelease":false}]'; }
 if latest_server_tag; then exit 1; fi
+
+# Custom RELEASE_API endpoints returning one release remain supported.
+# shellcheck disable=SC2317,SC2329
+github_curl() { printf '%s' '{"tag_name":"v1.8.2","draft":false,"prerelease":false}'; }
+assert test "$(latest_server_tag)" = "v1.8.2"
 
 persist_server_image 'ghcr.io/metaneutrons/vellum:v1.8.2'
 assert grep -Fx 'VELLUM_IMAGE=ghcr.io/metaneutrons/vellum:v1.8.2' "$VELLUM_ENV_FILE"

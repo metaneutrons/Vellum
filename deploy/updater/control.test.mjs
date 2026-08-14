@@ -4,7 +4,7 @@ import test from "node:test";
 
 process.env.VELLUM_UPDATER_TEST = "true";
 process.env.UPDATER_TOKEN = "a".repeat(64);
-const { equalToken, newer, publicStatus, validateConfig, zonedClock } = await import("./control.mjs");
+const { equalToken, newer, publicStatus, stableServerReleaseTag, validateConfig, zonedClock } = await import("./control.mjs");
 
 test("compares semantic release versions without allowing downgrades", () => {
   assert.equal(newer("1.8.1", "v1.8.2"), true);
@@ -48,4 +48,19 @@ test("treats an unknown own version as older than any release", () => {
   assert.equal(newer("0.0.0-dev", "v1.9.6"), true);
   assert.equal(newer("v1.9.6", "v1.9.6"), false);
   assert.equal(newer("v1.9.7", "v1.9.6"), false);
+});
+
+test("selects the newest stable server release without being masked by firmware", () => {
+  assert.equal(stableServerReleaseTag([
+    { tag_name: "firmware-v1.4.2", draft: false, prerelease: false },
+    { tag_name: "v1.10.1", draft: false, prerelease: false },
+    { tag_name: "v1.10.2", draft: false, prerelease: false },
+    { tag_name: "v2.0.0", draft: false, prerelease: true },
+    { tag_name: "v9.0.0", draft: true, prerelease: false },
+  ]), "v1.10.2");
+  assert.equal(stableServerReleaseTag([
+    { tag_name: "firmware-v1.4.2", draft: false, prerelease: false },
+  ]), null);
+  // Keep custom RELEASE_API endpoints pointing at one release compatible.
+  assert.equal(stableServerReleaseTag({ tag_name: "v1.10.2", draft: false, prerelease: false }), "v1.10.2");
 });

@@ -14,6 +14,8 @@ const deploymentAssetsWorkflow = readFileSync(".github/workflows/deployment-asse
 const dependabotConfig = readFileSync(".github/dependabot.yml", "utf8");
 const productionCompose = readFileSync("deploy/docker-compose.yml", "utf8");
 const deploymentEnv = readFileSync("deploy/vellum.env.example", "utf8");
+const updaterControl = readFileSync("deploy/updater/control.mjs", "utf8");
+const updaterScript = readFileSync("deploy/updater/update.sh", "utf8");
 const firmwareKconfig = readFileSync("firmware/main/Kconfig.projbuild", "utf8");
 const failures = [];
 
@@ -134,6 +136,12 @@ expect(productionCompose.includes("AUTO_UPDATE_UPDATER: ${AUTO_UPDATE_UPDATER:-t
   "production Compose must enable health-checked updater self-updates by default");
 expect(deploymentEnv.includes("AUTO_UPDATE_UPDATER=true"),
   "release environment template must enable updater self-updates by default");
+for (const [name, contents] of [["control API", updaterControl], ["update script", updaterScript]]) {
+  expect(contents.includes("/releases?per_page=100"),
+    `updater ${name} must search the release collection by component`);
+  expect(!contents.includes("api.github.com/repos/metaneutrons/Vellum/releases/latest"),
+    `updater ${name} must not let a firmware release mask the latest server release`);
+}
 for (const variable of ["VELLUM_DATA_DIR", "VELLUM_COMPOSE_FILE", "VELLUM_ENV_FILE"]) {
   expect(!deploymentEnv.includes(`${variable}=`),
     `production environment template must not require obsolete host path ${variable}`);
