@@ -130,6 +130,10 @@ expect(productionCompose.includes("image: ${VELLUM_IMAGE:?set VELLUM_IMAGE in .e
   "production Compose must reject a missing server image pin");
 expect(productionCompose.includes("image: ${UPDATER_IMAGE:?set UPDATER_IMAGE in .env}"),
   "production Compose must reject a missing updater image pin");
+expect(productionCompose.includes("AUTO_UPDATE_UPDATER: ${AUTO_UPDATE_UPDATER:-true}"),
+  "production Compose must enable health-checked updater self-updates by default");
+expect(deploymentEnv.includes("AUTO_UPDATE_UPDATER=true"),
+  "release environment template must enable updater self-updates by default");
 for (const variable of ["VELLUM_DATA_DIR", "VELLUM_COMPOSE_FILE", "VELLUM_ENV_FILE"]) {
   expect(!deploymentEnv.includes(`${variable}=`),
     `production environment template must not require obsolete host path ${variable}`);

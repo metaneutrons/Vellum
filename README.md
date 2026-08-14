@@ -41,7 +41,8 @@ installs the server, PostgreSQL, and the Vellum updater as one operational unit.
 The updater discovers new server releases, verifies their signed container
 images, creates a database backup, performs a readiness check, and rolls back a
 failed update. In the Web UI, administrators can choose manual updates or a
-daily maintenance time.
+daily maintenance time. After a healthy server update, a detached, health-checked
+helper also upgrades the updater itself and rolls back a failed replacement.
 
 ### Requirements
 
@@ -103,7 +104,9 @@ you selected:
 
 The release-provided `.env` pins both the server and updater images to the same
 exact `vX.Y.Z` release. Compose fails closed when either setting is missing; it
-never silently falls back to a mutable `latest` image.
+never silently falls back to a mutable `latest` image. New stacks enable safe
+updater self-updates by default; an older updater needs one manual bootstrap,
+which **System → Vellum Server** identifies with the exact commands.
 
 | Path within the chosen directory | Contents |
 |---|---|
@@ -149,7 +152,9 @@ backup restore, rollback, and operational hardening.
 
 Chrome or Edge is required for browser-based flashing and USB provisioning
 because these flows use Web Serial. E-Series devices expose USB through a UART
-bridge; D1001 uses its native USB interface. If USB is unavailable, any
+bridge; D1001 uses its native USB interface. Opening the port restarts the
+display once; Vellum then keeps one USB session open for network scans and the
+final provisioning step. If USB is unavailable, any
 unprovisioned device — every model, D1001 included — also offers the
 `Vellum-XXXX` SoftAP fallback.
 

@@ -28,9 +28,9 @@ readonly COSIGN_IDENTITY_REGEXP='^https://github\.com/metaneutrons/Vellum/\.gith
 readonly UPDATER_IMAGE_REPOSITORY="${UPDATER_IMAGE_REPOSITORY:-ghcr.io/metaneutrons/vellum-updater}"
 readonly COSIGN_UPDATER_IDENTITY_REGEXP='^https://github\.com/metaneutrons/Vellum/\.github/workflows/updater\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
 readonly UPDATER_SERVICE="${UPDATER_SERVICE:-updater}"
-# Opt-in: a container replacing itself is the one operation that can leave the
-# stack with no updater at all. Default off until an operator has watched it once.
-readonly AUTO_UPDATE_UPDATER="${AUTO_UPDATE_UPDATER:-false}"
+# A detached helper replaces this container, verifies health, and rolls back a
+# failed candidate. Keep this enabled by default for unattended installations.
+readonly AUTO_UPDATE_UPDATER="${AUTO_UPDATE_UPDATER:-true}"
 readonly UPDATER_SWAP_TIMEOUT_SECONDS="${UPDATER_SWAP_TIMEOUT_SECONDS:-180}"
 # The swap outcome outlives the container that performed it, so the NEW updater
 # can report what happened to the admin UI.

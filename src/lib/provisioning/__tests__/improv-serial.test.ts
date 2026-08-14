@@ -18,6 +18,7 @@ import {
   ImprovCmd,
   ImprovState,
   ImprovError,
+  SerialProvisioningSession,
   improvErrorMessage,
   scanNetworksOverSerial,
   provisionOverSerial,
@@ -330,6 +331,60 @@ describe("ImprovParser (device → browser)", () => {
 });
 
 describe("Web Serial scan lifecycle", () => {
+  it("reuses one open port for repeated scans and provisioning", async () => {
+    let controller: ReadableStreamDefaultController<Uint8Array>;
+    let openCount = 0;
+    let closeCount = 0;
+    let pickerCount = 0;
+    const rpcResult = (cmd: number, strings: string[]) => {
+      const encoded = strings.flatMap((value) => {
+        const bytes = Array.from(new TextEncoder().encode(value));
+        return [bytes.length, ...bytes];
+      });
+      return encodeFrame(ImprovType.RPC_RESULT, [cmd, encoded.length, ...encoded]);
+    };
+    const readable = new ReadableStream<Uint8Array>({
+      start(nextController) { controller = nextController; },
+    });
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) {
+        const cmd = chunk[9];
+        if (cmd === ImprovCmd.GET_STATE) {
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.READY]));
+        } else if (cmd === ImprovCmd.SCAN_WIFI) {
+          controller.enqueue(rpcResult(ImprovCmd.SCAN_WIFI, ["Office", "-42", "YES"]));
+          controller.enqueue(rpcResult(ImprovCmd.SCAN_WIFI, []));
+        } else if (cmd === ImprovCmd.WIFI_SETTINGS) {
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.PROVISIONING]));
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.PROVISIONED]));
+          controller.enqueue(rpcResult(ImprovCmd.WIFI_SETTINGS, ["https://vellum.test/devices/1"]));
+        }
+      },
+    });
+    const port = {
+      readable,
+      writable,
+      async open() { openCount += 1; },
+      async close() { closeCount += 1; },
+    };
+    vi.stubGlobal("navigator", {
+      serial: { requestPort: async () => { pickerCount += 1; return port; } },
+    });
+
+    const session = await SerialProvisioningSession.connect();
+    await expect(session.scanNetworks({ timeoutMs: 500 })).resolves.toMatchObject({ ok: true });
+    await expect(session.scanNetworks({ timeoutMs: 500 })).resolves.toMatchObject({ ok: true });
+    await expect(session.provision({ ssid: "Office", password: "secret", timeoutMs: 500 }))
+      .resolves.toEqual({ ok: true, redirectUrl: "https://vellum.test/devices/1" });
+    expect(session.connected).toBe(true);
+    await session.disconnect();
+
+    expect(pickerCount).toBe(1);
+    expect(openCount).toBe(1);
+    expect(closeCount).toBe(1);
+    expect(session.connected).toBe(false);
+  });
+
   it("keeps a native USB port open from readiness probe through scan", async () => {
     let controller: ReadableStreamDefaultController<Uint8Array>;
     let openCount = 0;
@@ -377,7 +432,7 @@ describe("Web Serial scan lifecycle", () => {
     expect(closeCount).toBe(1);
   });
 
-  it("does not toggle reset-capable control lines when an awake device answers", async () => {
+  it("does not issue a second control-line reset after opening the port", async () => {
     let controller: ReadableStreamDefaultController<Uint8Array>;
     const signalCalls: unknown[] = [];
     const readable = new ReadableStream<Uint8Array>({

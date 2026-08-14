@@ -15,7 +15,7 @@
  * administrator-selected NTP server, and the client's current UTC Unix time.
  *
  * The pure encode/parse helpers here are environment-agnostic and unit-tested.
- * `provisionOverSerial()` drives the actual Web Serial connection (browser only).
+ * `SerialProvisioningSession` drives the actual Web Serial connection (browser only).
  */
 
 export const IMPROV_HEADER = [0x49, 0x4d, 0x50, 0x52, 0x4f, 0x56] as const; // "IMPROV"
@@ -246,19 +246,13 @@ export function decodeRpcResult(payload: Uint8Array): { cmd: number; strings: st
 interface SerialPortLike {
   open(options: { baudRate: number }): Promise<void>;
   close(): Promise<void>;
-  /**
-   * Optional in Web Serial because native USB serial ports need not expose
-   * modem-control lines. USB-UART bridges such as the E1003's CH340 do.
-   */
-  setSignals?(signals: {
-    dataTerminalReady?: boolean;
-    requestToSend?: boolean;
-  }): Promise<void>;
   readable: ReadableStream<Uint8Array> | null;
   writable: WritableStream<Uint8Array> | null;
 }
 interface SerialLike {
   requestPort(options?: { filters?: { usbVendorId?: number }[] }): Promise<SerialPortLike>;
+  addEventListener?(type: "disconnect", listener: (event: { target?: unknown }) => void): void;
+  removeEventListener?(type: "disconnect", listener: (event: { target?: unknown }) => void): void;
 }
 
 export function isWebSerialSupported(): boolean {
@@ -301,13 +295,11 @@ export interface ProvisionOptions {
 }
 
 const SERIAL_BAUD_RATE = 115_200;
-const RESET_PULSE_MS = 150;
-// D1001 initialises its LCD and ESP-Hosted C6 coprocessor before exposing the
-// Improv handler, which takes about 6.2 seconds on hardware. Leave safety
-// margin for a cold boot. A reset-capable bridge is used only after this
-// non-disruptive readiness probe has genuinely failed.
+// Opening the Web Serial port resets every supported display (through either
+// its USB-UART bridge or the ESP32-P4 native USB-Serial/JTAG controller). D1001
+// then initialises its LCD and ESP-Hosted C6 coprocessor before exposing Improv,
+// which takes about 6.2 seconds on hardware. Leave a cold-boot safety margin.
 const READY_PROBE_WINDOW_MS = 8_000;
-const RESET_BOOT_WAIT_MS = 8_000;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -329,14 +321,13 @@ async function closeSerial(
 interface ReadySerialConnection {
   reader: ReadableStreamDefaultReader<Uint8Array>;
   writer: WritableStreamDefaultWriter<Uint8Array>;
-  resetAttempted: boolean;
 }
 
 /**
- * Open the port exactly once and keep it open through readiness probing and
- * the real command. Do not touch DTR/RTS while checking an already awake
- * display: bridge control-line transitions can reset a D1001. A silent device
- * receives one explicit RTS/EN wake pulse only after a full cold-boot window.
+ * Open the port exactly once and keep it open through cold-boot readiness
+ * probing and the real command. Opening is intentionally treated as the single
+ * reset event on every supported transport. Never add a later DTR/RTS pulse:
+ * that would restart the display twice and can race native USB enumeration.
  */
 async function openReadyImprovConnection(
   port: SerialPortLike,
@@ -344,6 +335,7 @@ async function openReadyImprovConnection(
 ): Promise<ReadySerialConnection> {
   onPhase?.("connecting");
   await port.open({ baudRate: SERIAL_BAUD_RATE });
+  onPhase?.("waking");
 
   const reader = port.readable?.getReader();
   const writer = port.writable?.getWriter();
@@ -352,13 +344,11 @@ async function openReadyImprovConnection(
     throw new Error("Serial port is not readable/writable.");
   }
 
-  onPhase?.("checking");
   const parser = new ImprovParser();
   const startedAt = Date.now();
-  const deadline = startedAt + READY_PROBE_WINDOW_MS + RESET_BOOT_WAIT_MS + 3_000;
+  const deadline = startedAt + READY_PROBE_WINDOW_MS + 3_000;
   let nextProbeAt = 0;
   let pendingRead: Promise<ReadableStreamReadResult<Uint8Array>> | undefined;
-  let resetAttempted = false;
 
   try {
     while (Date.now() < deadline) {
@@ -366,16 +356,6 @@ async function openReadyImprovConnection(
       if (now >= nextProbeAt) {
         await writer.write(encodeGetState());
         nextProbeAt = now + 500;
-      }
-
-      if (!resetAttempted && now - startedAt >= READY_PROBE_WINDOW_MS && port.setSignals) {
-        onPhase?.("waking");
-        await port.setSignals({ dataTerminalReady: false, requestToSend: false });
-        await sleep(50);
-        await port.setSignals({ requestToSend: true });
-        await sleep(RESET_PULSE_MS);
-        await port.setSignals({ requestToSend: false });
-        resetAttempted = true;
       }
 
       pendingRead ??= reader.read();
@@ -389,7 +369,7 @@ async function openReadyImprovConnection(
       if (outcome.result.done) throw new Error("Serial connection closed unexpectedly.");
       if (!outcome.result.value) continue;
       if (parser.push(outcome.result.value).length > 0) {
-        return { reader, writer, resetAttempted };
+        return { reader, writer };
       }
     }
   } catch (error) {
@@ -398,11 +378,7 @@ async function openReadyImprovConnection(
   }
 
   await closeSerial(port, reader, writer);
-  throw new Error(
-    resetAttempted
-      ? "Timed out after attempting to wake the display over USB. Press Refresh on the display and try again."
-      : "Timed out waiting for the device to become ready over USB.",
-  );
+  throw new Error("Timed out waiting for the device to restart and become ready over USB.");
 }
 
 const ERROR_TEXT: Record<number, string> = {
@@ -440,135 +416,205 @@ export function describeSerialError(e: unknown): string {
 }
 
 /**
- * Provision a Vellum device over USB via Web Serial. Prompts the user for a
- * serial port, pushes the profile, and resolves once the device reports
- * PROVISIONED (or an error / timeout). Browser-only.
+ * One browser-owned USB session shared by readiness probing, any number of
+ * Wi-Fi scans, and the final provisioning command. Operations are serialized
+ * over one reader/writer pair so the port is opened — and the display reset —
+ * exactly once.
  */
-export async function provisionOverSerial(opts: ProvisionOptions): Promise<ProvisionResult> {
-  const serial = getSerial();
-  if (!serial) return { ok: false, error: "Web Serial is not supported in this browser." };
+export class SerialProvisioningSession {
+  private readonly parser = new ImprovParser();
+  private pendingRead: Promise<ReadableStreamReadResult<Uint8Array>> | undefined;
+  private operation: Promise<void> = Promise.resolve();
+  private closed = false;
+  private cleanedUp = false;
+  private readonly disconnectListener: (event: { target?: unknown }) => void;
 
-  const onPhase = opts.onPhase ?? (() => {});
-  const timeoutMs = opts.timeoutMs ?? 30_000;
-
-  let port: SerialPortLike;
-  try {
-    // Show ALL serial ports (no VID filter) — exactly like ESP Web Tools does
-    // for flashing. A device on a USB-UART bridge (CP210x/CH340/FTDI) has a
-    // non-Espressif VID and an exclusive filter would hide it entirely — which
-    // is why flashing worked but provisioning reported "no serial port".
-    port = await serial.requestPort();
-  } catch {
-    return { ok: false, error: "No serial port selected. Make sure the device is connected via USB." };
+  private constructor(
+    private readonly serial: SerialLike,
+    private readonly port: SerialPortLike,
+    private readonly reader: ReadableStreamDefaultReader<Uint8Array>,
+    private readonly writer: WritableStreamDefaultWriter<Uint8Array>,
+    onDisconnect?: () => void,
+  ) {
+    this.disconnectListener = (event) => {
+      if (event.target && event.target !== this.port) return;
+      if (this.closed) return;
+      this.closed = true;
+      this.cleanedUp = true;
+      this.serial.removeEventListener?.("disconnect", this.disconnectListener);
+      void closeSerial(this.port, this.reader, this.writer);
+      onDisconnect?.();
+    };
+    serial.addEventListener?.("disconnect", this.disconnectListener);
   }
 
-  const parser = new ImprovParser();
-  const done: ProvisionResult = { ok: false };
-  let settled = false;
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-  let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
-  let opened = false;
-  let graceTimer: ReturnType<typeof setTimeout> | undefined;
-  let legacyTimeFallbackAttempted = false;
+  static async connect(
+    onPhase?: (phase: ProvisionPhase) => void,
+    onDisconnect?: () => void,
+  ): Promise<SerialProvisioningSession> {
+    const serial = getSerial();
+    if (!serial) throw new Error("Web Serial is not supported in this browser.");
 
-  // finish() also cancels the reader so a pending reader.read() unblocks and the
-  // loop exits — otherwise a silent device would hang past the timeout.
-  const finish = (r: ProvisionResult) => {
-    if (settled) return;
-    settled = true;
-    Object.assign(done, r);
-    reader?.cancel().catch(() => {});
-  };
+    let port: SerialPortLike;
+    try {
+      // Show every port: E-series USB-UART bridges use non-Espressif VIDs.
+      port = await serial.requestPort();
+    } catch {
+      throw new Error("No serial port selected. Make sure the device is connected via USB.");
+    }
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const connection = await openReadyImprovConnection(port, onPhase);
+      return new SerialProvisioningSession(serial, port, connection.reader, connection.writer, onDisconnect);
+    } catch (error) {
+      throw new Error(describeSerialError(error));
+    }
+  }
 
-  try {
-    const connection = await openReadyImprovConnection(port, (phase) => onPhase(phase));
-    opened = true;
-    writer = connection.writer;
-    reader = connection.reader;
-    timer = setTimeout(
-      () => finish({
-        ok: false,
-        error: connection.resetAttempted
-          ? "Timed out after attempting to wake the display over USB. Press Refresh on the display and try again."
-          : "Timed out waiting for the device to respond. Press Refresh on the display and try again.",
-      }),
-      timeoutMs,
-    );
-    onPhase("sending");
-    await writer.write(
-      encodeWifiSettings(
-        opts.ssid,
-        opts.password,
-        opts.serverUrl,
-        opts.deviceToken,
-        opts.ntpServer,
-        opts.provisionedAtUnix ?? Math.floor(Date.now() / 1000),
-      ),
-    );
+  get connected(): boolean {
+    return !this.closed;
+  }
 
-    while (!settled) {
-      const { value, done: streamDone } = await reader.read();
-      if (streamDone) {
-        finish({ ok: false, error: "Serial connection closed unexpectedly." });
-        break;
-      }
-      if (!value) continue;
-      for (const frame of parser.push(value)) {
-        if (frame.payload.length === 0) continue; // ignore malformed empty frames
-        if (frame.type === ImprovType.CURRENT_STATE) {
-          const state = frame.payload[0];
-          if (state === ImprovState.PROVISIONING) onPhase("provisioning");
-          else if (state === ImprovState.PROVISIONED) {
-            onPhase("provisioned");
-            done.ok = true;
-            // The device sends the redirect RPC_RESULT just after PROVISIONED,
-            // possibly in a later chunk — wait a short grace to capture it.
-            if (!graceTimer) graceTimer = setTimeout(() => finish({ ok: true }), 600);
+  async scanNetworks(opts?: { timeoutMs?: number }): Promise<ScanResult> {
+    return this.exclusive(async () => {
+      this.assertConnected();
+      const byName = new Map<string, WifiNetwork>();
+      const deadline = Date.now() + (opts?.timeoutMs ?? 15_000);
+      await this.writer.write(encodeScanWifi());
+
+      while (Date.now() < deadline) {
+        const frames = await this.readFrames(deadline - Date.now());
+        if (!frames) break;
+        for (const frame of frames) {
+          if (frame.type !== ImprovType.RPC_RESULT) continue;
+          const { cmd, strings } = decodeRpcResult(frame.payload);
+          if (cmd !== ImprovCmd.SCAN_WIFI) continue;
+          const network = decodeScanNetwork(strings);
+          if (!network) {
+            return { ok: true, networks: [...byName.values()].sort((a, b) => b.rssi - a.rssi) };
           }
-        } else if (frame.type === ImprovType.ERROR_STATE) {
-          const err = frame.payload[0];
-          if (err !== ImprovError.NONE) {
-            // Firmware predating the sixth UTC field rejects the otherwise
-            // valid profile as INVALID_RPC. Retry once in the legacy five-field
-            // form so existing field devices remain provisionable during rollout.
-            if (err === ImprovError.INVALID_RPC && !legacyTimeFallbackAttempted) {
+          const previous = byName.get(network.ssid);
+          if (!previous || network.rssi > previous.rssi) byName.set(network.ssid, network);
+        }
+      }
+
+      return { ok: false, networks: [], error: "Timed out waiting for the Wi-Fi scan." };
+    });
+  }
+
+  async provision(opts: ProvisionOptions): Promise<ProvisionResult> {
+    return this.exclusive(async () => {
+      this.assertConnected();
+      const onPhase = opts.onPhase ?? (() => {});
+      const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
+      let legacyTimeFallbackAttempted = false;
+      let provisionedAt: number | undefined;
+      let redirectUrl: string | undefined;
+
+      const send = async (withTime: boolean) => {
+        onPhase("sending");
+        await this.writer.write(encodeWifiSettings(
+          opts.ssid,
+          opts.password,
+          opts.serverUrl,
+          opts.deviceToken,
+          opts.ntpServer,
+          withTime ? (opts.provisionedAtUnix ?? Math.floor(Date.now() / 1000)) : undefined,
+        ));
+      };
+      await send(true);
+
+      while (Date.now() < deadline) {
+        const graceDeadline = provisionedAt === undefined ? deadline : Math.min(deadline, provisionedAt + 600);
+        const frames = await this.readFrames(graceDeadline - Date.now());
+        if (!frames) {
+          if (provisionedAt !== undefined) return { ok: true, redirectUrl };
+          break;
+        }
+
+        for (const frame of frames) {
+          if (frame.payload.length === 0) continue;
+          if (frame.type === ImprovType.CURRENT_STATE) {
+            const state = frame.payload[0];
+            if (state === ImprovState.PROVISIONING) onPhase("provisioning");
+            if (state === ImprovState.PROVISIONED) {
+              onPhase("provisioned");
+              provisionedAt ??= Date.now();
+            }
+          } else if (frame.type === ImprovType.ERROR_STATE) {
+            const error = frame.payload[0];
+            if (error === ImprovError.NONE) continue;
+            if (error === ImprovError.INVALID_RPC && !legacyTimeFallbackAttempted) {
               legacyTimeFallbackAttempted = true;
-              onPhase("sending");
-              await writer.write(
-                encodeWifiSettings(
-                  opts.ssid,
-                  opts.password,
-                  opts.serverUrl,
-                  opts.deviceToken,
-                  opts.ntpServer,
-                ),
-              );
+              await send(false);
               continue;
             }
-            const msg = improvErrorMessage(err);
-            onPhase("error", msg);
-            finish({ ok: false, error: msg });
-          }
-        } else if (frame.type === ImprovType.RPC_RESULT) {
-          const { cmd, strings } = decodeRpcResult(frame.payload);
-          if (cmd === ImprovCmd.WIFI_SETTINGS && strings[0]) {
-            done.redirectUrl = strings[0];
-            if (done.ok) finish({ ok: true, redirectUrl: strings[0] });
+            const message = improvErrorMessage(error);
+            onPhase("error", message);
+            return { ok: false, error: message };
+          } else if (frame.type === ImprovType.RPC_RESULT) {
+            const { cmd, strings } = decodeRpcResult(frame.payload);
+            if (cmd === ImprovCmd.WIFI_SETTINGS && strings[0]) {
+              redirectUrl = strings[0];
+              if (provisionedAt !== undefined) return { ok: true, redirectUrl };
+            }
           }
         }
       }
-    }
-  } catch (e) {
-    finish({ ok: false, error: describeSerialError(e) });
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (graceTimer) clearTimeout(graceTimer);
-    if (opened) await closeSerial(port, reader, writer);
+
+      return {
+        ok: false,
+        error: "Timed out waiting for the device to respond after restarting. Press Refresh on the display and try again.",
+      };
+    });
   }
 
-  return done;
+  async disconnect(): Promise<void> {
+    if (this.cleanedUp) return;
+    this.closed = true;
+    this.cleanedUp = true;
+    this.serial.removeEventListener?.("disconnect", this.disconnectListener);
+    await closeSerial(this.port, this.reader, this.writer);
+  }
+
+  private assertConnected(): void {
+    if (this.closed) throw new Error("The USB session is disconnected.");
+  }
+
+  private async readFrames(timeoutMs: number): Promise<ImprovFrame[] | null> {
+    if (timeoutMs <= 0) return null;
+    this.pendingRead ??= this.reader.read();
+    const outcome = await Promise.race([
+      this.pendingRead.then((result) => ({ kind: "read" as const, result })),
+      sleep(timeoutMs).then(() => ({ kind: "timeout" as const })),
+    ]);
+    if (outcome.kind === "timeout") return null;
+    this.pendingRead = undefined;
+    if (outcome.result.done) {
+      this.closed = true;
+      throw new Error("Serial connection closed unexpectedly.");
+    }
+    return outcome.result.value ? this.parser.push(outcome.result.value) : [];
+  }
+
+  private exclusive<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.operation.then(operation, operation);
+    this.operation = result.then(() => undefined, () => undefined);
+    return result;
+  }
+}
+
+/** Backwards-compatible one-shot helper for callers that do not own a session. */
+export async function provisionOverSerial(opts: ProvisionOptions): Promise<ProvisionResult> {
+  let session: SerialProvisioningSession | undefined;
+  try {
+    session = await SerialProvisioningSession.connect(opts.onPhase);
+    return await session.provision(opts);
+  } catch (error) {
+    return { ok: false, error: describeSerialError(error) };
+  } finally {
+    await session?.disconnect();
+  }
 }
 
 export interface WifiNetwork {
@@ -599,72 +645,13 @@ export function decodeScanNetwork(strings: string[]): WifiNetwork | null {
 export async function scanNetworksOverSerial(opts?: {
   timeoutMs?: number;
 }): Promise<ScanResult> {
-  const serial = getSerial();
-  if (!serial) return { ok: false, networks: [], error: "Web Serial is not supported." };
-
-  let port: SerialPortLike;
+  let session: SerialProvisioningSession | undefined;
   try {
-    port = await serial.requestPort(); // show all ports — see provisionOverSerial
-  } catch {
-    return { ok: false, networks: [], error: "No serial port selected. Make sure the device is connected via USB." };
-  }
-
-  const parser = new ImprovParser();
-  const byName = new Map<string, WifiNetwork>();
-  let finished = false;
-  let error: string | undefined;
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-  let writer: WritableStreamDefaultWriter<Uint8Array> | undefined;
-  let opened = false;
-  let timedOut = false;
-
-  // Cancel the reader on timeout so a pending read unblocks (the scan may never
-  // receive the empty terminator from a misbehaving device).
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    const connection = await openReadyImprovConnection(port);
-    opened = true;
-    writer = connection.writer;
-    reader = connection.reader;
-    timer = setTimeout(() => {
-      timedOut = true;
-      finished = true;
-      reader?.cancel().catch(() => {});
-    // ESP-Hosted may need a short period after STA_START before its C6 radio
-    // accepts the scan. Leave room for that readiness retry and an all-channel
-    // scan instead of racing the device at eight seconds.
-    }, opts?.timeoutMs ?? 15_000);
-    await writer.write(encodeScanWifi());
-    while (!finished) {
-      const { value, done: streamDone } = await reader.read();
-      if (streamDone) break;
-      if (!value) continue;
-      for (const frame of parser.push(value)) {
-        if (frame.type !== ImprovType.RPC_RESULT) continue;
-        const { cmd, strings } = decodeRpcResult(frame.payload);
-        if (cmd !== ImprovCmd.SCAN_WIFI) continue;
-        const net = decodeScanNetwork(strings);
-        if (net) {
-          const prev = byName.get(net.ssid);
-          if (!prev || net.rssi > prev.rssi) byName.set(net.ssid, net);
-        } else {
-          finished = true; // empty terminator
-          break;
-        }
-      }
-    }
-  } catch (e) {
-    // Same failure as provisioning: the flash tool holding the port is the most
-    // likely reason a scan cannot open it either.
-    error = describeSerialError(e);
+    session = await SerialProvisioningSession.connect();
+    return await session.scanNetworks(opts);
+  } catch (error) {
+    return { ok: false, networks: [], error: describeSerialError(error) };
   } finally {
-    if (timer) clearTimeout(timer);
-    if (opened) await closeSerial(port, reader, writer);
+    await session?.disconnect();
   }
-
-  if (error) return { ok: false, networks: [], error };
-  if (timedOut) return { ok: false, networks: [], error: "Timed out waiting for the Wi-Fi scan." };
-  const networks = [...byName.values()].sort((a, b) => b.rssi - a.rssi);
-  return { ok: true, networks };
 }

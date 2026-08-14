@@ -200,20 +200,22 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
             </div>
           )}
           {status.supported && (status.updaterUpdateAvailable || !status.updaterVersion) && (
-            /* The updater never replaces its own container, so this is the only
-             * place an operator learns that the component holding the Docker
-             * socket has fallen behind. A missing version means the running
-             * updater predates version reporting — outdated by definition. */
+            /* A missing version means the running updater predates version
+             * reporting and safe self-update — outdated by definition. */
             <div className="w-full order-last rounded-lg bg-fill-tertiary/60 border border-separator/60 p-3">
               <p className="text-sm text-label">
                 {status.updaterVersion
                   ? t("updaterOutdated", { current: status.updaterVersion, available: status.availableVersion ?? "" })
                   : t("updaterVersionUnknown")}
               </p>
-              <p className="text-sm text-label-secondary mt-1">{t("updaterManualHint")}</p>
-              <pre className="mt-2 text-xs font-mono text-label-secondary whitespace-pre-wrap select-all">
-                docker compose pull updater{"\n"}docker compose up -d --no-deps updater
-              </pre>
+              {!status.updaterSelfUpdateCapable ? <>
+                <p className="text-sm text-label-secondary mt-1">{t("updaterBootstrapHint")}</p>
+                <pre className="mt-2 text-xs font-mono text-label-secondary whitespace-pre-wrap select-all">
+                  docker compose pull updater{"\n"}docker compose up -d --no-deps updater
+                </pre>
+              </> : <p className="text-sm text-label-secondary mt-1">
+                {status.updaterSelfUpdateEnabled ? t("updaterAutomaticHint") : t("updaterAutomaticDisabledHint")}
+              </p>}
             </div>
           )}
           {canUpdate && status.supported && (

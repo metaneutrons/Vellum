@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 export UPDATE_ONCE=true
+export AUTO_UPDATE_UPDATER=false
 export COMPOSE_FILE="${BASH_SOURCE[0]}"
 test_directory="$(mktemp -d)"
 trap 'rm -rf "$test_directory"' EXIT
@@ -47,7 +48,7 @@ assert grep -Fqx 'UPDATER_IMAGE=ghcr.io/metaneutrons/vellum-updater:v1.8.2' "$VE
 assert grep -Fqx 'VELLUM_IMAGE=ghcr.io/metaneutrons/vellum:v1.8.2' "$VELLUM_ENV_FILE"
 assert grep -Fqx 'SOME_SETTING=preserved' "$VELLUM_ENV_FILE"
 
-# Default off: a server update must never swap the updater implicitly.
+# Explicitly disabled policy: a server update must not swap the updater.
 assert test "$AUTO_UPDATE_UPDATER" = "false"
 assert schedule_updater_swap v1.9.0
 

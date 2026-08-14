@@ -13,11 +13,10 @@ RUN apk add --no-cache \
       nodejs \
     && update-ca-certificates
 
-# The updater cannot replace its own container (see docs/DOCKER_DEPLOYMENT.md), so
-# it must at least be able to REPORT which version it is — otherwise the one
-# component holding the Docker socket ages unnoticed. Baked at build time rather
-# than inspected via the socket: no extra privilege, works even if the socket is
-# unavailable.
+# The version is reported to the Web UI and lets the detached self-update helper
+# decide whether a newer updater image is required. Bake it in rather than
+# inspecting via the socket: no extra privilege and it works if the socket is
+# temporarily unavailable.
 ARG UPDATER_VERSION=0.0.0-dev
 ENV UPDATER_VERSION=${UPDATER_VERSION}
 

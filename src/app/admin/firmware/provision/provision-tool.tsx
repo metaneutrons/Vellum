@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -13,8 +13,7 @@ import { Button } from "@/components/ui/button";
 import { createProvisioningVoucher } from "../../actions";
 import {
   isWebSerialSupported,
-  provisionOverSerial,
-  scanNetworksOverSerial,
+  SerialProvisioningSession,
   wifiSettingsPayloadLength,
   MAX_SSID_LEN,
   MAX_PASS_LEN,
@@ -51,12 +50,19 @@ export function ProvisionTool({
   const [detail, setDetail] = useState("");
   const [result, setResult] = useState<ProvisionResult | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [networks, setNetworks] = useState<WifiNetwork[]>([]);
   const [zeroTouch, setZeroTouch] = useState(Boolean(firmware));
+  const sessionRef = useRef<SerialProvisioningSession | null>(null);
 
   useEffect(() => {
     setSupported(isWebSerialSupported());
     setServerUrl(window.location.origin);
+    return () => {
+      void sessionRef.current?.disconnect();
+      sessionRef.current = null;
+    };
   }, []);
 
   const ssidOk = ssid.trim().length > 0 && new TextEncoder().encode(ssid.trim()).length <= MAX_SSID_LEN;
@@ -75,9 +81,79 @@ export function ProvisionTool({
     MAX_PROVISIONING_UNIX_TIME,
   );
   const payloadOk = payloadBytes <= MAX_WIFI_SETTINGS_PAYLOAD;
-  const canSubmit = supported && !busy && !scanning && ssidOk && passOk && urlOk && ntpOk && payloadOk;
+  const canSubmit = supported && connected && !busy && !scanning && !connecting && ssidOk && passOk && urlOk && ntpOk && payloadOk;
+
+  async function disconnect() {
+    const session = sessionRef.current;
+    sessionRef.current = null;
+    setConnected(false);
+    setPhase(null);
+    setDetail("");
+    await session?.disconnect();
+  }
+
+  async function scanSession(session: SerialProvisioningSession) {
+    setScanning(true);
+    setResult(null);
+    try {
+      const scan = await session.scanNetworks();
+      if (scan.ok) {
+        setNetworks(scan.networks);
+        if (scan.networks.length === 0) setResult({ ok: false, error: tx("noNetworks") });
+      } else {
+        setResult({ ok: false, error: scan.error ?? tx("scanFailed") });
+      }
+    } catch (error) {
+      const connectionLost = !session.connected;
+      setResult({
+        ok: false,
+        error: connectionLost ? tx("connectionLost") : error instanceof Error ? error.message : tx("scanFailed"),
+      });
+      if (connectionLost) {
+        sessionRef.current = null;
+        setConnected(false);
+      }
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function connect() {
+    setConnecting(true);
+    setResult(null);
+    setNetworks([]);
+    setDetail("");
+    try {
+      const session = await SerialProvisioningSession.connect(
+        (nextPhase) => setPhase(nextPhase),
+        () => {
+          sessionRef.current = null;
+          setConnected(false);
+          setScanning(false);
+          setPhase("error");
+          setResult({ ok: false, error: tx("connectionLost") });
+        },
+      );
+      sessionRef.current = session;
+      setConnected(true);
+      setConnecting(false);
+      setPhase(null);
+      await scanSession(session);
+    } catch (error) {
+      setResult({ ok: false, error: error instanceof Error ? error.message : tx("connectFailed") });
+      setConnected(false);
+      setPhase("error");
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   async function provision() {
+    const session = sessionRef.current;
+    if (!session) {
+      setResult({ ok: false, error: tx("notConnected") });
+      return;
+    }
     setBusy(true);
     setResult(null);
     setPhase(null);
@@ -101,7 +177,7 @@ export function ProvisionTool({
     }
 
     try {
-      const r = await provisionOverSerial({
+      const r = await session.provision({
         ssid: ssid.trim(),
         password,
         serverUrl: serverUrl.trim() || undefined,
@@ -116,35 +192,31 @@ export function ProvisionTool({
         },
       });
       setResult(r);
+      if (r.ok) await disconnect();
     } catch (e) {
-      setResult({ ok: false, error: e instanceof Error ? e.message : "Provisioning failed." });
+      const connectionLost = !session.connected;
+      setResult({
+        ok: false,
+        error: connectionLost ? tx("connectionLost") : e instanceof Error ? e.message : tx("provisionFailed"),
+      });
+      if (connectionLost) {
+        sessionRef.current = null;
+        setConnected(false);
+      }
     } finally {
       setBusy(false);
     }
   }
 
   async function doScan() {
-    setScanning(true);
-    setResult(null);
-    try {
-      const r = await scanNetworksOverSerial();
-      if (r.ok) {
-        setNetworks(r.networks);
-        if (r.networks.length === 0) setResult({ ok: false, error: "Scan found no networks." });
-      } else {
-        setResult({ ok: false, error: r.error ?? "Scan failed." });
-      }
-    } catch (e) {
-      setResult({ ok: false, error: e instanceof Error ? e.message : "Scan failed." });
-    } finally {
-      setScanning(false);
-    }
+    const session = sessionRef.current;
+    if (session) await scanSession(session);
   }
 
   return (
     <div>
       <Link href="/admin/firmware" className="text-sm text-accent hover:underline mb-4 inline-block">
-        ← Back to Firmware
+        ← {tx("back")}
       </Link>
       <PageHeader
         title={t("title")}
@@ -158,12 +230,40 @@ export function ProvisionTool({
           </Notice>
         )}
 
+        {supported && (
+          <div className={`mb-5 flex items-center justify-between gap-4 rounded-xl border p-4 ${connected ? "border-green/30 bg-green/10" : "border-separator bg-fill-secondary"}`}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`size-2.5 shrink-0 rounded-full ${connected ? "bg-green" : connecting ? "bg-accent animate-pulse" : "bg-label-quaternary"}`}
+                  aria-hidden="true"
+                />
+                <p className="font-semibold text-label">
+                  {connected ? tx("connected") : connecting ? tx("connectingTitle") : tx("connectTitle")}
+                </p>
+              </div>
+              <p className="mt-1 text-xs text-label-secondary">
+                {connected ? tx("connectedDescription") : tx("connectDescription")}
+              </p>
+            </div>
+            {connected ? (
+              <Button type="button" variant="gray" onClick={() => void disconnect()} disabled={busy || scanning}>
+                {tx("disconnect")}
+              </Button>
+            ) : (
+              <Button type="button" onClick={connect} loading={connecting} disabled={connecting}>
+                {tx("connectButton")}
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-col gap-4 mt-1">
           <Field
             label={t("ssid")}
             htmlFor="prov-ssid"
             hint={supported ? t("scanHint") : undefined}
-            error={ssid && !ssidOk ? `Must be 1–${MAX_SSID_LEN} bytes.` : undefined}
+            error={ssid && !ssidOk ? tx("ssidLength", { max: MAX_SSID_LEN }) : undefined}
           >
             <div className="flex gap-2">
               <Input
@@ -181,15 +281,15 @@ export function ProvisionTool({
                 variant="gray"
                 onClick={doScan}
                 loading={scanning}
-                disabled={!supported || busy || scanning}
+                disabled={!supported || !connected || busy || scanning || connecting}
               >
-                {t("scan")}
+                {networks.length > 0 ? tx("scanAgain") : t("scan")}
               </Button>
             </div>
             <datalist id="prov-networks">
               {networks.map((n) => (
                 <option key={n.ssid} value={n.ssid}>
-                  {`${n.ssid} · ${n.rssi} dBm${n.secured ? "" : " · open"}`}
+                  {`${n.ssid} · ${n.rssi} dBm${n.secured ? "" : ` · ${tx("open")}`}`}
                 </option>
               ))}
             </datalist>
@@ -223,7 +323,7 @@ export function ProvisionTool({
             label={t("password")}
             htmlFor="prov-pass"
             hint={t("openHint")}
-            error={!passOk ? `Must be at most ${MAX_PASS_LEN} bytes.` : undefined}
+            error={!passOk ? tx("passwordLength", { max: MAX_PASS_LEN }) : undefined}
           >
             <Input
               id="prov-pass"
@@ -241,9 +341,9 @@ export function ProvisionTool({
             hint={t("serverHint")}
             error={
               !urlOk
-                ? `Too long (max ${MAX_URL_LEN} bytes).`
+                ? tx("urlLength", { max: MAX_URL_LEN })
                 : !payloadOk
-                  ? `Profile too large for one USB frame (${payloadBytes}/${MAX_WIFI_SETTINGS_PAYLOAD} bytes) — shorten the URL.`
+                  ? tx("profileLength", { current: payloadBytes, max: MAX_WIFI_SETTINGS_PAYLOAD })
                   : undefined
             }
           >
@@ -289,9 +389,7 @@ export function ProvisionTool({
             className="mt-0.5 size-4 rounded accent-accent focus-ring"
           />
           <span>
-            <span className="font-medium text-label">{t("zeroTouch")}</span> — mint a
-            one-time voucher so the device is approved automatically, skipping the manual step
-            under Devices.
+            <span className="font-medium text-label">{t("zeroTouch")}</span> — {tx("zeroTouchDescription")}
           </span>
         </label>
 
@@ -320,25 +418,22 @@ export function ProvisionTool({
             {result ? (
               result.ok ? (
                 <Notice tone="green">
-                  <strong>{t("done")}</strong> The device joined Wi-Fi and points at the server.{" "}
+                  <strong>{t("done")}</strong> {tx("successSummary")} {" "}
                   {zeroTouch ? (
-                    <>
-                      It’s <strong>pre-authorized</strong> and enrolls automatically on first
-                      contact — no approval needed.
-                    </>
+                    <>{tx("preauthorizedSummary")}</>
                   ) : (
                     <>
-                      It will appear as <strong>pending</strong> under{" "}
+                      {tx("pendingBefore")} {" "}
                       <Link href="/admin/devices" className="underline">
-                        Devices
+                        {tx("devices")}
                       </Link>{" "}
-                      for approval.
+                      {tx("pendingAfter")}
                     </>
                   )}
                   {result.redirectUrl ? (
                     <>
                       {" "}
-                      Device page:{" "}
+                      {tx("devicePage")}:{" "}
                       <span className="font-mono break-all">{result.redirectUrl}</span>
                     </>
                   ) : null}

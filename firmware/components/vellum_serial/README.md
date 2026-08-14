@@ -159,8 +159,9 @@ with the related voucher-binding and revocation trade-offs.
 
 - **Host / browser client:**
   [`src/lib/provisioning/improv-serial.ts`](../../../src/lib/provisioning/improv-serial.ts)
-  — byte-exact Improv encoder/parser plus the Web Serial orchestration
-  (`provisionOverSerial()`, `scanNetworksOverSerial()`).
+  — byte-exact Improv encoder/parser plus `SerialProvisioningSession`, which
+  keeps one Web Serial connection open across readiness probing, repeated scans,
+  and provisioning. One-shot compatibility helpers remain available.
 - **Admin UI:**
   [`src/app/admin/firmware/provision/`](../../../src/app/admin/firmware/provision/)
   — the *Admin → Firmware → Provision* tool that drives the flow and can mint a
