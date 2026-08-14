@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.10.2](https://github.com/metaneutrons/Vellum/compare/v1.10.1...v1.10.2) (2026-08-14)
+
+
+### Bug Fixes
+
+* harden updater and USB provisioning UX ([b2adee4](https://github.com/metaneutrons/Vellum/commit/b2adee44f813e3074cc4b150208696574315c3bd))
+* **provisioning:** keep USB sessions connected ([5fca838](https://github.com/metaneutrons/Vellum/commit/5fca838abdc18807cdccfacd913a36cf05240865))
+* **ui:** align navigation controls ([d4eb751](https://github.com/metaneutrons/Vellum/commit/d4eb751513854933305c7d5b320878d8f507ad9b))
+* **updater:** enable safe self-updates ([f6f8e5f](https://github.com/metaneutrons/Vellum/commit/f6f8e5feda79bc26f71a0d0dd79570ed92e76640))
+
 ## [1.10.1](https://github.com/metaneutrons/Vellum/compare/v1.10.0...v1.10.1) (2026-08-13)
 
 
