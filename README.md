@@ -41,7 +41,8 @@ installs the server, PostgreSQL, and the Vellum updater as one operational unit.
 The updater discovers new server releases, verifies their signed container
 images, creates a database backup, performs a readiness check, and rolls back a
 failed update. In the Web UI, administrators can choose manual updates or a
-daily maintenance time.
+daily maintenance time. After a healthy server update, a detached, health-checked
+helper also upgrades the updater itself and rolls back a failed replacement.
 
 ### Requirements
 
@@ -103,7 +104,9 @@ you selected:
 
 The release-provided `.env` pins both the server and updater images to the same
 exact `vX.Y.Z` release. Compose fails closed when either setting is missing; it
-never silently falls back to a mutable `latest` image.
+never silently falls back to a mutable `latest` image. New stacks enable safe
+updater self-updates by default; an older updater needs one manual bootstrap,
+which **System → Vellum Server** identifies with the exact commands.
 
 | Path within the chosen directory | Contents |
 |---|---|

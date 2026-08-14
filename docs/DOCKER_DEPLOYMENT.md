@@ -80,8 +80,8 @@ the latest stable Vellum Server release; `--version vX.Y.Z` pins a particular on
 (or `releases/download/vX.Y.Z` when installing by hand). `SHA256SUMS` detects a
 truncated or mismatched download before anything is installed. Each release's
 environment template pins `VELLUM_IMAGE` and `UPDATER_IMAGE` to that exact
-release tag. Later server upgrades remain controlled by the verified updater;
-updater upgrades are an explicit stack maintenance operation.
+release tag. Later server upgrades remain controlled by the verified updater,
+which can also hand its own verified replacement to a detached helper.
 
 Compose creates this layout on first start:
 
@@ -177,15 +177,10 @@ database backup automatically; database restore is an explicit operator action.
 Server migrations must therefore follow expand/contract compatibility across
 adjacent releases.
 
-The updater image itself is not allowed to replace its own container — replacing
-itself would kill the very process performing the swap. **System → Vellum Server**
-therefore shows the updater's own version and tells you when it has fallen behind,
-including the commands below; an updater that reports no version at all predates
-that reporting and is outdated by definition. Watch for it: this is the container
-holding the Docker socket, so it is the one component that never patches itself.
-
-Setting `AUTO_UPDATE_UPDATER=true` automates it: after a *healthy* server update
-the updater verifies the new updater image against the `updater.yml` Sigstore
+The updater cannot recreate its own running container directly — that would kill
+the process performing the swap. With the default `AUTO_UPDATE_UPDATER=true`,
+after a *healthy* server update it verifies the matching updater image against
+the `updater.yml` Sigstore
 identity, then hands the swap to a **detached one-shot helper** and exits. The
 helper is not a child process, so it survives its parent being replaced, and it
 runs from the currently deployed image on purpose — a helper built from the new
@@ -194,15 +189,17 @@ container to report healthy, persists the `UPDATER_IMAGE` pin, and on failure
 restores the previous image. The outcome is written to the state volume so the
 replacement updater can report it in **System → Vellum Server**.
 
-It stays **off by default**: this is the one operation that can leave the stack
-with no updater at all, so watch it succeed once before enabling it fleet-wide.
-
-To do it by hand instead, update it explicitly after reviewing a release:
+An updater from before this mechanism cannot bootstrap the helper itself. For
+that one legacy transition, **System → Vellum Server** shows these commands:
 
 ```bash
 docker compose pull updater
 docker compose up -d --no-deps updater
 ```
+
+After that one-time bootstrap, updater releases install automatically. To keep
+them manual instead, set `AUTO_UPDATE_UPDATER=false` in `.env`; the Web UI then
+states that policy instead of incorrectly claiming self-update is unsupported.
 
 Docker socket access is root-equivalent. It exists only in the dedicated updater
 container, whose filesystem is read-only, whose API is unpublished, and which
@@ -222,5 +219,5 @@ stack mounts.
 
 Server and updater start pinned to the same release version; each release's
 environment template sets both `VELLUM_IMAGE` and `UPDATER_IMAGE` to that
-release's exact tag. The updater upgrades the **server**, not itself — moving to
-a newer updater is the explicit stack maintenance step shown above.
+release's exact tag. Successful updates persist both verified image pins in
+`.env`, so a later `docker compose up` cannot silently downgrade either service.

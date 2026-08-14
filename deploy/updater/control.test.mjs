@@ -36,12 +36,14 @@ test("reports its own image version so a stale updater is visible", () => {
   // what an older updater looks like to the server, which must tolerate it.
   assert.ok("updaterVersion" in status, "status must always carry updaterVersion");
   assert.ok("updaterUpdateAvailable" in status, "status must always carry updaterUpdateAvailable");
+  assert.equal(status.updaterSelfUpdateCapable, true);
+  assert.equal(status.updaterSelfUpdateEnabled, true);
   assert.equal(status.updaterUpdateAvailable, false, "must not claim an update before a check ran");
 });
 
 test("treats an unknown own version as older than any release", () => {
-  // The updater cannot replace itself, so a build without a baked version must
-  // still be reported as behind rather than silently current.
+  // A build without a baked version must still be reported as behind rather
+  // than silently current.
   assert.equal(newer(null, "v1.9.6"), true);
   assert.equal(newer("0.0.0-dev", "v1.9.6"), true);
   assert.equal(newer("v1.9.6", "v1.9.6"), false);

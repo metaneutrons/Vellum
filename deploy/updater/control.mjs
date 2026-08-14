@@ -11,11 +11,12 @@ const operationTimeoutMs = Number(process.env.UPDATE_TIMEOUT_SECONDS ?? 900) * 1
 const port = Number(process.env.CONTROL_PORT ?? 8080);
 const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases/latest";
 /* Own image version, baked in at build time (Dockerfile ARG UPDATER_VERSION).
- * The updater deliberately never replaces its own container, so reporting this
- * is the only way an operator learns that the component holding the Docker
- * socket has fallen behind. An older updater simply omits the field, and the
- * server treats that absence as "outdated, version unknown". */
+ * Current updaters can hand their replacement to a detached, health-checked
+ * helper. Older updaters omit these fields, which lets the UI show the one-time
+ * manual bootstrap instead of prescribing manual maintenance forever. */
 const updaterVersion = (process.env.UPDATER_VERSION ?? "").trim() || null;
+const updaterSelfUpdateCapable = true;
+const updaterSelfUpdateEnabled = (process.env.AUTO_UPDATE_UPDATER ?? "true") === "true";
 const swapResultFile = process.env.SWAP_RESULT_FILE ?? "/state/updater-swap.json";
 const progressFile = process.env.PROGRESS_FILE ?? "/state/updater-progress.json";
 /* Outcome of the last self-update, written by the detached helper that performed
@@ -85,7 +86,8 @@ function saveConfig() {
 
 const status = { state: "starting", currentVersion: null, availableVersion: null,
   updateAvailable: false, lastCheckedAt: null, lastUpdatedAt: null, lastError: null,
-  updaterVersion, updaterUpdateAvailable: false };
+  updaterVersion, updaterUpdateAvailable: false, updaterSelfUpdateCapable,
+  updaterSelfUpdateEnabled };
 let active = false;
 
 const PHASES = ["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"];

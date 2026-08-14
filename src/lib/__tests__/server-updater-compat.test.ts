@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 /**
- * The updater sidecar never replaces its own container, so a deployed stack runs
- * an updater that is older than the server talking to it — by design. The status
- * schema must therefore stay tolerant: a strict schema would reject the whole
- * payload of an older updater and report the entire update system as
+ * Older updater sidecars predate safe self-update and can be older than the
+ * server talking to them. The status schema must therefore stay tolerant: a
+ * strict schema would reject their payload and report the entire update system as
  * "unavailable", which is exactly the failure this feature is meant to surface.
  *
  * These tests pin that contract at the schema level. They deliberately avoid
@@ -29,6 +28,8 @@ const statusSchema = z.object({
   lastError: z.string().max(500).nullable(),
   updaterVersion: z.string().max(64).nullable().optional(),
   updaterUpdateAvailable: z.boolean().optional(),
+  updaterSelfUpdateCapable: z.boolean().optional(),
+  updaterSelfUpdateEnabled: z.boolean().optional(),
   updaterSwap: z.object({
     outcome: z.enum(["succeeded", "failed", "rolled-back"]),
     detail: z.string().max(300).nullable(),
@@ -57,6 +58,8 @@ function normalize(data: z.infer<typeof statusSchema>) {
     supported: true,
     updaterVersion: data.updaterVersion ?? null,
     updaterUpdateAvailable: data.updaterUpdateAvailable ?? false,
+    updaterSelfUpdateCapable: data.updaterSelfUpdateCapable ?? false,
+    updaterSelfUpdateEnabled: data.updaterSelfUpdateEnabled ?? false,
     updaterSwap: data.updaterSwap ?? null,
   };
 }
@@ -72,6 +75,8 @@ describe("updater status compatibility", () => {
     const status = normalize(parsed);
     expect(status.updaterVersion).toBeNull();
     expect(status.updaterUpdateAvailable).toBe(false);
+    expect(status.updaterSelfUpdateCapable).toBe(false);
+    expect(status.updaterSelfUpdateEnabled).toBe(false);
     // A null version is the signal the UI turns into "predates version
     // reporting, therefore outdated" — it must not be confused with "current".
     expect(status.supported).toBe(true);
@@ -79,10 +84,13 @@ describe("updater status compatibility", () => {
 
   it("passes through a reporting updater unchanged", () => {
     const status = normalize(
-      statusSchema.parse({ ...legacyPayload, updaterVersion: "v1.9.5", updaterUpdateAvailable: true }),
+      statusSchema.parse({ ...legacyPayload, updaterVersion: "v1.9.5", updaterUpdateAvailable: true,
+        updaterSelfUpdateCapable: true, updaterSelfUpdateEnabled: true }),
     );
     expect(status.updaterVersion).toBe("v1.9.5");
     expect(status.updaterUpdateAvailable).toBe(true);
+    expect(status.updaterSelfUpdateCapable).toBe(true);
+    expect(status.updaterSelfUpdateEnabled).toBe(true);
   });
 
   it("carries a failed self-update through so the UI can surface it", () => {
