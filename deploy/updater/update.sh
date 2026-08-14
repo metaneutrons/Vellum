@@ -4,7 +4,7 @@
 
 set -Eeuo pipefail
 
-readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/Vellum/releases/latest}"
+readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/Vellum/releases?per_page=100}"
 readonly IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-ghcr.io/metaneutrons/vellum}"
 readonly COMPOSE_FILE="${COMPOSE_FILE:-/stack/docker-compose.yml}"
 readonly VELLUM_ENV_FILE="${VELLUM_ENV_FILE:-/run/vellum/vellum.env}"
@@ -80,20 +80,22 @@ github_curl() {
 }
 
 latest_server_tag() {
-  local release tag draft prerelease
-  release="$(github_curl "$RELEASE_API")" || return 1
-  tag="$(jq -er '.tag_name' <<<"$release")" || return 1
-  draft="$(jq -r 'if .draft == false then "false" elif .draft == true then "true" else error("missing draft") end' <<<"$release")" || return 1
-  prerelease="$(jq -r 'if .prerelease == false then "false" elif .prerelease == true then "true" else error("missing prerelease") end' <<<"$release")" || return 1
-
-  if [[ "$draft" != "false" || "$prerelease" != "false" ]]; then
-    die "GitHub latest points to a draft or prerelease"
+  local releases tag
+  releases="$(github_curl "$RELEASE_API")" || return 1
+  tag="$(jq -er '
+    (if type == "array" then . else [.] end)
+    | map(select(
+        .draft == false
+        and .prerelease == false
+        and (.tag_name | type == "string" and test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+      ))
+    | sort_by(.tag_name | ltrimstr("v") | split(".") | map(tonumber))
+    | last
+    | .tag_name
+  ' <<<"$releases")" || {
+    die "GitHub Releases contains no stable Vellum server release"
     return 1
-  fi
-  if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    die "refusing non-server or malformed release tag: $tag"
-    return 1
-  fi
+  }
   printf '%s\n' "$tag"
 }
 
