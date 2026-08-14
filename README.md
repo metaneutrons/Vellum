@@ -152,7 +152,9 @@ backup restore, rollback, and operational hardening.
 
 Chrome or Edge is required for browser-based flashing and USB provisioning
 because these flows use Web Serial. E-Series devices expose USB through a UART
-bridge; D1001 uses its native USB interface. If USB is unavailable, any
+bridge; D1001 uses its native USB interface. Opening the port restarts the
+display once; Vellum then keeps one USB session open for network scans and the
+final provisioning step. If USB is unavailable, any
 unprovisioned device — every model, D1001 included — also offers the
 `Vellum-XXXX` SoftAP fallback.
 
