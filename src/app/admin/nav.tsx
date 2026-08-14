@@ -41,7 +41,7 @@ const LOCALES = [
   { code: "fr", label: "Français" },
   { code: "it", label: "Italiano" },
   { code: "es", label: "Español" },
-];
+] as const;
 
 function logout() {
   document.cookie = "admin_session=; path=/; max-age=0";
@@ -56,6 +56,7 @@ export function AdminNav({ canAccessManagement, canReadSystem }: {
   const [open, setOpen] = useState(false);
   const t = useTranslations("nav");
   const locale = useLocale();
+  const activeLocale = LOCALES.find(({ code }) => code === locale) ?? LOCALES[0];
 
   function setLocale(next: string) {
     document.cookie = `locale=${next}; path=/; max-age=31536000`;
@@ -117,28 +118,29 @@ export function AdminNav({ canAccessManagement, canReadSystem }: {
           })}
         </div>
 
-        <div className="mt-auto flex flex-col gap-3 pt-3 border-t border-separator">
+        <div className="mt-auto flex items-center justify-between gap-1.5 pt-3 border-t border-separator whitespace-nowrap">
           <ThemeToggle />
-          <div className="flex items-center gap-2">
-            <select
-              value={locale}
-              onChange={(e) => setLocale(e.target.value)}
-              aria-label={t("language")}
-              className="flex-1 min-h-9 px-2.5 rounded-md bg-surface-secondary border border-separator text-sm text-label focus-ring"
-            >
-              {LOCALES.map((l) => (
-                <option key={l.code} value={l.code}>{l.label}</option>
-              ))}
-            </select>
-            <button
-              onClick={logout}
-              aria-label={t("logout")}
-              title={t("logout")}
-              className="size-9 grid place-items-center rounded-md text-label-secondary hover:bg-fill-tertiary hover:text-red focus-ring transition"
-            >
-              <LogOut size={18} aria-hidden="true" />
-            </button>
-          </div>
+          <select
+            value={locale}
+            onChange={(e) => setLocale(e.target.value)}
+            aria-label={`${t("language")}: ${activeLocale.label}`}
+            title={activeLocale.label}
+            className="h-8 w-[3.75rem] shrink-0 rounded-md border border-separator bg-surface-secondary px-2 text-center text-xs font-semibold uppercase tracking-wide text-label focus-ring"
+          >
+            {LOCALES.map(({ code, label }) => (
+              <option key={code} value={code} lang={code} aria-label={label}>
+                {code.toUpperCase()}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={logout}
+            aria-label={t("logout")}
+            title={t("logout")}
+            className="size-8 shrink-0 grid place-items-center rounded-md text-label-secondary hover:bg-fill-tertiary hover:text-red focus-ring transition"
+          >
+            <LogOut size={17} aria-hidden="true" />
+          </button>
         </div>
       </nav>
     </>
