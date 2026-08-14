@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.3](https://github.com/metaneutrons/Vellum/compare/v1.10.2...v1.10.3) (2026-08-14)
+
+
+### Bug Fixes
+
+* **updater:** select server releases by component ([2826c1a](https://github.com/metaneutrons/Vellum/commit/2826c1a11da3be8fad0f34e447c8ef39d73c4d7c))
+* **updater:** select server releases by component ([bbd3780](https://github.com/metaneutrons/Vellum/commit/bbd3780172a26c7ffda51b60c55dbab65deee650))
+
 ## [1.10.2](https://github.com/metaneutrons/Vellum/compare/v1.10.1...v1.10.2) (2026-08-14)
 
 
