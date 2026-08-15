@@ -59,8 +59,15 @@ describe("update window", () => {
   });
 
   it("records the versions being moved between", () => {
-    beginUpdateWindow("v1.9.5", "v1.9.6");
+    expect(beginUpdateWindow("v1.9.5", "v1.9.6")).toBe(true);
     expect(readUpdateWindow()).toMatchObject({ fromVersion: "v1.9.5", toVersion: "v1.9.6" });
+  });
+
+  it("refuses a no-op marker that could become a false success banner", () => {
+    expect(beginUpdateWindow("v1.10.4", "v1.10.4")).toBe(false);
+    expect(beginUpdateWindow("v1.10.5", "v1.10.4")).toBe(false);
+    expect(beginUpdateWindow("v1.10.4", null)).toBe(false);
+    expect(readUpdateWindow()).toBeNull();
   });
 
   it("survives a reload during the downtime", () => {
@@ -136,6 +143,18 @@ describe("update window", () => {
       toVersion: "v1.10.4",
       currentVersion: "v1.10.3",
       detail: "health check failed",
+    });
+  });
+
+  it("prioritizes a recorded rollback over a stale reached-version marker", () => {
+    const window = { startedAt: Date.now(), fromVersion: "v1.10.4", toVersion: "v1.10.4" };
+    expect(resolveUpdateWindow(window, status({ state: "available", currentVersion: "v1.10.4",
+      progress: { phase: "failed" }, lastError: "compose environment mount is invalid" }))).toEqual({
+      outcome: "failed",
+      fromVersion: "v1.10.4",
+      toVersion: "v1.10.4",
+      currentVersion: "v1.10.4",
+      detail: "compose environment mount is invalid",
     });
   });
 

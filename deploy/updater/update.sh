@@ -8,6 +8,9 @@ readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/V
 readonly IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-ghcr.io/metaneutrons/vellum}"
 readonly COMPOSE_FILE="${COMPOSE_FILE:-/stack/docker-compose.yml}"
 readonly VELLUM_ENV_FILE="${VELLUM_ENV_FILE:-/run/vellum/vellum.env}"
+export COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-$VELLUM_ENV_FILE}"
+readonly COMPOSE_ENV_FILE
+HOST_STACK_DIR="${HOST_STACK_DIR:-}"
 readonly ENV_BACKUP_FILE="${ENV_BACKUP_FILE:-/state/vellum.env.backup}"
 readonly COMPOSE_PROJECT="${COMPOSE_PROJECT:-vellum}"
 readonly COMPOSE_SERVICE="${COMPOSE_SERVICE:-server}"
@@ -39,6 +42,9 @@ readonly SWAP_RESULT_FILE="${SWAP_RESULT_FILE:-/state/updater-swap.json}"
 # replaced — so the updater records each step here and the admin UI reads it back
 # through /v1/status. Without this the operator only ever saw a state badge.
 readonly PROGRESS_FILE="${PROGRESS_FILE:-/state/updater-progress.json}"
+CURRENT_PHASE=""
+FAILED_PHASE=""
+ROLLBACK_ATTEMPTED=false
 
 log() {
   printf '%s vellum-updater: %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
@@ -57,14 +63,56 @@ validate_config() {
   for command in curl jq docker cosign; do
     require_command "$command"
   done
-  [[ -r "$COMPOSE_FILE" ]] || die "compose file is not readable: $COMPOSE_FILE"
-  [[ -r "$VELLUM_ENV_FILE" ]] || die "environment file is not readable: $VELLUM_ENV_FILE"
+  # `-r` accepts directories. Docker creates a directory when a bind source is
+  # missing, which previously let a poisoned /stack mount pass preflight and
+  # fail only after a backup had already been taken.
+  [[ -f "$COMPOSE_FILE" && -r "$COMPOSE_FILE" ]] ||
+    die "compose file is not a readable regular file: $COMPOSE_FILE"
+  [[ -f "$VELLUM_ENV_FILE" && -r "$VELLUM_ENV_FILE" ]] ||
+    die "environment file is not a readable regular file: $VELLUM_ENV_FILE"
   [[ -w "$VELLUM_ENV_FILE" ]] || die "environment file is not writable: $VELLUM_ENV_FILE"
+  HOST_STACK_DIR="$(resolve_host_stack_dir)" || return 1
   [[ "$POLL_INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || die "POLL_INTERVAL_SECONDS must be numeric"
   (( POLL_INTERVAL_SECONDS >= 300 )) || die "POLL_INTERVAL_SECONDS must be at least 300"
   [[ "$READINESS_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || die "READINESS_TIMEOUT_SECONDS must be numeric"
   (( READINESS_TIMEOUT_SECONDS >= 30 )) || die "READINESS_TIMEOUT_SECONDS must be at least 30"
   [[ "$BACKUP_RETENTION_DAYS" =~ ^[0-9]+$ ]] || die "BACKUP_RETENTION_DAYS must be numeric"
+}
+
+# Compose resolves relative bind sources on the Docker daemon host, not inside
+# this container. New stacks capture the host working directory explicitly.
+# Older, still-healthy stacks can derive it from the compose-file bind mount.
+resolve_host_stack_dir() {
+  local source
+  if [[ -n "$HOST_STACK_DIR" ]]; then
+    [[ "$HOST_STACK_DIR" == /* ]] || {
+      die "HOST_STACK_DIR must be an absolute host path"
+      return 1
+    }
+    printf '%s\n' "$HOST_STACK_DIR"
+    return 0
+  fi
+
+  source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "'"$COMPOSE_FILE"'"}}{{.Source}}{{end}}{{end}}' \
+    "${HOSTNAME:-}" 2>/dev/null || true)"
+  [[ -n "$source" && "$source" == /* ]] || {
+    die "could not determine the host stack directory"
+    return 1
+  }
+  dirname "$source"
+}
+
+compose_stack() {
+  local host_stack_dir="$HOST_STACK_DIR"
+  [[ -n "$host_stack_dir" && "$host_stack_dir" == /* ]] || {
+    die "host stack directory is unavailable"
+    return 1
+  }
+  HOST_STACK_DIR="$host_stack_dir" docker compose \
+    --env-file "$VELLUM_ENV_FILE" \
+    --project-directory "$host_stack_dir" \
+    --project-name "$COMPOSE_PROJECT" \
+    --file "$COMPOSE_FILE" "$@"
 }
 
 github_curl() {
@@ -162,10 +210,7 @@ backup_database() {
 
 compose_deploy() {
   local image="$1"
-  VELLUM_IMAGE="$image" docker compose \
-    --env-file "$VELLUM_ENV_FILE" \
-    --project-name "$COMPOSE_PROJECT" \
-    --file "$COMPOSE_FILE" \
+  VELLUM_IMAGE="$image" compose_stack \
     up --detach --no-deps --pull never --force-recreate "$COMPOSE_SERVICE"
 }
 
@@ -208,8 +253,9 @@ persist_server_image() {
 }
 
 wait_for_readiness() {
+  local publish_phase="${1:-true}"
   local deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))
-  set_phase "waiting-for-health"
+  [[ "$publish_phase" == "true" ]] && set_phase "waiting-for-health"
   while (( SECONDS < deadline )); do
     if curl --fail --silent --show-error --max-time 5 "$READINESS_URL" |
         jq -e '.status == "ok" and .database.connected == true' >/dev/null; then
@@ -228,7 +274,7 @@ deploy_with_rollback() {
 
   set_phase "deploying" "$candidate"
   log "deploying $candidate"
-  if compose_deploy "$candidate" && wait_for_readiness; then
+  if compose_deploy "$candidate" && wait_for_readiness true; then
     if persist_server_image "$candidate"; then
       log "deployment healthy: $candidate"
       set_phase "done" "$candidate"
@@ -239,8 +285,8 @@ deploy_with_rollback() {
 
   log "deployment failed; rolling back to $old_id"
   set_phase "rolling-back" "$rollback_ref"
-  if ! compose_deploy "$rollback_ref" || ! wait_for_readiness; then
-    set_phase "failed" "automatic rollback failed; operator intervention required"
+  if ! compose_deploy "$rollback_ref" || ! wait_for_readiness false; then
+    set_phase "failed" "automatic rollback failed; operator intervention required" "rolling-back"
     die "automatic rollback failed; operator intervention required"
   fi
   set_phase "failed" "rolled back because the new release did not become ready"
@@ -261,24 +307,38 @@ deploy_with_rollback() {
 updater_container_id() {
   # Resolved through compose rather than a fixed name: deployments created before
   # `container_name` was added to the compose file run as <project>-updater-1.
-  docker compose \
-    --env-file "$VELLUM_ENV_FILE" \
-    --project-name "$COMPOSE_PROJECT" \
-    --file "$COMPOSE_FILE" \
-    ps --quiet "$UPDATER_SERVICE" 2>/dev/null | head -n1
+  compose_stack ps --quiet "$UPDATER_SERVICE" 2>/dev/null | head -n1
 }
 
 # Advisory like record_swap_result: a failed journal write must never abort an
 # update. `phase` is the step now running, `outcome` closes the journal out.
 set_phase() {
-  local phase="$1" detail="${2:-}" temporary="${PROGRESS_FILE}.tmp"
+  local phase="$1" detail="${2:-}" explicit_failed_phase="${3:-}" temporary="${PROGRESS_FILE}.tmp"
+  if [[ "$phase" == "verifying" ]]; then
+    FAILED_PHASE=""
+    ROLLBACK_ATTEMPTED=false
+  elif [[ "$phase" == "rolling-back" ]]; then
+    [[ -n "$FAILED_PHASE" ]] || FAILED_PHASE="$CURRENT_PHASE"
+    ROLLBACK_ATTEMPTED=true
+  elif [[ "$phase" == "failed" ]]; then
+    if [[ -n "$explicit_failed_phase" ]]; then
+      FAILED_PHASE="$explicit_failed_phase"
+    elif [[ -z "$FAILED_PHASE" ]]; then
+      FAILED_PHASE="$CURRENT_PHASE"
+    fi
+  fi
+  CURRENT_PHASE="$phase"
   log "phase: $phase${detail:+ ($detail)}"
   mkdir -p "$(dirname "$PROGRESS_FILE")" 2>/dev/null || true
   if jq -n --arg phase "$phase" --arg detail "$detail" \
            --arg at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
            --arg started "${PHASE_STARTED_AT:-}" \
+           --arg failedPhase "$FAILED_PHASE" \
+           --argjson rollbackAttempted "$ROLLBACK_ATTEMPTED" \
            '{phase: $phase, detail: (if $detail == "" then null else $detail end),
-             at: $at, startedAt: (if $started == "" then $at else $started end)}' \
+             at: $at, startedAt: (if $started == "" then $at else $started end),
+             failedPhase: (if $failedPhase == "" then null else $failedPhase end),
+             rollbackAttempted: $rollbackAttempted}' \
        >"$temporary" 2>/dev/null; then
     mv -f "$temporary" "$PROGRESS_FILE" 2>/dev/null || rm -f "$temporary" 2>/dev/null || true
   else
@@ -316,10 +376,7 @@ wait_for_container_health() {
 
 compose_up_updater() {
   local image="$1"
-  UPDATER_IMAGE="$image" docker compose \
-    --env-file "$VELLUM_ENV_FILE" \
-    --project-name "$COMPOSE_PROJECT" \
-    --file "$COMPOSE_FILE" \
+  UPDATER_IMAGE="$image" compose_stack \
     up --detach --no-deps --pull never --force-recreate "$UPDATER_SERVICE"
 }
 
@@ -401,6 +458,8 @@ schedule_updater_swap() {
     --env "COMPOSE_PROJECT=$COMPOSE_PROJECT" \
     --env "COMPOSE_FILE=$COMPOSE_FILE" \
     --env "VELLUM_ENV_FILE=$VELLUM_ENV_FILE" \
+    --env "HOST_STACK_DIR=$HOST_STACK_DIR" \
+    --env "COMPOSE_ENV_FILE=$COMPOSE_ENV_FILE" \
     --env "UPDATER_SERVICE=$UPDATER_SERVICE" \
     --env "UPDATER_SWAP_TIMEOUT_SECONDS=$UPDATER_SWAP_TIMEOUT_SECONDS" \
     --env "SWAP_RESULT_FILE=$SWAP_RESULT_FILE" \
@@ -434,7 +493,10 @@ update_once() {
     set_phase "failed" "release image is unavailable or did not pass signature verification"
     return 1
   fi
-  backup_database "$tag" || return 1
+  if ! backup_database "$tag"; then
+    set_phase "failed" "database backup failed" "backing-up"
+    return 1
+  fi
   deploy_with_rollback "$candidate" || return 1
   # Only after the server is verifiably healthy — never leave the stack mid-update
   # with a swapped updater on top.
@@ -445,6 +507,8 @@ main() {
   if [[ "${1:-}" == "--swap-updater" ]]; then
     require_command docker
     require_command jq
+    [[ -n "$HOST_STACK_DIR" && "$HOST_STACK_DIR" == /* ]] ||
+      { die "--swap-updater needs an absolute HOST_STACK_DIR"; return 1; }
     [[ -n "${2:-}" ]] || die "--swap-updater needs an image reference"
     swap_updater "$2"
     return

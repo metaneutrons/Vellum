@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.10.8](https://github.com/metaneutrons/Vellum/compare/v1.10.7...v1.10.8) (2026-08-15)
+
+
+### Bug Fixes
+
+* **updater:** resolve compose env inside the container ([011113d](https://github.com/metaneutrons/Vellum/commit/011113d2bf9941fe2e6edbe6e758988693d0107b))
+* **updater:** resolve Compose env inside the container ([245dbb2](https://github.com/metaneutrons/Vellum/commit/245dbb2198877a3badce2a1207428b21cdf68205))
+
+## [1.10.7](https://github.com/metaneutrons/Vellum/compare/v1.10.6...v1.10.7) (2026-08-15)
+
+
+### Bug Fixes
+
+* **release:** publish the deployment installer ([907ca18](https://github.com/metaneutrons/Vellum/commit/907ca1828ab3b79f0b2a90196c4405f3f77b80e9))
+* **release:** publish the deployment installer ([4a84b6b](https://github.com/metaneutrons/Vellum/commit/4a84b6b4cd8e1acc28bc2b3f51dd785978b12c70))
+
+## [1.10.6](https://github.com/metaneutrons/Vellum/compare/v1.10.5...v1.10.6) (2026-08-15)
+
+
+### Bug Fixes
+
+* **firmware:** make release lifecycle monotonic ([6534054](https://github.com/metaneutrons/Vellum/commit/6534054cad10636c7056d2f8e5c739670b2656c6))
+* **firmware:** stabilize D1001 audio and release lifecycle ([89e8467](https://github.com/metaneutrons/Vellum/commit/89e84675e303dd0472b7439b59f32916e2a38439))
+* **updater:** make server updates reliable and observable ([9ca4190](https://github.com/metaneutrons/Vellum/commit/9ca41904a8d5e24d258234958281dcd718409b06))
+* **updater:** preserve the host stack path ([b494395](https://github.com/metaneutrons/Vellum/commit/b494395416db2af8874b740055f4623dc217d537))
+* **updater:** report deployment outcomes truthfully ([b2d805f](https://github.com/metaneutrons/Vellum/commit/b2d805f6a9315ec28809db46b88a561124c766a5))
+* **updater:** retain terminal progress and errors ([b7e57f8](https://github.com/metaneutrons/Vellum/commit/b7e57f8da170f71220c116e28cb8d16a036dc516))
+
 ## [1.10.5](https://github.com/metaneutrons/Vellum/compare/v1.10.4...v1.10.5) (2026-08-15)
 
 
