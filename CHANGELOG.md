@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.0](https://github.com/metaneutrons/Vellum/compare/v1.10.8...v1.11.0) (2026-08-15)
+
+
+### Features
+
+* deliver firmware updates through server ([df03240](https://github.com/metaneutrons/Vellum/commit/df0324056201c3784cd69c5948bfa35e06e6308a))
+* deliver firmware updates through Vellum ([fc63b1a](https://github.com/metaneutrons/Vellum/commit/fc63b1ad81c6c73eebcf447ea367c20c89b29b30))
+* guide admins through updater setup ([2297174](https://github.com/metaneutrons/Vellum/commit/22971740fb1cf6eabf9784194075640c304f1ba8))
+
 ## [1.10.8](https://github.com/metaneutrons/Vellum/compare/v1.10.7...v1.10.8) (2026-08-15)
 
 
