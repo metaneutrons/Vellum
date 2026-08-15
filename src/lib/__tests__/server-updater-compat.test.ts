@@ -16,7 +16,7 @@ import { z } from "zod";
 
 /** Mirror of the statusSchema in src/lib/server-updater.ts. */
 const statusSchema = z.object({
-  state: z.enum(["starting", "checking", "available", "updating", "current", "failed"]),
+  state: z.enum(["starting", "checking", "preparing", "available", "updating", "current", "failed"]),
   currentVersion: z.string().nullable(),
   availableVersion: z.string().nullable(),
   updateAvailable: z.boolean(),

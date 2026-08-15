@@ -4,7 +4,7 @@ import test from "node:test";
 
 process.env.VELLUM_UPDATER_TEST = "true";
 process.env.UPDATER_TOKEN = "a".repeat(64);
-const { equalToken, newer, publicStatus, stableServerReleaseTag, validateConfig, zonedClock } = await import("./control.mjs");
+const { equalToken, newer, publicStatus, releaseDecision, stableServerReleaseTag, validateConfig, zonedClock } = await import("./control.mjs");
 
 test("compares semantic release versions without allowing downgrades", () => {
   assert.equal(newer("1.8.1", "v1.8.2"), true);
@@ -13,6 +13,15 @@ test("compares semantic release versions without allowing downgrades", () => {
   assert.equal(newer("v1.8.2", "v1.8.2"), false);
   assert.equal(newer("dev", "v1.8.2"), true);
   assert.equal(newer("v1.8.2", "firmware-v1.3.2"), false);
+});
+
+test("does not offer a release until every signed container artifact is ready", () => {
+  assert.deepEqual(releaseDecision("v1.10.3", "v1.10.4", false),
+    { state: "preparing", updateAvailable: false });
+  assert.deepEqual(releaseDecision("v1.10.3", "v1.10.4", true),
+    { state: "available", updateAvailable: true });
+  assert.deepEqual(releaseDecision("v1.10.4", "v1.10.4", false),
+    { state: "current", updateAvailable: false });
 });
 
 test("requires an exact control token", () => {
