@@ -31,7 +31,7 @@ updates over HTTPS; no browser engine or provider credential lives on a display.
 | **Provider-independent content** | Use Microsoft 365, Google Calendar, anny, or iCalendar without coupling display firmware to a booking system. |
 | **Pixel-perfect output** | Server-side rendering, model-aware color conversion, orientation support, themes, and live previews. |
 | **Enterprise access** | Local recovery accounts, Microsoft Entra ID OIDC, scoped roles, service accounts, and audit events. |
-| **Secure device lifecycle** | USB provisioning, encrypted enrollment, HTTPS, and Ed25519-signed OTA firmware. |
+| **Secure device lifecycle** | USB provisioning, encrypted enrollment, HTTPS, and Ed25519-signed OTA firmware delivered through Vellum—displays need no Internet route. |
 | **Safe operations** | A production Compose stack with PostgreSQL, release discovery, scheduled or manual updates, backups, health checks, and rollback. |
 
 ## Install for production — Docker Compose
@@ -123,6 +123,94 @@ For a database-consistent backup while Vellum is running, use the dumps in
 `data/backups/`, not a live copy of `data/postgres/`. To pin the initial
 deployment, replace `releases/latest/download` with `releases/download/vX.Y.Z`.
 
+### Upgrade an existing Compose installation
+
+If **System → Vellum Server** says that the update service is unavailable, the
+stack either predates the `updater` service, is missing its configuration, or
+cannot currently reach it. This is a one-time host administration task. The Web
+UI deliberately cannot install the service itself: only the dedicated updater
+receives the root-equivalent Docker socket, never the Vellum server.
+
+First change to the directory that contains the running stack and identify which
+case applies:
+
+```bash
+cd /path/to/vellum
+docker compose config --services
+docker compose ps
+```
+
+If `updater` is listed, keep the existing Compose file and refresh the service:
+
+```bash
+docker compose pull updater
+docker compose up -d --no-deps updater
+docker compose ps updater
+docker compose logs --tail=100 updater
+```
+
+If `updater` is **not** listed, do not run the installer over the existing
+directory and do not blindly replace `.env`, `docker-compose.yml`, or the
+PostgreSQL image and data mount. Back up the database and deployment files first:
+
+```bash
+mkdir -p data/backups
+docker compose exec -T postgres sh -c \
+  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \
+  > "data/backups/vellum-before-updater-$(date -u +%Y%m%dT%H%M%SZ).dump"
+cp -p docker-compose.yml "docker-compose.yml.before-updater"
+cp -p .env ".env.before-updater"
+```
+
+Download and verify the current deployment templates in a temporary directory:
+
+```bash
+tmpdir="$(mktemp -d)"
+release="https://github.com/metaneutrons/Vellum/releases/latest/download"
+curl -fsSL -o "$tmpdir/docker-compose.yml" "$release/docker-compose.yml"
+curl -fsSL -o "$tmpdir/vellum.env.example" "$release/vellum.env.example"
+curl -fsSL -o "$tmpdir/SHA256SUMS" "$release/SHA256SUMS"
+(cd "$tmpdir" && if command -v sha256sum >/dev/null; then
+  grep -E ' (docker-compose.yml|vellum.env.example)$' SHA256SUMS | sha256sum --check
+else
+  grep -E ' (docker-compose.yml|vellum.env.example)$' SHA256SUMS | shasum -a 256 --check
+fi)
+```
+
+Then merge the verified `updater` service and the server's `UPDATER_URL` setting
+from the downloaded Compose file into the installed file. Preserve any local
+reverse-proxy labels, networks, database image, and database volume layout. Add
+the following missing settings to the existing `.env`; copy the exact
+`UPDATER_IMAGE` value from the verified `vellum.env.example` and generate a new
+token rather than copying its placeholder:
+
+```dotenv
+UPDATER_IMAGE=ghcr.io/metaneutrons/vellum-updater:vX.Y.Z
+UPDATER_TOKEN=<output of openssl rand -hex 32>
+AUTO_UPDATE_UPDATER=true
+```
+
+Validate the merged configuration before changing a running container. The
+first command must succeed and `config --services` must now list `updater`:
+
+```bash
+docker compose config --quiet
+docker compose config --services
+docker compose pull updater
+docker compose up -d --no-deps --force-recreate server updater
+docker compose ps server updater
+docker compose logs --tail=100 updater
+rm -rf "$tmpdir"
+```
+
+Both services must report healthy. Reload **System → Vellum Server**; release
+checks, manual or scheduled server updates, backups, rollback, and future updater
+self-updates are now available. If the existing Compose file has local changes
+or uses a different PostgreSQL major version or volume layout, review the merge
+instead of replacing it wholesale; the
+[production deployment guide](docs/DOCKER_DEPLOYMENT.md) documents the updater's
+mounts, security boundary, and recovery procedures in detail.
+
 The server listens on `127.0.0.1:3000`; terminate HTTPS at the reverse proxy.
 Set `VELLUM_PUBLIC_URL` to the canonical HTTPS origin, then open
 `https://your-vellum-host/admin`. Checksummed database migrations run
@@ -149,6 +237,16 @@ backup restore, rollback, and operational hardening.
 5. Continue to **Provision** and send Wi-Fi, time, and server settings over USB.
 6. Approve the device or use a single-use enrollment voucher, then assign its content.
 7. Configure server updates under **System → Vellum Server**.
+
+Displays communicate only with their configured Vellum HTTPS origin. For OTA,
+the server discovers signed firmware on GitHub and issues a short-lived download
+URL bound to that device, model, and release. Vellum then delivers the binary;
+the display never needs direct Internet or GitHub access and still verifies the
+model, SHA-256 digest, and Ed25519 signature before booting it. The Vellum server
+itself needs outbound HTTPS access to GitHub Releases when an update is fetched.
+Immutable OTA binaries are retained in a bounded 128 MiB in-memory LRU cache for
+24 hours, and concurrent requests for the same model/release share one upstream
+download. The cache is deliberately disposable and is cleared by a server restart.
 
 Chrome or Edge is required for browser-based flashing and USB provisioning
 because these flows use Web Serial. E-Series devices expose USB through a UART

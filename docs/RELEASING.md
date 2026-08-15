@@ -71,11 +71,19 @@ Compose bundle.
 
 ## Why this is safe for the fleet
 
-Devices discover updates by scanning GitHub Releases **newest-first for the first
-stable release carrying a `firmware-manifest.json` asset** (`src/lib/firmware.ts`),
+The Vellum server discovers updates by scanning GitHub Releases **newest-first
+for releases carrying a `firmware-manifest.json` asset** (`src/lib/firmware.ts`),
 not by "latest release" or tag name. Server releases publish no such asset, so
 they are simply skipped — a device sees a new firmware version only when a real
-firmware release exists. Because the release version is baked into the binary
+firmware release exists. Devices do not contact GitHub: `/config` returns a
+short-lived HMAC-signed Vellum download URL bound to the approved device, model,
+release tag, and expiry. Vellum validates that grant and delivers the immutable
+OTA asset through `/api/v1/ink/firmware`; the firmware independently verifies
+model identity, digest, and Ed25519 signature before booting it. Because the
+server keeps length-checked immutable assets in a bounded 24-hour LRU cache and
+coalesces concurrent misses, a fleet rollout downloads each model image from
+GitHub once in the common case rather than once per display. Because the
+release version is baked into the binary
 (`CONFIG_VELLUM_FIRMWARE_VERSION`), the manifest version always equals the
 version the device reports after flashing, so there is no update-loop from a
 version that can never be reached.
