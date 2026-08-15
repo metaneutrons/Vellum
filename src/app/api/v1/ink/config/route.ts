@@ -11,6 +11,8 @@ import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { log } from "@/lib/logger";
+import { env } from "@/lib/env";
+import { createOtaDownloadUrl } from "@/lib/firmware-download";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -72,13 +74,28 @@ export async function GET(request: NextRequest) {
     validation.data.mac
   );
 
+  // Existing firmware already accepts arbitrary validated HTTPS OTA URLs, so
+  // routing through Vellum needs no device-side migration. In local HTTP
+  // development, retain the GitHub URL because production firmware correctly
+  // refuses plaintext OTA transport.
+  const otaOrigin = env.VELLUM_PUBLIC_URL ?? request.nextUrl.origin;
+  const otaUrl = ota.otaUrl && ota.otaTag && otaOrigin.startsWith("https://")
+    ? createOtaDownloadUrl(otaOrigin, {
+      mac: validation.data.mac,
+      tag: ota.otaTag,
+      model: displayModel,
+    }, token)
+    : ota.otaUrl;
+  const { otaTag: _otaTag, ...publicOta } = ota;
+
   const t = extractTelemetry(request.headers);
   if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() })
     .catch((error) => log.warn("Config telemetry persistence failed", { mac: validation.data.mac, error: String(error) }));
 
   return Response.json(
     okResponse({
-      ...ota,
+      ...publicOta,
+      otaUrl,
       rotation: 0,
     })
   );

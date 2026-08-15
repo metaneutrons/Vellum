@@ -27,7 +27,11 @@ ESP-IDF CA-certificate bundle (`esp_crt_bundle`).
   CA cannot certify) and always builds an `https://` URL
   (`firmware/main/main.c`).
 - OTA image downloads are likewise `https://`-only
-  (`firmware/components/ota_manager/ota_manager.c`).
+  (`firmware/components/ota_manager/ota_manager.c`). The device downloads them
+  from its configured Vellum origin, not GitHub. The download URL is HMAC-signed,
+  scoped to one approved device/model/release and expires after ten minutes;
+  Vellum then proxies the immutable release asset. SHA-256, Ed25519 and staged
+  image model checks remain mandatory on-device.
 
 **Operator requirement:** the backend must be reachable at an FQDN with a
 publicly-trusted certificate (e.g. behind a reverse proxy: `https://vellum.example.com`).
@@ -183,6 +187,9 @@ The backend API is defended in layers:
 - **Device API** (`/api/v1/ink/*`): device-token auth (SHA-256 + constant-time compare),
   TOFU token issuance delivered encrypted to the device's X25519 key, zod input
   validation, and per-IP rate limiting (hello 10/min, authenticated 60/min).
+  The OTA byte-stream endpoint uses a short-lived HMAC grant derived from that
+  token instead of exposing the bearer token in a URL or requiring custom OTA
+  headers.
 - **Admin API + pages** (`/api/v1/admin/*`, `/admin/*`): gated centrally by `src/proxy.ts`
   — a valid HMAC-SHA256-signed, 8-hour session cookie, or a valid `x-api-key`. Login is
   rate-limited (5 / 15 min); the session cookie is `httpOnly` + `secure` (prod) +
