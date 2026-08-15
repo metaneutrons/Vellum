@@ -45,6 +45,7 @@
 #include "ota_manager.h"
 #if defined(CONFIG_VELLUM_PANEL_D1001)
 #include "d1001_board.h"
+#include "vellum_audio.h"
 #endif
 
 /* The default time policy enables DHCP option 42 before association and falls
@@ -590,6 +591,12 @@ void app_main(void)
         ESP_LOGI(TAG, "System clock restored from D1001 RTC");
     }
     d1001_backlight_on();
+    /* Initialize audio before the button task can request playback. Audio is
+     * optional; a missing codec must never prevent the room display from booting. */
+    esp_err_t audio_err = vellum_audio_init();
+    if (audio_err != ESP_OK) {
+        ESP_LOGW(TAG, "D1001 audio unavailable: %s", esp_err_to_name(audio_err));
+    }
 #else
     board_init();
 
