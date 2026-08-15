@@ -352,6 +352,8 @@
     "phaseBackingUp": "Backup del database",
     "phaseDeploying": "Avvio della nuova versione",
     "phaseWaitingForHealth": "Attesa del segnale di integrità",
+    "phaseRollingBack": "Ripristino della versione precedente",
+    "serverUpdateProgress": "Avanzamento dell'aggiornamento del server",
     "serverConfirmSteps": "Passaggi: verificare la firma, eseguire il backup del database, avviare la nuova versione, attendere il segnale di integrità — e ripristinare automaticamente se non arriva.",
     "serverConfirmDowntime": "Alla fine il server si riavvia: questa pagina perde brevemente la connessione e si riconnette da sola.",
     "serverUpdateDone": "Aggiornato da {from} a {to}.",

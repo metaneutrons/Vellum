@@ -113,6 +113,8 @@ function lastProgress() {
       detail: typeof value.detail === "string" ? value.detail.slice(0, 200) : null,
       at: typeof value.at === "string" ? value.at : null,
       startedAt: typeof value.startedAt === "string" ? value.startedAt : null,
+      failedPhase: PHASES.includes(value.failedPhase) ? value.failedPhase : null,
+      rollbackAttempted: value.rollbackAttempted === true,
     };
   } catch { return null; }
 }
@@ -135,6 +137,14 @@ function newer(current, candidate) {
   if (!a) return true;
   for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return b[i] > a[i]; }
   return false;
+}
+function reached(current, targetVersion) {
+  const currentParts = parts(current); const targetParts = parts(targetVersion);
+  if (!currentParts || !targetParts) return false;
+  for (let i = 0; i < 3; i++) {
+    if (currentParts[i] !== targetParts[i]) return currentParts[i] > targetParts[i];
+  }
+  return true;
 }
 function releaseDecision(current, available, artifactsReady) {
   const releaseIsNewer = newer(current, available);
@@ -228,7 +238,16 @@ async function check() {
     /* Both images are pinned to the same release tag by deployment-assets.yml, so
      * the server's candidate release is also the updater's candidate. */
     status.updaterUpdateAvailable = artifactsReady && newer(updaterVersion, available);
-    status.state = decision.state;
+    const progress = lastProgress();
+    /* A periodic release check must not erase the outcome of a failed deployment
+     * while the old version is still running. Keep retry available, but preserve
+     * the actionable failure and its real journal detail in the UI. */
+    if (releaseIsNewer && ["failed", "rolling-back"].includes(progress?.phase)) {
+      status.state = "failed";
+      status.lastError = progress?.detail ?? "The previous update attempt failed";
+    } else {
+      status.state = decision.state;
+    }
     if (status.state === "preparing") scheduleReadinessRetry(); else clearReadinessRetry();
   } catch (error) {
     clearReadinessRetry();
@@ -240,11 +259,19 @@ async function apply() {
   if (active) return false;
   active = true; status.state = "updating"; status.lastError = null;
   try {
+    const targetVersion = status.availableVersion;
     await command("/usr/local/bin/vellum-update", [], { env: { ...process.env, UPDATE_ONCE: "true" } });
-    status.currentVersion = status.availableVersion; status.updateAvailable = false;
+    const runningVersion = await currentVersion();
+    if (!reached(runningVersion, targetVersion)) {
+      throw new Error(`update command completed but ${runningVersion || "no version"} is running instead of ${targetVersion || "the requested release"}`);
+    }
+    status.currentVersion = runningVersion; status.updateAvailable = false;
     status.lastUpdatedAt = new Date().toISOString(); status.state = "current";
   } catch (error) {
-    status.state = "failed"; status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
+    const progress = lastProgress();
+    status.state = "failed";
+    status.lastError = progress?.detail
+      ?? String(error instanceof Error ? error.message : error).slice(-500);
   } finally { active = false; }
   return true;
 }
@@ -312,4 +339,4 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
   setInterval(() => void tryScheduledApply(), 30_000).unref();
 }
 
-export { equalToken, newer, releaseDecision, stableServerReleaseTag, validateConfig, zonedClock, publicStatus };
+export { equalToken, newer, reached, releaseDecision, stableServerReleaseTag, validateConfig, zonedClock, publicStatus };

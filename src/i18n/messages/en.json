@@ -352,6 +352,8 @@
     "phaseBackingUp": "Backing up the database",
     "phaseDeploying": "Starting the new version",
     "phaseWaitingForHealth": "Waiting for it to report healthy",
+    "phaseRollingBack": "Restoring the previous version",
+    "serverUpdateProgress": "Server update progress",
     "serverConfirmSteps": "Steps: verify the signature, back up the database, start the new version, wait for it to report healthy — and roll back automatically if it does not.",
     "serverConfirmDowntime": "The server restarts at the end, so this page loses its connection for a moment and reconnects on its own.",
     "serverUpdateDone": "Updated from {from} to {to}.",

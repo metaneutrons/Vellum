@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/confirm";
 import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
 import type { ServerUpdateStatus } from "@/lib/server-updater";
+import { updateProgressRows } from "@/lib/update-progress";
 import { beginUpdateWindow, endUpdateWindow, readUpdateWindow, resolveUpdateWindow,
   serverUpdatePollInterval } from "@/lib/update-window";
 
@@ -25,14 +26,12 @@ const stateKeys = {
   failed: "serverStateFailed",
 } as const;
 
-/* Ordered so the UI can mark earlier steps done; the terminal phases are handled
- * separately because they end the sequence rather than advance it. */
-const PHASE_SEQUENCE = ["verifying", "backing-up", "deploying", "waiting-for-health"] as const;
 const PHASE_KEYS = {
   verifying: "phaseVerifying",
   "backing-up": "phaseBackingUp",
   deploying: "phaseDeploying",
   "waiting-for-health": "phaseWaitingForHealth",
+  "rolling-back": "phaseRollingBack",
 } as const;
 
 export function ServerUpdatePanel({ initialStatus, canUpdate }: {
@@ -177,22 +176,19 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
                   : t("serverManualSchedule"))}
             </p>
           </div>
-          {status.supported && status.progress && status.state === "updating" && (
+          {status.supported && status.progress && (
             /* Real step-level progress. update.sh writes each phase to the state
-             * volume because the server cannot narrate its own restart. */
-            <ol className="w-full order-last space-y-1.5">
-              {PHASE_SEQUENCE.map((phase, index, sequence) => {
-                const active = status.progress?.phase;
-                const currentIndex = sequence.indexOf(active as typeof PHASE_SEQUENCE[number]);
-                const terminal = active === "done";
-                const state = terminal || (currentIndex >= 0 && index < currentIndex)
-                  ? "done" : currentIndex === index ? "active" : "pending";
+             * volume because the server cannot narrate its own restart. Keep the
+             * terminal result visible for inspection. */
+            <ol aria-label={t("serverUpdateProgress")}
+              className="w-full order-last space-y-1.5 rounded-lg bg-fill-tertiary/40 border border-separator/50 p-3">
+              {updateProgressRows(status.progress).map(({ phase, state }) => {
                 return (
                   <li key={phase} className="flex items-center gap-2 text-sm">
-                    <span aria-hidden="true" className={state === "done" ? "text-green" : state === "active" ? "text-accent" : "text-label-tertiary"}>
-                      {state === "done" ? "✓" : state === "active" ? "◐" : "○"}
+                    <span aria-hidden="true" className={state === "done" ? "text-green" : state === "failed" ? "text-red" : state === "active" ? "text-accent" : "text-label-tertiary"}>
+                      {state === "done" ? "✓" : state === "failed" ? "×" : state === "active" ? "◐" : "○"}
                     </span>
-                    <span className={state === "pending" ? "text-label-tertiary" : "text-label"}>{t(PHASE_KEYS[phase])}</span>
+                    <span className={state === "pending" ? "text-label-tertiary" : state === "failed" ? "text-red font-medium" : "text-label"}>{t(PHASE_KEYS[phase])}</span>
                   </li>
                 );
               })}

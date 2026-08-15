@@ -63,11 +63,6 @@ function reachedVersion(current: string | null, target: string | null): boolean 
  * is not success: it may be the old container after a failed deployment or
  * rollback. This distinction prevents claims such as "v1.10.3 → v1.10.3". */
 export function resolveUpdateWindow(window: UpdateWindow, status: UpdateStatusSnapshot): UpdateResolution {
-  const reached = status.currentVersion;
-  if (reached && reachedVersion(reached, window.toVersion)) {
-    return { outcome: "succeeded", fromVersion: window.fromVersion, toVersion: reached };
-  }
-
   const terminalFailure = status.state === "failed"
     || status.progress?.phase === "failed"
     || status.progress?.phase === "rolling-back";
@@ -76,6 +71,11 @@ export function resolveUpdateWindow(window: UpdateWindow, status: UpdateStatusSn
   if (terminalFailure || oldVersionSettled) {
     return { outcome: "failed", fromVersion: window.fromVersion, toVersion: window.toVersion,
       currentVersion: status.currentVersion, detail: status.lastError };
+  }
+
+  const reached = status.currentVersion;
+  if (reached && reachedVersion(reached, window.toVersion)) {
+    return { outcome: "succeeded", fromVersion: window.fromVersion, toVersion: reached };
   }
 
   return { outcome: "pending" };
@@ -94,8 +94,12 @@ function notify() {
   window.dispatchEvent(new Event(EVENT));
 }
 
-export function beginUpdateWindow(fromVersion: string | null, toVersion: string | null): void {
-  if (typeof window === "undefined") return;
+export function beginUpdateWindow(fromVersion: string | null, toVersion: string | null): boolean {
+  if (typeof window === "undefined") return false;
+  /* Never create a success marker for a no-op or stale snapshot. The updater may
+   * have completed a concurrent check between rendering and clicking; recording
+   * 1.10.4 -> 1.10.4 would later become a false green success banner. */
+  if (!toVersion || (fromVersion !== null && reachedVersion(fromVersion, toVersion))) return false;
   const value: UpdateWindow = { startedAt: Date.now(), fromVersion, toVersion };
   try {
     window.sessionStorage.setItem(KEY, JSON.stringify(value));
@@ -104,6 +108,7 @@ export function beginUpdateWindow(fromVersion: string | null, toVersion: string 
      * back to the plain outage overlay. */
   }
   notify();
+  return true;
 }
 
 export function endUpdateWindow(): void {

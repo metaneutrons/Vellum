@@ -352,6 +352,8 @@
     "phaseBackingUp": "Datenbank sichern",
     "phaseDeploying": "Neue Version starten",
     "phaseWaitingForHealth": "Auf Health-Meldung warten",
+    "phaseRollingBack": "Vorherige Version wiederherstellen",
+    "serverUpdateProgress": "Fortschritt des Server-Updates",
     "serverConfirmSteps": "Schritte: Signatur prüfen, Datenbank sichern, neue Version starten, auf die Health-Meldung warten — und automatisch zurückrollen, falls sie ausbleibt.",
     "serverConfirmDowntime": "Am Ende startet der Server neu. Diese Seite verliert dabei kurz die Verbindung und verbindet sich selbst wieder.",
     "serverUpdateDone": "Von {from} auf {to} aktualisiert.",

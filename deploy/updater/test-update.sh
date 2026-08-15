@@ -18,6 +18,28 @@ source "$(dirname "${BASH_SOURCE[0]}")/update.sh"
 
 assert() { "$@" || { printf 'FAILED: %q ' "$@" >&2; printf '\n' >&2; exit 1; }; }
 
+# Compose runs inside the updater while controlling the host daemon. Its host
+# project directory must be explicit or relative binds become /stack/* on host.
+export HOST_STACK_DIR="$test_directory"
+export COMPOSE_PROBE="${test_directory}/compose-probe.log"
+# Invoked indirectly by compose_stack.
+# shellcheck disable=SC2317,SC2329
+docker() { printf '%s\n' "$*" >"$COMPOSE_PROBE"; }
+compose_stack ps updater
+assert grep -Fq -- "--project-directory $test_directory" "$COMPOSE_PROBE"
+unset -f docker
+
+# Docker materializes a missing bind source as a directory. Reject it during
+# preflight, before a backup or deployment attempt.
+# Variables expand in the inner shell.
+# shellcheck disable=SC2016
+if env COMPOSE_FILE="$test_directory" VELLUM_ENV_FILE="$VELLUM_ENV_FILE" \
+    HOST_STACK_DIR="$test_directory" UPDATE_SH="$(dirname "${BASH_SOURCE[0]}")/update.sh" \
+    bash -c 'source "$UPDATE_SH"; require_command() { :; }; validate_config' >/dev/null 2>&1; then
+  printf 'FAILED: updater accepted a directory as its compose file\n' >&2
+  exit 1
+fi
+
 assert version_is_newer v1.8.1 v1.8.2
 assert version_is_newer 1.8.9 v1.9.0
 assert version_is_newer v1.9.9 v2.0.0
@@ -68,6 +90,7 @@ swap_probe() {
   # shellcheck disable=SC2016
   env AUTO_UPDATE_UPDATER=true UPDATER_VERSION="$1" UPDATE_ONCE=true \
     COMPOSE_FILE="$COMPOSE_FILE" VELLUM_ENV_FILE="$VELLUM_ENV_FILE" \
+    HOST_STACK_DIR="$test_directory" \
     ENV_BACKUP_FILE="$ENV_BACKUP_FILE" SWAP_RESULT_FILE="${test_directory}/state/swap.json" \
     PROBE_LOG="$PROBE_LOG" UPDATE_SH="$update_sh" \
     bash -c '
@@ -94,6 +117,7 @@ assert grep -q -- '--swap-updater ghcr.io/metaneutrons/vellum-updater:v1.8.2' "$
 assert grep -q -- '--volumes-from self-id' "$PROBE_LOG"
 # Must not reach the network while swapping.
 assert grep -q -- '--network none' "$PROBE_LOG"
+assert grep -q -- "--env HOST_STACK_DIR=$test_directory" "$PROBE_LOG"
 
 # Already current, and newer than the release: never launch a helper.
 : >"$PROBE_LOG"
@@ -119,6 +143,16 @@ assert jq -e '.startedAt == "2026-08-13T00:00:00Z"' "$PROGRESS_FILE" >/dev/null
 set_phase "done"
 assert jq -e '.phase == "done" and .detail == null' "$PROGRESS_FILE" >/dev/null
 assert jq -e '.startedAt == "2026-08-13T00:00:00Z"' "$PROGRESS_FILE" >/dev/null
+
+# Failure metadata must retain the original failed step while rollback advances,
+# so the UI can render both outcomes instead of collapsing everything to failed.
+set_phase "verifying"
+set_phase "backing-up"
+set_phase "deploying"
+set_phase "rolling-back" "rollback image"
+assert jq -e '.phase == "rolling-back" and .failedPhase == "deploying" and .rollbackAttempted == true' "$PROGRESS_FILE" >/dev/null
+set_phase "failed" "new release was rolled back"
+assert jq -e '.phase == "failed" and .failedPhase == "deploying" and .rollbackAttempted == true' "$PROGRESS_FILE" >/dev/null
 
 # A journal write must never abort an update, even if the path is unwritable.
 # Subshell because PROGRESS_FILE is readonly once update.sh has been sourced.

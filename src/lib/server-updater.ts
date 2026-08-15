@@ -2,6 +2,7 @@
 import "server-only";
 import { env } from "@/lib/env";
 import { z } from "zod";
+import type { UpdateProgress } from "@/lib/update-progress";
 
 export type ServerUpdateStatus = {
   supported: boolean;
@@ -29,12 +30,7 @@ export type ServerUpdateStatus = {
   /** Which step the updater is on. The server cannot report its own restart, so
    * this journal — written by the updater and read back after the container is
    * up again — is the only progress the UI can show. */
-  progress: {
-    phase: "verifying" | "backing-up" | "deploying" | "waiting-for-health" | "done" | "rolling-back" | "failed";
-    detail: string | null;
-    at: string | null;
-    startedAt: string | null;
-  } | null;
+  progress: UpdateProgress | null;
 };
 
 const unavailable: ServerUpdateStatus = { supported: false, state: "unavailable", currentVersion: null,
@@ -69,6 +65,8 @@ const statusSchema = z.object({
     detail: z.string().max(200).nullable(),
     at: z.string().nullable(),
     startedAt: z.string().nullable(),
+    failedPhase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]).nullable().optional(),
+    rollbackAttempted: z.boolean().optional(),
   }).nullable().optional(),
 });
 

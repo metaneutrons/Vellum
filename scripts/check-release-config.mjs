@@ -135,6 +135,8 @@ for (const path of [
   expect(productionCompose.includes(path),
     `production Compose must keep ${path} inside the portable stack directory`);
 }
+expect(productionCompose.includes('HOST_STACK_DIR: ${HOST_STACK_DIR:-${PWD}}'),
+  "updater must capture the host project directory before running Compose in-container");
 expect((productionCompose.match(/^\s+- \.\/\.env$/gm) ?? []).length === 2,
   "server and updater must load the stack-local .env file");
 expect(productionCompose.includes("image: ${VELLUM_IMAGE:?set VELLUM_IMAGE in .env}"),

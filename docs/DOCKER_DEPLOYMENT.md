@@ -101,6 +101,14 @@ the bind mounts relative to `docker-compose.yml`, so no paths need editing when
 the stopped stack is moved or restored. Keep `.env` private. The server port
 remains loopback-only at `127.0.0.1:3000` on Linux and macOS.
 
+The updater captures that host-side stack directory when Compose first creates
+it and passes it back with `--project-directory` for later server and updater
+replacements. This is necessary because the updater's Docker client runs inside a
+container while controlling the host daemon: without the explicit host path,
+relative sources would incorrectly resolve below `/stack` on the host. Moving a
+stopped stack remains portable—run `docker compose up -d` once from the new
+directory and the recreated updater captures the new location.
+
 For bootstrap supply-chain verification, inspect the published Sigstore identity
 with `cosign verify` and set `VELLUM_IMAGE` and `UPDATER_IMAGE` to the verified
 `ghcr.io/...@sha256:...` manifest digests. Subsequent server releases are always
@@ -201,6 +209,35 @@ docker compose up -d --no-deps updater
 After that one-time bootstrap, updater releases install automatically. To keep
 them manual instead, set `AUTO_UPDATE_UPDATER=false` in `.env`; the Web UI then
 states that policy instead of incorrectly claiming self-update is unsupported.
+
+### Recover an older stack with poisoned `/stack` mounts
+
+Updater versions from before host-project-directory preservation could recreate
+the server or updater from inside the container and accidentally resolve the
+relative bind sources on the Docker host below `/stack`. The characteristic log
+message is `/stack/.env is a directory`. Retrying in the Web UI cannot repair
+this condition because both deployment and rollback use the same invalid mount.
+
+Recover it once from the **real host stack directory**:
+
+1. Stop retrying the Web UI update and create a fresh PostgreSQL custom-format
+   backup in `data/backups/`.
+2. Back up `.env` and `docker-compose.yml` without changing their ownership or
+   permissions.
+3. Download `docker-compose.yml` and `SHA256SUMS` from the target stable Vellum
+   Server release and verify the Compose file against that checksum manifest.
+4. Replace the stack's Compose file and set both `VELLUM_IMAGE` and
+   `UPDATER_IMAGE` in `.env` to the exact same `vX.Y.Z` release tag.
+5. From the host stack directory run `docker compose pull server updater`, then
+   `docker compose up -d --no-deps server updater`.
+6. Require both services to be healthy and inspect their mounts. Every stack
+   source must point below the real stack directory; none may start with
+   `/stack` on the host.
+7. Only after that verification, remove the orphaned host `/stack` directory.
+
+The PostgreSQL service is deliberately not recreated by this recovery. If any
+health or mount check fails, retain `/stack`, the backups, and the previous files
+for diagnosis instead of attempting cleanup.
 
 Docker socket access is root-equivalent. It exists only in the dedicated updater
 container, whose filesystem is read-only, whose API is unpublished, and which
