@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.8](https://github.com/metaneutrons/Vellum/compare/v1.10.7...v1.10.8) (2026-08-15)
+
+
+### Bug Fixes
+
+* **updater:** resolve compose env inside the container ([011113d](https://github.com/metaneutrons/Vellum/commit/011113d2bf9941fe2e6edbe6e758988693d0107b))
+* **updater:** resolve Compose env inside the container ([245dbb2](https://github.com/metaneutrons/Vellum/commit/245dbb2198877a3badce2a1207428b21cdf68205))
+
 ## [1.10.7](https://github.com/metaneutrons/Vellum/compare/v1.10.6...v1.10.7) (2026-08-15)
 
 
