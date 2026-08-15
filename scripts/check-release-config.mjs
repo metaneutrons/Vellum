@@ -137,8 +137,10 @@ for (const path of [
 }
 expect(productionCompose.includes('HOST_STACK_DIR: ${HOST_STACK_DIR:-${PWD}}'),
   "updater must capture the host project directory before running Compose in-container");
-expect((productionCompose.match(/^\s+- \.\/\.env$/gm) ?? []).length === 2,
-  "server and updater must load the stack-local .env file");
+expect((productionCompose.match(/^\s+- \$\{COMPOSE_ENV_FILE:-\.\/\.env\}$/gm) ?? []).length === 2,
+  "server and updater must load the stack-local env file through a client-visible path");
+expect(productionCompose.includes("COMPOSE_ENV_FILE: /stack/.env"),
+  "in-container Compose must read env_file from its mounted stack path");
 expect(productionCompose.includes("image: ${VELLUM_IMAGE:?set VELLUM_IMAGE in .env}"),
   "production Compose must reject a missing server image pin");
 expect(productionCompose.includes("image: ${UPDATER_IMAGE:?set UPDATER_IMAGE in .env}"),

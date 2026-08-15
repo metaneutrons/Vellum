@@ -31,7 +31,7 @@ services:
     container_name: vellum
     restart: unless-stopped
     env_file:
-      - ./.env
+      - ${COMPOSE_ENV_FILE:-./.env}
     environment:
       UPDATER_URL: http://updater:8080
       # Derived from POSTGRES_* so the database password lives in exactly one
@@ -70,6 +70,9 @@ services:
       # the initial `docker compose up`; otherwise relative bind sources resolve
       # to `/stack` on the host and become empty directories on self-update.
       HOST_STACK_DIR: ${HOST_STACK_DIR:-${PWD}}
+      # Compose reads service env_file entries in the updater container, while
+      # bind sources are resolved by the host daemon. Keep those paths distinct.
+      COMPOSE_ENV_FILE: /stack/.env
       COMPOSE_SERVICE: server
       TARGET_CONTAINER: vellum
       DATABASE_CONTAINER: vellum-postgres
@@ -91,7 +94,7 @@ services:
       BACKUP_DIR: /backups
       BACKUP_RETENTION_DAYS: "14"
     env_file:
-      - ./.env
+      - ${COMPOSE_ENV_FILE:-./.env}
     volumes:
       # Docker socket access is intentionally isolated to the updater. It is
       # root-equivalent; never expose this container or its API to the network.
