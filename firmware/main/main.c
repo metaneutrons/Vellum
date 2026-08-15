@@ -184,9 +184,17 @@ static void display_transport_error(vellum_http_failure_t failure)
 
 static vellum_telemetry_t gather_telemetry(void)
 {
+    /* Read the cell first: on D1001 this also applies the charger's safe
+     * hysteresis, so the state reported below describes the resulting state. */
+    const float battery_voltage = board_battery_voltage();
+    const int battery_level = board_battery_level();
+    const bool usb_powered = board_is_usb_powered();
+    const board_battery_status_t battery_status = board_battery_status();
     vellum_telemetry_t t = {
-        .battery_voltage = board_battery_voltage(),
-        .battery_level   = board_battery_level(),
+        .battery_voltage = battery_voltage,
+        .battery_level   = battery_level,
+        .power_source    = usb_powered ? "usb" : "battery",
+        .battery_status  = board_battery_status_name(battery_status),
         .wifi_rssi       = wifi_manager_get_rssi(),
         .firmware_ver    = CONFIG_VELLUM_FIRMWARE_VERSION,
     };
@@ -666,7 +674,11 @@ void app_main(void)
 
     /* 2. Check battery — critical shutdown if below threshold */
     int battery = board_battery_level();
-    ESP_LOGI(TAG, "Battery level: %d%%", battery);
+    if (battery >= 0) {
+        ESP_LOGI(TAG, "Battery level: %d%%", battery);
+    } else {
+        ESP_LOGW(TAG, "Battery level unavailable; continuing without low-battery gate");
+    }
 
     /* 0% is the DEEPEST discharge, not an "ignore me" sentinel — the old
      * `battery > 0` guard skipped exactly the most-critical case, letting the
@@ -674,7 +686,8 @@ void app_main(void)
      * mid-write (corrupting NVS or a staged OTA slot → brick). Treat any stable
      * sub-critical reading as critical; boards with dedicated VBUS sense may
      * explicitly bypass this gate while externally powered. */
-    if (battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT && !board_is_usb_powered()) {
+    if (battery >= 0 && battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
+        !board_is_usb_powered()) {
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
         display_show_status_message(VD_ICON_BATTERY, "Low battery",
@@ -682,9 +695,12 @@ void app_main(void)
         display_sleep_unless_usb_powered();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
         /* LCD mode returns after a bounded delay and re-checks the battery. */
-        while (board_battery_level() < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
+        int retry_battery = board_battery_level();
+        while (retry_battery >= 0 &&
+               retry_battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
                !board_is_usb_powered()) {
             sleep_manager_enter(CONFIG_VELLUM_FALLBACK_SLEEP_SEC, buttons_get_wake_mask());
+            retry_battery = board_battery_level();
         }
 #else
         /* Never use permanent deep sleep here. A transient ADC under-read

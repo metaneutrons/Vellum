@@ -192,6 +192,8 @@ export function SimulatorClient() {
   const telemetryHeaders = useCallback((): Record<string, string> => ({
     "X-Battery-Voltage": config.batteryVoltage.toFixed(2),
     "X-Battery-Level": String(config.batteryLevel),
+    "X-Power-Source": config.powerSource,
+    "X-Battery-Status": config.powerSource === "usb" ? "charging" : "discharging",
     "X-WiFi-RSSI": String(config.wifiRssi),
     "X-Firmware-Ver": FIRMWARE_VER,
   }), [config]);

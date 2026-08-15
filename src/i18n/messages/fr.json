@@ -81,6 +81,15 @@
     "telemetryHistory": "Historique de télémétrie",
     "time": "Heure",
     "battery": "Batterie",
+    "power": {
+      "source": "Alimentation",
+      "usb": "Alimentation USB",
+      "battery": "Alimentation sur batterie",
+      "charging": "En charge",
+      "full": "Complètement chargée",
+      "discharging": "Sur batterie",
+      "unknown": "État d’alimentation inconnu"
+    },
     "rssi": "RSSI",
     "wifiRssi": "RSSI Wi‑Fi",
     "model": "Modèle",

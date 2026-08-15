@@ -25,6 +25,8 @@ interface TelemetryEntry {
   id: number;
   batteryVoltage: number | null;
   batteryLevel: number | null;
+  powerSource: "usb" | "battery" | null;
+  batteryStatus: "charging" | "full" | "discharging" | "unknown" | null;
   wifiRssi: number | null;
   firmwareVersion: string | null;
   timestamp: Date;
@@ -113,6 +115,7 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
             <div className="grid grid-cols-2 gap-4">
               <Stat label={t("battery")} value={`${latest.batteryLevel ?? "—"}%`} warn={(latest.batteryLevel ?? 100) < 20} />
               <Stat label={t("voltage")} value={`${latest.batteryVoltage?.toFixed(2) ?? "—"}V`} />
+              <Stat label={t("power.source")} value={latest.batteryStatus && latest.batteryStatus !== "unknown" ? t(`power.${latest.batteryStatus}`) : latest.powerSource ? t(`power.${latest.powerSource}`) : "—"} />
               <Stat label={t("wifiRssi")} value={`${latest.wifiRssi ?? "—"} dBm`} warn={(latest.wifiRssi ?? 0) < -70} />
               <Stat label={t("firmware")} value={latest.firmwareVersion ?? "—"} />
             </div>
@@ -172,17 +175,18 @@ export function DeviceDetail({ device, telemetryHistory, recentReports, themes, 
             <table className="w-full text-xs">
               <thead className="text-left text-gray-500">
                 <tr>
-                  <th className="pr-4 py-1">{t("time")}</th><th className="pr-4 py-1">{t("battery")}</th><th className="pr-4 py-1">{t("voltage")}</th><th className="pr-4 py-1">{t("rssi")}</th><th className="pr-4 py-1">{t("firmware")}</th>
+                  <th className="pr-4 py-1">{t("time")}</th><th className="pr-4 py-1">{t("battery")}</th><th className="pr-4 py-1">{t("voltage")}</th><th className="pr-4 py-1">{t("power.source")}</th><th className="pr-4 py-1">{t("rssi")}</th><th className="pr-4 py-1">{t("firmware")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {telemetryHistory.map((t) => (
-                  <tr key={t.id}>
-                    <td className="pr-4 py-1 text-gray-500">{new Date(t.timestamp).toLocaleString("de-DE")}</td>
-                    <td className={`pr-4 py-1 ${(t.batteryLevel ?? 100) < 20 ? "text-red-600 font-medium" : ""}`}>{t.batteryLevel ?? "—"}%</td>
-                    <td className="pr-4 py-1">{t.batteryVoltage?.toFixed(2) ?? "—"}V</td>
-                    <td className={`pr-4 py-1 ${(t.wifiRssi ?? 0) < -70 ? "text-red-600 font-medium" : ""}`}>{t.wifiRssi ?? "—"} dBm</td>
-                    <td className="pr-4 py-1 text-gray-500">{t.firmwareVersion ?? "—"}</td>
+                {telemetryHistory.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="pr-4 py-1 text-gray-500">{new Date(entry.timestamp).toLocaleString("de-DE")}</td>
+                    <td className={`pr-4 py-1 ${(entry.batteryLevel ?? 100) < 20 ? "text-red-600 font-medium" : ""}`}>{entry.batteryLevel ?? "—"}%</td>
+                    <td className="pr-4 py-1">{entry.batteryVoltage?.toFixed(2) ?? "—"}V</td>
+                    <td className="pr-4 py-1">{entry.batteryStatus && entry.batteryStatus !== "unknown" ? t(`power.${entry.batteryStatus}`) : entry.powerSource ? t(`power.${entry.powerSource}`) : "—"}</td>
+                    <td className={`pr-4 py-1 ${(entry.wifiRssi ?? 0) < -70 ? "text-red-600 font-medium" : ""}`}>{entry.wifiRssi ?? "—"} dBm</td>
+                    <td className="pr-4 py-1 text-gray-500">{entry.firmwareVersion ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

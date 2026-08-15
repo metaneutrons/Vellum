@@ -99,6 +99,13 @@ static void set_telemetry_headers(esp_http_client_handle_t client)
     snprintf(buf, sizeof(buf), "%d", s_telemetry.battery_level);
     esp_http_client_set_header(client, "X-Battery-Level", buf);
 
+    if (s_telemetry.power_source) {
+        esp_http_client_set_header(client, "X-Power-Source", s_telemetry.power_source);
+    }
+    if (s_telemetry.battery_status) {
+        esp_http_client_set_header(client, "X-Battery-Status", s_telemetry.battery_status);
+    }
+
     snprintf(buf, sizeof(buf), "%d", s_telemetry.wifi_rssi);
     esp_http_client_set_header(client, "X-WiFi-RSSI", buf);
 

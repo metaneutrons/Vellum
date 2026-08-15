@@ -6,7 +6,11 @@
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+#include "esp_timer.h"
 #include "driver/ledc.h"
+#include "driver/gpio.h"
 #include "soc/pmu_reg.h"
 #include "esp_io_expander_pca9535.h"
 #include <time.h>
@@ -17,8 +21,19 @@ static i2c_master_bus_handle_t s_i2c0 = NULL;
 static i2c_master_bus_handle_t s_i2c1 = NULL;
 static esp_io_expander_handle_t s_io_exp = NULL;
 static adc_oneshot_unit_handle_t s_adc = NULL;
+static adc_cali_handle_t s_battery_cali = NULL;
+static adc_cali_handle_t s_usb_cali = NULL;
 static i2c_master_dev_handle_t s_rtc = NULL;
 static bool s_bl_init = false;
+static bool s_charge_enabled = true;
+#define ADC_SAMPLE_COUNT 16
+#define ADC_CACHE_US     250000
+#define BAT_CHARGE_DISABLE_MV 4150
+#define BAT_CHARGE_ENABLE_MV  3800
+static int s_battery_mv = 0;
+static int s_usb_mv = 0;
+static int64_t s_battery_sample_us = 0;
+static int64_t s_usb_sample_us = 0;
 #define PCF8563_ADDR       0x51
 #define PCF8563_TIME_REG   0x02
 #define PCF8563_VL_BIT     0x80
@@ -117,8 +132,31 @@ esp_err_t d1001_board_init(void)
     adc_oneshot_unit_init_cfg_t adc_cfg = { .unit_id = ADC_UNIT_1 };
     ESP_RETURN_ON_ERROR(adc_oneshot_new_unit(&adc_cfg, &s_adc), TAG, "ADC init failed");
     adc_oneshot_chan_cfg_t chan_cfg = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
-    adc_oneshot_config_channel(s_adc, ADC_CHANNEL_2, &chan_cfg); /* GPIO18 = ADC1_CH2 */
-    adc_oneshot_config_channel(s_adc, ADC_CHANNEL_1, &chan_cfg); /* GPIO17 = ADC1_CH1 (USB) */
+    ESP_RETURN_ON_ERROR(adc_oneshot_config_channel(s_adc, ADC_CHANNEL_2, &chan_cfg),
+                        TAG, "Battery ADC channel init failed"); /* GPIO18 = ADC1_CH2 */
+    ESP_RETURN_ON_ERROR(adc_oneshot_config_channel(s_adc, ADC_CHANNEL_1, &chan_cfg),
+                        TAG, "USB ADC channel init failed"); /* GPIO17 = ADC1_CH1 (USB) */
+
+    adc_cali_curve_fitting_config_t battery_cali_cfg = {
+        .unit_id = ADC_UNIT_1,
+        .chan = ADC_CHANNEL_2,
+        .atten = ADC_ATTEN_DB_12,
+        .bitwidth = ADC_BITWIDTH_12,
+    };
+    if (adc_cali_create_scheme_curve_fitting(&battery_cali_cfg, &s_battery_cali) != ESP_OK) {
+        s_battery_cali = NULL;
+        ESP_LOGW(TAG, "Battery ADC calibration unavailable; using fallback conversion");
+    }
+    adc_cali_curve_fitting_config_t usb_cali_cfg = {
+        .unit_id = ADC_UNIT_1,
+        .chan = ADC_CHANNEL_1,
+        .atten = ADC_ATTEN_DB_12,
+        .bitwidth = ADC_BITWIDTH_12,
+    };
+    if (adc_cali_create_scheme_curve_fitting(&usb_cali_cfg, &s_usb_cali) != ESP_OK) {
+        s_usb_cali = NULL;
+        ESP_LOGW(TAG, "USB ADC calibration unavailable; using fallback conversion");
+    }
 
     /* IO Expander (PCA9535 on I2C1) */
     ESP_RETURN_ON_ERROR(
@@ -138,6 +176,15 @@ esp_err_t d1001_board_init(void)
     esp_io_expander_set_level(s_io_exp, D1001_EXP_LCD_RST, 1);
     esp_io_expander_set_level(s_io_exp, D1001_EXP_BAT_READ_EN, 1);
     esp_io_expander_set_level(s_io_exp, D1001_EXP_BAT_CHARGE_EN, 0); /* 0 = charge enabled */
+
+    const gpio_config_t power_input_cfg = {
+        .pin_bit_mask = (1ULL << D1001_BAT_CHARGE_STATE) | (1ULL << D1001_BAT_VSYS_PG),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_RETURN_ON_ERROR(gpio_config(&power_input_cfg), TAG, "Power status GPIO init failed");
 
     ESP_LOGI(TAG, "Board initialized");
     return ESP_OK;
@@ -183,27 +230,116 @@ esp_err_t d1001_backlight_off(void) { return d1001_backlight_set(0); }
 
 /* ── Battery ─────────────────────────────────────────────────── */
 
+static int read_adc_mv(adc_channel_t channel, adc_cali_handle_t cali)
+{
+    if (!s_adc) return -1;
+
+    int samples[ADC_SAMPLE_COUNT];
+    int count = 0;
+    for (int i = 0; i < ADC_SAMPLE_COUNT; ++i) {
+        int raw = 0;
+        if (adc_oneshot_read(s_adc, channel, &raw) == ESP_OK) {
+            samples[count++] = raw;
+        }
+    }
+    if (count == 0) return -1;
+
+    /* A small insertion sort keeps the driver dependency-free. Drop the single
+     * highest and lowest reading, matching Seeed's outlier-resistant filter. */
+    for (int i = 1; i < count; ++i) {
+        int value = samples[i];
+        int j = i - 1;
+        while (j >= 0 && samples[j] > value) {
+            samples[j + 1] = samples[j];
+            --j;
+        }
+        samples[j + 1] = value;
+    }
+    const int first = count >= 4 ? 1 : 0;
+    const int last = count >= 4 ? count - 1 : count;
+    int64_t sum = 0;
+    for (int i = first; i < last; ++i) sum += samples[i];
+    const int raw = (int)(sum / (last - first));
+
+    int millivolts = 0;
+    if (cali && adc_cali_raw_to_voltage(cali, raw, &millivolts) == ESP_OK) {
+        return millivolts;
+    }
+    return (raw * 3300) / 4095;
+}
+
+static void update_charge_control(int battery_mv)
+{
+    if (!s_io_exp || battery_mv <= 0) return;
+
+    bool enable = s_charge_enabled;
+    if (s_charge_enabled && battery_mv > BAT_CHARGE_DISABLE_MV) {
+        enable = false;
+    } else if (!s_charge_enabled && battery_mv < BAT_CHARGE_ENABLE_MV) {
+        enable = true;
+    }
+    if (enable == s_charge_enabled) return;
+
+    /* The charger enable input is active low. The wide hysteresis follows
+     * Seeed's reference battery manager and prevents threshold oscillation. */
+    esp_err_t err = esp_io_expander_set_level(
+        s_io_exp, D1001_EXP_BAT_CHARGE_EN, enable ? 0 : 1);
+    if (err == ESP_OK) {
+        s_charge_enabled = enable;
+        ESP_LOGI(TAG, "Battery charging %s at %d mV", enable ? "enabled" : "disabled",
+                 battery_mv);
+    } else {
+        ESP_LOGE(TAG, "Failed to %s battery charging: %s",
+                 enable ? "enable" : "disable", esp_err_to_name(err));
+    }
+}
+
 int d1001_battery_voltage(void)
 {
-    int raw = 0;
-    if (s_adc) adc_oneshot_read(s_adc, ADC_CHANNEL_2, &raw);
-    return (int)((raw / 4095.0f) * 3.3f * 2.0f * 1000.0f); /* mV, voltage divider 2:1 */
+    const int64_t now = esp_timer_get_time();
+    if (s_battery_sample_us && now - s_battery_sample_us < ADC_CACHE_US) return s_battery_mv;
+
+    const int adc_mv = read_adc_mv(ADC_CHANNEL_2, s_battery_cali);
+    if (adc_mv >= 0) {
+        s_battery_mv = adc_mv * 2; /* onboard 1:1 divider */
+        s_battery_sample_us = now;
+        update_charge_control(s_battery_mv);
+        ESP_LOGI(TAG, "Battery voltage: %d mV (calibrated, filtered)", s_battery_mv);
+    } else {
+        ESP_LOGE(TAG, "Battery ADC read failed");
+    }
+    return s_battery_sample_us ? s_battery_mv : -1;
 }
 
 int d1001_battery_percent(void)
 {
-    int mv = d1001_battery_voltage();
-    int pct = (mv - 3000) * 100 / (4200 - 3000);
-    if (pct < 0) pct = 0;
-    if (pct > 100) pct = 100;
-    return pct;
+    const int millivolts = d1001_battery_voltage();
+    return millivolts >= 0 ? d1001_battery_percent_from_mv(millivolts) : -1;
 }
 
 int d1001_usb_voltage(void)
 {
-    int raw = 0;
-    if (s_adc) adc_oneshot_read(s_adc, ADC_CHANNEL_1, &raw);
-    return (int)((raw / 4095.0f) * 3.3f * 2.0f * 1000.0f);
+    const int64_t now = esp_timer_get_time();
+    if (s_usb_sample_us && now - s_usb_sample_us < ADC_CACHE_US) return s_usb_mv;
+
+    const int adc_mv = read_adc_mv(ADC_CHANNEL_1, s_usb_cali);
+    if (adc_mv >= 0) {
+        s_usb_mv = adc_mv * 2; /* onboard 1:1 divider */
+        s_usb_sample_us = now;
+    } else {
+        ESP_LOGE(TAG, "USB ADC read failed");
+    }
+    return s_usb_sample_us ? s_usb_mv : -1;
+}
+
+bool d1001_is_usb_powered(void) { return d1001_usb_voltage() > 4000; }
+
+d1001_battery_status_t d1001_battery_status(void)
+{
+    const bool usb_powered = d1001_is_usb_powered();
+    if (usb_powered && !s_charge_enabled) return D1001_BATTERY_STATUS_FULL;
+    return d1001_battery_status_from_signals(
+        usb_powered, gpio_get_level(D1001_BAT_CHARGE_STATE) != 0);
 }
 
 void d1001_power_off(void)

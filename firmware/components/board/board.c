@@ -36,6 +36,7 @@ static const char *TAG = "board";
 
 static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_cali_handle_t s_adc_cali = NULL;
+static adc_channel_t s_battery_adc_channel = ADC_CHANNEL_0;
 
 #if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
 /* Every E-Series board routes USB-C VBUS through an SY6974B charger, and none of
@@ -64,6 +65,10 @@ static adc_cali_handle_t s_adc_cali = NULL;
 
 static i2c_master_bus_handle_t s_charger_bus = NULL;
 static i2c_master_dev_handle_t s_charger = NULL;
+static bool s_charger_status_valid = false;
+static uint8_t s_charger_status = 0;
+static TickType_t s_charger_status_tick = 0;
+#define CHARGER_STATUS_CACHE_MS 250
 
 static void charger_init(void)
 {
@@ -98,9 +103,16 @@ static void charger_init(void)
     }
 }
 
-static bool charger_reports_usb_power(void)
+static bool charger_read_status(uint8_t *status_out)
 {
-    if (!s_charger) return false;
+    if (!s_charger || !status_out) return false;
+
+    const TickType_t now = xTaskGetTickCount();
+    if (s_charger_status_valid &&
+        now - s_charger_status_tick < pdMS_TO_TICKS(CHARGER_STATUS_CACHE_MS)) {
+        *status_out = s_charger_status;
+        return true;
+    }
 
     const uint8_t reg = CHARGER_STATUS_REG;
     for (int attempt = 0; attempt < CHARGER_READ_RETRIES; ++attempt) {
@@ -110,12 +122,15 @@ static bool charger_reports_usb_power(void)
             CHARGER_TIMEOUT_MS);
         if (err == ESP_OK) {
             uint8_t bus = (status >> 5) & 0x07;
-            bool externally_powered =
-                sy6974b_status_has_external_power(status);
-            ESP_LOGI(TAG, "%s charger REG08=0x%02x (bus=%u, USB=%s)",
-                     CONFIG_VELLUM_DISPLAY_MODEL, status, bus,
-                     externally_powered ? "yes" : "no");
-            if (externally_powered || bus != 0) return externally_powered;
+            const sy6974b_charge_state_t charge = sy6974b_status_charge_state(status);
+            s_charger_status = status;
+            s_charger_status_tick = now;
+            s_charger_status_valid = true;
+            *status_out = status;
+            ESP_LOGI(TAG, "%s charger REG08=0x%02x (bus=%u, charge=%u, USB=%s)",
+                     CONFIG_VELLUM_DISPLAY_MODEL, status, bus, (unsigned)charge,
+                     sy6974b_status_has_external_power(status) ? "yes" : "no");
+            return true;
         } else if (attempt == CHARGER_READ_RETRIES - 1) {
             ESP_LOGW(TAG, "%s charger status read failed: %s",
                      CONFIG_VELLUM_DISPLAY_MODEL, esp_err_to_name(err));
@@ -123,6 +138,12 @@ static bool charger_reports_usb_power(void)
         vTaskDelay(pdMS_TO_TICKS(20));
     }
     return false;
+}
+
+static bool charger_reports_usb_power(void)
+{
+    uint8_t status = 0;
+    return charger_read_status(&status) && sy6974b_status_has_external_power(status);
 }
 #endif
 
@@ -142,17 +163,37 @@ static float s_batt_voltage = 0.0f;
 
 static void battery_adc_init(void)
 {
-    adc_oneshot_unit_init_cfg_t cfg = { .unit_id = ADC_UNIT_1 };
-    adc_oneshot_new_unit(&cfg, &s_adc_handle);
+    adc_unit_t unit = ADC_UNIT_1;
+    esp_err_t err = adc_oneshot_io_to_channel(
+        CONFIG_VELLUM_BATTERY_ADC_GPIO, &unit, &s_battery_adc_channel);
+    if (err != ESP_OK || unit != ADC_UNIT_1) {
+        ESP_LOGE(TAG, "Battery ADC GPIO%d is not on ADC1: %s",
+                 CONFIG_VELLUM_BATTERY_ADC_GPIO, esp_err_to_name(err));
+        return;
+    }
+
+    adc_oneshot_unit_init_cfg_t cfg = { .unit_id = unit };
+    err = adc_oneshot_new_unit(&cfg, &s_adc_handle);
+    if (err != ESP_OK) {
+        s_adc_handle = NULL;
+        ESP_LOGE(TAG, "Battery ADC unit init failed: %s", esp_err_to_name(err));
+        return;
+    }
     adc_oneshot_chan_cfg_t chan = { .atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12 };
-    adc_oneshot_config_channel(s_adc_handle, ADC_CHANNEL_0, &chan);
+    err = adc_oneshot_config_channel(s_adc_handle, s_battery_adc_channel, &chan);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Battery ADC channel init failed: %s", esp_err_to_name(err));
+        adc_oneshot_del_unit(s_adc_handle);
+        s_adc_handle = NULL;
+        return;
+    }
 
     /* Per-chip factory calibration → accurate mV (raw/4095*3.3 ignores the real
      * ~3.1V full-scale at 12dB and the per-chip offset). Falls back to the raw
      * approximation if the SoC has no calibration scheme. */
     adc_cali_curve_fitting_config_t cali = {
         .unit_id  = ADC_UNIT_1,
-        .chan     = ADC_CHANNEL_0,
+        .chan     = s_battery_adc_channel,
         .atten    = ADC_ATTEN_DB_12,
         .bitwidth = ADC_BITWIDTH_12,
     };
@@ -176,25 +217,40 @@ float board_battery_voltage(void)
     gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 1);
     vTaskDelay(pdMS_TO_TICKS(BATTERY_SETTLE_MS));
 
-    /* GPIO1 is VBAT_ADC on the E-Series boards. Take a few samples after the enable
-     * transition so one ADC outlier cannot put a healthy device into the
-     * low-battery recovery path. */
-    int raw = 0;
+    /* Take eight readings like Seeed's reference implementation, sort them,
+     * and discard both extremes so a single ADC spike cannot trigger a false
+     * critical-battery shutdown. */
+    int samples[8];
+    int sample_count = 0;
     if (s_adc_handle) {
-        int sum = 0;
-        int valid_samples = 0;
-        int sample = 0;
-        for (int i = 0; i < 3; ++i) {
-            if (adc_oneshot_read(s_adc_handle, ADC_CHANNEL_0, &sample) == ESP_OK) {
-                sum += sample;
-                valid_samples++;
+        for (int i = 0; i < 8; ++i) {
+            int sample = 0;
+            if (adc_oneshot_read(s_adc_handle, s_battery_adc_channel, &sample) == ESP_OK) {
+                samples[sample_count++] = sample;
             }
-            if (i < 2) vTaskDelay(pdMS_TO_TICKS(10));
         }
-        if (valid_samples > 0) raw = sum / valid_samples;
     }
     /* The enable pin is model-specific (E1001/E1002 GPIO21, E1003 GPIO40). */
     gpio_set_level(CONFIG_VELLUM_BATTERY_EN_GPIO, 0);
+
+    if (sample_count == 0) {
+        ESP_LOGE(TAG, "Battery ADC read failed");
+        return -1.0f;
+    }
+    for (int i = 1; i < sample_count; ++i) {
+        const int value = samples[i];
+        int j = i - 1;
+        while (j >= 0 && samples[j] > value) {
+            samples[j + 1] = samples[j];
+            --j;
+        }
+        samples[j + 1] = value;
+    }
+    const int first = sample_count >= 4 ? 1 : 0;
+    const int last = sample_count >= 4 ? sample_count - 1 : sample_count;
+    int sum = 0;
+    for (int i = first; i < last; ++i) sum += samples[i];
+    const int raw = sum / (last - first);
 
     float v;
     if (s_adc_cali) {
@@ -216,11 +272,44 @@ int board_battery_level(void)
 #if CONFIG_VELLUM_PANEL_D1001
     return d1001_battery_percent();
 #endif
-    float v = board_battery_voltage();
-    int level = (int)((v - 3.0f) / (4.2f - 3.0f) * 100.0f);
-    if (level < 0) level = 0;
-    if (level > 100) level = 100;
-    return level;
+    const float voltage = board_battery_voltage();
+    if (voltage < 0.0f) return -1;
+    return e_series_battery_percent_from_mv((int)(voltage * 1000.0f + 0.5f));
+}
+
+board_battery_status_t board_battery_status(void)
+{
+#if CONFIG_VELLUM_PANEL_D1001
+    switch (d1001_battery_status()) {
+    case D1001_BATTERY_STATUS_DISCHARGING: return BOARD_BATTERY_STATUS_DISCHARGING;
+    case D1001_BATTERY_STATUS_CHARGING: return BOARD_BATTERY_STATUS_CHARGING;
+    case D1001_BATTERY_STATUS_FULL: return BOARD_BATTERY_STATUS_FULL;
+    default: return BOARD_BATTERY_STATUS_UNKNOWN;
+    }
+#else
+    uint8_t status = 0;
+    if (!charger_read_status(&status)) return BOARD_BATTERY_STATUS_UNKNOWN;
+    if (!sy6974b_status_has_external_power(status)) return BOARD_BATTERY_STATUS_DISCHARGING;
+    switch (sy6974b_status_charge_state(status)) {
+    case SY6974B_CHARGE_PRECHARGE:
+    case SY6974B_CHARGE_FAST:
+        return BOARD_BATTERY_STATUS_CHARGING;
+    case SY6974B_CHARGE_DONE:
+        return BOARD_BATTERY_STATUS_FULL;
+    default:
+        return BOARD_BATTERY_STATUS_UNKNOWN;
+    }
+#endif
+}
+
+const char *board_battery_status_name(board_battery_status_t status)
+{
+    switch (status) {
+    case BOARD_BATTERY_STATUS_DISCHARGING: return "discharging";
+    case BOARD_BATTERY_STATUS_CHARGING: return "charging";
+    case BOARD_BATTERY_STATUS_FULL: return "full";
+    default: return "unknown";
+    }
 }
 
 bool board_is_usb_powered(void)
@@ -228,7 +317,7 @@ bool board_is_usb_powered(void)
 #if CONFIG_VELLUM_PANEL_D1001
     /* D1001 has a dedicated VBUS sense channel (mV); ~5V present on USB. Unlike
      * the reTerminal, USB detection is independent of the battery voltage. */
-    return d1001_usb_voltage() > 4000;
+    return d1001_is_usb_powered();
 #endif
 #if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
     /* All three E-Series boards: read the charger, because their USB-C data path
@@ -328,7 +417,9 @@ void board_buzzer_beep(uint32_t freq, uint32_t ms)
 
 void board_init(void)
 {
+#if !CONFIG_VELLUM_PANEL_D1001
     battery_adc_init();
+#endif
 #if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
     charger_init();
     /* Read once at boot even when the battery is healthy. Besides priming the

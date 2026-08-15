@@ -81,6 +81,15 @@
     "telemetryHistory": "Telemetry history",
     "time": "Time",
     "battery": "Battery",
+    "power": {
+      "source": "Power",
+      "usb": "USB power",
+      "battery": "Battery power",
+      "charging": "Charging",
+      "full": "Fully charged",
+      "discharging": "On battery",
+      "unknown": "Power status unknown"
+    },
     "rssi": "RSSI",
     "wifiRssi": "Wi-Fi RSSI",
     "model": "Model",
