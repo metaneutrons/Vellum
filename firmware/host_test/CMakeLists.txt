@@ -29,6 +29,7 @@ add_executable(host_tests
   test_wifi_failure.c
   test_render_backoff.c
   test_status_layout.c
+  test_lcd_rotation.c
   version_compare.c
   revocation.c
   ../components/board/sy6974b_power.c

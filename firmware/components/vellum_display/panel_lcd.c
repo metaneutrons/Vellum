@@ -19,6 +19,7 @@
 #include "d1001_board.h"
 #include "lcd_jd9365.h"
 #include "jpeg_decoder.h"
+#include "lcd_rotation.h"
 /* Static image descriptor in flash. Building it in PSRAM at boot (malloc + a
  * full-image memcpy) bought nothing for an asset that never changes, and held
  * ~190 KB of PSRAM for the lifetime of the device. */
@@ -28,38 +29,76 @@ static const char *TAG = "panel_lcd";
 
 #define LCD_WIDTH  800
 #define LCD_HEIGHT 1280
+/* LVGL only renders dirty regions into this line buffer. A progress-label or
+ * bar update is therefore tens of KiB instead of a 2 MiB full-screen PSRAM
+ * read/rotate/write cycle competing with the DSI scanout. */
+#define LCD_DRAW_LINES 24
 
 static lv_display_t *s_disp = NULL;
 static uint16_t     *s_panel_fb = NULL;
+static bool          s_dirty_valid = false;
+static int           s_dirty_x1, s_dirty_y1, s_dirty_x2, s_dirty_y2;
+
+static void sync_dirty_panel_area(void)
+{
+    if (!s_dirty_valid) return;
+
+    const int first_row = LCD_HEIGHT - 1 - s_dirty_x2;
+    const int last_row = LCD_HEIGHT - 1 - s_dirty_x1;
+    const int column_count = s_dirty_y2 - s_dirty_y1 + 1;
+    esp_err_t err = ESP_OK;
+
+    if (column_count >= LCD_WIDTH / 2) {
+        /* A screen transition is cheaper as one cache operation. */
+        uint16_t *start = s_panel_fb + first_row * LCD_WIDTH;
+        size_t bytes = (size_t)(last_row - first_row + 1) * LCD_WIDTH * sizeof(uint16_t);
+        err = esp_cache_msync(start, bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M |
+                             ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+    } else {
+        /* A landscape progress bar becomes a tall, narrow portrait region.
+         * Sync only those cache lines; syncing its rectangular 1 MiB bounding
+         * box was enough memory pressure to underrun DSI and flash light blue. */
+        for (int row = first_row; row <= last_row && err == ESP_OK; row++) {
+            uint16_t *start = s_panel_fb + row * LCD_WIDTH + s_dirty_y1;
+            err = esp_cache_msync(start, (size_t)column_count * sizeof(uint16_t),
+                                  ESP_CACHE_MSYNC_FLAG_DIR_C2M |
+                                  ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+        }
+    }
+    if (err != ESP_OK) ESP_LOGE(TAG, "LCD dirty-area flush failed: %s", esp_err_to_name(err));
+    s_dirty_valid = false;
+}
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
-    (void)area;
-
     /* JD9365's scanout is fixed at 800x1280 and cannot swap X/Y in
-     * hardware.  Keep LVGL's framebuffer in the product's native landscape
-     * coordinate system and rotate the completed frame into the DSI
-     * framebuffer.  In particular, do not use LVGL matrix rotation with a
-     * direct DSI framebuffer: its logical and physical strides differ after
-     * a 90-degree rotation, which produces repeated/tiled image fragments. */
+     * hardware. Rotate only LVGL's dirty rectangle into the continuous-scan
+     * framebuffer. The previous FULL render mode rotated all 1,024,000 pixels
+     * for every 10% OTA update; that PSRAM traffic starved DSI and its documented
+     * underrun behavior is a blue frame. */
     const uint16_t *src = (const uint16_t *)px_map;
-    for (int y = 0; y < LCD_WIDTH; y++) {
-        for (int x = 0; x < LCD_HEIGHT; x++) {
-            s_panel_fb[(LCD_HEIGHT - 1 - x) * LCD_WIDTH + y] =
-                src[y * LCD_HEIGHT + x];
+    const int area_width = area->x2 - area->x1 + 1;
+    for (int y = area->y1; y <= area->y2; y++) {
+        for (int x = area->x1; x <= area->x2; x++) {
+            s_panel_fb[lcd_rotation_90_cw_index(x, y, LCD_WIDTH, LCD_HEIGHT)] =
+                src[(y - area->y1) * area_width + (x - area->x1)];
         }
     }
 
-    /* The first DPI framebuffer is already the active continuous-scan buffer.
-     * Writing it back to external memory is sufficient.  Calling
-     * esp_lcd_panel_draw_bitmap() here attempts a framebuffer switch and can
-     * fault in the ESP32-P4 GDMA ISR while DSI scanout is active. */
-    esp_err_t err = esp_cache_msync(s_panel_fb, LCD_WIDTH * LCD_HEIGHT * 2,
-                                    ESP_CACHE_MSYNC_FLAG_DIR_C2M |
-                                    ESP_CACHE_MSYNC_FLAG_UNALIGNED);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "LCD frame flush failed: %s", esp_err_to_name(err));
+    if (!s_dirty_valid) {
+        s_dirty_x1 = area->x1; s_dirty_y1 = area->y1;
+        s_dirty_x2 = area->x2; s_dirty_y2 = area->y2;
+        s_dirty_valid = true;
+    } else {
+        if (area->x1 < s_dirty_x1) s_dirty_x1 = area->x1;
+        if (area->y1 < s_dirty_y1) s_dirty_y1 = area->y1;
+        if (area->x2 > s_dirty_x2) s_dirty_x2 = area->x2;
+        if (area->y2 > s_dirty_y2) s_dirty_y2 = area->y2;
     }
+    /* Multiple chunks can belong to one LVGL refresh. Publish their cache lines
+     * together to minimize the interval in which scanout can observe a mixed
+     * progress value. */
+    if (lv_display_flush_is_last(disp)) sync_dirty_panel_area();
     lv_display_flush_ready(disp);
 }
 
@@ -76,15 +115,9 @@ static lv_display_t *lcd_init(void)
         .v_res = D1001_LCD_V_RES,
         .hsync = D1001_LCD_HSYNC, .hbp = D1001_LCD_HBP, .hfp = D1001_LCD_HFP,
         .vsync = D1001_LCD_VSYNC, .vbp = D1001_LCD_VBP, .vfp = D1001_LCD_VFP,
-        /* ONE framebuffer on purpose. flush_cb writes the active continuous-scan
-         * buffer in place and deliberately never calls
-         * esp_lcd_panel_draw_bitmap() (it can fault in the P4 GDMA ISR while DSI
-         * scanout is active), so there is no buffer swap. With two framebuffers
-         * the DSI controller still ping-pongs scanout between them while only
-         * the first one is ever written — every second frame came from the
-         * untouched second buffer, which showed as a pale flicker over the real
-         * content whenever the screen was redrawn often (most visibly during the
-         * OTA progress bar). One buffer also frees ~2 MB of PSRAM. */
+        /* One continuously scanned framebuffer. Flicker prevention comes from
+         * bounded dirty-region writes below, not from an uninitialized second
+         * buffer or an unsafe framebuffer switch in the GDMA ISR. */
         .num_fb = 1,
         .io_expander = d1001_io_expander(),
         .rst_mask = D1001_EXP_LCD_RST,
@@ -102,8 +135,8 @@ static lv_display_t *lcd_init(void)
     void *buf1 = NULL;
     if (esp_lcd_dpi_panel_get_frame_buffer(panel, 1, &buf1) != ESP_OK) return NULL;
 
-    uint16_t *render_buf = heap_caps_malloc(LCD_WIDTH * LCD_HEIGHT * 2,
-                                            MALLOC_CAP_SPIRAM);
+    const size_t render_bytes = (size_t)LCD_HEIGHT * LCD_DRAW_LINES * sizeof(uint16_t);
+    uint16_t *render_buf = heap_caps_malloc(render_bytes, MALLOC_CAP_SPIRAM);
     if (!render_buf) {
         ESP_LOGE(TAG, "Unable to allocate landscape render buffer");
         return NULL;
@@ -111,12 +144,14 @@ static lv_display_t *lcd_init(void)
 
     s_panel_fb = buf1;
     memset(s_panel_fb, 0, LCD_WIDTH * LCD_HEIGHT * 2);
+    ESP_ERROR_CHECK(esp_cache_msync(s_panel_fb, LCD_WIDTH * LCD_HEIGHT * 2,
+                                    ESP_CACHE_MSYNC_FLAG_DIR_C2M |
+                                    ESP_CACHE_MSYNC_FLAG_UNALIGNED));
 
     s_disp = lv_display_create(LCD_HEIGHT, LCD_WIDTH);
     lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(s_disp, render_buf, NULL,
-                           LCD_WIDTH * LCD_HEIGHT * 2,
-                           LV_DISPLAY_RENDER_MODE_FULL);
+                           render_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(s_disp, flush_cb);
 
     vTaskDelay(pdMS_TO_TICKS(100));
