@@ -98,6 +98,7 @@ jobs:
           gh release upload "$RELEASE_TAG" \
             dist/docker-compose.yml \
             dist/vellum.env.example \
+            dist/install.sh \
             dist/SHA256SUMS \
             --clobber \
             --repo "$GITHUB_REPOSITORY"

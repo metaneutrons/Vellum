@@ -226,7 +226,11 @@ Recover it once from the **real host stack directory**:
    permissions.
 3. Download `docker-compose.yml` and `SHA256SUMS` from the target stable Vellum
    Server release and verify the Compose file against that checksum manifest.
-4. Replace the stack's Compose file and set both `VELLUM_IMAGE` and
+4. If the deployed Compose file is unmodified, replace it with the verified
+   release file. Otherwise, diff the two and carry forward the release changes
+   while preserving site-specific reverse-proxy labels, ports, and networks.
+   Validate the result with `docker compose config --quiet`; never overwrite a
+   customized production file blindly. Set both `VELLUM_IMAGE` and
    `UPDATER_IMAGE` in `.env` to the exact same `vX.Y.Z` release tag.
 5. From the host stack directory run `docker compose pull server updater`, then
    `docker compose up -d --no-deps server updater`.
