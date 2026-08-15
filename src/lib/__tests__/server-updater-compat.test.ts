@@ -35,6 +35,14 @@ const statusSchema = z.object({
     detail: z.string().max(300).nullable(),
     at: z.string().nullable(),
   }).nullable().optional(),
+  progress: z.object({
+    phase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]),
+    detail: z.string().max(200).nullable(),
+    at: z.string().nullable(),
+    startedAt: z.string().nullable(),
+    failedPhase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]).nullable().optional(),
+    rollbackAttempted: z.boolean().optional(),
+  }).nullable().optional(),
 });
 
 /** What the updater deployed before version reporting sends. */
@@ -61,6 +69,7 @@ function normalize(data: z.infer<typeof statusSchema>) {
     updaterSelfUpdateCapable: data.updaterSelfUpdateCapable ?? false,
     updaterSelfUpdateEnabled: data.updaterSelfUpdateEnabled ?? false,
     updaterSwap: data.updaterSwap ?? null,
+    progress: data.progress ?? null,
   };
 }
 
@@ -103,6 +112,17 @@ describe("updater status compatibility", () => {
     }));
     expect(status.updaterSwap?.outcome).toBe("rolled-back");
     expect(status.updaterSwap?.detail).toContain("restored");
+  });
+
+  it("carries structured deployment failure and rollback progress", () => {
+    const status = normalize(statusSchema.parse({
+      ...legacyPayload,
+      progress: { phase: "failed", detail: "health check failed", at: "2026-08-15T09:10:00.000Z",
+        startedAt: "2026-08-15T09:08:00.000Z", failedPhase: "waiting-for-health", rollbackAttempted: true },
+    }));
+    expect(status.progress).toMatchObject({
+      phase: "failed", failedPhase: "waiting-for-health", rollbackAttempted: true,
+    });
   });
 
   it("defaults the swap outcome to null for an updater that never swapped", () => {

@@ -113,6 +113,8 @@ function lastProgress() {
       detail: typeof value.detail === "string" ? value.detail.slice(0, 200) : null,
       at: typeof value.at === "string" ? value.at : null,
       startedAt: typeof value.startedAt === "string" ? value.startedAt : null,
+      failedPhase: PHASES.includes(value.failedPhase) ? value.failedPhase : null,
+      rollbackAttempted: value.rollbackAttempted === true,
     };
   } catch { return null; }
 }
@@ -266,7 +268,10 @@ async function apply() {
     status.currentVersion = runningVersion; status.updateAvailable = false;
     status.lastUpdatedAt = new Date().toISOString(); status.state = "current";
   } catch (error) {
-    status.state = "failed"; status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
+    const progress = lastProgress();
+    status.state = "failed";
+    status.lastError = progress?.detail
+      ?? String(error instanceof Error ? error.message : error).slice(-500);
   } finally { active = false; }
   return true;
 }

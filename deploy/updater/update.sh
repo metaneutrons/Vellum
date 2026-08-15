@@ -40,6 +40,9 @@ readonly SWAP_RESULT_FILE="${SWAP_RESULT_FILE:-/state/updater-swap.json}"
 # replaced — so the updater records each step here and the admin UI reads it back
 # through /v1/status. Without this the operator only ever saw a state badge.
 readonly PROGRESS_FILE="${PROGRESS_FILE:-/state/updater-progress.json}"
+CURRENT_PHASE=""
+FAILED_PHASE=""
+ROLLBACK_ATTEMPTED=false
 
 log() {
   printf '%s vellum-updater: %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
@@ -248,8 +251,9 @@ persist_server_image() {
 }
 
 wait_for_readiness() {
+  local publish_phase="${1:-true}"
   local deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))
-  set_phase "waiting-for-health"
+  [[ "$publish_phase" == "true" ]] && set_phase "waiting-for-health"
   while (( SECONDS < deadline )); do
     if curl --fail --silent --show-error --max-time 5 "$READINESS_URL" |
         jq -e '.status == "ok" and .database.connected == true' >/dev/null; then
@@ -268,7 +272,7 @@ deploy_with_rollback() {
 
   set_phase "deploying" "$candidate"
   log "deploying $candidate"
-  if compose_deploy "$candidate" && wait_for_readiness; then
+  if compose_deploy "$candidate" && wait_for_readiness true; then
     if persist_server_image "$candidate"; then
       log "deployment healthy: $candidate"
       set_phase "done" "$candidate"
@@ -279,8 +283,8 @@ deploy_with_rollback() {
 
   log "deployment failed; rolling back to $old_id"
   set_phase "rolling-back" "$rollback_ref"
-  if ! compose_deploy "$rollback_ref" || ! wait_for_readiness; then
-    set_phase "failed" "automatic rollback failed; operator intervention required"
+  if ! compose_deploy "$rollback_ref" || ! wait_for_readiness false; then
+    set_phase "failed" "automatic rollback failed; operator intervention required" "rolling-back"
     die "automatic rollback failed; operator intervention required"
   fi
   set_phase "failed" "rolled back because the new release did not become ready"
@@ -307,14 +311,32 @@ updater_container_id() {
 # Advisory like record_swap_result: a failed journal write must never abort an
 # update. `phase` is the step now running, `outcome` closes the journal out.
 set_phase() {
-  local phase="$1" detail="${2:-}" temporary="${PROGRESS_FILE}.tmp"
+  local phase="$1" detail="${2:-}" explicit_failed_phase="${3:-}" temporary="${PROGRESS_FILE}.tmp"
+  if [[ "$phase" == "verifying" ]]; then
+    FAILED_PHASE=""
+    ROLLBACK_ATTEMPTED=false
+  elif [[ "$phase" == "rolling-back" ]]; then
+    [[ -n "$FAILED_PHASE" ]] || FAILED_PHASE="$CURRENT_PHASE"
+    ROLLBACK_ATTEMPTED=true
+  elif [[ "$phase" == "failed" ]]; then
+    if [[ -n "$explicit_failed_phase" ]]; then
+      FAILED_PHASE="$explicit_failed_phase"
+    elif [[ -z "$FAILED_PHASE" ]]; then
+      FAILED_PHASE="$CURRENT_PHASE"
+    fi
+  fi
+  CURRENT_PHASE="$phase"
   log "phase: $phase${detail:+ ($detail)}"
   mkdir -p "$(dirname "$PROGRESS_FILE")" 2>/dev/null || true
   if jq -n --arg phase "$phase" --arg detail "$detail" \
            --arg at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
            --arg started "${PHASE_STARTED_AT:-}" \
+           --arg failedPhase "$FAILED_PHASE" \
+           --argjson rollbackAttempted "$ROLLBACK_ATTEMPTED" \
            '{phase: $phase, detail: (if $detail == "" then null else $detail end),
-             at: $at, startedAt: (if $started == "" then $at else $started end)}' \
+             at: $at, startedAt: (if $started == "" then $at else $started end),
+             failedPhase: (if $failedPhase == "" then null else $failedPhase end),
+             rollbackAttempted: $rollbackAttempted}' \
        >"$temporary" 2>/dev/null; then
     mv -f "$temporary" "$PROGRESS_FILE" 2>/dev/null || rm -f "$temporary" 2>/dev/null || true
   else
@@ -468,7 +490,10 @@ update_once() {
     set_phase "failed" "release image is unavailable or did not pass signature verification"
     return 1
   fi
-  backup_database "$tag" || return 1
+  if ! backup_database "$tag"; then
+    set_phase "failed" "database backup failed" "backing-up"
+    return 1
+  fi
   deploy_with_rollback "$candidate" || return 1
   # Only after the server is verifiably healthy — never leave the stack mid-update
   # with a swapped updater on top.

@@ -144,6 +144,16 @@ set_phase "done"
 assert jq -e '.phase == "done" and .detail == null' "$PROGRESS_FILE" >/dev/null
 assert jq -e '.startedAt == "2026-08-13T00:00:00Z"' "$PROGRESS_FILE" >/dev/null
 
+# Failure metadata must retain the original failed step while rollback advances,
+# so the UI can render both outcomes instead of collapsing everything to failed.
+set_phase "verifying"
+set_phase "backing-up"
+set_phase "deploying"
+set_phase "rolling-back" "rollback image"
+assert jq -e '.phase == "rolling-back" and .failedPhase == "deploying" and .rollbackAttempted == true' "$PROGRESS_FILE" >/dev/null
+set_phase "failed" "new release was rolled back"
+assert jq -e '.phase == "failed" and .failedPhase == "deploying" and .rollbackAttempted == true' "$PROGRESS_FILE" >/dev/null
+
 # A journal write must never abort an update, even if the path is unwritable.
 # Subshell because PROGRESS_FILE is readonly once update.sh has been sourced.
 # shellcheck disable=SC2016
