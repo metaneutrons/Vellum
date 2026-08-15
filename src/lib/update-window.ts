@@ -29,6 +29,67 @@ export type UpdateWindow = {
   toVersion: string | null;
 };
 
+export type UpdateStatusSnapshot = {
+  supported: boolean;
+  state: "unavailable" | "starting" | "checking" | "preparing" | "available" | "updating" | "current" | "failed";
+  currentVersion: string | null;
+  updateAvailable: boolean;
+  lastError: string | null;
+  progress: { phase: "verifying" | "backing-up" | "deploying" | "waiting-for-health" | "done" | "rolling-back" | "failed" } | null;
+};
+
+export type UpdateResolution =
+  | { outcome: "pending" }
+  | { outcome: "succeeded"; fromVersion: string | null; toVersion: string }
+  | { outcome: "failed"; fromVersion: string | null; toVersion: string | null; currentVersion: string | null; detail: string | null };
+
+function versionParts(value: string | null): [number, number, number] | null {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value ?? "");
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+/** True when `current` has reached (or passed) the version this tab requested.
+ * Passing the target is valid when another automatic update won the race. */
+function reachedVersion(current: string | null, target: string | null): boolean {
+  const a = versionParts(current); const b = versionParts(target);
+  if (!a || !b) return current !== null && target !== null && current === target;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) return a[index] > b[index];
+  }
+  return true;
+}
+
+/** Resolve an update only from authoritative evidence. A server answering again
+ * is not success: it may be the old container after a failed deployment or
+ * rollback. This distinction prevents claims such as "v1.10.3 → v1.10.3". */
+export function resolveUpdateWindow(window: UpdateWindow, status: UpdateStatusSnapshot): UpdateResolution {
+  const reached = status.currentVersion;
+  if (reached && reachedVersion(reached, window.toVersion)) {
+    return { outcome: "succeeded", fromVersion: window.fromVersion, toVersion: reached };
+  }
+
+  const terminalFailure = status.state === "failed"
+    || status.progress?.phase === "failed"
+    || status.progress?.phase === "rolling-back";
+  const oldVersionSettled = Boolean(window.toVersion && status.currentVersion
+    && ["available", "current"].includes(status.state) && status.updateAvailable);
+  if (terminalFailure || oldVersionSettled) {
+    return { outcome: "failed", fromVersion: window.fromVersion, toVersion: window.toVersion,
+      currentVersion: status.currentVersion, detail: status.lastError };
+  }
+
+  return { outcome: "pending" };
+}
+
+/** Active operations need responsive polling; idle pages deliberately stay
+ * quiet. Kept pure so the timing contract is regression-tested. */
+export function serverUpdatePollInterval(state: UpdateStatusSnapshot["state"], updateWindowOpen: boolean): number {
+  if (state === "checking") return 750;
+  if (state === "preparing") return 3_000;
+  if (state === "updating" || updateWindowOpen) return 1_500;
+  return 30_000;
+}
+
 function notify() {
   window.dispatchEvent(new Event(EVENT));
 }

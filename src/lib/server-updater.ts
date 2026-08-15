@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export type ServerUpdateStatus = {
   supported: boolean;
-  state: "unavailable" | "starting" | "checking" | "available" | "updating" | "current" | "failed";
+  state: "unavailable" | "starting" | "checking" | "preparing" | "available" | "updating" | "current" | "failed";
   currentVersion: string | null;
   availableVersion: string | null;
   updateAvailable: boolean;
@@ -42,7 +42,7 @@ const unavailable: ServerUpdateStatus = { supported: false, state: "unavailable"
   lastUpdatedAt: null, lastError: null, updaterVersion: null, updaterUpdateAvailable: false, updaterSelfUpdateCapable: false, updaterSelfUpdateEnabled: false, updaterSwap: null, progress: null };
 
 const statusSchema = z.object({
-  state: z.enum(["starting", "checking", "available", "updating", "current", "failed"]),
+  state: z.enum(["starting", "checking", "preparing", "available", "updating", "current", "failed"]),
   currentVersion: z.string().nullable(),
   availableVersion: z.string().nullable(),
   updateAvailable: z.boolean(),
