@@ -14,6 +14,11 @@ const port = Number(process.env.CONTROL_PORT ?? 8080);
 // can hide the newest server release. Fetch the release collection and select by
 // component instead.
 const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases?per_page=100";
+const serverImageRepository = process.env.IMAGE_REPOSITORY ?? "ghcr.io/metaneutrons/vellum";
+const updaterImageRepository = process.env.UPDATER_IMAGE_REPOSITORY ?? "ghcr.io/metaneutrons/vellum-updater";
+const cosignIssuer = "https://token.actions.githubusercontent.com";
+const serverIdentity = "^https://github\\.com/metaneutrons/Vellum/\\.github/workflows/docker\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$";
+const updaterIdentity = "^https://github\\.com/metaneutrons/Vellum/\\.github/workflows/updater\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$";
 /* Own image version, baked in at build time (Dockerfile ARG UPDATER_VERSION).
  * Current updaters can hand their replacement to a detached, health-checked
  * helper. Older updaters omit these fields, which lets the UI show the one-time
@@ -131,6 +136,13 @@ function newer(current, candidate) {
   for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return b[i] > a[i]; }
   return false;
 }
+function releaseDecision(current, available, artifactsReady) {
+  const releaseIsNewer = newer(current, available);
+  return {
+    state: releaseIsNewer && !artifactsReady ? "preparing" : releaseIsNewer ? "available" : "current",
+    updateAvailable: releaseIsNewer && artifactsReady,
+  };
+}
 function stableServerReleaseTag(payload) {
   const releases = Array.isArray(payload) ? payload : [payload];
   return releases
@@ -151,10 +163,11 @@ function zonedClock(date, timezone) {
 }
 function command(commandName, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(commandName, args, { timeout: operationTimeoutMs, killSignal: "SIGTERM", ...options, stdio: ["ignore", "pipe", "pipe"] });
+    const { quietStderr = false, ...spawnOptions } = options;
+    const child = spawn(commandName, args, { timeout: operationTimeoutMs, killSignal: "SIGTERM", ...spawnOptions, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = ""; let stderr = "";
     child.stdout.on("data", (data) => { stdout += data; });
-    child.stderr.on("data", (data) => { stderr += data; process.stderr.write(data); });
+    child.stderr.on("data", (data) => { stderr += data; if (!quietStderr) process.stderr.write(data); });
     child.on("error", reject);
     child.on("close", (code) => code === 0 ? resolve(stdout.trim()) : reject(new Error(stderr.trim() || `${commandName} exited ${code}`)));
   });
@@ -172,18 +185,53 @@ async function releaseVersion() {
   if (!tag) throw new Error("GitHub Releases contains no stable Vellum server release");
   return tag;
 }
+async function signedImageReady(repository, tag, identity) {
+  try {
+    await command("cosign", ["verify", "--certificate-oidc-issuer", cosignIssuer,
+      "--certificate-identity-regexp", identity, `${repository}:${tag}`],
+    { timeout: 20_000, quietStderr: true });
+    return true;
+  } catch { return false; }
+}
+async function releaseArtifactsReady(tag) {
+  const checks = [signedImageReady(serverImageRepository, tag, serverIdentity)];
+  if (updaterSelfUpdateEnabled) checks.push(signedImageReady(updaterImageRepository, tag, updaterIdentity));
+  return (await Promise.all(checks)).every(Boolean);
+}
+let readinessRetryTimer = null;
+let readinessRetryAttempt = 0;
+function clearReadinessRetry() {
+  if (readinessRetryTimer) clearTimeout(readinessRetryTimer);
+  readinessRetryTimer = null; readinessRetryAttempt = 0;
+}
+function scheduleReadinessRetry() {
+  if (readinessRetryTimer) clearTimeout(readinessRetryTimer);
+  const delaySeconds = Math.min(15 * (2 ** readinessRetryAttempt), 300);
+  readinessRetryAttempt += 1;
+  readinessRetryTimer = setTimeout(() => {
+    readinessRetryTimer = null;
+    void check();
+  }, delaySeconds * 1000);
+  readinessRetryTimer.unref();
+}
 async function check() {
   if (active) return;
   active = true; status.state = "checking"; status.lastError = null;
   try {
     const [current, available] = await Promise.all([currentVersion(), releaseVersion()]);
     status.currentVersion = current || null; status.availableVersion = available;
-    status.updateAvailable = newer(current, available); status.lastCheckedAt = new Date().toISOString();
+    status.lastCheckedAt = new Date().toISOString();
+    const releaseIsNewer = newer(current, available);
+    const artifactsReady = !releaseIsNewer || await releaseArtifactsReady(available);
+    const decision = releaseDecision(current, available, artifactsReady);
+    status.updateAvailable = decision.updateAvailable;
     /* Both images are pinned to the same release tag by deployment-assets.yml, so
      * the server's candidate release is also the updater's candidate. */
-    status.updaterUpdateAvailable = newer(updaterVersion, available);
-    status.state = status.updateAvailable ? "available" : "current";
+    status.updaterUpdateAvailable = artifactsReady && newer(updaterVersion, available);
+    status.state = decision.state;
+    if (status.state === "preparing") scheduleReadinessRetry(); else clearReadinessRetry();
   } catch (error) {
+    clearReadinessRetry();
     status.state = "failed"; status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
   } finally { active = false; }
   await tryScheduledApply();
@@ -264,4 +312,4 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
   setInterval(() => void tryScheduledApply(), 30_000).unref();
 }
 
-export { equalToken, newer, stableServerReleaseTag, validateConfig, zonedClock, publicStatus };
+export { equalToken, newer, releaseDecision, stableServerReleaseTag, validateConfig, zonedClock, publicStatus };

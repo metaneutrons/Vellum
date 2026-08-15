@@ -8,7 +8,8 @@ import { ConfirmDialog } from "@/components/confirm";
 import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
 import type { ServerUpdateStatus } from "@/lib/server-updater";
-import { beginUpdateWindow, endUpdateWindow, readUpdateWindow } from "@/lib/update-window";
+import { beginUpdateWindow, endUpdateWindow, readUpdateWindow, resolveUpdateWindow,
+  serverUpdatePollInterval } from "@/lib/update-window";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
@@ -17,6 +18,7 @@ const stateKeys = {
   unavailable: "serverStateUnavailable",
   starting: "serverStateStarting",
   checking: "serverStateChecking",
+  preparing: "serverStatePreparing",
   available: "serverStateAvailable",
   updating: "serverStateUpdating",
   current: "serverStateCurrent",
@@ -48,26 +50,46 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
   const [scheduleDirty, setScheduleDirty] = useState(false);
   /* Set when THIS browser started the update, so the database overlay can show a
    * restart instead of an outage. Survives a reload during the downtime. */
-  const [completed, setCompleted] = useState<{ from: string | null; to: string | null } | null>(null);
+  const [updateNotice, setUpdateNotice] = useState<
+    | { outcome: "succeeded"; from: string | null; to: string }
+    | { outcome: "failed"; target: string | null; current: string | null; detail: string | null }
+    | null
+  >(null);
 
   useEffect(() => {
-    const refresh = () => fetch("/api/v1/admin/server-update", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((value: ServerUpdateStatus | null) => {
-        if (!value) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const refresh = async () => {
+      let nextState = status.state;
+      try {
+        const response = await fetch("/api/v1/admin/server-update", { cache: "no-store" });
+        const value: ServerUpdateStatus | null = response.ok ? await response.json() : null;
+        if (cancelled || !value) return;
+        nextState = value.state;
         setStatus(value);
-        /* The server answering again is the only reliable signal that the restart
-         * is over — the container that started the update is gone. */
         const openWindow = readUpdateWindow();
-        if (openWindow && value.state !== "updating") {
-          endUpdateWindow();
-          setCompleted({ from: openWindow.fromVersion, to: value.currentVersion ?? openWindow.toVersion });
+        if (openWindow) {
+          const resolution = resolveUpdateWindow(openWindow, value);
+          if (resolution.outcome === "succeeded") {
+            endUpdateWindow();
+            setUpdateNotice({ outcome: "succeeded", from: resolution.fromVersion, to: resolution.toVersion });
+          } else if (resolution.outcome === "failed") {
+            endUpdateWindow();
+            setUpdateNotice({ outcome: "failed", target: resolution.toVersion,
+              current: resolution.currentVersion, detail: resolution.detail });
+          }
         }
-      })
-      .catch(() => undefined);
-    const updating = status.state === "updating" || readUpdateWindow() !== null;
-    const timer = window.setInterval(refresh, updating ? 1_500 : 30_000);
-    return () => window.clearInterval(timer);
+      } catch { /* A deliberate restart is expected; keep polling until the window expires. */ }
+      finally {
+        if (!cancelled) {
+          timer = window.setTimeout(refresh,
+            serverUpdatePollInterval(nextState, readUpdateWindow() !== null));
+        }
+      }
+    };
+    const openWindow = readUpdateWindow() !== null;
+    timer = window.setTimeout(refresh, serverUpdatePollInterval(status.state, openWindow));
+    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer); };
   }, [status.state]);
 
   useEffect(() => {
@@ -97,7 +119,7 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
       if (action === "apply") {
         /* Opened BEFORE the container goes away: once it is gone, this page can no
          * longer be told anything. */
-        setCompleted(null);
+        setUpdateNotice(null);
         beginUpdateWindow(status.currentVersion, status.availableVersion);
       }
       toast("success", action === "apply" ? t("serverUpdateStarted") : t("serverCheckStarted"));
@@ -139,14 +161,18 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
           <div className="flex-1 min-w-[240px]">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-label">{status.currentVersion ?? t("serverVersionUnknown")}</span>
-              <StatusPill tone={!status.supported ? "neutral" : status.state === "failed" ? "red" : status.updateAvailable ? "orange" : "green"}>
+              <StatusPill tone={!status.supported ? "neutral" : status.state === "failed" ? "red"
+                : status.state === "preparing" || status.updateAvailable ? "orange"
+                : status.state === "current" ? "green" : "neutral"}>
                 {t(stateKeys[status.state])}
               </StatusPill>
             </div>
             <p className="text-sm text-label-secondary mt-1">
-              {!status.supported ? t("serverUpdaterUnavailable") : status.updateAvailable
-                ? t("serverUpdateAvailable", { version: status.availableVersion ?? "" })
-                : status.lastError ?? (status.updateMode === "automatic"
+              {!status.supported ? t("serverUpdaterUnavailable")
+                : status.state === "failed" ? t("serverUpdateFailedGeneric")
+                : status.state === "preparing" ? t("serverReleasePreparing", { version: status.availableVersion ?? "" })
+                : status.updateAvailable ? t("serverUpdateAvailable", { version: status.availableVersion ?? "" })
+                : (status.updateMode === "automatic"
                   ? t("serverAutomaticSchedule", { time: status.maintenanceTime, timezone: status.timezone })
                   : t("serverManualSchedule"))}
             </p>
@@ -172,18 +198,36 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
               })}
             </ol>
           )}
-          {completed && (
-            /* The old "tada, new version" moment: say what happened instead. */
-            <div className="w-full order-last rounded-lg bg-green/10 border border-green/30 p-3">
-              <p className="text-sm font-semibold text-green">
-                {completed.from && completed.to
-                  ? t("serverUpdateDone", { from: completed.from, to: completed.to })
-                  : t("serverUpdateDoneShort", { version: completed.to ?? "" })}
+          {updateNotice && (
+            <div role={updateNotice.outcome === "failed" ? "alert" : "status"}
+              className={`w-full order-last rounded-lg p-3 border ${updateNotice.outcome === "failed"
+                ? "bg-red/10 border-red/30" : "bg-green/10 border-green/30"}`}>
+              <p className={`text-sm font-semibold ${updateNotice.outcome === "failed" ? "text-red" : "text-green"}`}>
+                {updateNotice.outcome === "succeeded"
+                  ? updateNotice.from
+                    ? t("serverUpdateDone", { from: updateNotice.from, to: updateNotice.to })
+                    : t("serverUpdateDoneShort", { version: updateNotice.to })
+                  : updateNotice.target
+                    ? t("serverUpdateNotCompleted", { version: updateNotice.target })
+                    : t("serverUpdateFailedGeneric")}
               </p>
-              <button onClick={() => setCompleted(null)}
+              {updateNotice.outcome === "failed" && (
+                <p className="text-sm text-label-secondary mt-1">
+                  {updateNotice.detail ?? (updateNotice.current
+                    ? t("serverUpdateStillCurrent", { version: updateNotice.current })
+                    : t("serverUpdateFailedGeneric"))}
+                </p>
+              )}
+              <button onClick={() => setUpdateNotice(null)}
                 className="mt-2 text-sm text-label-secondary underline focus-ring">
                 {t("serverUpdateDoneDismiss")}
               </button>
+            </div>
+          )}
+          {status.supported && status.state === "failed" && !updateNotice && (
+            <div role="alert" className="w-full order-last rounded-lg bg-red/10 border border-red/30 p-3">
+              <p className="text-sm font-semibold text-red">{t("serverUpdateFailedGeneric")}</p>
+              {status.lastError && <p className="text-sm text-label-secondary mt-1">{status.lastError}</p>}
             </div>
           )}
           {status.supported && status.updaterSwap && status.updaterSwap.outcome !== "succeeded" && (
@@ -220,14 +264,14 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
           )}
           {canUpdate && status.supported && (
             <div className="flex gap-2">
-              <button disabled={actionPending || status.state === "updating"} onClick={() => runAction("check")}
+              <button disabled={actionPending || status.state === "updating" || status.state === "checking"} onClick={() => runAction("check")}
                 className="min-h-10 px-3 rounded-md bg-fill-tertiary text-sm font-semibold disabled:opacity-50 focus-ring">
-                {t("serverCheck")}
+                {status.state === "checking" ? t("serverChecking") : t("serverCheck")}
               </button>
               {status.updateAvailable && (
-                <button disabled={actionPending || status.state === "updating"} onClick={() => setConfirmUpdate(true)}
+                <button disabled={actionPending || status.state === "updating" || status.state === "checking"} onClick={() => setConfirmUpdate(true)}
                   className="min-h-10 px-4 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring">
-                  {t("serverInstall")}
+                  {status.state === "failed" ? t("serverRetryUpdate") : t("serverInstall")}
                 </button>
               )}
             </div>
@@ -270,7 +314,7 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
         onConfirm={() => runAction("apply")} pending={actionPending}
         title={t("serverConfirmTitle")}
         message={`${t("serverConfirmMessage", { version: status.availableVersion ?? "" })}\n\n${t("serverConfirmSteps")}\n\n${t("serverConfirmDowntime")}`}
-        confirmLabel={t("serverInstall")} />
+        confirmLabel={status.state === "failed" ? t("serverRetryUpdate") : t("serverInstall")} />
     </>
   );
 }

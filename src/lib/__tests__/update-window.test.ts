@@ -10,8 +10,21 @@ import {
   beginUpdateWindow,
   endUpdateWindow,
   readUpdateWindow,
+  resolveUpdateWindow,
+  serverUpdatePollInterval,
   subscribeUpdateWindow,
+  type UpdateStatusSnapshot,
 } from "../update-window";
+
+const status = (overrides: Partial<UpdateStatusSnapshot> = {}): UpdateStatusSnapshot => ({
+  supported: true,
+  state: "updating",
+  currentVersion: "v1.10.3",
+  updateAvailable: true,
+  lastError: null,
+  progress: { phase: "deploying" },
+  ...overrides,
+});
 
 /** Minimal sessionStorage + event target, since this runs in the node environment. */
 function installBrowserGlobals() {
@@ -111,5 +124,37 @@ describe("update window", () => {
     // overlay copy.
     expect(() => beginUpdateWindow("v1.9.5", "v1.9.6")).not.toThrow();
     expect(readUpdateWindow()).toBeNull();
+  });
+
+  it("does not mistake the old server returning for a successful update", () => {
+    const window = { startedAt: Date.now(), fromVersion: "v1.10.3", toVersion: "v1.10.4" };
+    expect(resolveUpdateWindow(window, status())).toEqual({ outcome: "pending" });
+    expect(resolveUpdateWindow(window, status({ state: "available", progress: { phase: "failed" },
+      lastError: "health check failed" }))).toEqual({
+      outcome: "failed",
+      fromVersion: "v1.10.3",
+      toVersion: "v1.10.4",
+      currentVersion: "v1.10.3",
+      detail: "health check failed",
+    });
+  });
+
+  it("only reports success after the requested version is actually running", () => {
+    const window = { startedAt: Date.now(), fromVersion: "v1.10.3", toVersion: "v1.10.4" };
+    expect(resolveUpdateWindow(window, status({ state: "current", currentVersion: "v1.10.4",
+      updateAvailable: false, progress: { phase: "done" } }))).toEqual({
+      outcome: "succeeded", fromVersion: "v1.10.3", toVersion: "v1.10.4",
+    });
+    // A newer release winning the race is also a successful outcome.
+    expect(resolveUpdateWindow(window, status({ state: "current", currentVersion: "v1.11.0",
+      updateAvailable: false, progress: null }))).toMatchObject({ outcome: "succeeded", toVersion: "v1.11.0" });
+  });
+
+  it("polls checks responsively without making idle pages noisy", () => {
+    expect(serverUpdatePollInterval("checking", false)).toBe(750);
+    expect(serverUpdatePollInterval("preparing", false)).toBe(3_000);
+    expect(serverUpdatePollInterval("updating", false)).toBe(1_500);
+    expect(serverUpdatePollInterval("current", true)).toBe(1_500);
+    expect(serverUpdatePollInterval("current", false)).toBe(30_000);
   });
 });

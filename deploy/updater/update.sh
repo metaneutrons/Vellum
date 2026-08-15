@@ -114,17 +114,26 @@ version_is_newer() {
 
 verify_image() {
   local candidate="$1" repository="${2:-$IMAGE_REPOSITORY}" identity="${3:-$COSIGN_IDENTITY_REGEXP}" digest
-  docker pull --quiet "$candidate" >/dev/null
-  digest="$(docker image inspect --format '{{ json .RepoDigests }}' "$candidate" |
-    jq -er --arg prefix "${repository}@sha256:" 'map(select(startswith($prefix))) | first')"
+  if ! docker pull --quiet "$candidate" >/dev/null; then
+    die "signed release image is not available yet: $candidate"
+    return 1
+  fi
+  if ! digest="$(docker image inspect --format '{{ json .RepoDigests }}' "$candidate" |
+      jq -er --arg prefix "${repository}@sha256:" 'map(select(startswith($prefix))) | first')"; then
+    die "pulled image has no trusted digest for $repository"
+    return 1
+  fi
   [[ "$digest" == "${repository}@sha256:"* ]] ||
-    die "pulled image has unexpected digest identity: $digest"
+    { die "pulled image has unexpected digest identity: $digest"; return 1; }
 
   log "verifying Sigstore identity for $digest"
-  cosign verify \
+  if ! cosign verify \
     --certificate-oidc-issuer "$COSIGN_ISSUER" \
     --certificate-identity-regexp "$identity" \
-    "$digest" >/dev/null
+    "$digest" >/dev/null; then
+    die "image signature or publishing identity is invalid: $candidate"
+    return 1
+  fi
 }
 
 backup_database() {
@@ -422,7 +431,7 @@ update_once() {
   export PHASE_STARTED_AT
   set_phase "verifying" "$tag"
   if ! verify_image "$candidate"; then
-    die "image signature verification failed"
+    set_phase "failed" "release image is unavailable or did not pass signature verification"
     return 1
   fi
   backup_database "$tag" || return 1
