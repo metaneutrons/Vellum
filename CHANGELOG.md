@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.6](https://github.com/metaneutrons/Vellum/compare/v1.10.5...v1.10.6) (2026-08-15)
+
+
+### Bug Fixes
+
+* **firmware:** make release lifecycle monotonic ([6534054](https://github.com/metaneutrons/Vellum/commit/6534054cad10636c7056d2f8e5c739670b2656c6))
+* **firmware:** stabilize D1001 audio and release lifecycle ([89e8467](https://github.com/metaneutrons/Vellum/commit/89e84675e303dd0472b7439b59f32916e2a38439))
+* **updater:** make server updates reliable and observable ([9ca4190](https://github.com/metaneutrons/Vellum/commit/9ca41904a8d5e24d258234958281dcd718409b06))
+* **updater:** preserve the host stack path ([b494395](https://github.com/metaneutrons/Vellum/commit/b494395416db2af8874b740055f4623dc217d537))
+* **updater:** report deployment outcomes truthfully ([b2d805f](https://github.com/metaneutrons/Vellum/commit/b2d805f6a9315ec28809db46b88a561124c766a5))
+* **updater:** retain terminal progress and errors ([b7e57f8](https://github.com/metaneutrons/Vellum/commit/b7e57f8da170f71220c116e28cb8d16a036dc516))
+
 ## [1.10.5](https://github.com/metaneutrons/Vellum/compare/v1.10.4...v1.10.5) (2026-08-15)
 
 
