@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.5](https://github.com/metaneutrons/Vellum/compare/v1.10.4...v1.10.5) (2026-08-15)
+
+
+### Bug Fixes
+
+* **server:** make update readiness and outcomes truthful ([4c0df06](https://github.com/metaneutrons/Vellum/commit/4c0df06255c58f7ee35a61bc2a8b3fb631641d8c))
+* **server:** make update readiness and outcomes truthful ([2c9e4c7](https://github.com/metaneutrons/Vellum/commit/2c9e4c79aa7b718ce2748c850137e1377ec43f34))
+
 ## [1.10.4](https://github.com/metaneutrons/Vellum/compare/v1.10.3...v1.10.4) (2026-08-14)
 
 
