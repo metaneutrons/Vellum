@@ -23,7 +23,7 @@ assert() { "$@" || { printf 'FAILED: %q ' "$@" >&2; printf '\n' >&2; exit 1; }; 
 export HOST_STACK_DIR="$test_directory"
 export COMPOSE_PROBE="${test_directory}/compose-probe.log"
 # Invoked indirectly by compose_stack.
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 docker() { printf '%s\n' "$*" >"$COMPOSE_PROBE"; }
 compose_stack ps updater
 assert grep -Fq -- "--project-directory $test_directory" "$COMPOSE_PROBE"

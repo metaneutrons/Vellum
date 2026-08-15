@@ -210,6 +210,35 @@ After that one-time bootstrap, updater releases install automatically. To keep
 them manual instead, set `AUTO_UPDATE_UPDATER=false` in `.env`; the Web UI then
 states that policy instead of incorrectly claiming self-update is unsupported.
 
+### Recover an older stack with poisoned `/stack` mounts
+
+Updater versions from before host-project-directory preservation could recreate
+the server or updater from inside the container and accidentally resolve the
+relative bind sources on the Docker host below `/stack`. The characteristic log
+message is `/stack/.env is a directory`. Retrying in the Web UI cannot repair
+this condition because both deployment and rollback use the same invalid mount.
+
+Recover it once from the **real host stack directory**:
+
+1. Stop retrying the Web UI update and create a fresh PostgreSQL custom-format
+   backup in `data/backups/`.
+2. Back up `.env` and `docker-compose.yml` without changing their ownership or
+   permissions.
+3. Download `docker-compose.yml` and `SHA256SUMS` from the target stable Vellum
+   Server release and verify the Compose file against that checksum manifest.
+4. Replace the stack's Compose file and set both `VELLUM_IMAGE` and
+   `UPDATER_IMAGE` in `.env` to the exact same `vX.Y.Z` release tag.
+5. From the host stack directory run `docker compose pull server updater`, then
+   `docker compose up -d --no-deps server updater`.
+6. Require both services to be healthy and inspect their mounts. Every stack
+   source must point below the real stack directory; none may start with
+   `/stack` on the host.
+7. Only after that verification, remove the orphaned host `/stack` directory.
+
+The PostgreSQL service is deliberately not recreated by this recovery. If any
+health or mount check fails, retain `/stack`, the backups, and the previous files
+for diagnosis instead of attempting cleanup.
+
 Docker socket access is root-equivalent. It exists only in the dedicated updater
 container, whose filesystem is read-only, whose API is unpublished, and which
 drops all Linux capabilities except one. Do not attach untrusted workloads to the
