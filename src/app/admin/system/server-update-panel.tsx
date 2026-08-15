@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { ConfirmDialog } from "@/components/confirm";
 import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
+import { REPO_URL } from "@/lib/app-meta";
 import type { ServerUpdateStatus } from "@/lib/server-updater";
 import { updateProgressRows } from "@/lib/update-progress";
 import { beginUpdateWindow, endUpdateWindow, readUpdateWindow, resolveUpdateWindow,
@@ -33,6 +34,8 @@ const PHASE_KEYS = {
   "waiting-for-health": "phaseWaitingForHealth",
   "rolling-back": "phaseRollingBack",
 } as const;
+
+const COMPOSE_UPGRADE_URL = `${REPO_URL}/blob/main/README.md#upgrade-an-existing-compose-installation`;
 
 export function ServerUpdatePanel({ initialStatus, canUpdate }: {
   initialStatus: ServerUpdateStatus;
@@ -226,6 +229,17 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
               {status.lastError && <p className="text-sm text-label-secondary mt-1">{status.lastError}</p>}
             </div>
           )}
+          {!status.supported && (
+            <div role="status"
+              className="w-full order-last rounded-lg bg-orange/10 border border-orange/30 p-3">
+              <p className="text-sm font-semibold text-label">{t("serverUpdaterSetupTitle")}</p>
+              <p className="text-sm text-label-secondary mt-1">{t("serverUpdaterSetupHint")}</p>
+              <a href={COMPOSE_UPGRADE_URL} target="_blank" rel="noreferrer"
+                className="inline-flex mt-2 text-sm font-medium text-accent underline underline-offset-2 focus-ring">
+                {t("serverUpdaterSetupLink")}
+              </a>
+            </div>
+          )}
           {status.supported && status.updaterSwap && status.updaterSwap.outcome !== "succeeded" && (
             /* A failed or rolled-back self-update is reported by the updater that
              * replaced the one which attempted it — the attempting container is
@@ -253,6 +267,10 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
                 <pre className="mt-2 text-xs font-mono text-label-secondary whitespace-pre-wrap select-all">
                   docker compose pull updater{"\n"}docker compose up -d --no-deps updater
                 </pre>
+                <a href={COMPOSE_UPGRADE_URL} target="_blank" rel="noreferrer"
+                  className="inline-flex mt-2 text-sm font-medium text-accent underline underline-offset-2 focus-ring">
+                  {t("serverUpdaterSetupLink")}
+                </a>
               </> : <p className="text-sm text-label-secondary mt-1">
                 {status.updaterSelfUpdateEnabled ? t("updaterAutomaticHint") : t("updaterAutomaticDisabledHint")}
               </p>}
