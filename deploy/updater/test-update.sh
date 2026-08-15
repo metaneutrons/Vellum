@@ -7,6 +7,7 @@ export COMPOSE_FILE="${BASH_SOURCE[0]}"
 test_directory="$(mktemp -d)"
 trap 'rm -rf "$test_directory"' EXIT
 export VELLUM_ENV_FILE="${test_directory}/.env"
+export COMPOSE_ENV_FILE="$VELLUM_ENV_FILE"
 export ENV_BACKUP_FILE="${test_directory}/state/vellum.env.backup"
 export PROGRESS_FILE="${test_directory}/state/progress.json"
 printf '%s\n' \
@@ -24,9 +25,10 @@ export HOST_STACK_DIR="$test_directory"
 export COMPOSE_PROBE="${test_directory}/compose-probe.log"
 # Invoked indirectly by compose_stack.
 # shellcheck disable=SC2317,SC2329
-docker() { printf '%s\n' "$*" >"$COMPOSE_PROBE"; }
+docker() { printf 'env=%s args=%s\n' "$COMPOSE_ENV_FILE" "$*" >"$COMPOSE_PROBE"; }
 compose_stack ps updater
 assert grep -Fq -- "--project-directory $test_directory" "$COMPOSE_PROBE"
+assert grep -Fq -- "env=$VELLUM_ENV_FILE" "$COMPOSE_PROBE"
 unset -f docker
 
 # Docker materializes a missing bind source as a directory. Reject it during
@@ -118,6 +120,7 @@ assert grep -q -- '--volumes-from self-id' "$PROBE_LOG"
 # Must not reach the network while swapping.
 assert grep -q -- '--network none' "$PROBE_LOG"
 assert grep -q -- "--env HOST_STACK_DIR=$test_directory" "$PROBE_LOG"
+assert grep -q -- "--env COMPOSE_ENV_FILE=$VELLUM_ENV_FILE" "$PROBE_LOG"
 
 # Already current, and newer than the release: never launch a helper.
 : >"$PROBE_LOG"

@@ -8,6 +8,8 @@ readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/V
 readonly IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-ghcr.io/metaneutrons/vellum}"
 readonly COMPOSE_FILE="${COMPOSE_FILE:-/stack/docker-compose.yml}"
 readonly VELLUM_ENV_FILE="${VELLUM_ENV_FILE:-/run/vellum/vellum.env}"
+export COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-$VELLUM_ENV_FILE}"
+readonly COMPOSE_ENV_FILE
 HOST_STACK_DIR="${HOST_STACK_DIR:-}"
 readonly ENV_BACKUP_FILE="${ENV_BACKUP_FILE:-/state/vellum.env.backup}"
 readonly COMPOSE_PROJECT="${COMPOSE_PROJECT:-vellum}"
@@ -457,6 +459,7 @@ schedule_updater_swap() {
     --env "COMPOSE_FILE=$COMPOSE_FILE" \
     --env "VELLUM_ENV_FILE=$VELLUM_ENV_FILE" \
     --env "HOST_STACK_DIR=$HOST_STACK_DIR" \
+    --env "COMPOSE_ENV_FILE=$COMPOSE_ENV_FILE" \
     --env "UPDATER_SERVICE=$UPDATER_SERVICE" \
     --env "UPDATER_SWAP_TIMEOUT_SECONDS=$UPDATER_SWAP_TIMEOUT_SECONDS" \
     --env "SWAP_RESULT_FILE=$SWAP_RESULT_FILE" \
