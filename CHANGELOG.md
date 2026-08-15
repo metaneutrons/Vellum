@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.7](https://github.com/metaneutrons/Vellum/compare/v1.10.6...v1.10.7) (2026-08-15)
+
+
+### Bug Fixes
+
+* **release:** publish the deployment installer ([907ca18](https://github.com/metaneutrons/Vellum/commit/907ca1828ab3b79f0b2a90196c4405f3f77b80e9))
+* **release:** publish the deployment installer ([4a84b6b](https://github.com/metaneutrons/Vellum/commit/4a84b6b4cd8e1acc28bc2b3f51dd785978b12c70))
+
 ## [1.10.6](https://github.com/metaneutrons/Vellum/compare/v1.10.5...v1.10.6) (2026-08-15)
 
 
