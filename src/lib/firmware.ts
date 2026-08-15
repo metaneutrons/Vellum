@@ -278,6 +278,8 @@ export async function getAvailableVersions(): Promise<
 
 export interface OtaInfo {
   otaUrl: string | null;
+  /** GitHub release identity used to scope the server-local download grant. */
+  otaTag: string | null;
   otaVersion: string | null;
   otaSha256: string | null;
   otaSignature: string | null;
@@ -292,6 +294,7 @@ export interface OtaInfo {
 
 const NO_UPDATE: OtaInfo = {
   otaUrl: null,
+  otaTag: null,
   otaVersion: null,
   otaSha256: null,
   otaSignature: null,
@@ -358,6 +361,7 @@ export async function resolveOta(
 
   return {
     otaUrl: binary.otaUrl,
+    otaTag: target.tag,
     otaVersion: target.version,
     otaSha256: binary.otaSha256,
     otaSignature: binary.otaSignature,

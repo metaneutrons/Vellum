@@ -23,12 +23,17 @@ vi.mock("@/lib/calendar", () => ({
 vi.mock("@/lib/firmware", () => ({
   resolveOta: vi.fn(async () => ({
     otaUrl: null,
+    otaTag: null,
     otaVersion: null,
     otaSha256: null,
     otaSignature: null,
     otaKeyId: null,
     allowDowngrade: false,
   })),
+}));
+
+vi.mock("@/lib/env", () => ({
+  env: { VELLUM_PUBLIC_URL: "https://vellum.example.com" },
 }));
 
 // Mock DB
@@ -166,6 +171,32 @@ describe("GET /api/v1/ink/config", () => {
     expect(res.status).toBe(200);
     expect(body.status).toBe("ok");
     expect(body.data).toHaveProperty("rotation");
+  });
+
+  it("returns a short-lived Vellum URL instead of the GitHub OTA URL", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    vi.mocked(resolveOta).mockResolvedValueOnce({
+      otaUrl: "https://github.com/metaneutrons/Vellum/releases/download/firmware-v1.4.3/e1003-ota.bin",
+      otaTag: "firmware-v1.4.3",
+      otaVersion: "1.4.3",
+      otaSha256: "00".repeat(32),
+      otaSignature: "signature",
+      otaKeyId: "key-1",
+      allowDowngrade: false,
+    });
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token", "x-display-model": "e1003" },
+    });
+    const res = await configHandler(req);
+    const body = await res.json();
+    const otaUrl = new URL(body.data.otaUrl);
+
+    expect(otaUrl.origin).toBe("https://vellum.example.com");
+    expect(otaUrl.pathname).toBe("/api/v1/ink/firmware");
+    expect(otaUrl.searchParams.get("tag")).toBe("firmware-v1.4.3");
+    expect(otaUrl.href).not.toContain("valid-token");
+    expect(body.data.otaTag).toBeUndefined();
   });
 
   it("returns 400 for missing mac query param", async () => {
