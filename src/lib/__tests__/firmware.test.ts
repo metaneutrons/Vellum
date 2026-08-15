@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 // mirror used split(/[-.]/) and got prerelease ordering wrong, so it "passed"
 // while the shipped comparator could have regressed unnoticed (it drives every
 // OTA roll-forward/rollback decision).
-import { compareSemver } from "../firmware";
+import { compareSemver, reconcileFirmwareManifestCache, type FirmwareManifest } from "../firmware";
 
 describe("compareSemver (the real exported comparator)", () => {
   it("orders major.minor.patch", () => {
@@ -39,5 +39,24 @@ describe("compareSemver (the real exported comparator)", () => {
     expect(compareSemver("1.0.0-beta.10", "1.0.0-beta.3")).toBeGreaterThan(0);
     expect(compareSemver("1.0.0-beta.2", "1.0.0-beta.10")).toBeLessThan(0);
     expect(compareSemver("1.0.0-beta.5", "1.0.0-beta.5")).toBe(0);
+  });
+});
+
+describe("firmware release cache reconciliation", () => {
+  it("removes retired GitHub releases from a warm process cache", () => {
+    const manifest = (version: string): FirmwareManifest => ({
+      version,
+      channel: "stable",
+      date: "2026-08-15T00:00:00Z",
+      tag: `firmware-v${version}`,
+      binaries: {},
+    });
+    const cache = new Map([
+      ["firmware-v1.3.4", manifest("1.3.4")],
+      ["firmware-v1.4.3", manifest("1.4.3")],
+    ]);
+
+    expect(reconcileFirmwareManifestCache(cache, new Set(["firmware-v1.4.3"]))).toBe(1);
+    expect([...cache.keys()]).toEqual(["firmware-v1.4.3"]);
   });
 });

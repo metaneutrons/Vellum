@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { readFileSync } from "node:fs";
 import { classifyReleaseCommit } from "./classify-release-commit.mjs";
+import { firmwareBetaVersion } from "./firmware-beta-version.mjs";
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const config = readJson("release-please-config.json");
@@ -91,8 +92,16 @@ for (const [name, contents] of [
 }
 expect(firmwareWorkflow.includes("needs.version.outputs.release_component == 'none'"),
   "firmware workflow must suppress all Release Please push builds");
+expect(firmwareWorkflow.includes("node scripts/firmware-beta-version.mjs"),
+  "firmware beta builds must use the tested next-patch version helper");
 expect(dockerWorkflow.includes("needs.routing.outputs.release_component == 'none'"),
   "Docker workflow must suppress all Release Please push builds");
+
+const betaFixture = firmwareBetaVersion("1.4.2", 13, "2028a59");
+expect(betaFixture.version === "1.4.3-beta.13+2028a59",
+  "post-1.4.2 beta builds must target the next patch, never 1.4.2-beta");
+expect(betaFixture.tag === "firmware-v1.4.3-beta.13-2028a59",
+  "beta firmware tags must be SemVer-derived and git-ref safe");
 
 expect(deploymentAssetsWorkflow.includes("release:\n    types: [published]"),
   "deployment assets must be published with each GitHub release");

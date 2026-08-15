@@ -8,7 +8,7 @@
  * - beta = prerelease releases with firmware-manifest.json
  *
  * Caching strategy:
- * - Individual manifests are cached permanently (releases are immutable)
+ * - Individual manifests are cached while their immutable release exists
  * - Release list uses ETag conditional requests (no rate limit cost)
  * - Only new releases trigger manifest downloads
  */
@@ -69,7 +69,7 @@ interface GitHubRelease {
 
 /* ── Cache ────────────────────────────────────────────────────── */
 
-/** Permanent cache: tag → manifest (immutable, never expires) */
+/** Manifest cache: tag → manifest (immutable; evicted if its release is removed) */
 const manifestCache = new Map<string, FirmwareManifest>();
 
 /** ETag from last releases list fetch */
@@ -85,6 +85,24 @@ async function getPollIntervalMs(): Promise<number> {
 
 /** Sorted result cache (rebuilt when new releases are found) */
 let sortedManifests: FirmwareManifest[] = [];
+
+/** Drop manifests whose GitHub releases disappeared from a complete discovery
+ * snapshot. This matters for deliberate release retirement: the process-local
+ * cache is long-lived, but a deleted release must stop being pinnable without
+ * requiring a server restart. */
+export function reconcileFirmwareManifestCache(
+  cache: Map<string, FirmwareManifest>,
+  visibleTags: ReadonlySet<string>
+): number {
+  let removed = 0;
+  for (const tag of cache.keys()) {
+    if (!visibleTags.has(tag)) {
+      cache.delete(tag);
+      removed++;
+    }
+  }
+  return removed;
+}
 
 function githubHeaders(): Record<string, string> {
   const h: Record<string, string> = {
@@ -110,13 +128,12 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
 
   try {
     let newCount = 0;
-    // Releases are returned newest-first. The first STABLE release with a
-    // manifest is the newest stable; every release after it is strictly older
-    // and can never be selected (devices roll forward, never back). Once we've
-    // fully processed the page containing it we can stop paginating — this is
-    // what keeps a still-current stable discoverable even when >50 unpruned
-    // betas have piled up on top of it in the release list.
-    let foundStableManifest = false;
+    let removedCount = 0;
+    const visibleManifestTags = new Set<string>();
+    let snapshotComplete = false;
+    // Releases are returned newest-first. Walk the complete collection because
+    // operators can pin any retained firmware, including an intentional signed
+    // downgrade. The first-page ETag keeps unchanged steady-state polls cheap.
 
     for (let page = 1; page <= MAX_RELEASE_PAGES; page++) {
       const headers = githubHeaders();
@@ -164,16 +181,17 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
       }
 
       const releases = (await res.json()) as GitHubRelease[];
-      if (releases.length === 0) break; // walked past the last page
+      if (releases.length === 0) {
+        snapshotComplete = true;
+        break; // walked past the last page
+      }
 
       for (const release of releases) {
         const manifestAsset = release.assets.find(
           (a) => a.name === "firmware-manifest.json"
         );
         if (!manifestAsset) continue;
-
-        // A stable release carrying a firmware manifest is our stop marker.
-        if (!release.prerelease) foundStableManifest = true;
+        visibleManifestTags.add(release.tag_name);
 
         // Already cached permanently — skip the download (releases are immutable).
         if (manifestCache.has(release.tag_name)) continue;
@@ -196,10 +214,19 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
         }
       }
 
-      // Bound the walk: stop once we've reached the newest stable manifest, or
-      // once a short page tells us we've hit the end of the release list.
-      if (foundStableManifest) break;
-      if (releases.length < RELEASES_PER_PAGE) break;
+      // A short page is a complete snapshot. The hard page cap above remains a
+      // safety bound; reaching it deliberately skips destructive reconciliation.
+      if (releases.length < RELEASES_PER_PAGE) {
+        snapshotComplete = true;
+        break;
+      }
+    }
+
+    /* Only reconcile after reaching the end of the collection. A partial
+     * snapshot caused by a later-page API failure or the safety cap must not
+     * evict still-valid last-good entries. */
+    if (snapshotComplete) {
+      removedCount = reconcileFirmwareManifestCache(manifestCache, visibleManifestTags);
     }
 
     // Rebuild sorted list
@@ -207,8 +234,12 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
       (a, b) => compareSemver(b.version, a.version)
     );
 
-    if (newCount > 0) {
-      log.info("Firmware manifests updated", { new: newCount, total: sortedManifests.length });
+    if (newCount > 0 || removedCount > 0) {
+      log.info("Firmware manifests updated", {
+        new: newCount,
+        removed: removedCount,
+        total: sortedManifests.length,
+      });
     }
 
     return sortedManifests;

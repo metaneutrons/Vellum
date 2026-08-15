@@ -94,15 +94,12 @@ jobs:
               BETA_NUM=$(git rev-list HEAD --count)
             fi
             SHORT_SHA=$(git rev-parse --short=7 HEAD)
-            VERSION="${BASE}-beta.${BETA_NUM}+${SHORT_SHA}"
-            # '+' (SemVer build metadata) is illegal in a git ref — keep it in
-            # VERSION (manifest/firmware string) but make the tag git-safe.
-            TAG="firmware-v${VERSION//+/-}"
-            {
-              echo "version=${VERSION}"
-              echo "channel=beta"
-              echo "tag=${TAG}"
-            } >> "$GITHUB_OUTPUT"
+            # Release Please leaves BASE at the latest stable version until its
+            # next release PR lands. Betas must therefore use the NEXT patch;
+            # BASE-beta would be older than an already-published BASE stable.
+            node scripts/firmware-beta-version.mjs \
+              "$BASE" "$BETA_NUM" "$SHORT_SHA" >> "$GITHUB_OUTPUT"
+            echo "channel=beta" >> "$GITHUB_OUTPUT"
           fi
 
   build:
