@@ -1,4 +1,7 @@
 dependencies:
+  # Keep display behavior deterministic; adding the D1001 adapter must not
+  # silently upgrade the LVGL rendering engine underneath every panel.
+  lvgl/lvgl: "==9.4.0"
   # E-Paper-only dependencies: gated to the S3 targets. The P4/LCD build
   # (vellum_display_lcd.c) uses neither, and esp_epaper has no esp32p4 build.
   tuanpmt/esp_epaper:
@@ -9,3 +12,10 @@ dependencies:
   # Pinned: 0.2.0 exposes the display_func_with_cb + user_data callback API;
   # newer releases dropped those fields.
   espressif/qrcode: "==0.2.0"
+  # Official VSYNC-synchronised triple-buffer pipeline for the rotated D1001
+  # MIPI-DSI panel. Pin changes explicitly: this code depends on the v0.6.3
+  # dirty-region repair and IDF 6.0 frame-complete handling.
+  espressif/esp_lvgl_adapter:
+    version: "==0.6.3"
+    rules:
+      - if: "target == esp32p4"

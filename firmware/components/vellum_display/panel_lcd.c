@@ -13,13 +13,12 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
-#include "esp_cache.h"
 #include "lvgl.h"
-#include "esp_lcd_mipi_dsi.h"
+#include "esp_lv_adapter.h"
 #include "d1001_board.h"
 #include "lcd_jd9365.h"
 #include "jpeg_decoder.h"
-#include "lcd_rotation.h"
+
 /* Static image descriptor in flash. Building it in PSRAM at boot (malloc + a
  * full-image memcpy) bought nothing for an asset that never changes, and held
  * ~190 KB of PSRAM for the lifetime of the device. */
@@ -27,85 +26,20 @@ extern const lv_image_dsc_t vellum_logo_color_360px;
 
 static const char *TAG = "panel_lcd";
 
-#define LCD_WIDTH  800
-#define LCD_HEIGHT 1280
-/* LVGL only renders dirty regions into this line buffer. A progress-label or
- * bar update is therefore tens of KiB instead of a 2 MiB full-screen PSRAM
- * read/rotate/write cycle competing with the DSI scanout. */
-#define LCD_DRAW_LINES 24
+#define LCD_WIDTH       800
+#define LCD_HEIGHT      1280
+#define LCD_DRAW_LINES  24
 
 static lv_display_t *s_disp = NULL;
-static uint16_t     *s_panel_fb = NULL;
-static bool          s_dirty_valid = false;
-static int           s_dirty_x1, s_dirty_y1, s_dirty_x2, s_dirty_y2;
-
-static void sync_dirty_panel_area(void)
-{
-    if (!s_dirty_valid) return;
-
-    const int first_row = LCD_HEIGHT - 1 - s_dirty_x2;
-    const int last_row = LCD_HEIGHT - 1 - s_dirty_x1;
-    const int column_count = s_dirty_y2 - s_dirty_y1 + 1;
-    esp_err_t err = ESP_OK;
-
-    if (column_count >= LCD_WIDTH / 2) {
-        /* A screen transition is cheaper as one cache operation. */
-        uint16_t *start = s_panel_fb + first_row * LCD_WIDTH;
-        size_t bytes = (size_t)(last_row - first_row + 1) * LCD_WIDTH * sizeof(uint16_t);
-        err = esp_cache_msync(start, bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M |
-                             ESP_CACHE_MSYNC_FLAG_UNALIGNED);
-    } else {
-        /* A landscape progress bar becomes a tall, narrow portrait region.
-         * Sync only those cache lines; syncing its rectangular 1 MiB bounding
-         * box was enough memory pressure to underrun DSI and flash light blue. */
-        for (int row = first_row; row <= last_row && err == ESP_OK; row++) {
-            uint16_t *start = s_panel_fb + row * LCD_WIDTH + s_dirty_y1;
-            err = esp_cache_msync(start, (size_t)column_count * sizeof(uint16_t),
-                                  ESP_CACHE_MSYNC_FLAG_DIR_C2M |
-                                  ESP_CACHE_MSYNC_FLAG_UNALIGNED);
-        }
-    }
-    if (err != ESP_OK) ESP_LOGE(TAG, "LCD dirty-area flush failed: %s", esp_err_to_name(err));
-    s_dirty_valid = false;
-}
-
-static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
-{
-    /* JD9365's scanout is fixed at 800x1280 and cannot swap X/Y in
-     * hardware. Rotate only LVGL's dirty rectangle into the continuous-scan
-     * framebuffer. The previous FULL render mode rotated all 1,024,000 pixels
-     * for every 10% OTA update; that PSRAM traffic starved DSI and its documented
-     * underrun behavior is a blue frame. */
-    const uint16_t *src = (const uint16_t *)px_map;
-    const int area_width = area->x2 - area->x1 + 1;
-    for (int y = area->y1; y <= area->y2; y++) {
-        for (int x = area->x1; x <= area->x2; x++) {
-            s_panel_fb[lcd_rotation_90_cw_index(x, y, LCD_WIDTH, LCD_HEIGHT)] =
-                src[(y - area->y1) * area_width + (x - area->x1)];
-        }
-    }
-
-    if (!s_dirty_valid) {
-        s_dirty_x1 = area->x1; s_dirty_y1 = area->y1;
-        s_dirty_x2 = area->x2; s_dirty_y2 = area->y2;
-        s_dirty_valid = true;
-    } else {
-        if (area->x1 < s_dirty_x1) s_dirty_x1 = area->x1;
-        if (area->y1 < s_dirty_y1) s_dirty_y1 = area->y1;
-        if (area->x2 > s_dirty_x2) s_dirty_x2 = area->x2;
-        if (area->y2 > s_dirty_y2) s_dirty_y2 = area->y2;
-    }
-    /* Multiple chunks can belong to one LVGL refresh. Publish their cache lines
-     * together to minimize the interval in which scanout can observe a mixed
-     * progress value. */
-    if (lv_display_flush_is_last(disp)) sync_dirty_panel_area();
-    lv_display_flush_ready(disp);
-}
 
 /* ── vtable ops ───────────────────────────────────────────────── */
 
 static lv_display_t *lcd_init(void)
 {
+    const esp_lv_adapter_rotation_t rotation = ESP_LV_ADAPTER_ROTATE_270;
+    const esp_lv_adapter_tear_avoid_mode_t tear_mode =
+        ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL;
+
     lcd_jd9365_config_t lcd_cfg = {
         .lane_num = D1001_DSI_LANE_NUM,
         .lane_mbps = D1001_DSI_LANE_MBPS,
@@ -115,10 +49,9 @@ static lv_display_t *lcd_init(void)
         .v_res = D1001_LCD_V_RES,
         .hsync = D1001_LCD_HSYNC, .hbp = D1001_LCD_HBP, .hfp = D1001_LCD_HFP,
         .vsync = D1001_LCD_VSYNC, .vbp = D1001_LCD_VBP, .vfp = D1001_LCD_VFP,
-        /* One continuously scanned framebuffer. Flicker prevention comes from
-         * bounded dirty-region writes below, not from an uninitialized second
-         * buffer or an unsafe framebuffer switch in the GDMA ISR. */
-        .num_fb = 1,
+        /* Espressif's rotated partial-refresh pipeline requires three physical
+         * framebuffers: visible, next-to-present, and safe-to-draw. */
+        .num_fb = esp_lv_adapter_get_required_frame_buffer_count(tear_mode, rotation),
         .io_expander = d1001_io_expander(),
         .rst_mask = D1001_EXP_LCD_RST,
     };
@@ -129,40 +62,45 @@ static lv_display_t *lcd_init(void)
         return NULL;
     }
 
-    lv_init();
-
-    /* Single framebuffer — see .num_fb above. */
-    void *buf1 = NULL;
-    if (esp_lcd_dpi_panel_get_frame_buffer(panel, 1, &buf1) != ESP_OK) return NULL;
-
-    const size_t render_bytes = (size_t)LCD_HEIGHT * LCD_DRAW_LINES * sizeof(uint16_t);
-    uint16_t *render_buf = heap_caps_malloc(render_bytes, MALLOC_CAP_SPIRAM);
-    if (!render_buf) {
-        ESP_LOGE(TAG, "Unable to allocate landscape render buffer");
+    const esp_lv_adapter_config_t adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG();
+    if (esp_lv_adapter_init(&adapter_cfg) != ESP_OK) {
+        ESP_LOGE(TAG, "LVGL adapter initialization failed");
         return NULL;
     }
 
-    s_panel_fb = buf1;
-    memset(s_panel_fb, 0, LCD_WIDTH * LCD_HEIGHT * 2);
-    ESP_ERROR_CHECK(esp_cache_msync(s_panel_fb, LCD_WIDTH * LCD_HEIGHT * 2,
-                                    ESP_CACHE_MSYNC_FLAG_DIR_C2M |
-                                    ESP_CACHE_MSYNC_FLAG_UNALIGNED));
+    esp_lv_adapter_display_config_t display_cfg =
+        ESP_LV_ADAPTER_DISPLAY_MIPI_DEFAULT_CONFIG(
+            panel, io, LCD_WIDTH, LCD_HEIGHT, rotation);
+    display_cfg.tear_avoid_mode = tear_mode;
+    display_cfg.profile.buffer_height = LCD_DRAW_LINES;
+    /* IDF 6.0 still needs an out-of-tree PPA workaround for rotated
+     * TRIPLE_PARTIAL. OTA changes only small dirty regions, so the adapter's
+     * cache-friendly CPU rotation is both safer and sufficiently fast. */
+    display_cfg.profile.enable_ppa_accel = false;
 
-    s_disp = lv_display_create(LCD_HEIGHT, LCD_WIDTH);
-    lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565);
-    lv_display_set_buffers(s_disp, render_buf, NULL,
-                           render_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
-    lv_display_set_flush_cb(s_disp, flush_cb);
+    s_disp = esp_lv_adapter_register_display(&display_cfg);
+    if (!s_disp) {
+        ESP_LOGE(TAG, "Unable to register tearing-safe LCD display");
+        return NULL;
+    }
 
+    /* Vellum renders synchronously after each state change. We intentionally do
+     * not start the adapter's background worker; this preserves that ownership
+     * model while using its VSYNC-synchronised triple-buffer flush pipeline. */
     vTaskDelay(pdMS_TO_TICKS(100));
     d1001_backlight_on();
-    ESP_LOGI(TAG, "LCD initialized: %dx%d", LCD_WIDTH, LCD_HEIGHT);
+    ESP_LOGI(TAG, "LCD initialized: %dx%d, triple-partial rotation", LCD_WIDTH, LCD_HEIGHT);
     return s_disp;
 }
 
 static void lcd_refresh(void)
 {
-    if (s_disp) lv_refr_now(s_disp);
+    if (s_disp) {
+        esp_err_t err = esp_lv_adapter_refresh_now(s_disp);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "LCD refresh failed: %s", esp_err_to_name(err));
+        }
+    }
 }
 
 static esp_err_t lcd_draw_raw(const uint8_t *data, size_t len)
@@ -199,7 +137,7 @@ static esp_err_t lcd_draw_raw(const uint8_t *data, size_t len)
     img_dsc.data = s_rgb_buf;
     lv_image_set_src(img, &img_dsc);
     lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_refr_now(s_disp);
+    lcd_refresh();
     return ESP_OK;
 }
 
@@ -221,7 +159,8 @@ static vellum_panel_t s_panel = {
     .model = "d1001",
     .color_mode = "fullcolor",
     .fast_refresh = true,
-    .needs_tick_timer = true,
+    /* esp_lv_adapter owns the LVGL tick timer. */
+    .needs_tick_timer = false,
     /* Fonts enabled in the P4 LVGL config (sdkconfig.defaults.p4). */
     .font_lg = &lv_font_montserrat_48,
     .font_md = &lv_font_montserrat_32,
