@@ -118,7 +118,7 @@ expect(deploymentAssetsWorkflow.includes('updater_image="ghcr.io/${GITHUB_REPOSI
 expect(deploymentAssetsWorkflow.includes("Wait for signed release images") &&
   deploymentAssetsWorkflow.includes("cosign verify"),
   "deployment assets must wait for both signed release images");
-for (const asset of ["docker-compose.yml", "vellum.env.example", "SHA256SUMS"]) {
+for (const asset of ["docker-compose.yml", "vellum.env.example", "install.sh", "SHA256SUMS"]) {
   expect(deploymentAssetsWorkflow.includes(`dist/${asset}`),
     `deployment release must upload ${asset}`);
 }
