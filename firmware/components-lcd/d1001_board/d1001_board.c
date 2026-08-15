@@ -125,6 +125,9 @@ esp_err_t d1001_board_init(void)
         esp_io_expander_new_i2c_pca9535(s_i2c1, ESP_IO_EXPANDER_I2C_PCA9535_ADDRESS_000, &s_io_exp),
         TAG, "IO expander init failed");
     esp_io_expander_set_dir(s_io_exp, 0xffff, IO_EXPANDER_OUTPUT);
+    /* PCA9535 output latches power up high. Mute the class-D amplifier before
+     * codec/I2S initialization so an unclocked input cannot reach the speaker. */
+    esp_io_expander_set_level(s_io_exp, D1001_EXP_AMP_EN, 0);
 
     /* Power rails */
     esp_io_expander_set_level(s_io_exp, D1001_EXP_PWR_HOLD, 1);
