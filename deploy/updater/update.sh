@@ -8,6 +8,7 @@ readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/V
 readonly IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-ghcr.io/metaneutrons/vellum}"
 readonly COMPOSE_FILE="${COMPOSE_FILE:-/stack/docker-compose.yml}"
 readonly VELLUM_ENV_FILE="${VELLUM_ENV_FILE:-/run/vellum/vellum.env}"
+HOST_STACK_DIR="${HOST_STACK_DIR:-}"
 readonly ENV_BACKUP_FILE="${ENV_BACKUP_FILE:-/state/vellum.env.backup}"
 readonly COMPOSE_PROJECT="${COMPOSE_PROJECT:-vellum}"
 readonly COMPOSE_SERVICE="${COMPOSE_SERVICE:-server}"
@@ -57,14 +58,56 @@ validate_config() {
   for command in curl jq docker cosign; do
     require_command "$command"
   done
-  [[ -r "$COMPOSE_FILE" ]] || die "compose file is not readable: $COMPOSE_FILE"
-  [[ -r "$VELLUM_ENV_FILE" ]] || die "environment file is not readable: $VELLUM_ENV_FILE"
+  # `-r` accepts directories. Docker creates a directory when a bind source is
+  # missing, which previously let a poisoned /stack mount pass preflight and
+  # fail only after a backup had already been taken.
+  [[ -f "$COMPOSE_FILE" && -r "$COMPOSE_FILE" ]] ||
+    die "compose file is not a readable regular file: $COMPOSE_FILE"
+  [[ -f "$VELLUM_ENV_FILE" && -r "$VELLUM_ENV_FILE" ]] ||
+    die "environment file is not a readable regular file: $VELLUM_ENV_FILE"
   [[ -w "$VELLUM_ENV_FILE" ]] || die "environment file is not writable: $VELLUM_ENV_FILE"
+  HOST_STACK_DIR="$(resolve_host_stack_dir)" || return 1
   [[ "$POLL_INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || die "POLL_INTERVAL_SECONDS must be numeric"
   (( POLL_INTERVAL_SECONDS >= 300 )) || die "POLL_INTERVAL_SECONDS must be at least 300"
   [[ "$READINESS_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || die "READINESS_TIMEOUT_SECONDS must be numeric"
   (( READINESS_TIMEOUT_SECONDS >= 30 )) || die "READINESS_TIMEOUT_SECONDS must be at least 30"
   [[ "$BACKUP_RETENTION_DAYS" =~ ^[0-9]+$ ]] || die "BACKUP_RETENTION_DAYS must be numeric"
+}
+
+# Compose resolves relative bind sources on the Docker daemon host, not inside
+# this container. New stacks capture the host working directory explicitly.
+# Older, still-healthy stacks can derive it from the compose-file bind mount.
+resolve_host_stack_dir() {
+  local source
+  if [[ -n "$HOST_STACK_DIR" ]]; then
+    [[ "$HOST_STACK_DIR" == /* ]] || {
+      die "HOST_STACK_DIR must be an absolute host path"
+      return 1
+    }
+    printf '%s\n' "$HOST_STACK_DIR"
+    return 0
+  fi
+
+  source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "'"$COMPOSE_FILE"'"}}{{.Source}}{{end}}{{end}}' \
+    "${HOSTNAME:-}" 2>/dev/null || true)"
+  [[ -n "$source" && "$source" == /* ]] || {
+    die "could not determine the host stack directory"
+    return 1
+  }
+  dirname "$source"
+}
+
+compose_stack() {
+  local host_stack_dir="$HOST_STACK_DIR"
+  [[ -n "$host_stack_dir" && "$host_stack_dir" == /* ]] || {
+    die "host stack directory is unavailable"
+    return 1
+  }
+  HOST_STACK_DIR="$host_stack_dir" docker compose \
+    --env-file "$VELLUM_ENV_FILE" \
+    --project-directory "$host_stack_dir" \
+    --project-name "$COMPOSE_PROJECT" \
+    --file "$COMPOSE_FILE" "$@"
 }
 
 github_curl() {
@@ -162,10 +205,7 @@ backup_database() {
 
 compose_deploy() {
   local image="$1"
-  VELLUM_IMAGE="$image" docker compose \
-    --env-file "$VELLUM_ENV_FILE" \
-    --project-name "$COMPOSE_PROJECT" \
-    --file "$COMPOSE_FILE" \
+  VELLUM_IMAGE="$image" compose_stack \
     up --detach --no-deps --pull never --force-recreate "$COMPOSE_SERVICE"
 }
 
@@ -261,11 +301,7 @@ deploy_with_rollback() {
 updater_container_id() {
   # Resolved through compose rather than a fixed name: deployments created before
   # `container_name` was added to the compose file run as <project>-updater-1.
-  docker compose \
-    --env-file "$VELLUM_ENV_FILE" \
-    --project-name "$COMPOSE_PROJECT" \
-    --file "$COMPOSE_FILE" \
-    ps --quiet "$UPDATER_SERVICE" 2>/dev/null | head -n1
+  compose_stack ps --quiet "$UPDATER_SERVICE" 2>/dev/null | head -n1
 }
 
 # Advisory like record_swap_result: a failed journal write must never abort an
@@ -316,10 +352,7 @@ wait_for_container_health() {
 
 compose_up_updater() {
   local image="$1"
-  UPDATER_IMAGE="$image" docker compose \
-    --env-file "$VELLUM_ENV_FILE" \
-    --project-name "$COMPOSE_PROJECT" \
-    --file "$COMPOSE_FILE" \
+  UPDATER_IMAGE="$image" compose_stack \
     up --detach --no-deps --pull never --force-recreate "$UPDATER_SERVICE"
 }
 
@@ -401,6 +434,7 @@ schedule_updater_swap() {
     --env "COMPOSE_PROJECT=$COMPOSE_PROJECT" \
     --env "COMPOSE_FILE=$COMPOSE_FILE" \
     --env "VELLUM_ENV_FILE=$VELLUM_ENV_FILE" \
+    --env "HOST_STACK_DIR=$HOST_STACK_DIR" \
     --env "UPDATER_SERVICE=$UPDATER_SERVICE" \
     --env "UPDATER_SWAP_TIMEOUT_SECONDS=$UPDATER_SWAP_TIMEOUT_SECONDS" \
     --env "SWAP_RESULT_FILE=$SWAP_RESULT_FILE" \
@@ -445,6 +479,8 @@ main() {
   if [[ "${1:-}" == "--swap-updater" ]]; then
     require_command docker
     require_command jq
+    [[ -n "$HOST_STACK_DIR" && "$HOST_STACK_DIR" == /* ]] ||
+      { die "--swap-updater needs an absolute HOST_STACK_DIR"; return 1; }
     [[ -n "${2:-}" ]] || die "--swap-updater needs an image reference"
     swap_updater "$2"
     return

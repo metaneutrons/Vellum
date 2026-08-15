@@ -65,6 +65,11 @@ services:
     environment:
       COMPOSE_FILE: /stack/docker-compose.yml
       COMPOSE_PROJECT: vellum
+      # Compose runs again from inside the updater, but its Docker client talks
+      # to the HOST daemon. Preserve the host-side project directory captured by
+      # the initial `docker compose up`; otherwise relative bind sources resolve
+      # to `/stack` on the host and become empty directories on self-update.
+      HOST_STACK_DIR: ${HOST_STACK_DIR:-${PWD}}
       COMPOSE_SERVICE: server
       TARGET_CONTAINER: vellum
       DATABASE_CONTAINER: vellum-postgres

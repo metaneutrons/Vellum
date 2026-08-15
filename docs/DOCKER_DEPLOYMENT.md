@@ -101,6 +101,14 @@ the bind mounts relative to `docker-compose.yml`, so no paths need editing when
 the stopped stack is moved or restored. Keep `.env` private. The server port
 remains loopback-only at `127.0.0.1:3000` on Linux and macOS.
 
+The updater captures that host-side stack directory when Compose first creates
+it and passes it back with `--project-directory` for later server and updater
+replacements. This is necessary because the updater's Docker client runs inside a
+container while controlling the host daemon: without the explicit host path,
+relative sources would incorrectly resolve below `/stack` on the host. Moving a
+stopped stack remains portable—run `docker compose up -d` once from the new
+directory and the recreated updater captures the new location.
+
 For bootstrap supply-chain verification, inspect the published Sigstore identity
 with `cosign verify` and set `VELLUM_IMAGE` and `UPDATER_IMAGE` to the verified
 `ghcr.io/...@sha256:...` manifest digests. Subsequent server releases are always
