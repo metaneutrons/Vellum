@@ -20,15 +20,31 @@ interface DashCardProps {
  * The single card chrome for every dashboard widget — consistent surface,
  * radius, border, shadow, and header treatment so the grid reads as one piece.
  */
-export function DashCard({ title, subtitle, icon, action, flush, className = "", children }: DashCardProps) {
+export function DashCard({
+  title,
+  subtitle,
+  icon,
+  action,
+  flush,
+  className = "",
+  children,
+}: DashCardProps) {
   return (
-    <section className={`flex flex-col bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden ${className}`}>
+    <section
+      className={`flex flex-col bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden ${className}`}
+    >
       {title && (
         <header className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
           <div className="flex items-center gap-2 min-w-0">
-            {icon && <span className="text-label-secondary shrink-0" aria-hidden="true">{icon}</span>}
+            {icon && (
+              <span className="text-label-secondary shrink-0" aria-hidden="true">
+                {icon}
+              </span>
+            )}
             <div className="min-w-0">
-              <h2 className="text-[15px] font-semibold text-label leading-tight truncate">{title}</h2>
+              <h2 className="text-[15px] font-semibold text-label leading-tight truncate">
+                {title}
+              </h2>
               {subtitle && <p className="text-xs text-label-tertiary truncate">{subtitle}</p>}
             </div>
           </div>

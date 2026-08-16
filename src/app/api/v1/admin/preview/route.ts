@@ -12,7 +12,8 @@ import { requestHasPermission } from "@/lib/access";
 const _defaultModel = DISPLAY_REGISTRY.e1002;
 const _defaultReserved = _defaultModel.reservedPaletteIndices ?? [];
 const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
-  width: _defaultModel.width, height: _defaultModel.height,
+  width: _defaultModel.width,
+  height: _defaultModel.height,
   palette: _defaultModel.palette,
   // Reserved positions are pixel codes, not colors: a preview that used them
   // would show the operator a color the panel cannot print.
@@ -24,12 +25,16 @@ const DEFAULT_PREVIEW_DISPLAY: ResolvedDisplay = {
 };
 
 export async function GET(request: NextRequest) {
-  if (!(await requestHasPermission(request, "content.read"))) return new Response("Forbidden", { status: 403 });
+  if (!(await requestHasPermission(request, "content.read")))
+    return new Response("Forbidden", { status: 403 });
   const instanceId = request.nextUrl.searchParams.get("instanceId");
   const themeId = request.nextUrl.searchParams.get("themeId");
   if (!instanceId) return new Response("Missing instanceId", { status: 400 });
 
-  const [instance] = await withDbRead(() => db.select().from(contentInstances).where(eq(contentInstances.id, instanceId)).limit(1), "preview-get-content-instance");
+  const [instance] = await withDbRead(
+    () => db.select().from(contentInstances).where(eq(contentInstances.id, instanceId)).limit(1),
+    "preview-get-content-instance"
+  );
   if (!instance) return new Response("Not found", { status: 404 });
 
   const renderer = getContentRenderer(instance.typeSlug);
@@ -39,22 +44,51 @@ export async function GET(request: NextRequest) {
   let display: ResolvedDisplay = DEFAULT_PREVIEW_DISPLAY;
   const mac = request.nextUrl.searchParams.get("mac");
   if (mac) {
-    const [device] = await withDbRead(() => db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
-      .from(devices).where(eq(devices.mac, mac)).limit(1), "preview-get-device-by-mac");
+    const [device] = await withDbRead(
+      () =>
+        db
+          .select({
+            displayCaps: devices.displayCaps,
+            orientationOverride: devices.orientationOverride,
+          })
+          .from(devices)
+          .where(eq(devices.mac, mac))
+          .limit(1),
+      "preview-get-device-by-mac"
+    );
     if (device?.displayCaps) {
-      display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
+      display = resolveDisplayCaps(
+        device.displayCaps,
+        device.orientationOverride as "portrait" | "landscape" | undefined
+      );
     }
   } else {
-    const [device] = await withDbRead(() => db.select({ displayCaps: devices.displayCaps, orientationOverride: devices.orientationOverride })
-      .from(devices).where(eq(devices.contentInstanceId, instanceId)).limit(1), "preview-get-device-by-instance");
+    const [device] = await withDbRead(
+      () =>
+        db
+          .select({
+            displayCaps: devices.displayCaps,
+            orientationOverride: devices.orientationOverride,
+          })
+          .from(devices)
+          .where(eq(devices.contentInstanceId, instanceId))
+          .limit(1),
+      "preview-get-device-by-instance"
+    );
     if (device?.displayCaps) {
-      display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
+      display = resolveDisplayCaps(
+        device.displayCaps,
+        device.orientationOverride as "portrait" | "landscape" | undefined
+      );
     }
   }
 
   let theme = resolveTheme(display.colorCount);
   if (themeId) {
-    const [dbTheme] = await withDbRead(() => db.select().from(themes).where(eq(themes.id, themeId)).limit(1), "preview-get-theme");
+    const [dbTheme] = await withDbRead(
+      () => db.select().from(themes).where(eq(themes.id, themeId)).limit(1),
+      "preview-get-theme"
+    );
     const parsed = parseTheme(dbTheme?.config);
     if (parsed) theme = parsed;
   }
@@ -67,5 +101,10 @@ export async function GET(request: NextRequest) {
   });
 
   const png = result.canvas.toBuffer("image/png");
-  return new Response(new Uint8Array(png), { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=60, stale-while-revalidate=300" } });
+  return new Response(new Uint8Array(png), {
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+    },
+  });
 }

@@ -2,7 +2,7 @@ name: Firmware Build
 on:
   push:
     branches: [main]
-    paths: ['firmware/**']
+    paths: ["firmware/**"]
   release:
     types: [published]
   workflow_dispatch:
@@ -216,9 +216,9 @@ jobs:
     needs: [version, build]
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # create/upload releases
-      id-token: write        # OIDC for SLSA build provenance
-      attestations: write    # write the provenance attestation
+      contents: write # create/upload releases
+      id-token: write # OIDC for SLSA build provenance
+      attestations: write # write the provenance attestation
     env:
       # Job-level so step `if:` can read it reliably (step-level env is unreliable in `if`).
       # Phase 3: KMS-preferred signing. When the OTA_KMS_KEY_VERSION repo variable is
@@ -393,7 +393,7 @@ jobs:
           MCHAN: ${{ needs.version.outputs.channel }}
           MTAG: ${{ needs.version.outputs.tag }}
           MREPO: ${{ github.repository }}
-          MKID: ${{ env.OTA_KEY_ID_RESOLVED }}   # id of the slot that actually signed (set by the sign step)
+          MKID: ${{ env.OTA_KEY_ID_RESOLVED }} # id of the slot that actually signed (set by the sign step)
         run: |
           cd binaries
           node -e "

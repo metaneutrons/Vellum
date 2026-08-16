@@ -17,7 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { computeSleep, parseRefreshProfile } from "../index";
 
-const profile = parseRefreshProfile({});          // usb 60, battery 900, low 3600 @ 20%
+const profile = parseRefreshProfile({}); // usb 60, battery 900, low 3600 @ 20%
 const now = new Date("2026-08-13T12:00:00Z");
 const base = { nextEventStart: null, now, profile };
 
@@ -25,7 +25,10 @@ describe("cadence while awaiting content", () => {
   it("caps a slow battery interval", () => {
     const assigned = computeSleep({ ...base, powerSource: "battery", batteryLevel: 80 });
     const waiting = computeSleep({
-      ...base, powerSource: "battery", batteryLevel: 80, hasContent: false,
+      ...base,
+      powerSource: "battery",
+      batteryLevel: 80,
+      hasContent: false,
     });
     expect(assigned.durationS).toBe(900);
     expect(waiting.durationS).toBe(300);
@@ -34,14 +37,20 @@ describe("cadence while awaiting content", () => {
   it("never slows a display that is already faster", () => {
     // USB is 60 s, well under the 300 s ceiling — min(), not assignment.
     const waiting = computeSleep({
-      ...base, powerSource: "usb", batteryLevel: 100, hasContent: false,
+      ...base,
+      powerSource: "usb",
+      batteryLevel: 100,
+      hasContent: false,
     });
     expect(waiting.durationS).toBe(60);
   });
 
   it("leaves a display with content on its profile's cadence", () => {
     const assigned = computeSleep({
-      ...base, powerSource: "battery", batteryLevel: 80, hasContent: true,
+      ...base,
+      powerSource: "battery",
+      batteryLevel: 80,
+      hasContent: true,
     });
     expect(assigned.durationS).toBe(900);
   });
@@ -56,7 +65,10 @@ describe("cadence while awaiting content", () => {
     // The one exception: protecting a near-dead cell outranks commissioning
     // convenience, and this tier exists precisely to be slow.
     const critical = computeSleep({
-      ...base, powerSource: "battery", batteryLevel: 5, hasContent: false,
+      ...base,
+      powerSource: "battery",
+      batteryLevel: 5,
+      hasContent: false,
     });
     expect(critical.durationS).toBe(3600);
     expect(critical.mode).toBe("sleep");
@@ -67,7 +79,11 @@ describe("cadence while awaiting content", () => {
       schedule: [{ name: "Night", startHour: 0, endHour: 23, intervalS: 7200, mode: "poll" }],
     });
     const waiting = computeSleep({
-      ...base, profile: scheduled, powerSource: "battery", batteryLevel: 80, hasContent: false,
+      ...base,
+      profile: scheduled,
+      powerSource: "battery",
+      batteryLevel: 80,
+      hasContent: false,
     });
     expect(waiting.durationS).toBe(300);
     expect(waiting.mode).toBe("poll");
@@ -75,9 +91,15 @@ describe("cadence while awaiting content", () => {
 
   it("honours a per-profile ceiling", () => {
     const brisk = parseRefreshProfile({ unassignedIntervalS: 60 });
-    expect(computeSleep({
-      ...base, profile: brisk, powerSource: "battery", batteryLevel: 80, hasContent: false,
-    }).durationS).toBe(60);
+    expect(
+      computeSleep({
+        ...base,
+        profile: brisk,
+        powerSource: "battery",
+        batteryLevel: 80,
+        hasContent: false,
+      }).durationS
+    ).toBe(60);
   });
 
   it("defaults the ceiling to the firmware's approval cadence", () => {

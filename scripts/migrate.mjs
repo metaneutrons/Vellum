@@ -52,13 +52,18 @@ try {
        name text PRIMARY KEY,
        applied_at timestamptz NOT NULL DEFAULT now(),
        checksum text
-     )`,
+     )`
   );
   await client.query("ALTER TABLE __vellum_migrations ADD COLUMN IF NOT EXISTS checksum text");
   const done = new Map(
-    (await client.query("SELECT name, checksum FROM __vellum_migrations")).rows.map((r) => [r.name, r.checksum]),
+    (await client.query("SELECT name, checksum FROM __vellum_migrations")).rows.map((r) => [
+      r.name,
+      r.checksum,
+    ])
   );
-  const files = readdirSync(DRIZZLE_DIR).filter((f) => f.endsWith(".sql")).sort();
+  const files = readdirSync(DRIZZLE_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
 
   let applied = 0;
   let baselined = 0;
@@ -73,7 +78,10 @@ try {
       if (!recorded) {
         // Adopt journals created by pre-checksum Vellum releases once. From
         // this point onward, any edited historical migration fails closed.
-        await client.query("UPDATE __vellum_migrations SET checksum = $2 WHERE name = $1", [file, checksum]);
+        await client.query("UPDATE __vellum_migrations SET checksum = $2 WHERE name = $1", [
+          file,
+          checksum,
+        ]);
       }
       continue;
     }
@@ -111,7 +119,7 @@ try {
       // never be marked applied unless every required statement committed.
       await client.query(
         "INSERT INTO __vellum_migrations(name, checksum) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [file, checksum],
+        [file, checksum]
       );
       await client.query("COMMIT");
     } catch (err) {
@@ -120,13 +128,17 @@ try {
     }
     if (ran > 0) {
       applied++;
-      console.log(`migrate: applied ${file} (${ran} statement(s)${skipped ? `, ${skipped} already present` : ""})`);
+      console.log(
+        `migrate: applied ${file} (${ran} statement(s)${skipped ? `, ${skipped} already present` : ""})`
+      );
     } else {
       baselined++;
       console.log(`migrate: baselined ${file} (already present)`);
     }
   }
-  console.log(`migrate: done — ${applied} applied, ${baselined} baselined, ${done.size} already tracked`);
+  console.log(
+    `migrate: done — ${applied} applied, ${baselined} baselined, ${done.size} already tracked`
+  );
 } finally {
   await client.end();
 }

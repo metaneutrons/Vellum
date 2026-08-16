@@ -19,9 +19,7 @@ export function errorResponse(message: string): ApiResponse<null> {
 export function validateRequest<T>(
   schema: z.ZodType<T>,
   data: unknown
-):
-  | { success: true; data: T }
-  | { success: false; response: Response } {
+): { success: true; data: T } | { success: false; response: Response } {
   const result = schema.safeParse(data);
   if (result.success) {
     return { success: true, data: result.data };

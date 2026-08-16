@@ -37,17 +37,40 @@ export type UpdateWindow = {
 
 export type UpdateStatusSnapshot = {
   supported: boolean;
-  state: "unavailable" | "starting" | "checking" | "preparing" | "available" | "updating" | "current" | "failed";
+  state:
+    | "unavailable"
+    | "starting"
+    | "checking"
+    | "preparing"
+    | "available"
+    | "updating"
+    | "current"
+    | "failed";
   currentVersion: string | null;
   updateAvailable: boolean;
   lastError: string | null;
-  progress: { phase: "verifying" | "backing-up" | "deploying" | "waiting-for-health" | "done" | "rolling-back" | "failed" } | null;
+  progress: {
+    phase:
+      | "verifying"
+      | "backing-up"
+      | "deploying"
+      | "waiting-for-health"
+      | "done"
+      | "rolling-back"
+      | "failed";
+  } | null;
 };
 
 export type UpdateResolution =
   | { outcome: "pending" }
   | { outcome: "succeeded"; fromVersion: string | null; toVersion: string }
-  | { outcome: "failed"; fromVersion: string | null; toVersion: string | null; currentVersion: string | null; detail: string | null };
+  | {
+      outcome: "failed";
+      fromVersion: string | null;
+      toVersion: string | null;
+      currentVersion: string | null;
+      detail: string | null;
+    };
 
 function versionParts(value: string | null): [number, number, number] | null {
   const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value ?? "");
@@ -57,7 +80,8 @@ function versionParts(value: string | null): [number, number, number] | null {
 /** True when `current` has reached (or passed) the version this tab requested.
  * Passing the target is valid when another automatic update won the race. */
 function reachedVersion(current: string | null, target: string | null): boolean {
-  const a = versionParts(current); const b = versionParts(target);
+  const a = versionParts(current);
+  const b = versionParts(target);
   if (!a || !b) return current !== null && target !== null && current === target;
   for (let index = 0; index < a.length; index += 1) {
     if (a[index] !== b[index]) return a[index] > b[index];
@@ -68,15 +92,28 @@ function reachedVersion(current: string | null, target: string | null): boolean 
 /** Resolve an update only from authoritative evidence. A server answering again
  * is not success: it may be the old container after a failed deployment or
  * rollback. This distinction prevents claims such as "v1.10.3 → v1.10.3". */
-export function resolveUpdateWindow(window: UpdateWindow, status: UpdateStatusSnapshot): UpdateResolution {
-  const terminalFailure = status.state === "failed"
-    || status.progress?.phase === "failed"
-    || status.progress?.phase === "rolling-back";
-  const oldVersionSettled = Boolean(window.toVersion && status.currentVersion
-    && ["available", "current"].includes(status.state) && status.updateAvailable);
+export function resolveUpdateWindow(
+  window: UpdateWindow,
+  status: UpdateStatusSnapshot
+): UpdateResolution {
+  const terminalFailure =
+    status.state === "failed" ||
+    status.progress?.phase === "failed" ||
+    status.progress?.phase === "rolling-back";
+  const oldVersionSettled = Boolean(
+    window.toVersion &&
+    status.currentVersion &&
+    ["available", "current"].includes(status.state) &&
+    status.updateAvailable
+  );
   if (terminalFailure || oldVersionSettled) {
-    return { outcome: "failed", fromVersion: window.fromVersion, toVersion: window.toVersion,
-      currentVersion: status.currentVersion, detail: status.lastError };
+    return {
+      outcome: "failed",
+      fromVersion: window.fromVersion,
+      toVersion: window.toVersion,
+      currentVersion: status.currentVersion,
+      detail: status.lastError,
+    };
   }
 
   const reached = status.currentVersion;
@@ -89,14 +126,20 @@ export function resolveUpdateWindow(window: UpdateWindow, status: UpdateStatusSn
 
 /** A rollback is still making progress. Keep the overlay open until the updater
  * reports whether restoration itself succeeded or failed. */
-export function resolveUpdateOverlay(window: UpdateWindow, status: UpdateStatusSnapshot): UpdateResolution {
+export function resolveUpdateOverlay(
+  window: UpdateWindow,
+  status: UpdateStatusSnapshot
+): UpdateResolution {
   if (status.progress?.phase === "rolling-back") return { outcome: "pending" };
   return resolveUpdateWindow(window, status);
 }
 
 /** Active operations need responsive polling; idle pages deliberately stay
  * quiet. Kept pure so the timing contract is regression-tested. */
-export function serverUpdatePollInterval(state: UpdateStatusSnapshot["state"], updateWindowOpen: boolean): number {
+export function serverUpdatePollInterval(
+  state: UpdateStatusSnapshot["state"],
+  updateWindowOpen: boolean
+): number {
   if (state === "checking") return 750;
   if (state === "preparing") return 3_000;
   if (state === "updating" || updateWindowOpen) return 1_500;
@@ -107,8 +150,11 @@ function notify() {
   window.dispatchEvent(new Event(EVENT));
 }
 
-export function beginUpdateWindow(fromVersion: string | null, toVersion: string | null,
-  progress: UpdateProgress | null = null): boolean {
+export function beginUpdateWindow(
+  fromVersion: string | null,
+  toVersion: string | null,
+  progress: UpdateProgress | null = null
+): boolean {
   if (typeof window === "undefined") return false;
   /* Never create a success marker for a no-op or stale snapshot. The updater may
    * have completed a concurrent check between rendering and clicking; recording
@@ -134,14 +180,18 @@ export function recordUpdateWindowProgress(progress: UpdateProgress): void {
   if (!current) return;
   try {
     window.sessionStorage.setItem(KEY, JSON.stringify({ ...current, progress }));
-  } catch { /* The update continues even when storage is unavailable. */ }
+  } catch {
+    /* The update continues even when storage is unavailable. */
+  }
 }
 
 export function endUpdateWindow(): void {
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.removeItem(KEY);
-  } catch { /* see above */ }
+  } catch {
+    /* see above */
+  }
   notify();
 }
 
@@ -150,7 +200,9 @@ export function readUpdateWindow(): UpdateWindow | null {
   let raw: string | null = null;
   try {
     raw = window.sessionStorage.getItem(KEY);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<UpdateWindow>;
@@ -173,7 +225,13 @@ export function readUpdateWindow(): UpdateWindow | null {
 }
 
 const UPDATE_PHASES: readonly UpdateProgressPhase[] = [
-  "verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed",
+  "verifying",
+  "backing-up",
+  "deploying",
+  "waiting-for-health",
+  "done",
+  "rolling-back",
+  "failed",
 ];
 
 function parseStoredProgress(value: unknown): UpdateProgress | null {
@@ -186,11 +244,17 @@ function parseStoredProgress(value: unknown): UpdateProgress | null {
   const at = nullableString(candidate.at, 64);
   const startedAt = nullableString(candidate.startedAt, 64);
   if (detail === undefined || at === undefined || startedAt === undefined) return null;
-  const failedPhase = candidate.failedPhase == null ? null
-    : UPDATE_PHASES.includes(candidate.failedPhase as UpdateProgressPhase)
-      ? candidate.failedPhase as UpdateProgressPhase : undefined;
-  if (failedPhase === undefined || (candidate.rollbackAttempted !== undefined
-    && typeof candidate.rollbackAttempted !== "boolean")) return null;
+  const failedPhase =
+    candidate.failedPhase == null
+      ? null
+      : UPDATE_PHASES.includes(candidate.failedPhase as UpdateProgressPhase)
+        ? (candidate.failedPhase as UpdateProgressPhase)
+        : undefined;
+  if (
+    failedPhase === undefined ||
+    (candidate.rollbackAttempted !== undefined && typeof candidate.rollbackAttempted !== "boolean")
+  )
+    return null;
   return {
     phase: candidate.phase as UpdateProgressPhase,
     detail,

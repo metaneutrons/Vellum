@@ -23,15 +23,21 @@ describe("firmware download grants", () => {
       ...base,
       expires: Number(url.searchParams.get("expires")),
     };
-    expect(verifyOtaDownloadGrant(grant, url.searchParams.get("signature") ?? "", token, 1_000)).toBe(true);
+    expect(
+      verifyOtaDownloadGrant(grant, url.searchParams.get("signature") ?? "", token, 1_000)
+    ).toBe(true);
   });
 
   it("rejects expired, overlong and tampered grants", () => {
     const grant = { ...base, expires: 2_000 };
     const signature = signOtaDownloadGrant(grant, token);
     expect(verifyOtaDownloadGrant(grant, signature, token, 2_001)).toBe(false);
-    expect(verifyOtaDownloadGrant({ ...grant, expires: 9_999 }, signature, token, 1_000)).toBe(false);
-    expect(verifyOtaDownloadGrant({ ...grant, model: "d1001" }, signature, token, 1_500)).toBe(false);
+    expect(verifyOtaDownloadGrant({ ...grant, expires: 9_999 }, signature, token, 1_000)).toBe(
+      false
+    );
+    expect(verifyOtaDownloadGrant({ ...grant, model: "d1001" }, signature, token, 1_500)).toBe(
+      false
+    );
     expect(verifyOtaDownloadGrant(grant, "not-a-signature", token, 1_500)).toBe(false);
   });
 });

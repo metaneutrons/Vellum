@@ -12,7 +12,14 @@ interface ScheduleRule {
 }
 
 const COLORS = [
-  "#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#ef4444", "#6366f1", "#14b8a6",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#f59e0b",
+  "#10b981",
+  "#ef4444",
+  "#6366f1",
+  "#14b8a6",
 ];
 
 function fmtInterval(s: number): string {
@@ -27,17 +34,19 @@ function isOvernight(r: ScheduleRule): boolean {
 
 function rulesOverlap(a: ScheduleRule, b: ScheduleRule): boolean {
   // Check day overlap
-  const aDays = a.days.length === 0 ? [0,1,2,3,4,5,6] : a.days;
-  const bDays = b.days.length === 0 ? [0,1,2,3,4,5,6] : b.days;
-  const sharedDays = aDays.some(d => bDays.includes(d));
+  const aDays = a.days.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : a.days;
+  const bDays = b.days.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : b.days;
+  const sharedDays = aDays.some((d) => bDays.includes(d));
   if (!sharedDays) return false;
 
   // Check hour overlap
   const aHours = new Set<number>();
   const bHours = new Set<number>();
   for (let h = 0; h < 24; h++) {
-    if (isOvernight(a) ? (h >= a.startHour || h < a.endHour) : (h >= a.startHour && h < a.endHour)) aHours.add(h);
-    if (isOvernight(b) ? (h >= b.startHour || h < b.endHour) : (h >= b.startHour && h < b.endHour)) bHours.add(h);
+    if (isOvernight(a) ? h >= a.startHour || h < a.endHour : h >= a.startHour && h < a.endHour)
+      aHours.add(h);
+    if (isOvernight(b) ? h >= b.startHour || h < b.endHour : h >= b.startHour && h < b.endHour)
+      bHours.add(h);
   }
   for (const h of aHours) if (bHours.has(h)) return true;
   return false;
@@ -52,7 +61,13 @@ function matchesNow(rule: ScheduleRule): boolean {
   return hour >= rule.startHour && hour < rule.endHour;
 }
 
-export function ScheduleTimeline({ rules, defaultIntervalS }: { rules: ScheduleRule[]; defaultIntervalS: number }) {
+export function ScheduleTimeline({
+  rules,
+  defaultIntervalS,
+}: {
+  rules: ScheduleRule[];
+  defaultIntervalS: number;
+}) {
   const t = useTranslations("profiles");
   if (rules.length === 0) return null;
 
@@ -74,11 +89,23 @@ export function ScheduleTimeline({ rules, defaultIntervalS }: { rules: ScheduleR
       </div>
 
       {/* Timeline bar */}
-      <div className="relative h-8 rounded overflow-hidden border" style={{ background: "#1a1a2e" }}>
+      <div
+        className="relative h-8 rounded overflow-hidden border"
+        style={{ background: "#1a1a2e" }}
+      >
         {/* Hour markers */}
-        {[0, 6, 12, 18].map(h => (
-          <div key={h} className="absolute top-0 bottom-0 border-l border-gray-700" style={{ left: `${(h / 24) * 100}%` }}>
-            <span className="absolute -top-4 text-[9px] text-gray-500" style={{ transform: "translateX(-50%)" }}>{h}:00</span>
+        {[0, 6, 12, 18].map((h) => (
+          <div
+            key={h}
+            className="absolute top-0 bottom-0 border-l border-gray-700"
+            style={{ left: `${(h / 24) * 100}%` }}
+          >
+            <span
+              className="absolute -top-4 text-[9px] text-gray-500"
+              style={{ transform: "translateX(-50%)" }}
+            >
+              {h}:00
+            </span>
           </div>
         ))}
 
@@ -89,21 +116,42 @@ export function ScheduleTimeline({ rules, defaultIntervalS }: { rules: ScheduleR
             // Two blocks: startHour→24 and 0→endHour
             return (
               <span key={i}>
-                <div className="absolute top-1 bottom-1 rounded-sm opacity-80" title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
-                  style={{ left: `${(rule.startHour / 24) * 100}%`, right: "0%", background: color }} />
-                <div className="absolute top-1 bottom-1 rounded-sm opacity-80" title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
-                  style={{ left: "0%", width: `${(rule.endHour / 24) * 100}%`, background: color }} />
+                <div
+                  className="absolute top-1 bottom-1 rounded-sm opacity-80"
+                  title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
+                  style={{
+                    left: `${(rule.startHour / 24) * 100}%`,
+                    right: "0%",
+                    background: color,
+                  }}
+                />
+                <div
+                  className="absolute top-1 bottom-1 rounded-sm opacity-80"
+                  title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
+                  style={{ left: "0%", width: `${(rule.endHour / 24) * 100}%`, background: color }}
+                />
               </span>
             );
           }
           return (
-            <div key={i} className="absolute top-1 bottom-1 rounded-sm opacity-80" title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
-              style={{ left: `${(rule.startHour / 24) * 100}%`, width: `${((rule.endHour - rule.startHour) / 24) * 100}%`, background: color }} />
+            <div
+              key={i}
+              className="absolute top-1 bottom-1 rounded-sm opacity-80"
+              title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
+              style={{
+                left: `${(rule.startHour / 24) * 100}%`,
+                width: `${((rule.endHour - rule.startHour) / 24) * 100}%`,
+                background: color,
+              }}
+            />
           );
         })}
 
         {/* Now indicator */}
-        <div className="absolute top-0 bottom-0 w-0.5 bg-orange-400 z-10" style={{ left: `${(nowHour / 24) * 100}%` }} />
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-orange-400 z-10"
+          style={{ left: `${(nowHour / 24) * 100}%` }}
+        />
       </div>
 
       {/* Legend */}
@@ -113,13 +161,20 @@ export function ScheduleTimeline({ rules, defaultIntervalS }: { rules: ScheduleR
           const hasOverlap = overlaps.some(([a, b]) => a === i || b === i);
           return (
             <div key={i} className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
+              <div
+                className="w-2.5 h-2.5 rounded-sm"
+                style={{ background: COLORS[i % COLORS.length] }}
+              />
               <span className={`text-[10px] ${active ? "font-bold text-white" : "text-gray-500"}`}>
                 {rule.name || `Rule ${i + 1}`} ({fmtInterval(rule.intervalS)})
                 {active && <span className="ml-1 text-orange-400">● active</span>}
                 {isOvernight(rule) && <span className="ml-1">🌙</span>}
               </span>
-              {hasOverlap && <span className="text-[10px] text-yellow-500" title={t("overlapHint")}>⚠</span>}
+              {hasOverlap && (
+                <span className="text-[10px] text-yellow-500" title={t("overlapHint")}>
+                  ⚠
+                </span>
+              )}
             </div>
           );
         })}
@@ -128,7 +183,8 @@ export function ScheduleTimeline({ rules, defaultIntervalS }: { rules: ScheduleR
       {/* Overlap warnings */}
       {overlaps.length > 0 && (
         <div className="mt-2 text-[10px] text-yellow-500">
-          ⚠ Rules overlap: {overlaps.map(([a, b]) => `#${a + 1}↔#${b + 1}`).join(", ")} — first match wins
+          ⚠ Rules overlap: {overlaps.map(([a, b]) => `#${a + 1}↔#${b + 1}`).join(", ")} — first
+          match wins
         </div>
       )}
     </div>

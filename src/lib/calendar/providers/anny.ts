@@ -160,7 +160,10 @@ export async function fetchAnnyResources(
   search?: string,
   page = 1,
   perPage = 20
-): Promise<{ resources: { id: string; name: string; description?: string; bookingUrl?: string }[]; total: number }> {
+): Promise<{
+  resources: { id: string; name: string; description?: string; bookingUrl?: string }[];
+  total: number;
+}> {
   const params: Record<string, string> = {
     "page[number]": String(page),
     "page[size]": String(perPage),
@@ -172,13 +175,20 @@ export async function fetchAnnyResources(
 
   const result = await annyFetch("/resources", apiToken, organizationId, params);
 
-  const resources = (result.data as { id: string; attributes: { name: string; description?: string; slug?: string } }[]).map((r) => ({
+  const resources = (
+    result.data as {
+      id: string;
+      attributes: { name: string; description?: string; slug?: string };
+    }[]
+  ).map((r) => ({
     id: r.id,
     name: r.attributes.name,
     description: r.attributes.description,
     // A resource ID and its public booking slug are unrelated. Only build a
     // direct link when Anny explicitly supplied the latter.
-    bookingUrl: r.attributes.slug ? `https://anny.co/b/book/${encodeURIComponent(r.attributes.slug)}` : undefined,
+    bookingUrl: r.attributes.slug
+      ? `https://anny.co/b/book/${encodeURIComponent(r.attributes.slug)}`
+      : undefined,
   }));
 
   return {
@@ -212,16 +222,11 @@ export const annyProvider: CalendarProvider = {
       to: windowEnd.toISOString().split("T")[0],
     });
 
-    const result = await annyFetchAll(
-      "/bookings",
-      creds.apiToken,
-      orgId,
-      {
-        "filter[resources]": room.resourceId,
-        "filter[status]": "accepted",
-        "include": "customer",
-      }
-    );
+    const result = await annyFetchAll("/bookings", creds.apiToken, orgId, {
+      "filter[resources]": room.resourceId,
+      "filter[status]": "accepted",
+      include: "customer",
+    });
 
     const bookings = result.data as AnnyBooking[];
     const included = (result.included ?? []) as AnnyIncluded[];

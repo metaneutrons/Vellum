@@ -23,10 +23,17 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
   const maxVersionCount = hasVersions ? Math.max(...byVersion.map((v) => v.count)) : 0;
 
   return (
-    <DashCard title="Firmware" icon={<Cpu size={16} />} action={{ label: t("manage"), href: "/admin/firmware" }}>
+    <DashCard
+      title="Firmware"
+      icon={<Cpu size={16} />}
+      action={{ label: t("manage"), href: "/admin/firmware" }}
+    >
       {isEmpty ? (
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-          <span className="size-10 rounded-full bg-surface-secondary text-label-tertiary grid place-items-center" aria-hidden="true">
+          <span
+            className="size-10 rounded-full bg-surface-secondary text-label-tertiary grid place-items-center"
+            aria-hidden="true"
+          >
             <PackageX size={18} />
           </span>
           <p className="text-sm text-label-secondary">{t("firmwareData")}</p>
@@ -63,17 +70,27 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
               aria-label={`${upToDate} devices up to date, ${behind} behind, ${unknown} unknown`}
             >
               {upToDate > 0 && (
-                <div className="h-full bg-green transition-[width] duration-500" style={{ width: `${upPct}%` }} />
+                <div
+                  className="h-full bg-green transition-[width] duration-500"
+                  style={{ width: `${upPct}%` }}
+                />
               )}
               {behind > 0 && (
-                <div className="h-full bg-orange transition-[width] duration-500" style={{ width: `${behindPct}%` }} />
+                <div
+                  className="h-full bg-orange transition-[width] duration-500"
+                  style={{ width: `${behindPct}%` }}
+                />
               )}
             </div>
 
             <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-label-secondary">
               <LegendItem dotClass="bg-green" count={upToDate} label={t("upToDate")} />
               <LegendItem dotClass="bg-orange" count={behind} label={t("behind")} />
-              <LegendItem dotClass="bg-surface-secondary ring-1 ring-separator" count={unknown} label={t("unknown")} />
+              <LegendItem
+                dotClass="bg-surface-secondary ring-1 ring-separator"
+                count={unknown}
+                label={t("unknown")}
+              />
             </ul>
           </div>
 
@@ -84,13 +101,18 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
               <ul className="flex flex-col gap-2">
                 {byVersion.map((v) => (
                   <li key={v.version} className="flex items-center gap-3">
-                    <span className="font-mono text-xs text-label w-20 shrink-0 truncate" title={v.version}>
+                    <span
+                      className="font-mono text-xs text-label w-20 shrink-0 truncate"
+                      title={v.version}
+                    >
                       {v.version}
                     </span>
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-secondary">
                       <div
                         className="h-full rounded-full bg-accent-soft transition-[width] duration-500"
-                        style={{ width: `${maxVersionCount ? (v.count / maxVersionCount) * 100 : 0}%` }}
+                        style={{
+                          width: `${maxVersionCount ? (v.count / maxVersionCount) * 100 : 0}%`,
+                        }}
                       />
                     </div>
                     <span className="text-xs tabular-nums text-label-secondary w-8 text-right shrink-0">
@@ -107,7 +129,15 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
   );
 }
 
-function LegendItem({ dotClass, count, label }: { dotClass: string; count: number; label: string }) {
+function LegendItem({
+  dotClass,
+  count,
+  label,
+}: {
+  dotClass: string;
+  count: number;
+  label: string;
+}) {
   return (
     <li className="inline-flex items-center gap-1.5">
       <span className={`size-2 rounded-full shrink-0 ${dotClass}`} aria-hidden="true" />

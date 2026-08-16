@@ -59,15 +59,13 @@ describe("Property 5: Sleep duration computation follows priority rules", () => 
     fc.assert(
       fc.property(
         fc.integer({ min: 20, max: 100 }),
-        fc.date({ min: new Date("2000-01-01"), max: new Date("2100-01-01") }).filter(
-          (d) => !isNaN(d.getTime())
-        ),
+        fc
+          .date({ min: new Date("2000-01-01"), max: new Date("2100-01-01") })
+          .filter((d) => !isNaN(d.getTime())),
         // offset in seconds: meeting is 1..1200 seconds from now (up to 20 min)
         fc.integer({ min: 1, max: 1200 }),
         (batteryLevel, now, offsetSeconds) => {
-          const nextEventStart = new Date(
-            now.getTime() + offsetSeconds * 1000
-          );
+          const nextEventStart = new Date(now.getTime() + offsetSeconds * 1000);
           const ctx: SleepContext = {
             powerSource: "battery",
             batteryLevel,
@@ -85,20 +83,16 @@ describe("Property 5: Sleep duration computation follows priority rules", () => 
 
   it("battery >= 20%, no imminent meeting returns 900", () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 20, max: 100 }),
-        fc.date(),
-        (batteryLevel, now) => {
-          // nextEventStart is null (no upcoming meeting)
-          const ctx: SleepContext = {
-            powerSource: "battery",
-            batteryLevel,
-            nextEventStart: null,
-            now,
-          };
-          expect(computeSleepDuration(ctx)).toBe(900);
-        }
-      ),
+      fc.property(fc.integer({ min: 20, max: 100 }), fc.date(), (batteryLevel, now) => {
+        // nextEventStart is null (no upcoming meeting)
+        const ctx: SleepContext = {
+          powerSource: "battery",
+          batteryLevel,
+          nextEventStart: null,
+          now,
+        };
+        expect(computeSleepDuration(ctx)).toBe(900);
+      }),
       { numRuns: 100 }
     );
   });
@@ -111,9 +105,7 @@ describe("Property 5: Sleep duration computation follows priority rules", () => 
         // offset > 20 minutes
         fc.integer({ min: 1201, max: 86400 }),
         (batteryLevel, now, offsetSeconds) => {
-          const nextEventStart = new Date(
-            now.getTime() + offsetSeconds * 1000
-          );
+          const nextEventStart = new Date(now.getTime() + offsetSeconds * 1000);
           const ctx: SleepContext = {
             powerSource: "battery",
             batteryLevel,
@@ -127,7 +119,6 @@ describe("Property 5: Sleep duration computation follows priority rules", () => 
     );
   });
 });
-
 
 /**
  * Property 6: Jitter stays within bounds

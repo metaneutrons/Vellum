@@ -37,13 +37,14 @@ export async function approveDevice(mac: string) {
       actor,
       { action: "device.approve", targetType: "device", targetId: mac },
       async (tx) => {
-        const updated = await tx.update(devices)
+        const updated = await tx
+          .update(devices)
           .set({ status: "approved", token, approvedAt: new Date() })
           .where(eq(devices.mac, mac))
           .returning({ mac: devices.mac });
         if (updated.length === 0) throw new Error("device_not_found");
       },
-      "approve-device",
+      "approve-device"
     );
     revalidatePath("/admin/devices");
   } catch (err) {
@@ -65,7 +66,7 @@ const VOUCHER_TTL_HOURS = 24 * 7;
 export async function createProvisioningVoucher(
   label: string,
   firmware?: { channel: "stable" | "beta"; version: string },
-  ttlHours: number = VOUCHER_TTL_HOURS,
+  ttlHours: number = VOUCHER_TTL_HOURS
 ): Promise<string> {
   const actor = await requireAdmin("devices.provision");
   if (firmware) {
@@ -89,14 +90,15 @@ export async function createProvisioningVoucher(
         firmwarePinVersion: firmware?.version,
       },
     },
-    (tx) => tx.insert(provisioningVouchers).values({
-      token,
-      label: label.trim() || null,
-      expiresAt,
-      firmwareChannel: firmware?.channel,
-      firmwarePinVersion: firmware?.version,
-    }),
-    "create-voucher",
+    (tx) =>
+      tx.insert(provisioningVouchers).values({
+        token,
+        label: label.trim() || null,
+        expiresAt,
+        firmwareChannel: firmware?.channel,
+        firmwarePinVersion: firmware?.version,
+      }),
+    "create-voucher"
   );
   revalidatePath("/admin/devices");
   return token;
@@ -104,18 +106,34 @@ export async function createProvisioningVoucher(
 
 export async function updateDevice(
   mac: string,
-  data: { contentInstanceId?: string | null; themeId?: string | null; refreshProfileId?: string | null; firmwareChannel?: string | null; firmwarePinVersion?: string | null; orientationOverride?: string | null }
+  data: {
+    contentInstanceId?: string | null;
+    themeId?: string | null;
+    refreshProfileId?: string | null;
+    firmwareChannel?: string | null;
+    firmwarePinVersion?: string | null;
+    orientationOverride?: string | null;
+  }
 ) {
   const actor = await requireAdmin("devices.manage");
   try {
     await withAuditedTransaction(
       actor,
-      { action: "device.update", targetType: "device", targetId: mac, metadata: { fields: Object.keys(data) } },
+      {
+        action: "device.update",
+        targetType: "device",
+        targetId: mac,
+        metadata: { fields: Object.keys(data) },
+      },
       async (tx) => {
-        const updated = await tx.update(devices).set(data).where(eq(devices.mac, mac)).returning({ mac: devices.mac });
+        const updated = await tx
+          .update(devices)
+          .set(data)
+          .where(eq(devices.mac, mac))
+          .returning({ mac: devices.mac });
         if (updated.length === 0) throw new Error("device_not_found");
       },
-      "update-device",
+      "update-device"
     );
     revalidatePath("/admin/devices");
   } catch (err) {
@@ -134,10 +152,13 @@ export async function deleteDevice(mac: string) {
       actor,
       { action: "device.delete", targetType: "device", targetId: mac },
       async (tx) => {
-        const deleted = await tx.delete(devices).where(eq(devices.mac, mac)).returning({ mac: devices.mac });
+        const deleted = await tx
+          .delete(devices)
+          .where(eq(devices.mac, mac))
+          .returning({ mac: devices.mac });
         if (deleted.length === 0) throw new Error("device_not_found");
       },
-      "delete-device",
+      "delete-device"
     );
     revalidatePath("/admin/devices");
   } catch (err) {
@@ -152,9 +173,14 @@ export async function createTheme(name: string, config: Record<string, string>) 
   const actor = await requireAdmin("themes.manage");
   await withAuditedTransaction(
     actor,
-    (created: { id: string }[]) => ({ action: "theme.create", targetType: "theme", targetId: created[0].id, metadata: { name } }),
+    (created: { id: string }[]) => ({
+      action: "theme.create",
+      targetType: "theme",
+      targetId: created[0].id,
+      metadata: { name },
+    }),
     (tx) => tx.insert(themes).values({ name, config }).returning({ id: themes.id }),
-    "create-theme",
+    "create-theme"
   );
   revalidatePath("/admin/themes");
 }
@@ -165,10 +191,14 @@ export async function updateTheme(id: string, name: string, config: Record<strin
     actor,
     { action: "theme.update", targetType: "theme", targetId: id, metadata: { name } },
     async (tx) => {
-      const updated = await tx.update(themes).set({ name, config, updatedAt: new Date() }).where(eq(themes.id, id)).returning({ id: themes.id });
+      const updated = await tx
+        .update(themes)
+        .set({ name, config, updatedAt: new Date() })
+        .where(eq(themes.id, id))
+        .returning({ id: themes.id });
       if (updated.length === 0) throw new Error("theme_not_found");
     },
-    "update-theme",
+    "update-theme"
   );
   revalidatePath("/admin/themes");
 }
@@ -182,7 +212,7 @@ export async function deleteTheme(id: string) {
       const deleted = await tx.delete(themes).where(eq(themes.id, id)).returning({ id: themes.id });
       if (deleted.length === 0) throw new Error("theme_not_found");
     },
-    "delete-theme",
+    "delete-theme"
   );
   revalidatePath("/admin/themes");
 }
@@ -199,9 +229,18 @@ export async function createProvider(
     const encrypted = encryptCredentials(credentials);
     await withAuditedTransaction(
       actor,
-      (created: { id: string }[]) => ({ action: "provider.create", targetType: "provider", targetId: created[0].id, metadata: { type, name } }),
-      (tx) => tx.insert(dataProviders).values({ type, name, encryptedCredentials: encrypted }).returning({ id: dataProviders.id }),
-      "create-provider",
+      (created: { id: string }[]) => ({
+        action: "provider.create",
+        targetType: "provider",
+        targetId: created[0].id,
+        metadata: { type, name },
+      }),
+      (tx) =>
+        tx
+          .insert(dataProviders)
+          .values({ type, name, encryptedCredentials: encrypted })
+          .returning({ id: dataProviders.id }),
+      "create-provider"
     );
     revalidatePath("/admin/providers");
   } catch (err) {
@@ -223,12 +262,24 @@ export async function updateProvider(
     }
     await withAuditedTransaction(
       actor,
-      { action: "provider.update", targetType: "provider", targetId: id, metadata: { name, credentialsChanged: !!credentials && Object.keys(credentials).length > 0 } },
+      {
+        action: "provider.update",
+        targetType: "provider",
+        targetId: id,
+        metadata: {
+          name,
+          credentialsChanged: !!credentials && Object.keys(credentials).length > 0,
+        },
+      },
       async (tx) => {
-        const updated = await tx.update(dataProviders).set(data).where(eq(dataProviders.id, id)).returning({ id: dataProviders.id });
+        const updated = await tx
+          .update(dataProviders)
+          .set(data)
+          .where(eq(dataProviders.id, id))
+          .returning({ id: dataProviders.id });
         if (updated.length === 0) throw new Error("provider_not_found");
       },
-      "update-provider",
+      "update-provider"
     );
     revalidatePath("/admin/providers");
   } catch (err) {
@@ -243,10 +294,13 @@ export async function deleteProvider(id: string) {
     actor,
     { action: "provider.delete", targetType: "provider", targetId: id },
     async (tx) => {
-      const deleted = await tx.delete(dataProviders).where(eq(dataProviders.id, id)).returning({ id: dataProviders.id });
+      const deleted = await tx
+        .delete(dataProviders)
+        .where(eq(dataProviders.id, id))
+        .returning({ id: dataProviders.id });
       if (deleted.length === 0) throw new Error("provider_not_found");
     },
-    "delete-provider",
+    "delete-provider"
   );
   revalidatePath("/admin/providers");
 }
@@ -261,9 +315,18 @@ export async function createContentInstance(
   const actor = await requireAdmin("content.manage");
   await withAuditedTransaction(
     actor,
-    (created: { id: string }[]) => ({ action: "content.create", targetType: "content", targetId: created[0].id, metadata: { typeSlug, name } }),
-    (tx) => tx.insert(contentInstances).values({ typeSlug, name, config }).returning({ id: contentInstances.id }),
-    "create-content-instance",
+    (created: { id: string }[]) => ({
+      action: "content.create",
+      targetType: "content",
+      targetId: created[0].id,
+      metadata: { typeSlug, name },
+    }),
+    (tx) =>
+      tx
+        .insert(contentInstances)
+        .values({ typeSlug, name, config })
+        .returning({ id: contentInstances.id }),
+    "create-content-instance"
   );
   revalidatePath("/admin/content");
 }
@@ -278,10 +341,14 @@ export async function updateContentInstance(
     actor,
     { action: "content.update", targetType: "content", targetId: id, metadata: { name } },
     async (tx) => {
-      const updated = await tx.update(contentInstances).set({ name, config, updatedAt: new Date() }).where(eq(contentInstances.id, id)).returning({ id: contentInstances.id });
+      const updated = await tx
+        .update(contentInstances)
+        .set({ name, config, updatedAt: new Date() })
+        .where(eq(contentInstances.id, id))
+        .returning({ id: contentInstances.id });
       if (updated.length === 0) throw new Error("content_not_found");
     },
-    "update-content-instance",
+    "update-content-instance"
   );
   revalidatePath("/admin/content");
 }
@@ -292,10 +359,13 @@ export async function deleteContentInstance(id: string) {
     actor,
     { action: "content.delete", targetType: "content", targetId: id },
     async (tx) => {
-      const deleted = await tx.delete(contentInstances).where(eq(contentInstances.id, id)).returning({ id: contentInstances.id });
+      const deleted = await tx
+        .delete(contentInstances)
+        .where(eq(contentInstances.id, id))
+        .returning({ id: contentInstances.id });
       if (deleted.length === 0) throw new Error("content_not_found");
     },
-    "delete-content-instance",
+    "delete-content-instance"
   );
   revalidatePath("/admin/content");
 }
@@ -314,21 +384,32 @@ export async function getAllThemes() {
 
 export async function getAllProviders() {
   await requireAdmin("providers.read");
-  return withDbRead(() => db.select({
-    id: dataProviders.id,
-    type: dataProviders.type,
-    name: dataProviders.name,
-    createdAt: dataProviders.createdAt,
-  }).from(dataProviders).orderBy(dataProviders.name), "get-all-providers");
+  return withDbRead(
+    () =>
+      db
+        .select({
+          id: dataProviders.id,
+          type: dataProviders.type,
+          name: dataProviders.name,
+          createdAt: dataProviders.createdAt,
+        })
+        .from(dataProviders)
+        .orderBy(dataProviders.name),
+    "get-all-providers"
+  );
 }
 
 export async function getProviderCredentials(id: string): Promise<Record<string, string>> {
   await requireAdmin("providers.manage_secrets");
-  const [provider] = await withDbRead(() => db
-    .select({ encrypted: dataProviders.encryptedCredentials })
-    .from(dataProviders)
-    .where(eq(dataProviders.id, id))
-    .limit(1), "get-provider-credentials");
+  const [provider] = await withDbRead(
+    () =>
+      db
+        .select({ encrypted: dataProviders.encryptedCredentials })
+        .from(dataProviders)
+        .where(eq(dataProviders.id, id))
+        .limit(1),
+    "get-provider-credentials"
+  );
   if (!provider) return {};
   try {
     return decryptCredentials(provider.encrypted) as Record<string, string>;
@@ -339,7 +420,10 @@ export async function getProviderCredentials(id: string): Promise<Record<string,
 
 export async function getAllContentInstances() {
   await requireAdmin("content.read");
-  return withDbRead(() => db.select().from(contentInstances).orderBy(contentInstances.name), "get-all-content-instances");
+  return withDbRead(
+    () => db.select().from(contentInstances).orderBy(contentInstances.name),
+    "get-all-content-instances"
+  );
 }
 
 export async function getAllContentTypes() {
@@ -348,10 +432,12 @@ export async function getAllContentTypes() {
   return getAllContentRenderers().map((r) => ({ slug: r.slug, name: r.name }));
 }
 
-
 export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string }> {
   await requireAdmin("providers.manage_secrets");
-  const [provider] = await withDbRead(() => db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1), "test-provider-get");
+  const [provider] = await withDbRead(
+    () => db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1),
+    "test-provider-get"
+  );
   if (!provider) return { ok: false, message: "Provider not found" };
 
   try {
@@ -362,10 +448,19 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
       // Test: get OAuth token from Microsoft Graph
       const { ConfidentialClientApplication } = await import("@azure/msal-node");
       const cca = new ConfidentialClientApplication({
-        auth: { clientId: credentials.clientId, clientSecret: credentials.clientSecret, authority: `https://login.microsoftonline.com/${credentials.tenantId}` },
+        auth: {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          authority: `https://login.microsoftonline.com/${credentials.tenantId}`,
+        },
       });
-      const token = await cca.acquireTokenByClientCredential({ scopes: ["https://graph.microsoft.com/.default"] });
-      return { ok: !!token?.accessToken, message: token?.accessToken ? "Connected — token acquired" : "No token returned" };
+      const token = await cca.acquireTokenByClientCredential({
+        scopes: ["https://graph.microsoft.com/.default"],
+      });
+      return {
+        ok: !!token?.accessToken,
+        message: token?.accessToken ? "Connected — token acquired" : "No token returned",
+      };
     }
 
     if (provider.type === "google") {
@@ -378,7 +473,10 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
         body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) { const t = await res.text(); return { ok: false, message: `Google auth failed: ${t.slice(0, 100)}` }; }
+      if (!res.ok) {
+        const t = await res.text();
+        return { ok: false, message: `Google auth failed: ${t.slice(0, 100)}` };
+      }
       return { ok: true, message: "Connected — token acquired" };
     }
 
@@ -389,11 +487,17 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
       const res = await safeFetch(credentials.url, { timeoutMs: 10_000 });
       if (!res.ok) return { ok: false, message: `HTTP ${res.status} from iCal URL` };
       const text = await res.text();
-      return { ok: text.includes("VCALENDAR"), message: text.includes("VCALENDAR") ? "Connected — valid iCal feed" : "Response is not a valid iCal feed" };
+      return {
+        ok: text.includes("VCALENDAR"),
+        message: text.includes("VCALENDAR")
+          ? "Connected — valid iCal feed"
+          : "Response is not a valid iCal feed",
+      };
     }
 
     if (provider.type === "anny") {
-      const { fetchAnnyResources, extractOrgFromToken } = await import("@/lib/calendar/providers/anny");
+      const { fetchAnnyResources, extractOrgFromToken } =
+        await import("@/lib/calendar/providers/anny");
       const orgId = credentials.organizationId || extractOrgFromToken(credentials.apiToken) || "";
       if (!orgId) return { ok: false, message: "Cannot extract organization ID from token" };
       const result = await fetchAnnyResources(credentials.apiToken, orgId);
@@ -408,7 +512,10 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
 
 export async function testContentInstance(id: string): Promise<{ ok: boolean; message: string }> {
   await requireAdmin("content.manage");
-  const [instance] = await withDbRead(() => db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1), "test-content-instance-get");
+  const [instance] = await withDbRead(
+    () => db.select().from(contentInstances).where(eq(contentInstances.id, id)).limit(1),
+    "test-content-instance-get"
+  );
   if (!instance) return { ok: false, message: "Content instance not found" };
 
   try {
@@ -438,8 +545,13 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
         windowStart: new Date(now.getTime() - 3600_000),
         windowEnd: new Date(now.getTime() + 3600_000),
       });
-      const current = events.find(e => now >= e.startTime && now < e.endTime);
-      return { ok: true, message: current ? `Occupied: ${current.organizer}` : `Free — ${events.length} bookings today` };
+      const current = events.find((e) => now >= e.startTime && now < e.endTime);
+      return {
+        ok: true,
+        message: current
+          ? `Occupied: ${current.organizer}`
+          : `Free — ${events.length} bookings today`,
+      };
     }
 
     return { ok: true, message: "Config valid" };
@@ -451,7 +563,10 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
 
 export async function getAllRefreshProfiles() {
   await requireAdmin("content.read");
-  return withDbRead(() => db.select().from(refreshProfiles).orderBy(refreshProfiles.name), "get-all-refresh-profiles");
+  return withDbRead(
+    () => db.select().from(refreshProfiles).orderBy(refreshProfiles.name),
+    "get-all-refresh-profiles"
+  );
 }
 
 export async function createRefreshProfile(name: string, config: Record<string, unknown>) {
@@ -459,9 +574,15 @@ export async function createRefreshProfile(name: string, config: Record<string, 
   try {
     await withAuditedTransaction(
       actor,
-      (created: { id: string }[]) => ({ action: "profile.create", targetType: "refresh_profile", targetId: created[0].id, metadata: { name } }),
-      (tx) => tx.insert(refreshProfiles).values({ name, config }).returning({ id: refreshProfiles.id }),
-      "create-refresh-profile",
+      (created: { id: string }[]) => ({
+        action: "profile.create",
+        targetType: "refresh_profile",
+        targetId: created[0].id,
+        metadata: { name },
+      }),
+      (tx) =>
+        tx.insert(refreshProfiles).values({ name, config }).returning({ id: refreshProfiles.id }),
+      "create-refresh-profile"
     );
     revalidatePath("/admin/profiles");
   } catch (err) {
@@ -470,17 +591,25 @@ export async function createRefreshProfile(name: string, config: Record<string, 
   }
 }
 
-export async function updateRefreshProfile(id: string, name: string, config: Record<string, unknown>) {
+export async function updateRefreshProfile(
+  id: string,
+  name: string,
+  config: Record<string, unknown>
+) {
   const actor = await requireAdmin("profiles.manage");
   try {
     await withAuditedTransaction(
       actor,
       { action: "profile.update", targetType: "refresh_profile", targetId: id, metadata: { name } },
       async (tx) => {
-        const updated = await tx.update(refreshProfiles).set({ name, config, updatedAt: new Date() }).where(eq(refreshProfiles.id, id)).returning({ id: refreshProfiles.id });
+        const updated = await tx
+          .update(refreshProfiles)
+          .set({ name, config, updatedAt: new Date() })
+          .where(eq(refreshProfiles.id, id))
+          .returning({ id: refreshProfiles.id });
         if (updated.length === 0) throw new Error("refresh_profile_not_found");
       },
-      "update-refresh-profile",
+      "update-refresh-profile"
     );
     revalidatePath("/admin/profiles");
   } catch (err) {
@@ -496,10 +625,13 @@ export async function deleteRefreshProfile(id: string) {
       actor,
       { action: "profile.delete", targetType: "refresh_profile", targetId: id },
       async (tx) => {
-        const deleted = await tx.delete(refreshProfiles).where(eq(refreshProfiles.id, id)).returning({ id: refreshProfiles.id });
+        const deleted = await tx
+          .delete(refreshProfiles)
+          .where(eq(refreshProfiles.id, id))
+          .returning({ id: refreshProfiles.id });
         if (deleted.length === 0) throw new Error("refresh_profile_not_found");
       },
-      "delete-refresh-profile",
+      "delete-refresh-profile"
     );
     revalidatePath("/admin/profiles");
   } catch (err) {
@@ -525,14 +657,25 @@ export async function setDefaultRefreshProfile(id: string | null) {
       { action: "profile.setDefault", targetType: "refresh_profile", targetId: id },
       async (tx) => {
         if (id) {
-          const target = await tx.select({ id: refreshProfiles.id }).from(refreshProfiles).where(eq(refreshProfiles.id, id)).limit(1);
+          const target = await tx
+            .select({ id: refreshProfiles.id })
+            .from(refreshProfiles)
+            .where(eq(refreshProfiles.id, id))
+            .limit(1);
           if (target.length === 0) throw new Error("refresh_profile_not_found");
         }
-        await tx.update(refreshProfiles).set({ isDefault: false }).where(eq(refreshProfiles.isDefault, true));
-        if (id) await tx.update(refreshProfiles).set({ isDefault: true }).where(eq(refreshProfiles.id, id));
+        await tx
+          .update(refreshProfiles)
+          .set({ isDefault: false })
+          .where(eq(refreshProfiles.isDefault, true));
+        if (id)
+          await tx
+            .update(refreshProfiles)
+            .set({ isDefault: true })
+            .where(eq(refreshProfiles.id, id));
       },
       "set-default-refresh-profile",
-      "serializable",
+      "serializable"
     );
     revalidatePath("/admin/profiles");
     revalidatePath("/admin/devices");
@@ -558,14 +701,18 @@ export async function setDefaultTheme(id: string | null) {
       { action: "theme.setDefault", targetType: "theme", targetId: id },
       async (tx) => {
         if (id) {
-          const target = await tx.select({ id: themes.id }).from(themes).where(eq(themes.id, id)).limit(1);
+          const target = await tx
+            .select({ id: themes.id })
+            .from(themes)
+            .where(eq(themes.id, id))
+            .limit(1);
           if (target.length === 0) throw new Error("theme_not_found");
         }
         await tx.update(themes).set({ isDefault: false }).where(eq(themes.isDefault, true));
         if (id) await tx.update(themes).set({ isDefault: true }).where(eq(themes.id, id));
       },
       "set-default-theme",
-      "serializable",
+      "serializable"
     );
     revalidatePath("/admin/themes");
     revalidatePath("/admin/devices");
@@ -595,18 +742,21 @@ export async function updateSetting(key: string, value: unknown) {
   if (key === "firmware.autoPoll" && typeof value !== "boolean") {
     throw new Error("invalid_setting_value");
   }
-  if (key === "firmware.pollIntervalS" &&
-      (typeof value !== "number" || !Number.isInteger(value) || value < 60 || value > 86_400)) {
+  if (
+    key === "firmware.pollIntervalS" &&
+    (typeof value !== "number" || !Number.isInteger(value) || value < 60 || value > 86_400)
+  ) {
     throw new Error("invalid_setting_value");
   }
 
   await withAuditedTransaction(
     actor,
     { action: "setting.update", targetType: "setting", targetId: key },
-    (tx) => key === "firmware.autoPoll"
-      ? setSettingInTransaction(tx, key, value as boolean)
-      : setSettingInTransaction(tx, key, value as number),
-    "update-setting",
+    (tx) =>
+      key === "firmware.autoPoll"
+        ? setSettingInTransaction(tx, key, value as boolean)
+        : setSettingInTransaction(tx, key, value as number),
+    "update-setting"
   );
   // Cache publication must happen only after the transaction commits.
   if (key === "firmware.autoPoll") cacheCommittedSetting(key, value as boolean);
@@ -615,11 +765,19 @@ export async function updateSetting(key: string, value: unknown) {
   revalidatePath("/admin/firmware");
 }
 
-export async function getKnownDisplaySizes(): Promise<{ label: string; width: number; height: number }[]> {
+export async function getKnownDisplaySizes(): Promise<
+  { label: string; width: number; height: number }[]
+> {
   await requireAdmin("content.read");
   const { KNOWN_DISPLAYS } = await import("@/lib/content/renderers/door-sign-types");
-  const rows = await withDbRead(() => db.selectDistinct({ displayCaps: devices.displayCaps }).from(devices)
-    .where(sql`${devices.displayCaps} IS NOT NULL`), "get-known-display-sizes");
+  const rows = await withDbRead(
+    () =>
+      db
+        .selectDistinct({ displayCaps: devices.displayCaps })
+        .from(devices)
+        .where(sql`${devices.displayCaps} IS NOT NULL`),
+    "get-known-display-sizes"
+  );
   const seen = new Set<string>();
   const sizes: { label: string; width: number; height: number }[] = [];
 
@@ -639,7 +797,11 @@ export async function getKnownDisplaySizes(): Promise<{ label: string; width: nu
     const key = `${caps.width}x${caps.height}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    sizes.push({ label: `${caps.model ?? "Unknown"} (${key})`, width: caps.width, height: caps.height });
+    sizes.push({
+      label: `${caps.model ?? "Unknown"} (${key})`,
+      width: caps.width,
+      height: caps.height,
+    });
   }
 
   return sizes;
@@ -651,8 +813,12 @@ export async function getKnownDisplaySizes(): Promise<{ label: string; width: nu
 export async function getRollouts() {
   await requireAdmin("firmware.read");
   return withDbRead(
-    () => db.select().from(firmwareRollouts).orderBy(sql`${firmwareRollouts.updatedAt} DESC`),
-    "get-rollouts",
+    () =>
+      db
+        .select()
+        .from(firmwareRollouts)
+        .orderBy(sql`${firmwareRollouts.updatedAt} DESC`),
+    "get-rollouts"
   );
 }
 
@@ -664,13 +830,18 @@ export async function setRollout(
   version: string,
   channel: string,
   state: RolloutState,
-  percent = 0,
+  percent = 0
 ) {
   const actor = await requireAdmin("firmware.rollout");
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
   await withAuditedTransaction(
     actor,
-    { action: "firmware.rollout.set", targetType: "firmware_rollout", targetId: `${version}:${channel}`, metadata: { state, percent: pct } },
+    {
+      action: "firmware.rollout.set",
+      targetType: "firmware_rollout",
+      targetId: `${version}:${channel}`,
+      metadata: { state, percent: pct },
+    },
     (tx) =>
       tx
         .insert(firmwareRollouts)
@@ -679,7 +850,7 @@ export async function setRollout(
           target: [firmwareRollouts.version, firmwareRollouts.channel],
           set: { state, percent: pct, updatedAt: new Date() },
         }),
-    "set-rollout",
+    "set-rollout"
   );
   revalidatePath("/admin/firmware");
 }
@@ -695,8 +866,12 @@ export async function getRecentOtaEvents(limit = 100) {
   await requireAdmin("firmware.read");
   return withDbRead(
     () =>
-      db.select().from(otaEvents).orderBy(sql`${otaEvents.timestamp} DESC`).limit(limit),
-    "get-ota-events",
+      db
+        .select()
+        .from(otaEvents)
+        .orderBy(sql`${otaEvents.timestamp} DESC`)
+        .limit(limit),
+    "get-ota-events"
   );
 }
 
@@ -733,7 +908,7 @@ export async function getRolloutOverview(): Promise<RolloutOverview> {
           ) t
           GROUP BY t.firmware_version ORDER BY count DESC
         `),
-      "rollout-adoption",
+      "rollout-adoption"
     ).then((r) => r.rows as { version: string; count: number }[]),
     // Health: OTA outcome counts per target version (last 30 days).
     withDbRead(
@@ -744,7 +919,7 @@ export async function getRolloutOverview(): Promise<RolloutOverview> {
           WHERE timestamp > now() - make_interval(days => 30) AND to_version IS NOT NULL
           GROUP BY to_version, phase
         `),
-      "rollout-health",
+      "rollout-health"
     ).then((r) => r.rows as { version: string; phase: string; count: number }[]),
     withDbRead(
       () =>
@@ -754,7 +929,7 @@ export async function getRolloutOverview(): Promise<RolloutOverview> {
                  to_char(timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS timestamp
           FROM ota_events ORDER BY timestamp DESC LIMIT 50
         `),
-      "rollout-events",
+      "rollout-events"
     ).then((r) => r.rows as RolloutOverview["recentEvents"]),
   ]);
   return {

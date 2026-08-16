@@ -2,22 +2,33 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { sql } from "drizzle-orm";
 import { db, withDbRead } from "@/db";
-import { getAllThemes, getAllContentInstances, getAllRefreshProfiles, getAvailableVersions, getAllProviders, getKnownDisplaySizes } from "../actions";
+import {
+  getAllThemes,
+  getAllContentInstances,
+  getAllRefreshProfiles,
+  getAvailableVersions,
+  getAllProviders,
+  getKnownDisplaySizes,
+} from "../actions";
 import { DeviceTable } from "./device-table";
 
 export default async function DevicesPage() {
-  const [themeList, contentList, profileList, versions, providers, knownDisplays] = await Promise.all([
-    getAllThemes(),
-    getAllContentInstances(),
-    getAllRefreshProfiles(),
-    getAvailableVersions(),
-    getAllProviders(),
-    getKnownDisplaySizes(),
-  ]);
+  const [themeList, contentList, profileList, versions, providers, knownDisplays] =
+    await Promise.all([
+      getAllThemes(),
+      getAllContentInstances(),
+      getAllRefreshProfiles(),
+      getAvailableVersions(),
+      getAllProviders(),
+      getKnownDisplaySizes(),
+    ]);
 
   // The container completes schema migrations before serving requests, so a
   // schema error must remain visible instead of being mistaken for an older DB.
-  const deviceRows = (await withDbRead(() => db.execute(sql`
+  const deviceRows = (
+    await withDbRead(
+      () =>
+        db.execute(sql`
       SELECT
         d.mac, d.status, d.content_instance_id, d.theme_id,
         d.refresh_profile_id, d.firmware_channel, d.firmware_pin_version,
@@ -31,7 +42,10 @@ export default async function DevicesPage() {
         FROM telemetry WHERE mac = d.mac ORDER BY timestamp DESC LIMIT 1
       ) t ON true
       ORDER BY d.last_seen DESC NULLS LAST
-    `), "devices-with-latest-telemetry")).rows as Record<string, unknown>[];
+    `),
+      "devices-with-latest-telemetry"
+    )
+  ).rows as Record<string, unknown>[];
 
   return (
     <DeviceTable

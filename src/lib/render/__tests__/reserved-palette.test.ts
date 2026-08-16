@@ -17,13 +17,13 @@ import { resolveDisplayCaps, DISPLAY_REGISTRY } from "@/lib/display";
 
 /** The wire order, straight from firmware/components/http_client/http_client.c. */
 const E1002_PALETTE: ColorPalette = [
-  [0, 0, 0],       // 0x0 black
+  [0, 0, 0], // 0x0 black
   [255, 255, 255], // 0x1 white
-  [255, 255, 0],   // 0x2 yellow
-  [255, 0, 0],     // 0x3 red
+  [255, 255, 0], // 0x2 yellow
+  [255, 0, 0], // 0x3 red
   [255, 255, 255], // 0x4 reserved
-  [0, 0, 255],     // 0x5 blue
-  [0, 255, 0],     // 0x6 green
+  [0, 0, 255], // 0x5 blue
+  [0, 255, 0], // 0x6 green
 ];
 const E1002_RESERVED = [4];
 
@@ -51,10 +51,11 @@ describe("reserved palette positions", () => {
   it("dithers a full image without ever emitting a reserved code", () => {
     // A gradient sweeping through orange is the worst case: every pixel is a near
     // miss for the reserved slot.
-    const w = 32, h = 8;
+    const w = 32,
+      h = 8;
     const data = new Uint8ClampedArray(w * h * 4);
     for (let i = 0; i < w * h; i++) {
-      data[i * 4] = 255;                       // R
+      data[i * 4] = 255; // R
       data[i * 4 + 1] = Math.round((i / (w * h)) * 255); // G sweeps red → yellow
       data[i * 4 + 2] = 0;
       data[i * 4 + 3] = 255;
@@ -94,7 +95,7 @@ describe("device-reported capabilities", () => {
   it("counts printable colors, not the size of the code space", () => {
     const resolved = resolveDisplayCaps(caps);
     expect(resolved.palette).toHaveLength(7); // codes 0x0–0x6 stay addressable
-    expect(resolved.colorCount).toBe(6);      // but only six can be printed
+    expect(resolved.colorCount).toBe(6); // but only six can be printed
     expect(resolved.reservedPaletteIndices).toEqual([4]);
   });
 

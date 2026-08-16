@@ -5,14 +5,17 @@ import type { TelemetryEntry } from "@/lib/types";
 
 // --- Generators ---
 
-const arbMac = fc
-  .stringMatching(/^[0-9A-F]{12}$/)
-  .map((s) => s.match(/.{2}/g)!.join(":"));
+const arbMac = fc.stringMatching(/^[0-9A-F]{12}$/).map((s) => s.match(/.{2}/g)!.join(":"));
 
 const arbBatteryVoltage = fc.float({ min: 2.5, max: 4.5, noNaN: true });
 const arbBatteryLevel = fc.integer({ min: 0, max: 100 });
 const arbPowerSource = fc.constantFrom("usb" as const, "battery" as const);
-const arbBatteryStatus = fc.constantFrom("charging" as const, "full" as const, "discharging" as const, "unknown" as const);
+const arbBatteryStatus = fc.constantFrom(
+  "charging" as const,
+  "full" as const,
+  "discharging" as const,
+  "unknown" as const
+);
 const arbWifiRssi = fc.integer({ min: -100, max: 0 });
 const arbFirmwareVer = fc
   .tuple(
@@ -78,23 +81,27 @@ describe("Property 13: Telemetry headers are logged with correct MAC association
   });
 
   it("rejects unknown power-state wire values without rejecting other telemetry", () => {
-    const extracted = extractTelemetry(new Headers({
-      "x-battery-level": "75",
-      "x-power-source": "wall-socket",
-      "x-battery-status": "overheated",
-    }));
+    const extracted = extractTelemetry(
+      new Headers({
+        "x-battery-level": "75",
+        "x-power-source": "wall-socket",
+        "x-battery-status": "overheated",
+      })
+    );
     expect(extracted?.powerSource).toBeNull();
     expect(extracted?.batteryStatus).toBeNull();
     expect(extracted?.batteryLevel).toBe(75);
   });
 
   it("rejects malformed and out-of-range numeric telemetry", () => {
-    const extracted = extractTelemetry(new Headers({
-      "x-battery-voltage": "NaN",
-      "x-battery-level": "101",
-      "x-wifi-rssi": "-55dBm",
-      "x-firmware-ver": "   ",
-    }));
+    const extracted = extractTelemetry(
+      new Headers({
+        "x-battery-voltage": "NaN",
+        "x-battery-level": "101",
+        "x-wifi-rssi": "-55dBm",
+        "x-firmware-ver": "   ",
+      })
+    );
 
     expect(extracted).toMatchObject({
       batteryVoltage: null,

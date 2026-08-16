@@ -65,6 +65,9 @@ export async function withDbWrite<T>(operation: () => Promise<T>, label?: string
 }
 
 /** Transactions retry only when PostgreSQL guarantees the prior attempt rolled back. */
-export async function withDbTransaction<T>(operation: () => Promise<T>, label?: string): Promise<T> {
+export async function withDbTransaction<T>(
+  operation: () => Promise<T>,
+  label?: string
+): Promise<T> {
   return dbResilience.execute(operation, label, "transaction");
 }

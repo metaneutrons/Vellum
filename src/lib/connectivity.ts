@@ -31,10 +31,11 @@ const LATE_MAX_FACTOR = 3;
 export function deviceConnectivity(
   lastSeenMs: number | null,
   expectedIntervalS: number | null | undefined,
-  nowMs: number,
+  nowMs: number
 ): Connectivity {
   if (lastSeenMs === null) return "never";
-  const interval = expectedIntervalS && expectedIntervalS > 0 ? expectedIntervalS : DEFAULT_INTERVAL_S;
+  const interval =
+    expectedIntervalS && expectedIntervalS > 0 ? expectedIntervalS : DEFAULT_INTERVAL_S;
   const ageS = (nowMs - lastSeenMs) / 1000;
   if (ageS <= interval * ONLINE_MAX_FACTOR + GRACE_S) return "online";
   if (ageS <= interval * LATE_MAX_FACTOR + GRACE_S) return "late";

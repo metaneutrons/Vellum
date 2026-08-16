@@ -36,17 +36,31 @@ export function Modal({ open, onClose, title, children, footer, onSubmit, wide }
     <div
       ref={overlayRef}
       className="fixed inset-0 material-overlay flex items-center justify-center z-50"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      onClick={(e) => {
+        if (e.target === overlayRef.current) onClose();
+      }}
     >
-      <div role="dialog" aria-modal="true" aria-label={title} className={`bg-surface rounded-xl shadow-e2 border border-separator w-full max-h-[90vh] flex flex-col ${wide ? "max-w-5xl" : "max-w-lg"}`} onClick={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`bg-surface rounded-xl shadow-e2 border border-separator w-full max-h-[90vh] flex flex-col ${wide ? "max-w-5xl" : "max-w-lg"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center px-6 py-4 border-b border-separator">
           <h2 className="text-lg font-bold text-label">{title}</h2>
-          <button aria-label={t("close")} onClick={onClose} className="text-label-secondary hover:text-label leading-none rounded-md focus-ring">
+          <button
+            aria-label={t("close")}
+            onClick={onClose}
+            className="text-label-secondary hover:text-label leading-none rounded-md focus-ring"
+          >
             <X size={18} aria-hidden="true" />
           </button>
         </div>
         <div className="px-6 py-4 overflow-y-auto flex-1">{children}</div>
-        {footer && <div className="px-6 py-4 border-t border-separator flex justify-end gap-2">{footer}</div>}
+        {footer && (
+          <div className="px-6 py-4 border-t border-separator flex justify-end gap-2">{footer}</div>
+        )}
       </div>
     </div>
   );

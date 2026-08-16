@@ -26,7 +26,9 @@ export function StatusPill({
   children: ReactNode;
 }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full text-xs font-medium ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full text-xs font-medium ${tones[tone]}`}
+    >
       {dot && <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />}
       {children}
     </span>

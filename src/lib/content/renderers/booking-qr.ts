@@ -26,7 +26,7 @@ export function normalizeBookingUrl(value: string | null | undefined): string | 
 export function shouldShowBookingQr(
   visibility: BookingQrVisibility,
   isRoomFree: boolean,
-  bookingUrl: string | null,
+  bookingUrl: string | null
 ): boolean {
   if (!bookingUrl || visibility === "never") return false;
   return visibility === "always" || isRoomFree;

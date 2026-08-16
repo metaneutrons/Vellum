@@ -24,7 +24,7 @@ export function verifyOtaDownloadGrant(
   grant: OtaDownloadGrant,
   signature: string,
   deviceToken: string,
-  nowSeconds = Math.floor(Date.now() / 1000),
+  nowSeconds = Math.floor(Date.now() / 1000)
 ): boolean {
   if (!Number.isSafeInteger(grant.expires) || grant.expires < nowSeconds) return false;
   // Refuse grants with an excessive lifetime even if correctly signed. This
@@ -43,7 +43,7 @@ export function createOtaDownloadUrl(
   origin: string,
   input: Omit<OtaDownloadGrant, "expires">,
   deviceToken: string,
-  nowSeconds = Math.floor(Date.now() / 1000),
+  nowSeconds = Math.floor(Date.now() / 1000)
 ): string {
   const grant = { ...input, expires: nowSeconds + OTA_DOWNLOAD_TTL_SECONDS };
   const url = new URL("/api/v1/ink/firmware", origin);

@@ -15,11 +15,11 @@
   --color-surface-hover: #f5f5f7;
 
   --color-label: rgb(0 0 0 / 0.92);
-  --color-label-secondary: rgb(60 60 67 / 0.60);
-  --color-label-tertiary: rgb(60 60 67 / 0.30);
+  --color-label-secondary: rgb(60 60 67 / 0.6);
+  --color-label-tertiary: rgb(60 60 67 / 0.3);
 
   --color-separator: rgb(60 60 67 / 0.16);
-  --color-fill: rgb(120 120 128 / 0.20);
+  --color-fill: rgb(120 120 128 / 0.2);
   --color-fill-secondary: rgb(120 120 128 / 0.16);
   --color-fill-tertiary: rgb(118 118 128 / 0.12);
 
@@ -35,7 +35,7 @@
   --color-ring: rgb(0 122 255 / 0.55);
 
   --material-bar: rgb(255 255 255 / 0.72);
-  --material-sidebar: rgb(246 246 248 / 0.80);
+  --material-sidebar: rgb(246 246 248 / 0.8);
   --material-sheet: rgb(255 255 255 / 0.86);
   --material-overlay: rgb(0 0 0 / 0.28);
 
@@ -54,8 +54,8 @@
   --color-surface-hover: #2c2c2e;
 
   --color-label: rgb(255 255 255 / 0.96);
-  --color-label-secondary: rgb(235 235 245 / 0.60);
-  --color-label-tertiary: rgb(235 235 245 / 0.30);
+  --color-label-secondary: rgb(235 235 245 / 0.6);
+  --color-label-tertiary: rgb(235 235 245 / 0.3);
 
   --color-separator: rgb(84 84 88 / 0.55);
   --color-fill: rgb(120 120 128 / 0.36);
@@ -65,7 +65,7 @@
   --color-accent: #0a84ff;
   --color-accent-hover: #3d9bff;
   --color-accent-pressed: #0974e0;
-  --color-accent-soft: rgb(10 132 255 / 0.20);
+  --color-accent-soft: rgb(10 132 255 / 0.2);
   --color-on-accent: #ffffff;
 
   --color-green: #30d158;
@@ -73,21 +73,22 @@
   --color-orange: #ff9f0a;
   --color-ring: rgb(10 132 255 / 0.65);
 
-  --material-bar: rgb(30 30 32 / 0.70);
+  --material-bar: rgb(30 30 32 / 0.7);
   --material-sidebar: rgb(20 20 22 / 0.78);
-  --material-sheet: rgb(40 40 42 / 0.80);
+  --material-sheet: rgb(40 40 42 / 0.8);
   --material-overlay: rgb(0 0 0 / 0.48);
 
-  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.40);
-  --shadow-e2: 0 4px 14px rgb(0 0 0 / 0.50);
-  --shadow-e3: 0 12px 36px rgb(0 0 0 / 0.60);
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-e2: 0 4px 14px rgb(0 0 0 / 0.5);
+  --shadow-e3: 0 12px 36px rgb(0 0 0 / 0.6);
 
   color-scheme: dark;
 }
 
 @theme inline {
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
-               "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
 
   --color-bg: var(--color-bg);
   --color-bg-secondary: var(--color-bg-secondary);
@@ -141,7 +142,9 @@
 
 .focus-ring:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-ring);
+  box-shadow:
+    0 0 0 2px var(--color-bg),
+    0 0 0 4px var(--color-ring);
 }
 
 body {
@@ -153,12 +156,19 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }
 
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-thumb { background: var(--color-fill); border-radius: 4px; }
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-fill);
+  border-radius: 4px;
+}

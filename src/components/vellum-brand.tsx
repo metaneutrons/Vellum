@@ -8,16 +8,34 @@ type BrandProps = {
   height: number;
 };
 
-function ResponsiveBrandAsset({ alt = "", className = "", width, height, kind }: BrandProps & {
+function ResponsiveBrandAsset({
+  alt = "",
+  className = "",
+  width,
+  height,
+  kind,
+}: BrandProps & {
   kind: "mark" | "logo";
 }) {
   const shared = `${className} h-auto`;
-  return <>
-    <img src={`/brand/vellum-${kind}-on-light.svg`} alt={alt} width={width} height={height}
-      className={`${shared} dark:hidden`} />
-    <img src={`/brand/vellum-${kind}-on-dark.svg`} alt={alt} width={width} height={height}
-      className={`${shared} hidden dark:block`} />
-  </>;
+  return (
+    <>
+      <img
+        src={`/brand/vellum-${kind}-on-light.svg`}
+        alt={alt}
+        width={width}
+        height={height}
+        className={`${shared} dark:hidden`}
+      />
+      <img
+        src={`/brand/vellum-${kind}-on-dark.svg`}
+        alt={alt}
+        width={width}
+        height={height}
+        className={`${shared} hidden dark:block`}
+      />
+    </>
+  );
 }
 
 export function VellumMark(props: BrandProps) {

@@ -11,7 +11,7 @@ const inputBase =
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className = "", ...props }, ref) {
     return <input ref={ref} className={`${inputBase} ${className}`} {...props} />;
-  },
+  }
 );
 
 export function Field({

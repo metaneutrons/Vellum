@@ -4,8 +4,8 @@
 strictDepBuilds: true
 allowBuilds:
   "@napi-rs/canvas": true
-  '@parcel/watcher': true
-  '@swc/core': true
+  "@parcel/watcher": true
+  "@swc/core": true
   esbuild: true
   sharp: true
   unrs-resolver: true

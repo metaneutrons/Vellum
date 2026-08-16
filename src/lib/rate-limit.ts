@@ -91,10 +91,7 @@ export function getClientIp(request: Request): string {
  * Apply rate limit check and return a 429 Response if exceeded,
  * or null if the request is allowed.
  */
-export function applyRateLimit(
-  limiter: RateLimiter,
-  key: string
-): Response | null {
+export function applyRateLimit(limiter: RateLimiter, key: string): Response | null {
   const { allowed, remaining, resetAt } = limiter.check(key);
   if (!allowed) {
     return new Response(

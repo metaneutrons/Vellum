@@ -46,14 +46,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      <div
+        role="status"
+        aria-live="polite"
+        className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
             className={`${colors[t.type]} text-white px-4 py-3 rounded-lg shadow-lg text-sm flex justify-between items-center`}
           >
             <span>{t.message}</span>
-            <button onClick={() => dismiss(t.id)} className="ml-3 opacity-70 hover:opacity-100">✕</button>
+            <button onClick={() => dismiss(t.id)} className="ml-3 opacity-70 hover:opacity-100">
+              ✕
+            </button>
           </div>
         ))}
       </div>

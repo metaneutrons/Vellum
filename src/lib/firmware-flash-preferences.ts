@@ -10,7 +10,7 @@ export const FLASH_MODEL_STORAGE_KEY = "vellum-firmware-flash-model";
  */
 export function resolveFlashModel(
   storedModel: string | null,
-  availableModels: readonly string[],
+  availableModels: readonly string[]
 ): string {
   if (storedModel && availableModels.includes(storedModel)) return storedModel;
   return availableModels[0] ?? "";

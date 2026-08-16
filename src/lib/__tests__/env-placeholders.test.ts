@@ -120,15 +120,20 @@ describe("placeholder rejection", () => {
     }
   });
 
-  it.each(["replace-with-openssl-rand-hex-32", "change-me-generate-with-a-real-secret", "CHANGEME-but-long-enough-to-pass-min", "change_me_and_this_is_long_enough_ok"])(
-    "rejects placeholder variant %s",
-    (value) => {
-      expect(envSchema.safeParse({ ...validEnv, SESSION_SECRET: value }).success).toBe(false);
-    },
-  );
+  it.each([
+    "replace-with-openssl-rand-hex-32",
+    "change-me-generate-with-a-real-secret",
+    "CHANGEME-but-long-enough-to-pass-min",
+    "change_me_and_this_is_long_enough_ok",
+  ])("rejects placeholder variant %s", (value) => {
+    expect(envSchema.safeParse({ ...validEnv, SESSION_SECRET: value }).success).toBe(false);
+  });
 
   it("explains how to generate a real value", () => {
-    const result = envSchema.safeParse({ ...validEnv, ENCRYPTION_KEY: "replace-with-openssl-rand-hex-32" });
+    const result = envSchema.safeParse({
+      ...validEnv,
+      ENCRYPTION_KEY: "replace-with-openssl-rand-hex-32",
+    });
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error.issues[0].message).toMatch(/openssl rand -hex 32/);
@@ -154,7 +159,7 @@ describe("placeholder rejection", () => {
         ADMIN_API_KEY: "ci-admin-api-key-that-is-at-least-32-chars-long",
         ADMIN_USER: "admin",
         ADMIN_PASS: "ci-password-at-least-8",
-      }).success,
+      }).success
     ).toBe(true);
   });
 
@@ -168,7 +173,7 @@ describe("placeholder rejection", () => {
         ADMIN_USER: "admin",
         ADMIN_PASS: "testpassword",
         NODE_ENV: "test",
-      }).success,
+      }).success
     ).toBe(true);
   });
 });

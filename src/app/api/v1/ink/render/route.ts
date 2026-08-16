@@ -27,12 +27,17 @@ import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/
  */
 async function resolveRefreshProfile(refreshProfileId: string | null) {
   if (refreshProfileId) {
-    const [rp] = await withDbRead(() => db.select().from(refreshProfiles)
-      .where(eq(refreshProfiles.id, refreshProfileId)).limit(1), "render-get-refresh-profile");
+    const [rp] = await withDbRead(
+      () =>
+        db.select().from(refreshProfiles).where(eq(refreshProfiles.id, refreshProfileId)).limit(1),
+      "render-get-refresh-profile"
+    );
     if (rp) return parseRefreshProfile(rp.config);
   }
-  const [fallback] = await withDbRead(() => db.select().from(refreshProfiles)
-    .where(eq(refreshProfiles.isDefault, true)).limit(1), "render-get-default-refresh-profile");
+  const [fallback] = await withDbRead(
+    () => db.select().from(refreshProfiles).where(eq(refreshProfiles.isDefault, true)).limit(1),
+    "render-get-default-refresh-profile"
+  );
   return fallback ? parseRefreshProfile(fallback.config) : null;
 }
 
@@ -45,7 +50,7 @@ async function resolveRefreshProfile(refreshProfileId: string | null) {
 function sleepHeaders(
   durationS: number,
   mode: string,
-  profile: RefreshProfile | null,
+  profile: RefreshProfile | null
 ): Record<string, string> {
   const headers: Record<string, string> = {
     "X-Sleep-Duration": String(Math.round(applyJitter(durationS))),
@@ -69,7 +74,7 @@ async function recordExpectedInterval(mac: string, current: number | null, durat
   if (current === rounded) return;
   await withDbWrite(
     () => db.update(devices).set({ expectedIntervalS: rounded }).where(eq(devices.mac, mac)),
-    "render-update-expected-interval",
+    "render-update-expected-interval"
   ).catch((err) => log.warn("expectedIntervalS update failed", { mac, error: String(err) }));
 }
 
@@ -91,16 +96,16 @@ export async function GET(request: NextRequest) {
   const telemetryData = extractTelemetry(request.headers);
   if (telemetryData) {
     void logTelemetry({ ...telemetryData, mac: validation.data.mac, timestamp: new Date() }).catch(
-      (err) => log.warn("Telemetry logging failed", { mac: validation.data.mac, error: String(err) }),
+      (err) =>
+        log.warn("Telemetry logging failed", { mac: validation.data.mac, error: String(err) })
     );
   }
 
   // Fetch device with content instance and theme
-  const [device] = await withDbRead(() => db
-    .select()
-    .from(devices)
-    .where(eq(devices.mac, validation.data.mac))
-    .limit(1), "render-get-device");
+  const [device] = await withDbRead(
+    () => db.select().from(devices).where(eq(devices.mac, validation.data.mac)).limit(1),
+    "render-get-device"
+  );
 
   if (!device) {
     return Response.json(errorResponse("Device not found"), { status: 404 });
@@ -135,11 +140,11 @@ export async function GET(request: NextRequest) {
 
   // Load content instance
   const contentInstanceId = device.contentInstanceId;
-  const [instance] = await withDbRead(() => db
-    .select()
-    .from(contentInstances)
-    .where(eq(contentInstances.id, contentInstanceId))
-    .limit(1), "render-get-content-instance");
+  const [instance] = await withDbRead(
+    () =>
+      db.select().from(contentInstances).where(eq(contentInstances.id, contentInstanceId)).limit(1),
+    "render-get-content-instance"
+  );
 
   if (!instance) {
     return Response.json(errorResponse("Content instance not found"), { status: 404 });
@@ -148,29 +153,32 @@ export async function GET(request: NextRequest) {
   // Resolve renderer
   const renderer = getContentRenderer(instance.typeSlug);
   if (!renderer) {
-    return Response.json(errorResponse(`No renderer for type: ${instance.typeSlug}`), { status: 500 });
+    return Response.json(errorResponse(`No renderer for type: ${instance.typeSlug}`), {
+      status: 500,
+    });
   }
 
   // Resolve display capabilities
-  const display = resolveDisplayCaps(device.displayCaps, device.orientationOverride as "portrait" | "landscape" | undefined);
+  const display = resolveDisplayCaps(
+    device.displayCaps,
+    device.orientationOverride as "portrait" | "landscape" | undefined
+  );
 
   // Resolve theme: device-specific → DB default → hardcoded fallback
   let theme: Theme = resolveTheme(display.colorCount);
   if (device.themeId) {
     const themeId = device.themeId;
-    const [dbTheme] = await withDbRead(() => db
-      .select()
-      .from(themes)
-      .where(eq(themes.id, themeId))
-      .limit(1), "render-get-device-theme");
+    const [dbTheme] = await withDbRead(
+      () => db.select().from(themes).where(eq(themes.id, themeId)).limit(1),
+      "render-get-device-theme"
+    );
     const parsed = parseTheme(dbTheme?.config);
     if (parsed) theme = parsed;
   } else {
-    const [defaultTheme] = await withDbRead(() => db
-      .select()
-      .from(themes)
-      .where(eq(themes.isDefault, true))
-      .limit(1), "render-get-default-theme");
+    const [defaultTheme] = await withDbRead(
+      () => db.select().from(themes).where(eq(themes.isDefault, true)).limit(1),
+      "render-get-default-theme"
+    );
     const parsed = parseTheme(defaultTheme?.config);
     if (parsed) theme = parsed;
   }
@@ -189,7 +197,11 @@ export async function GET(request: NextRequest) {
       now,
     });
   } catch (err) {
-    log.error("Render failed", { mac: validation.data.mac, renderer: instance.typeSlug, error: String(err) });
+    log.error("Render failed", {
+      mac: validation.data.mac,
+      renderer: instance.typeSlug,
+      error: String(err),
+    });
     return Response.json(errorResponse("Render failed"), { status: 500 });
   }
 
@@ -198,9 +210,16 @@ export async function GET(request: NextRequest) {
     display.palette,
     display.format,
     display.colorMode,
-    display.reservedPaletteIndices,
+    display.reservedPaletteIndices
   );
-  log.info("Render output", { mac: validation.data.mac, format: display.format, colorMode: display.colorMode, canvasW: renderResult.canvas.width, canvasH: renderResult.canvas.height, bufferSize: pixelBuffer.length });
+  log.info("Render output", {
+    mac: validation.data.mac,
+    format: display.format,
+    colorMode: display.colorMode,
+    canvasW: renderResult.canvas.width,
+    canvasH: renderResult.canvas.height,
+    bufferSize: pixelBuffer.length,
+  });
 
   // Sleep duration. powerSource and profile were resolved before the no-content
   // check above; only the renderer's own override needs the finished render.
@@ -217,7 +236,10 @@ export async function GET(request: NextRequest) {
 
   // Compute content hash for client-side caching (skip refresh if unchanged)
   const { createHash } = await import("crypto");
-  const contentHash = createHash("sha256").update(new Uint8Array(pixelBuffer)).digest("hex").slice(0, 16);
+  const contentHash = createHash("sha256")
+    .update(new Uint8Array(pixelBuffer))
+    .digest("hex")
+    .slice(0, 16);
 
   // Check If-None-Match — device sends last hash, skip render if unchanged
   const ifNoneMatch = request.headers.get("if-none-match");
@@ -231,9 +253,14 @@ export async function GET(request: NextRequest) {
   return new Response(new Uint8Array(pixelBuffer), {
     status: 200,
     headers: {
-      "Content-Type": display.format === "jpeg" ? "image/jpeg" : (display.colorMode === "fullcolor" ? "image/png" : "application/octet-stream"),
+      "Content-Type":
+        display.format === "jpeg"
+          ? "image/jpeg"
+          : display.colorMode === "fullcolor"
+            ? "image/png"
+            : "application/octet-stream",
       ...sleepHeaders(sleepDuration, sleepMode, profile),
-      "ETag": contentHash,
+      ETag: contentHash,
     },
   });
 }

@@ -37,7 +37,7 @@ describe("safeFetch — DNS-rebinding TOCTOU is closed at connect", () => {
       .mockResolvedValueOnce(METADATA as never); // dispatcher connect lookup
 
     await expect(
-      safeFetch("http://rebind.test/x", { allowHttp: true, timeoutMs: 3000 }),
+      safeFetch("http://rebind.test/x", { allowHttp: true, timeoutMs: 3000 })
     ).rejects.toThrow();
 
     // BOTH resolutions happened — the pre-check AND the connect-time revalidation
@@ -48,9 +48,9 @@ describe("safeFetch — DNS-rebinding TOCTOU is closed at connect", () => {
 
   it("rejects up front when the host resolves to a blocked IP", async () => {
     mockedLookup.mockResolvedValue(METADATA as never);
-    await expect(
-      safeFetch("http://evil.test/x", { allowHttp: true }),
-    ).rejects.toThrow(/blocked address/);
+    await expect(safeFetch("http://evil.test/x", { allowHttp: true })).rejects.toThrow(
+      /blocked address/
+    );
     expect(mockedLookup).toHaveBeenCalledTimes(1); // pre-check short-circuits
   });
 });
@@ -62,7 +62,7 @@ describe("safeFetch — response handling with pinning", () => {
       new Response("hello-body", {
         status: 200,
         headers: { "content-type": "text/plain" },
-      }) as never,
+      }) as never
     );
 
     const res = await safeFetch("http://example.test/x", { allowHttp: true });
@@ -81,7 +81,7 @@ describe("safeFetch — response handling with pinning", () => {
         new Response(null, {
           status: 302,
           headers: { location: "http://example.test/final" },
-        }) as never,
+        }) as never
       )
       .mockResolvedValueOnce(new Response("final-body", { status: 200 }) as never);
 

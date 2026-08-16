@@ -18,10 +18,7 @@ import type { AttentionDevice } from "../dashboard-data";
 import { useTranslations } from "next-intl";
 
 /** Per-reason chip styling + icon, keyed to the data layer's reason strings. */
-const REASON_STYLE: Record<
-  string,
-  { chip: string; Icon: typeof WifiOff }
-> = {
+const REASON_STYLE: Record<string, { chip: string; Icon: typeof WifiOff }> = {
   offline: { chip: "bg-red/10 text-red", Icon: WifiOff },
   lowBattery: { chip: "bg-orange/10 text-orange", Icon: BatteryLow },
   weakSignal: { chip: "bg-orange/10 text-orange", Icon: SignalLow },
@@ -66,10 +63,7 @@ export function AttentionList({ devices, now }: { devices: AttentionDevice[]; no
               >
                 {/* Identity + reasons */}
                 <div className="min-w-0 flex-1">
-                  <span
-                    className="font-mono text-[13px] text-label truncate block"
-                    title={d.mac}
-                  >
+                  <span className="font-mono text-[13px] text-label truncate block" title={d.mac}>
                     {shortMac(d.mac)}
                   </span>
                   <div className="flex flex-wrap items-center gap-1 mt-1.5">

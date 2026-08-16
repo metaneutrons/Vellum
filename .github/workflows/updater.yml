@@ -4,7 +4,7 @@ on:
     types: [published]
   push:
     branches: [main]
-    paths: ['deploy/updater/**', '.github/workflows/updater.yml']
+    paths: ["deploy/updater/**", ".github/workflows/updater.yml"]
   workflow_dispatch:
 
 env:

@@ -16,10 +16,16 @@ describe("database retry safety", () => {
     const manager = new DbResilienceManager();
     let attempts = 0;
 
-    await expect(manager.execute(async () => {
-      attempts++;
-      throw postgresError("08006");
-    }, "ambiguous-write", "write")).rejects.toThrow("08006");
+    await expect(
+      manager.execute(
+        async () => {
+          attempts++;
+          throw postgresError("08006");
+        },
+        "ambiguous-write",
+        "write"
+      )
+    ).rejects.toThrow("08006");
 
     expect(attempts).toBe(1);
   });
@@ -28,10 +34,16 @@ describe("database retry safety", () => {
     const manager = new DbResilienceManager();
     let attempts = 0;
 
-    await expect(manager.execute(async () => {
-      attempts++;
-      throw postgresError("08006");
-    }, "ambiguous-transaction", "transaction")).rejects.toThrow("08006");
+    await expect(
+      manager.execute(
+        async () => {
+          attempts++;
+          throw postgresError("08006");
+        },
+        "ambiguous-transaction",
+        "transaction"
+      )
+    ).rejects.toThrow("08006");
 
     expect(attempts).toBe(1);
   });
@@ -40,11 +52,15 @@ describe("database retry safety", () => {
     const manager = new DbResilienceManager();
     let attempts = 0;
 
-    const result = await manager.execute(async () => {
-      attempts++;
-      if (attempts === 1) throw postgresError("40001");
-      return "committed";
-    }, "serializable-transaction", "transaction");
+    const result = await manager.execute(
+      async () => {
+        attempts++;
+        if (attempts === 1) throw postgresError("40001");
+        return "committed";
+      },
+      "serializable-transaction",
+      "transaction"
+    );
 
     expect(result).toBe("committed");
     expect(attempts).toBe(2);

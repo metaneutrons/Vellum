@@ -74,7 +74,7 @@ export function floydSteinbergDither(
   // Work on a float copy so error diffusion can go negative
   const pixels = new Float32Array(width * height * 3);
   for (let i = 0; i < width * height; i++) {
-    pixels[i * 3] = imageData[i * 4];       // R
+    pixels[i * 3] = imageData[i * 4]; // R
     pixels[i * 3 + 1] = imageData[i * 4 + 1]; // G
     pixels[i * 3 + 2] = imageData[i * 4 + 2]; // B
   }

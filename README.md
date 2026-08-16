@@ -28,14 +28,14 @@ updates over HTTPS; no browser engine or provider credential lives on a display.
 
 ## Why Vellum
 
-| | Capability |
-|---|---|
-| **One fleet** | Provision, approve, assign, monitor, and update every supported display from the Web UI. |
-| **Provider-independent content** | Use Microsoft 365, Google Calendar, anny, or iCalendar without coupling display firmware to a booking system. |
-| **Pixel-perfect output** | Server-side rendering, model-aware color conversion, orientation support, themes, and live previews. |
-| **Enterprise access** | Local recovery accounts, Microsoft Entra ID OIDC, scoped roles, service accounts, and audit events. |
-| **Secure device lifecycle** | USB provisioning, encrypted enrollment, HTTPS, and Ed25519-signed OTA firmware delivered through Vellum—displays need no Internet route. |
-| **Safe operations** | A production Compose stack with PostgreSQL, release discovery, scheduled or manual updates, backups, health checks, and rollback. |
+|                                  | Capability                                                                                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **One fleet**                    | Provision, approve, assign, monitor, and update every supported display from the Web UI.                                                 |
+| **Provider-independent content** | Use Microsoft 365, Google Calendar, anny, or iCalendar without coupling display firmware to a booking system.                            |
+| **Pixel-perfect output**         | Server-side rendering, model-aware color conversion, orientation support, themes, and live previews.                                     |
+| **Enterprise access**            | Local recovery accounts, Microsoft Entra ID OIDC, scoped roles, service accounts, and audit events.                                      |
+| **Secure device lifecycle**      | USB provisioning, encrypted enrollment, HTTPS, and Ed25519-signed OTA firmware delivered through Vellum—displays need no Internet route. |
+| **Safe operations**              | A production Compose stack with PostgreSQL, release discovery, scheduled or manual updates, backups, health checks, and rollback.        |
 
 ## Install for production — Docker Compose
 
@@ -111,13 +111,13 @@ never silently falls back to a mutable `latest` image. New stacks enable safe
 updater self-updates by default; an older updater needs one manual bootstrap,
 which **System → Vellum Server** identifies with the exact commands.
 
-| Path within the chosen directory | Contents |
-|---|---|
-| `docker-compose.yml` | Server, PostgreSQL, and updater stack |
-| `.env` | Secrets and deployment configuration (`0600`) |
-| `data/postgres/` | PostgreSQL data |
-| `data/backups/` | Consistent pre-update database backups |
-| `data/updater/` | Persistent updater configuration and state |
+| Path within the chosen directory | Contents                                      |
+| -------------------------------- | --------------------------------------------- |
+| `docker-compose.yml`             | Server, PostgreSQL, and updater stack         |
+| `.env`                           | Secrets and deployment configuration (`0600`) |
+| `data/postgres/`                 | PostgreSQL data                               |
+| `data/backups/`                  | Consistent pre-update database backups        |
+| `data/updater/`                  | Persistent updater configuration and state    |
 
 No source checkout or fixed host path is required. You can choose another
 directory, such as `/srv/vellum` or `/docker/vellum`; keep the files together
@@ -265,12 +265,12 @@ Firmware is built and released separately for each model. The server negotiates
 capabilities reported by the device, so E-Paper and LCD displays share the same
 fleet, content, and policy model without sharing an incompatible firmware image.
 
-| Model | Platform | Display | Server output | Orientation |
-|---|---|---|---|---|
-| [reTerminal E1001](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/)) | ESP32-S3 | 7.5″, 800×480, monochrome E-Paper | Raw 1-bit | Landscape |
-| [reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/)) | ESP32-S3 | 7.3″, 800×480, six-color E-Paper | Raw indexed color | Landscape |
-| [reTerminal E1003](https://www.seeedstudio.com/reTerminal-E1003-p-6731.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/)) | ESP32-S3 | 10.3″, 1872×1404, 16-gray E-Paper | Raw 4-bit grayscale | Portrait or landscape |
-| [reTerminal D1001](https://wiki.seeedstudio.com/getting_started_with_reterminal_d1001/) | ESP32-P4 + ESP32-C6 | 8″, 800×1280, full-color LCD | JPEG | Portrait or landscape |
+| Model                                                                                                                                                      | Platform            | Display                           | Server output       | Orientation           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --------------------------------- | ------------------- | --------------------- |
+| [reTerminal E1001](https://www.seeedstudio.com/reTerminal-E1001-p-6534.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1001/)) | ESP32-S3            | 7.5″, 800×480, monochrome E-Paper | Raw 1-bit           | Landscape             |
+| [reTerminal E1002](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1002/)) | ESP32-S3            | 7.3″, 800×480, six-color E-Paper  | Raw indexed color   | Landscape             |
+| [reTerminal E1003](https://www.seeedstudio.com/reTerminal-E1003-p-6731.html) ([docs](https://wiki.seeedstudio.com/getting_started_with_reterminal_e1003/)) | ESP32-S3            | 10.3″, 1872×1404, 16-gray E-Paper | Raw 4-bit grayscale | Portrait or landscape |
+| [reTerminal D1001](https://wiki.seeedstudio.com/getting_started_with_reterminal_d1001/)                                                                    | ESP32-P4 + ESP32-C6 | 8″, 800×1280, full-color LCD      | JPEG                | Portrait or landscape |
 
 Support includes board-specific display drivers, battery and USB-power handling,
 buttons, telemetry, provisioning, and OTA behavior. D1001 additionally integrates
@@ -375,7 +375,9 @@ PostgreSQL and safe-update workflow of the Compose stack.
 ### Quality gates
 
 ```bash
-pnpm lint          # ESLint
+pnpm lint          # ESLint with zero-warning policy + brand consistency
+pnpm format:check  # Prettier verification without modifying files
+pnpm format        # Apply the canonical format locally
 pnpm typecheck     # TypeScript, no emit
 pnpm test          # Vitest
 pnpm i18n:check    # Locale parity and hard-string checks
@@ -383,9 +385,13 @@ pnpm release:check # Release and workflow invariants
 pnpm build         # Production Next.js build
 ```
 
-The repository installs a pre-push hook for i18n, type, and release checks. CI
-adds linting, coverage enforcement, the production build, Compose validation,
-and updater tests.
+`pnpm install` configures repository-owned Git hooks. Pre-commit runs Prettier
+and ESLint with a zero-warning policy on staged files and stages their safe
+fixes. Pre-push runs the i18n, type, release, and database guards. CI repeats
+these guarantees repository-wide, including an independent formatting check,
+coverage enforcement, the production build, Compose validation, and updater
+tests. Generated firmware, vendored browser bundles, release notes, and the
+generated font atlas remain governed by their respective generators.
 
 ### Build firmware
 
@@ -408,17 +414,17 @@ subsystem is described in [Firmware display architecture](docs/firmware-display-
 
 ## Repository map
 
-| Path | Purpose |
-|---|---|
-| `src/app/admin` | Fleet, content, provider, theme, access, firmware, and update UI |
-| `src/app/api/v1` | Device, admin, health, enrollment, and updater APIs |
-| `src/lib/calendar` | Provider registry and calendar integrations |
-| `src/lib/content` | Content renderer registry |
-| `src/lib/render` | Canvas, quantization, dithering, fonts, and display output |
-| `src/lib/access` | Local identity, OIDC, roles, and service accounts |
-| `firmware` | ESP-IDF application and board/display components |
-| `deploy` | Production Compose stack, updater, and environment template |
-| `docs` | Deployment, security, release, and firmware design guides |
+| Path               | Purpose                                                          |
+| ------------------ | ---------------------------------------------------------------- |
+| `src/app/admin`    | Fleet, content, provider, theme, access, firmware, and update UI |
+| `src/app/api/v1`   | Device, admin, health, enrollment, and updater APIs              |
+| `src/lib/calendar` | Provider registry and calendar integrations                      |
+| `src/lib/content`  | Content renderer registry                                        |
+| `src/lib/render`   | Canvas, quantization, dithering, fonts, and display output       |
+| `src/lib/access`   | Local identity, OIDC, roles, and service accounts                |
+| `firmware`         | ESP-IDF application and board/display components                 |
+| `deploy`           | Production Compose stack, updater, and environment template      |
+| `docs`             | Deployment, security, release, and firmware design guides        |
 
 ## API surface
 

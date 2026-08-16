@@ -6,7 +6,15 @@ import type { UpdateProgress } from "@/lib/update-progress";
 
 export type ServerUpdateStatus = {
   supported: boolean;
-  state: "unavailable" | "starting" | "checking" | "preparing" | "available" | "updating" | "current" | "failed";
+  state:
+    | "unavailable"
+    | "starting"
+    | "checking"
+    | "preparing"
+    | "available"
+    | "updating"
+    | "current"
+    | "failed";
   currentVersion: string | null;
   availableVersion: string | null;
   updateAvailable: boolean;
@@ -26,19 +34,47 @@ export type ServerUpdateStatus = {
   updaterSelfUpdateEnabled: boolean;
   /** Outcome of the last updater self-update, reported by the updater that
    * replaced the one which performed it. Null when none has run. */
-  updaterSwap: { outcome: "succeeded" | "failed" | "rolled-back"; detail: string | null; at: string | null } | null;
+  updaterSwap: {
+    outcome: "succeeded" | "failed" | "rolled-back";
+    detail: string | null;
+    at: string | null;
+  } | null;
   /** Which step the updater is on. The server cannot report its own restart, so
    * this journal — written by the updater and read back after the container is
    * up again — is the only progress the UI can show. */
   progress: UpdateProgress | null;
 };
 
-const unavailable: ServerUpdateStatus = { supported: false, state: "unavailable", currentVersion: null,
-  availableVersion: null, updateAvailable: false, updateMode: "manual", maintenanceTime: "02:00", timezone: "UTC", lastCheckedAt: null,
-  lastUpdatedAt: null, lastError: null, updaterVersion: null, updaterUpdateAvailable: false, updaterSelfUpdateCapable: false, updaterSelfUpdateEnabled: false, updaterSwap: null, progress: null };
+const unavailable: ServerUpdateStatus = {
+  supported: false,
+  state: "unavailable",
+  currentVersion: null,
+  availableVersion: null,
+  updateAvailable: false,
+  updateMode: "manual",
+  maintenanceTime: "02:00",
+  timezone: "UTC",
+  lastCheckedAt: null,
+  lastUpdatedAt: null,
+  lastError: null,
+  updaterVersion: null,
+  updaterUpdateAvailable: false,
+  updaterSelfUpdateCapable: false,
+  updaterSelfUpdateEnabled: false,
+  updaterSwap: null,
+  progress: null,
+};
 
 const statusSchema = z.object({
-  state: z.enum(["starting", "checking", "preparing", "available", "updating", "current", "failed"]),
+  state: z.enum([
+    "starting",
+    "checking",
+    "preparing",
+    "available",
+    "updating",
+    "current",
+    "failed",
+  ]),
   currentVersion: z.string().nullable(),
   availableVersion: z.string().nullable(),
   updateAvailable: z.boolean(),
@@ -55,19 +91,44 @@ const statusSchema = z.object({
   updaterUpdateAvailable: z.boolean().optional(),
   updaterSelfUpdateCapable: z.boolean().optional(),
   updaterSelfUpdateEnabled: z.boolean().optional(),
-  updaterSwap: z.object({
-    outcome: z.enum(["succeeded", "failed", "rolled-back"]),
-    detail: z.string().max(300).nullable(),
-    at: z.string().nullable(),
-  }).nullable().optional(),
-  progress: z.object({
-    phase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]),
-    detail: z.string().max(200).nullable(),
-    at: z.string().nullable(),
-    startedAt: z.string().nullable(),
-    failedPhase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]).nullable().optional(),
-    rollbackAttempted: z.boolean().optional(),
-  }).nullable().optional(),
+  updaterSwap: z
+    .object({
+      outcome: z.enum(["succeeded", "failed", "rolled-back"]),
+      detail: z.string().max(300).nullable(),
+      at: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
+  progress: z
+    .object({
+      phase: z.enum([
+        "verifying",
+        "backing-up",
+        "deploying",
+        "waiting-for-health",
+        "done",
+        "rolling-back",
+        "failed",
+      ]),
+      detail: z.string().max(200).nullable(),
+      at: z.string().nullable(),
+      startedAt: z.string().nullable(),
+      failedPhase: z
+        .enum([
+          "verifying",
+          "backing-up",
+          "deploying",
+          "waiting-for-health",
+          "done",
+          "rolling-back",
+          "failed",
+        ])
+        .nullable()
+        .optional(),
+      rollbackAttempted: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 async function request(path: string, method = "GET", body?: unknown): Promise<ServerUpdateStatus> {
@@ -75,13 +136,16 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
   try {
     const response = await fetch(new URL(path, env.UPDATER_URL), {
       method,
-      headers: { Authorization: `Bearer ${env.UPDATER_TOKEN}`, ...(body ? { "content-type": "application/json" } : {}) },
+      headers: {
+        Authorization: `Bearer ${env.UPDATER_TOKEN}`,
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok && response.status !== 202 && response.status !== 409) return unavailable;
-    const raw = await response.json() as { status?: unknown };
+    const raw = (await response.json()) as { status?: unknown };
     const value = raw.status ?? raw;
     const parsed = statusSchema.safeParse(value);
     if (!parsed.success) return unavailable;
@@ -103,5 +167,8 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
 export const getServerUpdateStatus = () => request("/v1/status");
 export const requestServerUpdateCheck = () => request("/v1/check", "POST");
 export const requestServerUpdate = () => request("/v1/apply", "POST");
-export const configureServerUpdates = (config: { mode: "manual" | "automatic"; maintenanceTime: string; timezone: string }) =>
-  request("/v1/config", "POST", config);
+export const configureServerUpdates = (config: {
+  mode: "manual" | "automatic";
+  maintenanceTime: string;
+  timezone: string;
+}) => request("/v1/config", "POST", config);
