@@ -363,6 +363,7 @@ void display_show_ota_progress(uint8_t percent)
     lv_obj_t *scr = lv_screen_active();
 
     if (p->fast_refresh) {
+        const bool native_progress = p->update_ota_progress != NULL;
         if (!s_ota_title || !lv_obj_is_valid(s_ota_title) ||
             !s_ota_bar || !lv_obj_is_valid(s_ota_bar) ||
             !s_ota_percent || !lv_obj_is_valid(s_ota_percent)) {
@@ -391,19 +392,31 @@ void display_show_ota_progress(uint8_t percent)
 
             s_ota_bar = lv_bar_create(scr);
             lv_obj_set_size(s_ota_bar, p->width / 2, p->height > 1000 ? 40 : 24);
+            lv_obj_set_style_radius(s_ota_bar, 0, LV_PART_MAIN);
+            lv_obj_set_style_radius(s_ota_bar, 0, LV_PART_INDICATOR);
+            lv_obj_set_style_border_width(s_ota_bar, 0, LV_PART_MAIN);
+            lv_obj_set_style_pad_all(s_ota_bar, 0, LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(s_ota_bar, LV_OPA_COVER, LV_PART_MAIN);
+            lv_obj_set_style_bg_color(s_ota_bar, lv_color_hex(0x363434), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(s_ota_bar, LV_OPA_COVER, LV_PART_INDICATOR);
+            lv_obj_set_style_bg_color(s_ota_bar, lv_color_hex(0xE9177B), LV_PART_INDICATOR);
             lv_obj_align(s_ota_bar, LV_ALIGN_TOP_MID, 0, bar_top);
 
             s_ota_percent = lv_label_create(scr);
             /* Fixed opaque bounds are important on e-paper: variable-width
              * strings such as "5%" -> "10%" otherwise leave stale glyph pixels
              * behind during a partial refresh. */
-            lv_obj_set_width(s_ota_percent, p->height > 1000 ? 240 : 120);
+            lv_obj_set_width(s_ota_percent,
+                             native_progress ? p->width * 3 / 4
+                                             : (p->height > 1000 ? 240 : 120));
             lv_obj_set_style_text_align(s_ota_percent, LV_TEXT_ALIGN_CENTER, 0);
             lv_obj_set_style_bg_color(s_ota_percent, p->bg, 0);
             lv_obj_set_style_bg_opa(s_ota_percent, LV_OPA_COVER, 0);
-            lv_obj_set_style_text_font(s_ota_percent, p->font_md, 0);
+            lv_obj_set_style_text_font(s_ota_percent,
+                                       native_progress ? p->font_sm : p->font_md, 0);
             lv_obj_set_style_text_color(s_ota_percent, p->fg, 0);
             lv_obj_align(s_ota_percent, LV_ALIGN_TOP_MID, 0, percent_top);
+            if (native_progress) lv_label_set_text(s_ota_percent, "Downloading and verifying");
 
             s_ota_warning = lv_label_create(scr);
             lv_obj_set_width(s_ota_warning, p->width / 2);
@@ -416,8 +429,22 @@ void display_show_ota_progress(uint8_t percent)
             lv_obj_align(s_ota_warning, LV_ALIGN_TOP_MID, 0, warning_top);
         }
 
+        if (native_progress && percent > 0) {
+            const int bar_width = p->width / 2;
+            const int bar_height = p->height > 1000 ? 40 : 24;
+            const int bar_x = (p->width - bar_width) / 2;
+            const int bar_y = status_content_top(p) + p->font_md->line_height +
+                              status_layout_row_gap(p->height, p->font_xs->line_height);
+            esp_err_t err = p->update_ota_progress(
+                percent, bar_x, bar_y, bar_width, bar_height);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Native OTA progress update failed: %s", esp_err_to_name(err));
+            }
+            return;
+        }
+
         lv_bar_set_value(s_ota_bar, percent, LV_ANIM_OFF);
-        lv_label_set_text_fmt(s_ota_percent, "%d%%", percent);
+        if (!native_progress) lv_label_set_text_fmt(s_ota_percent, "%d%%", percent);
         if (percent == 100) {
             lv_label_set_text(s_ota_title, "Firmware updated");
             if (s_ota_warning && lv_obj_is_valid(s_ota_warning)) {

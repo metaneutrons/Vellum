@@ -33,6 +33,11 @@ CONFIG_SPIRAM_USE_MALLOC=y
 CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=8192
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# The DSI controller continuously scans its framebuffers from PSRAM. Keep the
+# PSRAM/cache path available while OTA writes the other, independent MSPI flash
+# bus; otherwise every flash-cache suspension starves scanout and the panel
+# flashes a corrupted/light-blue frame.
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 
 # Cache
 CONFIG_CACHE_L2_CACHE_256KB=y

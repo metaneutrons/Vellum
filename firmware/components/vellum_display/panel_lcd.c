@@ -10,14 +10,18 @@
 
 #include <string.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "esp_cache.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_lcd_mipi_dsi.h"
 #include "lvgl.h"
 #include "esp_lv_adapter.h"
 #include "d1001_board.h"
 #include "lcd_jd9365.h"
 #include "jpeg_decoder.h"
+#include "lcd_rotation.h"
 
 /* Static image descriptor in flash. Building it in PSRAM at boot (malloc + a
  * full-image memcpy) bought nothing for an asset that never changes, and held
@@ -31,6 +35,78 @@ static const char *TAG = "panel_lcd";
 #define LCD_DRAW_LINES  24
 
 static lv_display_t *s_disp = NULL;
+static uint16_t *s_framebuffers[3] = { NULL, NULL, NULL };
+static SemaphoreHandle_t s_vsync_sem = NULL;
+
+/* The adapter normally owns the DPI callbacks. D1001 also needs a VSYNC gate
+ * for its tiny native OTA updates, so forward the callbacks into the adapter
+ * while exposing the same frame boundary to this backend. */
+static bool IRAM_ATTR lcd_color_done_cb(esp_lcd_panel_handle_t panel,
+                                        esp_lcd_dpi_panel_event_data_t *event,
+                                        void *user_ctx)
+{
+    (void)panel;
+    (void)event;
+    (void)user_ctx;
+    return esp_lv_adapter_display_notify_color_trans_done_from_isr(s_disp);
+}
+
+static bool IRAM_ATTR lcd_frame_done_cb(esp_lcd_panel_handle_t panel,
+                                        esp_lcd_dpi_panel_event_data_t *event,
+                                        void *user_ctx)
+{
+    (void)panel;
+    (void)event;
+    (void)user_ctx;
+    BaseType_t wake = pdFALSE;
+    if (s_vsync_sem) xSemaphoreGiveFromISR(s_vsync_sem, &wake);
+    bool adapter_wake = esp_lv_adapter_display_notify_frame_buf_complete_from_isr(s_disp);
+    return adapter_wake || wake == pdTRUE;
+}
+
+static esp_err_t lcd_update_ota_progress(uint8_t percent, int x, int y,
+                                         int width, int height)
+{
+    if (!s_vsync_sem || !s_framebuffers[0] || x < 0 || y < 0 ||
+        width <= 0 || height <= 0 || x + width > LCD_HEIGHT ||
+        y + height > LCD_WIDTH) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (percent > 100) percent = 100;
+
+    /* Discard an old frame notification and begin immediately after the next
+     * VSYNC. The logical horizontal bar becomes a narrow vertical rectangle in
+     * the portrait scanout buffer. Updating that rectangle in all three buffers
+     * keeps the adapter's pipeline coherent without a framebuffer switch. */
+    (void)xSemaphoreTake(s_vsync_sem, 0);
+    if (xSemaphoreTake(s_vsync_sem, pdMS_TO_TICKS(100)) != pdTRUE) {
+        ESP_LOGW(TAG, "Timed out waiting for OTA progress VSYNC");
+    }
+
+    const int filled = width * percent / 100;
+    const uint16_t track = lv_color_to_u16(lv_color_hex(0x363434));
+    const uint16_t active = lv_color_to_u16(
+        lv_color_hex(percent == 100 ? 0x30D158 : 0xE9177B));
+    const int first_row = LCD_HEIGHT - x - width;
+
+    for (size_t fb_index = 0; fb_index < 3; ++fb_index) {
+        uint16_t *fb = s_framebuffers[fb_index];
+        for (int logical_x = x; logical_x < x + width; ++logical_x) {
+            uint16_t *row = fb + lcd_rotation_90_cw_index(
+                logical_x, y, LCD_WIDTH, LCD_HEIGHT);
+            const uint16_t color = logical_x < x + filled ? active : track;
+            for (int column = 0; column < height; ++column) row[column] = color;
+        }
+        for (int row_index = first_row; row_index < first_row + width; ++row_index) {
+            uint16_t *row = fb + (size_t)row_index * LCD_WIDTH + y;
+            esp_err_t err = esp_cache_msync(
+                row, (size_t)height * sizeof(uint16_t),
+                ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+            if (err != ESP_OK) return err;
+        }
+    }
+    return ESP_OK;
+}
 
 /* ── vtable ops ───────────────────────────────────────────────── */
 
@@ -47,6 +123,7 @@ static lv_display_t *lcd_init(void)
         .phy_ldo_mv = D1001_DSI_PHY_LDO_MV,
         .h_res = D1001_LCD_H_RES,
         .v_res = D1001_LCD_V_RES,
+        .dpi_clock_mhz = D1001_LCD_DPI_CLOCK_MHZ,
         .hsync = D1001_LCD_HSYNC, .hbp = D1001_LCD_HBP, .hfp = D1001_LCD_HFP,
         .vsync = D1001_LCD_VSYNC, .vbp = D1001_LCD_VBP, .vfp = D1001_LCD_VFP,
         /* Espressif's rotated partial-refresh pipeline requires three physical
@@ -67,6 +144,7 @@ static lv_display_t *lcd_init(void)
         ESP_LOGE(TAG, "LVGL adapter initialization failed");
         return NULL;
     }
+    ESP_ERROR_CHECK(esp_lv_adapter_set_default_display_idf_callback_registration_enabled(false));
 
     esp_lv_adapter_display_config_t display_cfg =
         ESP_LV_ADAPTER_DISPLAY_MIPI_DEFAULT_CONFIG(
@@ -84,12 +162,30 @@ static lv_display_t *lcd_init(void)
         return NULL;
     }
 
+    s_vsync_sem = xSemaphoreCreateBinary();
+    if (!s_vsync_sem ||
+        esp_lcd_dpi_panel_get_frame_buffer(
+            panel, 3, (void **)&s_framebuffers[0],
+            (void **)&s_framebuffers[1], (void **)&s_framebuffers[2]) != ESP_OK) {
+        ESP_LOGE(TAG, "Unable to initialize native OTA framebuffer path");
+        return NULL;
+    }
+    const esp_lcd_dpi_panel_event_callbacks_t callbacks = {
+        .on_color_trans_done = lcd_color_done_cb,
+        .on_refresh_done = lcd_frame_done_cb,
+    };
+    if (esp_lcd_dpi_panel_register_event_callbacks(panel, &callbacks, NULL) != ESP_OK) {
+        ESP_LOGE(TAG, "Unable to register D1001 frame callbacks");
+        return NULL;
+    }
+
     /* Vellum renders synchronously after each state change. We intentionally do
      * not start the adapter's background worker; this preserves that ownership
      * model while using its VSYNC-synchronised triple-buffer flush pipeline. */
     vTaskDelay(pdMS_TO_TICKS(100));
     d1001_backlight_on();
-    ESP_LOGI(TAG, "LCD initialized: %dx%d, triple-partial rotation", LCD_WIDTH, LCD_HEIGHT);
+    ESP_LOGI(TAG, "LCD initialized: %dx%d, %d MHz triple-partial rotation",
+             LCD_WIDTH, LCD_HEIGHT, D1001_LCD_DPI_CLOCK_MHZ);
     return s_disp;
 }
 
@@ -150,6 +246,7 @@ static vellum_panel_t s_panel = {
     .init = lcd_init,
     .refresh = lcd_refresh,
     .draw_raw = lcd_draw_raw,
+    .update_ota_progress = lcd_update_ota_progress,
     .sleep = lcd_off,
     .wake = lcd_wake,
     .off = lcd_off,

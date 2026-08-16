@@ -13,6 +13,7 @@ typedef struct {
     int phy_ldo_mv;
     int h_res;
     int v_res;
+    int dpi_clock_mhz;
     int hsync, hbp, hfp;
     int vsync, vbp, vfp;
     int num_fb;
