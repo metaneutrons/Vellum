@@ -18,7 +18,7 @@ function parseBoundedInteger(value: string | null, min: number, max: number): nu
 }
 
 /**
- * Extract telemetry data from incoming request headers.
+ * Extract and validate bounded telemetry data from incoming request headers.
  * Returns a partial TelemetryEntry (without mac/timestamp) or null if no telemetry headers are present.
  */
 export function extractTelemetry(

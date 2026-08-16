@@ -18,5 +18,5 @@ bool sy6974b_status_has_external_power(uint8_t status);
 /** Decode CHRG_STAT[1:0] from the read-only SY6974B REG08 register. */
 sy6974b_charge_state_t sy6974b_status_charge_state(uint8_t status);
 
-/** Convert an E-Series cell voltage to percent using Seeed's calibration. */
+/** Convert an E-Series cell voltage using Seeed's piecewise calibration curve. */
 int e_series_battery_percent_from_mv(int millivolts);
