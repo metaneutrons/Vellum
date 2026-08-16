@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.3](https://github.com/metaneutrons/Vellum/compare/v1.11.2...v1.11.3) (2026-08-16)
+
+
+### Bug Fixes
+
+* unify Vellum brand assets ([6518f31](https://github.com/metaneutrons/Vellum/commit/6518f31507cfb6f1505409eb38ecbf77c62c69ed))
+* unify Vellum brand assets ([ebb996e](https://github.com/metaneutrons/Vellum/commit/ebb996eb585057a05009aeee0ed2d037bb478c7a))
+
 ## [1.11.2](https://github.com/metaneutrons/Vellum/compare/v1.11.1...v1.11.2) (2026-08-16)
 
 
