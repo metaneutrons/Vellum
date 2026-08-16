@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/metaneutrons/Vellum/compare/v1.11.1...v1.11.2) (2026-08-16)
+
+
+### Bug Fixes
+
+* server update progress experience ([49bbf43](https://github.com/metaneutrons/Vellum/commit/49bbf43b2e2ad78a23ed5d278567b877ad872e7a))
+
 ## [1.11.1](https://github.com/metaneutrons/Vellum/compare/v1.11.0...v1.11.1) (2026-08-16)
 
 
