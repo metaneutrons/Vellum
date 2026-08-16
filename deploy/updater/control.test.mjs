@@ -1,19 +1,49 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import assert from "node:assert/strict";
-import test from "node:test";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test, { after } from "node:test";
 
 process.env.VELLUM_UPDATER_TEST = "true";
 process.env.UPDATER_TOKEN = "a".repeat(64);
+const testDirectory = mkdtempSync(join(tmpdir(), "vellum-updater-control-"));
+const progressFile = join(testDirectory, "progress.json");
+process.env.PROGRESS_FILE = progressFile;
+after(() => rmSync(testDirectory, { recursive: true, force: true }));
 const {
   equalToken,
   newer,
   reached,
   publicStatus,
   releaseDecision,
+  startProgressJournal,
   stableServerReleaseTag,
   validateConfig,
   zonedClock,
 } = await import("./control.mjs");
+
+test("resets a completed journal synchronously when a new update starts", () => {
+  writeFileSync(
+    progressFile,
+    JSON.stringify({
+      phase: "done",
+      detail: null,
+      at: "2026-08-15T08:00:10.000Z",
+      startedAt: "2026-08-15T08:00:00.000Z",
+    })
+  );
+
+  assert.equal(startProgressJournal("v1.12.0", new Date("2026-08-16T09:00:00.000Z")), true);
+  assert.deepEqual(JSON.parse(readFileSync(progressFile, "utf8")), {
+    phase: "verifying",
+    detail: "v1.12.0",
+    at: "2026-08-16T09:00:00.000Z",
+    startedAt: "2026-08-16T09:00:00.000Z",
+    failedPhase: null,
+    rollbackAttempted: false,
+  });
+});
 
 test("compares semantic release versions without allowing downgrades", () => {
   assert.equal(newer("1.8.1", "v1.8.2"), true);

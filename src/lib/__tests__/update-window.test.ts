@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   beginUpdateWindow,
   endUpdateWindow,
+  progressForUpdateWindow,
   readUpdateWindow,
   recordUpdateWindowProgress,
   resolveUpdateOverlay,
@@ -84,6 +85,27 @@ describe("update window", () => {
       at: null,
       startedAt: "2026-08-16T07:00:00.000Z",
     });
+  });
+
+  it("does not re-import the previous completed journal on the first status poll", () => {
+    const stale: import("../update-progress").UpdateProgress = {
+      phase: "done",
+      detail: "v1.11.6",
+      at: "2026-08-16T06:30:20Z",
+      startedAt: "2026-08-16T06:29:00Z",
+    };
+    expect(beginUpdateWindow("v1.11.6", "v1.12.0", stale)).toBe(true);
+    const updateWindow = readUpdateWindow();
+    expect(updateWindow).not.toBeNull();
+    expect(progressForUpdateWindow(updateWindow!, stale)).toBeNull();
+
+    const fresh = {
+      phase: "verifying" as const,
+      detail: "v1.12.0",
+      at: "2026-08-16T07:00:01Z",
+      startedAt: "2026-08-16T07:00:01Z",
+    };
+    expect(progressForUpdateWindow(updateWindow!, fresh)).toEqual(fresh);
   });
 
   it("refuses a no-op marker that could become a false success banner", () => {
