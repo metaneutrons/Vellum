@@ -1,0 +1,6 @@
+#!/bin/sh
+# Release Please cannot classify free-form commit subjects. Reject them at the
+# earliest useful point; CI repeats this check because local hooks are optional.
+set -eu
+
+pnpm exec commitlint --edit "$1"
