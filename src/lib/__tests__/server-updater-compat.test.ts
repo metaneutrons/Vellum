@@ -97,6 +97,7 @@ function normalize(data: z.infer<typeof statusSchema>) {
   return {
     ...data,
     supported: true,
+    availabilityReason: "ready" as const,
     updaterVersion: data.updaterVersion ?? null,
     updaterUpdateAvailable: data.updaterUpdateAvailable ?? false,
     updaterSelfUpdateCapable: data.updaterSelfUpdateCapable ?? false,
@@ -122,6 +123,7 @@ describe("updater status compatibility", () => {
     // A null version is the signal the UI turns into "predates version
     // reporting, therefore outdated" — it must not be confused with "current".
     expect(status.supported).toBe(true);
+    expect(status.availabilityReason).toBe("ready");
   });
 
   it("passes through a reporting updater unchanged", () => {

@@ -360,6 +360,13 @@ record_swap_result() {
   fi
 }
 
+# A terminal self-update result describes one attempt only. Clearing it is
+# advisory for the same reason as writing it: update safety must not depend on
+# the journal volume being writable.
+clear_swap_result() {
+  rm -f "$SWAP_RESULT_FILE" 2>/dev/null || true
+}
+
 wait_for_container_health() {
   local container="$1" deadline=$((SECONDS + UPDATER_SWAP_TIMEOUT_SECONDS)) state health
   while (( SECONDS < deadline )); do
@@ -433,6 +440,11 @@ schedule_updater_swap() {
     return 0
   fi
 
+  # A previous terminal outcome belongs to the previous attempt. Leaving it in
+  # place makes the UI fail a new, still-running update before the detached
+  # helper has had a chance to publish its own result.
+  clear_swap_result
+
   # Verify here, in the known-good container, so a helper is never launched for an
   # image that failed its signature check.
   if ! verify_image "$candidate" "$UPDATER_IMAGE_REPOSITORY" "$COSIGN_UPDATER_IDENTITY_REGEXP"; then
@@ -445,13 +457,14 @@ schedule_updater_swap() {
   self_image="$(docker inspect --format '{{.Config.Image}}' "$self_id" 2>/dev/null || true)"
   if [[ -z "$self_id" || -z "$self_image" ]]; then
     log "could not resolve this updater container; skipping self-update"
+    record_swap_result failed "could not resolve the running updater container"
     return 1
   fi
 
   log "handing the updater swap to a detached helper (${UPDATER_VERSION:-unknown} -> $tag)"
   # --volumes-from inherits the socket and the stack mounts. Passing -v here would
   # be wrong: paths inside this container are not paths on the host.
-  docker run --detach --rm \
+  if ! docker run --detach --rm \
     --volumes-from "$self_id" \
     --network none \
     --label vellum.role=updater-swap \
@@ -464,7 +477,10 @@ schedule_updater_swap() {
     --env "UPDATER_SWAP_TIMEOUT_SECONDS=$UPDATER_SWAP_TIMEOUT_SECONDS" \
     --env "SWAP_RESULT_FILE=$SWAP_RESULT_FILE" \
     --entrypoint /usr/local/bin/vellum-update \
-    "$self_image" --swap-updater "$candidate" >/dev/null
+    "$self_image" --swap-updater "$candidate" >/dev/null; then
+    record_swap_result failed "could not start the detached updater swap helper"
+    return 1
+  fi
 }
 
 update_once() {
@@ -486,6 +502,9 @@ update_once() {
   fi
 
   log "new server release detected: ${current:-unknown} -> $tag"
+  # The update overlay starts polling before the server deployment completes.
+  # Do not let a terminal result from an older updater swap fail this new run.
+  clear_swap_result
   PHASE_STARTED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   export PHASE_STARTED_AT
   set_phase "verifying" "$tag"
