@@ -27,7 +27,7 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Validate new commit messages
@@ -109,7 +109,7 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
       - run: pnpm release:check
 
   schema:
@@ -120,7 +120,7 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
       # Asserts every src/db/schema.ts column has a migration in drizzle/.
       # Nothing else catches this: migrate.mjs applies raw SQL, tsc only checks
       # the model, and the test suite runs without Postgres — so a column with
@@ -135,7 +135,7 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm i18n:check
@@ -148,10 +148,23 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+
+  formatting:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
 
   typecheck:
     name: Type Check
@@ -161,7 +174,7 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -174,7 +187,7 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Runs the suite AND enforces the coverage ratchet (vitest.config.ts
@@ -189,7 +202,7 @@ jobs:
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build

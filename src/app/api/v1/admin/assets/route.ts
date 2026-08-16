@@ -5,7 +5,12 @@ import { db, withDbRead } from "@/db";
 import { assets } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { UUID_RE } from "@/lib/validation";
-import { getRequestPrincipal, hasPermission, requestHasPermission, withAuditedTransaction } from "@/lib/access";
+import {
+  getRequestPrincipal,
+  hasPermission,
+  requestHasPermission,
+  withAuditedTransaction,
+} from "@/lib/access";
 import { hasTrustedMutationOrigin } from "@/lib/request-origin";
 import { env } from "@/lib/env";
 
@@ -14,36 +19,57 @@ const ALLOWED_TYPES = ["image/png", "image/svg+xml", "image/jpeg"];
 const DEFAULT_LIMIT = 50;
 
 export async function GET(request: NextRequest) {
-  if (!(await requestHasPermission(request, "content.read"))) return Response.json({ error: "Forbidden" }, { status: 403 });
-  const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "") || DEFAULT_LIMIT, 200);
+  if (!(await requestHasPermission(request, "content.read")))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  const limit = Math.min(
+    parseInt(request.nextUrl.searchParams.get("limit") ?? "") || DEFAULT_LIMIT,
+    200
+  );
   const offset = parseInt(request.nextUrl.searchParams.get("offset") ?? "") || 0;
 
-  const rows = await withDbRead(() => db.select({
-    id: assets.id,
-    name: assets.name,
-    mimeType: assets.mimeType,
-    width: assets.width,
-    height: assets.height,
-    createdAt: assets.createdAt,
-  }).from(assets).orderBy(assets.createdAt).limit(limit).offset(offset), "list-assets");
+  const rows = await withDbRead(
+    () =>
+      db
+        .select({
+          id: assets.id,
+          name: assets.name,
+          mimeType: assets.mimeType,
+          width: assets.width,
+          height: assets.height,
+          createdAt: assets.createdAt,
+        })
+        .from(assets)
+        .orderBy(assets.createdAt)
+        .limit(limit)
+        .offset(offset),
+    "list-assets"
+  );
 
   return Response.json(rows);
 }
 
 export async function POST(request: Request) {
   const principal = await getRequestPrincipal(request);
-  if (!principal || !hasPermission(principal, "content.manage")) return Response.json({ error: "Forbidden" }, { status: 403 });
-  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user")) return Response.json({ error: "Invalid origin" }, { status: 403 });
+  if (!principal || !hasPermission(principal, "content.manage"))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user"))
+    return Response.json({ error: "Invalid origin" }, { status: 403 });
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const name = (formData.get("name") as string) || file?.name || "untitled";
 
   if (!file) return Response.json({ error: "No file provided" }, { status: 400 });
   if (!ALLOWED_TYPES.includes(file.type)) {
-    return Response.json({ error: `Unsupported type: ${file.type}. Allowed: ${ALLOWED_TYPES.join(", ")}` }, { status: 400 });
+    return Response.json(
+      { error: `Unsupported type: ${file.type}. Allowed: ${ALLOWED_TYPES.join(", ")}` },
+      { status: 400 }
+    );
   }
   if (file.size > MAX_SIZE_BYTES) {
-    return Response.json({ error: `File too large (max ${MAX_SIZE_BYTES / 1024}KB)` }, { status: 400 });
+    return Response.json(
+      { error: `File too large (max ${MAX_SIZE_BYTES / 1024}KB)` },
+      { status: 400 }
+    );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -73,9 +99,18 @@ export async function POST(request: Request) {
 
   const [row] = await withAuditedTransaction(
     principal,
-    (created: { id: string }[]) => ({ action: "asset.create", targetType: "asset", targetId: created[0].id, metadata: { name, mimeType: file.type, width, height } }),
-    (tx) => tx.insert(assets).values({ name, mimeType: file.type, width, height, data: buffer }).returning({ id: assets.id }),
-    "insert-asset",
+    (created: { id: string }[]) => ({
+      action: "asset.create",
+      targetType: "asset",
+      targetId: created[0].id,
+      metadata: { name, mimeType: file.type, width, height },
+    }),
+    (tx) =>
+      tx
+        .insert(assets)
+        .values({ name, mimeType: file.type, width, height, data: buffer })
+        .returning({ id: assets.id }),
+    "insert-asset"
   );
 
   return Response.json({ id: row.id, name, mimeType: file.type, width, height }, { status: 201 });
@@ -83,21 +118,27 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const principal = await getRequestPrincipal(request);
-  if (!principal || !hasPermission(principal, "content.manage")) return Response.json({ error: "Forbidden" }, { status: 403 });
-  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user")) return Response.json({ error: "Invalid origin" }, { status: 403 });
+  if (!principal || !hasPermission(principal, "content.manage"))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user"))
+    return Response.json({ error: "Invalid origin" }, { status: 403 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
-  if (!id || !UUID_RE.test(id)) return Response.json({ error: "Invalid or missing id" }, { status: 400 });
+  if (!id || !UUID_RE.test(id))
+    return Response.json({ error: "Invalid or missing id" }, { status: 400 });
 
   try {
     await withAuditedTransaction(
       principal,
       { action: "asset.delete", targetType: "asset", targetId: id },
       async (tx) => {
-        const deleted = await tx.delete(assets).where(eq(assets.id, id)).returning({ id: assets.id });
+        const deleted = await tx
+          .delete(assets)
+          .where(eq(assets.id, id))
+          .returning({ id: assets.id });
         if (deleted.length === 0) throw new Error("asset_not_found");
       },
-      "delete-asset",
+      "delete-asset"
     );
   } catch (error) {
     if (isForeignKeyViolation(error)) {
@@ -111,6 +152,10 @@ export async function DELETE(request: Request) {
 function isForeignKeyViolation(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const candidate = error as { code?: unknown; cause?: { code?: unknown } };
-  return candidate.code === "23503" || candidate.code === "23001" ||
-    candidate.cause?.code === "23503" || candidate.cause?.code === "23001";
+  return (
+    candidate.code === "23503" ||
+    candidate.code === "23001" ||
+    candidate.cause?.code === "23503" ||
+    candidate.cause?.code === "23001"
+  );
 }

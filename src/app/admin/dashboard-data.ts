@@ -102,7 +102,10 @@ function connOf(d: DeviceRow, now: number): Connectivity {
 }
 
 /** Continuous CHECKIN_DAYS window (zero-filled) so the activity chart never has gaps. */
-function fillCheckins(rows: { day: string; count: number }[], now: number): { day: string; count: number }[] {
+function fillCheckins(
+  rows: { day: string; count: number }[],
+  now: number
+): { day: string; count: number }[] {
   const byDay = new Map(rows.map((r) => [r.day, Number(r.count)]));
   const out: { day: string; count: number }[] = [];
   for (let i = CHECKIN_DAYS - 1; i >= 0; i--) {
@@ -118,8 +121,11 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // Never turn a database outage into a believable "zero devices" dashboard.
   // Let the route error boundary surface operational failure explicitly.
-  const [deviceRows, checkinRows, reportRows, versions, content, providers, themes, profiles] = await Promise.all([
-      withDbRead(() => db.execute(sql`
+  const [deviceRows, checkinRows, reportRows, versions, content, providers, themes, profiles] =
+    await Promise.all([
+      withDbRead(
+        () =>
+          db.execute(sql`
         SELECT d.mac, d.status, d.content_instance_id, d.last_seen, d.expected_interval_s,
                t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
         FROM devices d
@@ -128,23 +134,35 @@ export async function getDashboardData(): Promise<DashboardData> {
           FROM telemetry WHERE mac = d.mac ORDER BY timestamp DESC LIMIT 1
         ) t ON true
         ORDER BY d.last_seen DESC NULLS LAST
-      `), "dashboard-devices").then((r) => r.rows as unknown as DeviceRow[]),
-      withDbRead(() => db.execute(sql`
+      `),
+        "dashboard-devices"
+      ).then((r) => r.rows as unknown as DeviceRow[]),
+      withDbRead(
+        () =>
+          db.execute(sql`
         SELECT to_char(date_trunc('day', timestamp), 'YYYY-MM-DD') AS day, count(*)::int AS count
         FROM telemetry
         WHERE timestamp > now() - make_interval(days => ${CHECKIN_DAYS})
         GROUP BY 1 ORDER BY 1
-      `), "dashboard-checkins").then((r) => r.rows as unknown as { day: string; count: number }[]),
-      withDbRead(() => db.execute(sql`
+      `),
+        "dashboard-checkins"
+      ).then((r) => r.rows as unknown as { day: string; count: number }[]),
+      withDbRead(
+        () =>
+          db.execute(sql`
         SELECT mac, issue, to_char(timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS timestamp
         FROM reports ORDER BY timestamp DESC LIMIT 8
-      `), "dashboard-reports").then((r) => r.rows as unknown as { mac: string; issue: string | null; timestamp: string }[]),
+      `),
+        "dashboard-reports"
+      ).then(
+        (r) => r.rows as unknown as { mac: string; issue: string | null; timestamp: string }[]
+      ),
       getAvailableVersions(),
       getAllContentInstances(),
       getAllProviders(),
       getAllThemes(),
       getAllRefreshProfiles(),
-  ]);
+    ]);
 
   // ── Fleet ──────────────────────────────────────────────────────
   const approved = deviceRows.filter((d) => d.status === "approved");
@@ -154,7 +172,9 @@ export async function getDashboardData(): Promise<DashboardData> {
   const offlineCount = conn.filter((c) => c === "offline").length;
   const neverCount = conn.filter((c) => c === "never").length;
   const batteries = deviceRows.map((d) => d.battery_level).filter((b): b is number => b !== null);
-  const avgBattery = batteries.length ? Math.round(batteries.reduce((a, b) => a + b, 0) / batteries.length) : null;
+  const avgBattery = batteries.length
+    ? Math.round(batteries.reduce((a, b) => a + b, 0) / batteries.length)
+    : null;
   const withContent = approved.filter((d) => d.content_instance_id).length;
 
   const fleet = {
@@ -166,15 +186,23 @@ export async function getDashboardData(): Promise<DashboardData> {
     late,
     offline: offlineCount,
     never: neverCount,
-    lowBattery: deviceRows.filter((d) => d.battery_level !== null && d.battery_level < LOW_BATTERY_PCT).length,
-    weakSignal: deviceRows.filter((d) => d.wifi_rssi !== null && d.wifi_rssi < WEAK_SIGNAL_DBM).length,
+    lowBattery: deviceRows.filter(
+      (d) => d.battery_level !== null && d.battery_level < LOW_BATTERY_PCT
+    ).length,
+    weakSignal: deviceRows.filter((d) => d.wifi_rssi !== null && d.wifi_rssi < WEAK_SIGNAL_DBM)
+      .length,
     withContent,
     noContent: approved.length - withContent,
     avgBattery,
   };
 
   // ── Attention (severity-ranked) ────────────────────────────────
-  const SEV: Record<AttentionReason, number> = { offline: 3, lowBattery: 2, weakSignal: 1, noContent: 1 };
+  const SEV: Record<AttentionReason, number> = {
+    offline: 3,
+    lowBattery: 2,
+    weakSignal: 1,
+    noContent: 1,
+  };
   const attention: AttentionDevice[] = deviceRows
     .map((d) => {
       const reasons: AttentionReason[] = [];
@@ -215,7 +243,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   const versionCounts = new Map<string, number>();
   for (const d of approved) {
     const v = d.firmware_version;
-    if (!v) { unknown++; continue; }
+    if (!v) {
+      unknown++;
+      continue;
+    }
     versionCounts.set(v, (versionCounts.get(v) ?? 0) + 1);
     if (latestStable && compareSemver(v, latestStable) >= 0) upToDate++;
     else behind++;
@@ -226,7 +257,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     .slice(0, 5);
 
   // ── Catalog ────────────────────────────────────────────────────
-  const providersByType = [...providers.reduce((m, p) => m.set(p.type, (m.get(p.type) ?? 0) + 1), new Map<string, number>()).entries()]
+  const providersByType = [
+    ...providers
+      .reduce((m, p) => m.set(p.type, (m.get(p.type) ?? 0) + 1), new Map<string, number>())
+      .entries(),
+  ]
     .map(([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count);
 

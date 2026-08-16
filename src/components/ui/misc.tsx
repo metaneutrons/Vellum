@@ -16,7 +16,11 @@ export function Segmented<T extends string>({
   ariaLabel?: string;
 }) {
   return (
-    <div role="tablist" aria-label={ariaLabel} className="inline-flex p-0.5 bg-fill-tertiary rounded-md gap-0.5">
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className="inline-flex p-0.5 bg-fill-tertiary rounded-md gap-0.5"
+    >
       {options.map((o) => (
         <button
           key={o.value}
@@ -24,7 +28,9 @@ export function Segmented<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
           className={`px-3 min-h-8 text-[13px] font-medium rounded-[7px] focus-ring transition ${
-            value === o.value ? "bg-surface text-label shadow-e1" : "text-label-secondary hover:text-label"
+            value === o.value
+              ? "bg-surface text-label shadow-e1"
+              : "text-label-secondary hover:text-label"
           }`}
         >
           {o.label}
@@ -36,7 +42,12 @@ export function Segmented<T extends string>({
 
 /** Loading placeholder. */
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div aria-hidden="true" className={`rounded-md bg-fill-tertiary animate-pulse motion-reduce:animate-none ${className}`} />;
+  return (
+    <div
+      aria-hidden="true"
+      className={`rounded-md bg-fill-tertiary animate-pulse motion-reduce:animate-none ${className}`}
+    />
+  );
 }
 
 /** Empty / zero-state. */

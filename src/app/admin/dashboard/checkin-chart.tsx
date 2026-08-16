@@ -96,15 +96,23 @@ export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
   const hasData = total > 0;
 
   return (
-    <DashCard title={t("checkinActivity")} subtitle={t("lastDays", { count: 14 })} icon={<Activity size={16} />}>
+    <DashCard
+      title={t("checkinActivity")}
+      subtitle={t("lastDays", { count: 14 })}
+      icon={<Activity size={16} />}
+    >
       {/* Headline stats */}
       <div className="flex items-end gap-8 mb-4">
         <div>
-          <div className="text-3xl font-semibold tabular-nums text-label leading-none">{total.toLocaleString()}</div>
+          <div className="text-3xl font-semibold tabular-nums text-label leading-none">
+            {total.toLocaleString()}
+          </div>
           <div className="text-xs text-label-secondary mt-1.5">{t("totalCheckins")}</div>
         </div>
         <div>
-          <div className="text-3xl font-semibold tabular-nums text-label leading-none">{peak.toLocaleString()}</div>
+          <div className="text-3xl font-semibold tabular-nums text-label leading-none">
+            {peak.toLocaleString()}
+          </div>
           <div className="text-xs text-label-secondary mt-1.5">{t("peakPerDay")}</div>
         </div>
       </div>

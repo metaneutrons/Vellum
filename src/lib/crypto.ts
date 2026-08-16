@@ -31,7 +31,9 @@ export function encryptForDevice(
 
   // Generate ephemeral server keypair
   const serverKeyPair = crypto.generateKeyPairSync("x25519");
-  const serverPubRaw = serverKeyPair.publicKey.export({ type: "spki", format: "der" }).subarray(-32);
+  const serverPubRaw = serverKeyPair.publicKey
+    .export({ type: "spki", format: "der" })
+    .subarray(-32);
 
   // Derive shared secret via ECDH
   const devicePubKey = crypto.createPublicKey({

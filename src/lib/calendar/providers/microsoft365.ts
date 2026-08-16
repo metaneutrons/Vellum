@@ -7,9 +7,7 @@
 import { z } from "zod";
 import { ClientSecretCredential } from "@azure/identity";
 import { Client } from "@microsoft/microsoft-graph-client";
-import {
-  TokenCredentialAuthenticationProvider,
-} from "@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials";
+import { TokenCredentialAuthenticationProvider } from "@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials";
 import type { CalendarProvider, CalendarEvent } from "../types";
 
 export const m365CredentialSchema = z.object({
@@ -33,7 +31,9 @@ export const microsoft365Provider: CalendarProvider = {
     const room = m365RoomConfigSchema.parse(roomConfig);
 
     const credential = new ClientSecretCredential(
-      creds.tenantId, creds.clientId, creds.clientSecret
+      creds.tenantId,
+      creds.clientId,
+      creds.clientSecret
     );
     const authProvider = new TokenCredentialAuthenticationProvider(credential, {
       scopes: ["https://graph.microsoft.com/.default"],

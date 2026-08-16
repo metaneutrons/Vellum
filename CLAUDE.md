@@ -32,18 +32,21 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
 - Node 25+ no longer bundles Corepack (the `Dockerfile` installs pnpm globally
   instead). Do not add `corepack enable` to instructions — it fails on current
   Node; CI uses `pnpm/action-setup`.
-- Scripts (`package.json`): `dev`, `build`, `start`, `lint` (`eslint .`),
-  `typecheck` (`tsc --noEmit` — the canonical type-check), `test`
+- Scripts (`package.json`): `dev`, `build`, `start`, `lint` (zero-warning
+  ESLint plus brand consistency), `format`, `format:check`, `typecheck`
+  (`tsc --noEmit` — the canonical type-check), `test`
   (`vitest --run`), `test:coverage`, `i18n:check`, `release:check`,
   `db:check`, `db:generate`, `db:migrate` (the idempotent `scripts/migrate.mjs`
   runner), `dev:mdns` / `mdns`.
-- **`.githooks/pre-push` runs `i18n:check`, `typecheck`, `release:check` (and
+- **`.githooks/pre-commit` runs lint-staged with Prettier and zero-warning
+  ESLint**; generated/vendor inputs are explicitly excluded. **`.githooks/pre-push`
+  runs `i18n:check`, `typecheck`, `release:check` (and
   `db:check`)** — each is also a required CI job. Run them before pushing or the
   hook will surprise you.
 - Tests: ~two dozen vitest suites (`pnpm test` for the exact count), node
   environment, fully self-contained — **NO Postgres / testcontainers / docker**.
   The workspace-wide snapdog note "tier-2 tests need `DOCKER_HOST=colima
-  socket`" does NOT apply to Vellum.
+socket`" does NOT apply to Vellum.
 - Coverage is a **ratchet gate** (`vitest.config.ts`): statements 55 / branches
   44 / functions 44 / lines 56, enforced by the required CI "Test" job. Raise,
   never lower.
@@ -84,7 +87,7 @@ them in `__vellum_migrations`. Consequences:
 - Toolchain: **ESP-IDF v6.0**. Local build: `make build MODEL=<model>` from
   `firmware/` (default `MODEL=e1002`). CI builds in docker `espressif/idf:v6.0`.
 - ⚠️ **The Makefile hardcodes the maintainer's absolute paths** (`IDF_ACTIVATE :=
-  source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
+source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   and `IDF_PATH=/Volumes/Dev/esp-idf/v6.0/esp-idf`, `firmware/Makefile:72-73`).
   They are `:=` (not overridable) and the redirect **swallows the failure**, so
   on any other machine you get a confusing downstream `idf.py` error instead of
@@ -95,16 +98,16 @@ them in `__vellum_migrations`. Consequences:
   `vellum-firmware` and **silently disables that check** — a wrong-model image
   would pass signature verify and could brick a device (`CMakeLists.txt:14-31`).
 - **4 models** (`firmware/Makefile:40-60`, `firmware.yml` matrix):
-  | Model | Chip | Panel / controller | Display | USB serial transport |
-  |-------|------|--------------------|---------|----------------------|
-  | `e1001` | ESP32-S3 | GDEY075T7 / UC8179_BW | mono 800×480 (panel does 4-gray) | **CH340C → UART0** |
-  | `e1002` | ESP32-S3 | GDEP073E01 / ACeP (see palette note) | 800×480 (default build) | **CH340C → UART0** |
-  | `e1003` | ESP32-S3 | ED103TC2 / IT8951 | **16-gray / 4bpp, 1872×1404** | **CH340K → UART0** |
-  | `d1001` | **ESP32-P4** + ESP32-C6 (Wi-Fi via `esp_wifi_remote`/ESP-Hosted) | JD9365 MIPI-DSI **LCD** | 800×1280 | **native USB-Serial-JTAG** |
-  **Every S3 model needs its console overlay** (`sdkconfig.defaults.e1001` /
-  `.e1002` / `.e1003` on top of `sdkconfig.defaults.s3`) — they differ by more
-  than panel Kconfig. A model without one silently inherits the base
-  `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`, which is wrong for all three.
+  | Model                                                                        | Chip                                                             | Panel / controller                   | Display                          | USB serial transport       |
+  | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------ | -------------------------------- | -------------------------- |
+  | `e1001`                                                                      | ESP32-S3                                                         | GDEY075T7 / UC8179_BW                | mono 800×480 (panel does 4-gray) | **CH340C → UART0**         |
+  | `e1002`                                                                      | ESP32-S3                                                         | GDEP073E01 / ACeP (see palette note) | 800×480 (default build)          | **CH340C → UART0**         |
+  | `e1003`                                                                      | ESP32-S3                                                         | ED103TC2 / IT8951                    | **16-gray / 4bpp, 1872×1404**    | **CH340K → UART0**         |
+  | `d1001`                                                                      | **ESP32-P4** + ESP32-C6 (Wi-Fi via `esp_wifi_remote`/ESP-Hosted) | JD9365 MIPI-DSI **LCD**              | 800×1280                         | **native USB-Serial-JTAG** |
+  | **Every S3 model needs its console overlay** (`sdkconfig.defaults.e1001` /   |
+  | `.e1002` / `.e1003` on top of `sdkconfig.defaults.s3`) — they differ by more |
+  | than panel Kconfig. A model without one silently inherits the base           |
+  | `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`, which is wrong for all three.        |
 - **USB-C wiring is per-model and drives two separate behaviours — get it right
   before debugging provisioning or power.** Hardware-confirmed 2026-08-12:
   **no E-Series model uses native USB.** E1001 and E1002 terminate USB-C at a
@@ -150,7 +153,7 @@ them in `__vellum_migrations`. Consequences:
     spec is portrait 1404×1872 and Vellum drives the panel landscape, so the two
     are the same panel under different orientation conventions. Leave both alone.
   - **E1002's 6-colour palette is RESOLVED — do not "re-fix" it.** A palette
-    position *is* the on-wire pixel code, and GDEP073E01's code space has a hole:
+    position _is_ the on-wire pixel code, and GDEP073E01's code space has a hole:
     `0x0` black, `0x1` white, `0x2` yellow, `0x3` red, **`0x4` unused**, `0x5`
     blue, `0x6` green. The gap is why deleting the orange entry is wrong — it
     slides blue onto `0x4` and green onto `0x5`. The open question in earlier
@@ -162,7 +165,7 @@ them in `__vellum_migrations`. Consequences:
     passes and from `colorCount`. Firmware predating the field reports nothing
     reserved and behaves as before. `src/lib/display.ts`'s registry entry now
     matches the firmware's order — it previously listed the same colours in ACeP
-    *Gallery* order (green/blue at `0x2`/`0x3`), a different panel family, so every
+    _Gallery_ order (green/blue at `0x2`/`0x3`), a different panel family, so every
     simulator preview disagreed with the hardware.
   - **E1001's panel does 4-level grayscale (hardware-confirmed) but the firmware
     drives it 1-bit mono** (`PANEL_BPP 1`, `PANEL_COLORS "mono"`, `UC8179_BW`;
@@ -177,14 +180,14 @@ them in `__vellum_migrations`. Consequences:
   e-paper display component.
 - Display backend is a **3-way split**, not one esp_epaper: `panel_epaper.c`
   (S3 e-paper: custom `epaper_uc8179` for e1001/e1002, `epaper_it8951` for e1003)
-  + `panel_lcd.c` (P4 d1001 LCD). `components-epaper/epaper_uc8179` is a
-  **vendored fork** of `tuanpmt/esp_epaper` — do NOT re-pull it from the ESP-IDF
-  registry (would clobber Vellum's added `uc8179_bw.c` / `ed103tc2.c`). Note the
-  registry copy is still *declared and linked* alongside the fork
-  (`components/vellum_display/CMakeLists.txt`) — a real cleanup, not just a doc
-  nit. `components-lcd/esp_io_expander_pca9535` is likewise **vendored because
-  the registry version fails on IDF 6.0**; its README (verbatim upstream) tells
-  you to `idf.py add-dependency` it — don't.
+  - `panel_lcd.c` (P4 d1001 LCD). `components-epaper/epaper_uc8179` is a
+    **vendored fork** of `tuanpmt/esp_epaper` — do NOT re-pull it from the ESP-IDF
+    registry (would clobber Vellum's added `uc8179_bw.c` / `ed103tc2.c`). Note the
+    registry copy is still _declared and linked_ alongside the fork
+    (`components/vellum_display/CMakeLists.txt`) — a real cleanup, not just a doc
+    nit. `components-lcd/esp_io_expander_pca9535` is likewise **vendored because
+    the registry version fails on IDF 6.0**; its README (verbatim upstream) tells
+    you to `idf.py add-dependency` it — don't.
 - **D1001 renders JPEG, not raw pixels.** `panel_lcd.c` decodes JPEG
   (`esp_jpeg_decode()`) into RGB565; the server sends `image/jpeg` for `d1001`
   (`src/lib/display.ts`, `api/v1/ink/render`). Only the S3 e-paper path takes a
@@ -198,7 +201,7 @@ them in `__vellum_migrations`. Consequences:
   out-of-band by KMS. See `docs/SECURE_BOOT_AND_KMS.md` (accurate).
 - Firmware **host tests** (pure logic/crypto, no ESP-IDF):
   `cmake -S firmware/host_test -B firmware/host_test/build && cmake --build
-  firmware/host_test/build && ctest --test-dir firmware/host_test/build`.
+firmware/host_test/build && ctest --test-dir firmware/host_test/build`.
   Needs CMake ≥3.16, C11, OpenSSL. Golden vectors regenerated by
   `node firmware/host_test/scripts/gen_kat.mjs`.
 - `firmware-pr-build.yml` = compile-only smoke check for **all 4 models** on

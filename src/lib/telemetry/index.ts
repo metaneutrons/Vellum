@@ -31,16 +31,23 @@ export function extractTelemetry(
   const wifiRssi = headers.get("x-wifi-rssi");
   const firmwareVersion = headers.get("x-firmware-ver");
 
-  if (!batteryVoltage && !batteryLevel && !powerSource && !batteryStatus && !wifiRssi && !firmwareVersion) {
+  if (
+    !batteryVoltage &&
+    !batteryLevel &&
+    !powerSource &&
+    !batteryStatus &&
+    !wifiRssi &&
+    !firmwareVersion
+  ) {
     return null;
   }
 
-  const parsedPowerSource = powerSource === "usb" || powerSource === "battery"
-    ? powerSource
-    : null;
+  const parsedPowerSource = powerSource === "usb" || powerSource === "battery" ? powerSource : null;
   const parsedBatteryStatus =
-    batteryStatus === "charging" || batteryStatus === "full" ||
-    batteryStatus === "discharging" || batteryStatus === "unknown"
+    batteryStatus === "charging" ||
+    batteryStatus === "full" ||
+    batteryStatus === "discharging" ||
+    batteryStatus === "unknown"
       ? batteryStatus
       : null;
 
@@ -58,17 +65,24 @@ export function extractTelemetry(
  * Log a telemetry entry to the database, associated with the given device MAC.
  */
 export async function logTelemetry(entry: TelemetryEntry): Promise<void> {
-  await withDbTransaction(() => db.transaction(async (tx) => {
-    await tx.insert(telemetry).values({
-      mac: entry.mac,
-      batteryVoltage: entry.batteryVoltage,
-      batteryLevel: entry.batteryLevel,
-      powerSource: entry.powerSource,
-      batteryStatus: entry.batteryStatus,
-      wifiRssi: entry.wifiRssi,
-      firmwareVersion: entry.firmwareVersion,
-      timestamp: entry.timestamp,
-    });
-    await tx.update(devices).set({ lastSeen: entry.timestamp }).where(eq(devices.mac, entry.mac));
-  }), "log-device-telemetry");
+  await withDbTransaction(
+    () =>
+      db.transaction(async (tx) => {
+        await tx.insert(telemetry).values({
+          mac: entry.mac,
+          batteryVoltage: entry.batteryVoltage,
+          batteryLevel: entry.batteryLevel,
+          powerSource: entry.powerSource,
+          batteryStatus: entry.batteryStatus,
+          wifiRssi: entry.wifiRssi,
+          firmwareVersion: entry.firmwareVersion,
+          timestamp: entry.timestamp,
+        });
+        await tx
+          .update(devices)
+          .set({ lastSeen: entry.timestamp })
+          .where(eq(devices.mac, entry.mac));
+      }),
+    "log-device-telemetry"
+  );
 }

@@ -68,7 +68,10 @@ const DEFAULT_CAPS: DisplayCaps = {
   model: "unknown",
   width: 800,
   height: 480,
-  palette: [[0, 0, 0], [255, 255, 255]],
+  palette: [
+    [0, 0, 0],
+    [255, 255, 255],
+  ],
   reservedPaletteIndices: [],
   format: "raw",
   colorMode: "mono",
@@ -79,28 +82,38 @@ const DEFAULT_CAPS: DisplayCaps = {
  * SSOT display registry — all known display models.
  * Add new displays here; all other code imports from this registry.
  */
-export const DISPLAY_REGISTRY: Record<string, {
-  name: string;
-  width: number;
-  height: number;
-  format: OutputFormat;
-  colorMode: ColorMode;
-  palette: [number, number, number][];
-  /** See displayCapsSchema — positions that are pixel codes but not usable colors. */
-  reservedPaletteIndices?: number[];
-  orientations: ("portrait" | "landscape")[];
-}> = {
+export const DISPLAY_REGISTRY: Record<
+  string,
+  {
+    name: string;
+    width: number;
+    height: number;
+    format: OutputFormat;
+    colorMode: ColorMode;
+    palette: [number, number, number][];
+    /** See displayCapsSchema — positions that are pixel codes but not usable colors. */
+    reservedPaletteIndices?: number[];
+    orientations: ("portrait" | "landscape")[];
+  }
+> = {
   e1001: {
-    name: "E1001 (7.5\" BW)",
-    width: 800, height: 480,
-    format: "raw", colorMode: "mono",
-    palette: [[0, 0, 0], [255, 255, 255]],
+    name: 'E1001 (7.5" BW)',
+    width: 800,
+    height: 480,
+    format: "raw",
+    colorMode: "mono",
+    palette: [
+      [0, 0, 0],
+      [255, 255, 255],
+    ],
     orientations: ["landscape"],
   },
   e1002: {
-    name: "E1002 (7.3\" 6-Color)",
-    width: 800, height: 480,
-    format: "raw", colorMode: "indexed",
+    name: 'E1002 (7.3" 6-Color)',
+    width: 800,
+    height: 480,
+    format: "raw",
+    colorMode: "indexed",
     /* Positions are on-wire pixel codes, so this must match the firmware's order
      * exactly (components/http_client/http_client.c, EPD_PIXEL_* in
      * epaper_config.h). It previously listed the same seven colors in the ACeP
@@ -108,32 +121,44 @@ export const DISPLAY_REGISTRY: Record<string, {
      * panel family, so every preview disagreed with the hardware.
      * 0x4 is reserved: unused on Spectra 6. */
     palette: [
-      [0, 0, 0],          // 0x0 black
-      [255, 255, 255],    // 0x1 white
-      [255, 255, 0],      // 0x2 yellow
-      [255, 0, 0],        // 0x3 red
-      [255, 255, 255],    // 0x4 reserved
-      [0, 0, 255],        // 0x5 blue
-      [0, 255, 0],        // 0x6 green
+      [0, 0, 0], // 0x0 black
+      [255, 255, 255], // 0x1 white
+      [255, 255, 0], // 0x2 yellow
+      [255, 0, 0], // 0x3 red
+      [255, 255, 255], // 0x4 reserved
+      [0, 0, 255], // 0x5 blue
+      [0, 255, 0], // 0x6 green
     ],
     reservedPaletteIndices: [4],
     orientations: ["landscape"],
   },
   e1003: {
-    name: "E1003 (10.3\" 16-Gray)",
-    width: 1872, height: 1404,
-    format: "raw", colorMode: "grayscale",
+    name: 'E1003 (10.3" 16-Gray)',
+    width: 1872,
+    height: 1404,
+    format: "raw",
+    colorMode: "grayscale",
     palette: Array.from({ length: 16 }, (_, i) => {
-      const v = Math.round(i / 15 * 255);
+      const v = Math.round((i / 15) * 255);
       return [v, v, v] as [number, number, number];
     }),
     orientations: ["portrait", "landscape"],
   },
   d1001: {
-    name: "D1001 (8\" LCD Color)",
-    width: 800, height: 1280,
-    format: "jpeg", colorMode: "fullcolor",
-    palette: [[0, 0, 0], [255, 255, 255], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 128, 0]],
+    name: 'D1001 (8" LCD Color)',
+    width: 800,
+    height: 1280,
+    format: "jpeg",
+    colorMode: "fullcolor",
+    palette: [
+      [0, 0, 0],
+      [255, 255, 255],
+      [255, 0, 0],
+      [0, 255, 0],
+      [0, 0, 255],
+      [255, 255, 0],
+      [255, 128, 0],
+    ],
     orientations: ["portrait", "landscape"],
   },
 };
@@ -145,12 +170,18 @@ function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: 
   }
   // Legacy migration from quantize field
   switch (caps.quantize) {
-    case "jpeg": return { format: "jpeg", colorMode: "fullcolor" };
-    case "color": return { format: "raw", colorMode: "indexed" };
-    case "grayscale": return { format: "raw", colorMode: "grayscale" };
-    case "mono": return { format: "raw", colorMode: "mono" };
-    case "none": return { format: "raw", colorMode: "fullcolor" };
-    default: return { format: caps.format ?? "raw", colorMode: caps.colorMode ?? "mono" };
+    case "jpeg":
+      return { format: "jpeg", colorMode: "fullcolor" };
+    case "color":
+      return { format: "raw", colorMode: "indexed" };
+    case "grayscale":
+      return { format: "raw", colorMode: "grayscale" };
+    case "mono":
+      return { format: "raw", colorMode: "mono" };
+    case "none":
+      return { format: "raw", colorMode: "fullcolor" };
+    default:
+      return { format: caps.format ?? "raw", colorMode: caps.colorMode ?? "mono" };
   }
 }
 
@@ -158,15 +189,19 @@ function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: 
  * Parse and validate display capabilities from a JSONB value.
  * Swaps width/height to match desired orientation.
  */
-export function resolveDisplayCaps(raw: unknown, orientationOverride?: "portrait" | "landscape"): ResolvedDisplay {
+export function resolveDisplayCaps(
+  raw: unknown,
+  orientationOverride?: "portrait" | "landscape"
+): ResolvedDisplay {
   const result = displayCapsSchema.safeParse(raw);
   const caps = result.success ? result.data : DEFAULT_CAPS;
 
   const { format, colorMode } = migrateQuantize(caps);
 
-  const orientation = orientationOverride
-    ?? caps.orientation
-    ?? (caps.height > caps.width ? "portrait" : "landscape");
+  const orientation =
+    orientationOverride ??
+    caps.orientation ??
+    (caps.height > caps.width ? "portrait" : "landscape");
 
   const nativePortrait = caps.height > caps.width;
   const wantPortrait = orientation === "portrait";

@@ -6,11 +6,7 @@ import { AppFooter } from "@/components/app-footer";
 import { ToastProvider } from "@/components/toast";
 import { getCurrentPrincipal, hasPermission } from "@/lib/access";
 
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const principal = await getCurrentPrincipal();
   if (!principal) {
     redirect("/login");
@@ -23,7 +19,9 @@ export default async function AdminLayout({
       <div className="flex min-h-dvh bg-bg-secondary text-label">
         <AdminNav
           canAccessManagement={hasPermission(principal, "access.read")}
-          canReadSystem={hasPermission(principal, "system.read") || hasPermission(principal, "system.update")}
+          canReadSystem={
+            hasPermission(principal, "system.read") || hasPermission(principal, "system.update")
+          }
         />
         <div className="flex-1 min-w-0 flex flex-col">
           <main className="flex-1 min-w-0 p-4 md:p-8 pt-16 md:pt-8">{children}</main>

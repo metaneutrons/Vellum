@@ -46,13 +46,14 @@ export async function POST(request: NextRequest) {
       principal,
       { action: "device.approve", targetType: "device", targetId: mac },
       async (tx) => {
-        const updated = await tx.update(devices)
+        const updated = await tx
+          .update(devices)
           .set({ status: "approved", token, approvedAt: new Date() })
           .where(eq(devices.mac, mac))
           .returning({ mac: devices.mac });
         if (updated.length === 0) throw new Error("device_not_found");
       },
-      "api-approve-device",
+      "api-approve-device"
     );
     log.info("Device approved", { mac: validation.data.mac });
     return Response.json(okResponse({ approved: true }));

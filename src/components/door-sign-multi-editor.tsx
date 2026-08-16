@@ -9,11 +9,22 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { TextBoxCanvas } from "@/components/text-box-canvas";
-import { KNOWN_DISPLAYS, type DisplaySize, type Design } from "@/lib/content/renderers/door-sign-types";
-import { MULTI_TEMPLATE_VARS, type DoorSignMultiConfig, type RowTemplate } from "@/lib/content/renderers/door-sign-multi-types";
+import {
+  KNOWN_DISPLAYS,
+  type DisplaySize,
+  type Design,
+} from "@/lib/content/renderers/door-sign-types";
+import {
+  MULTI_TEMPLATE_VARS,
+  type DoorSignMultiConfig,
+  type RowTemplate,
+} from "@/lib/content/renderers/door-sign-multi-types";
 
-
-interface Provider { id: string; name: string; type: string; }
+interface Provider {
+  id: string;
+  name: string;
+  type: string;
+}
 
 interface Props {
   config: DoorSignMultiConfig;
@@ -26,70 +37,120 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
   const t = useTranslations("content.doorSign");
   const [activeDisplay, setActiveDisplay] = useState<string>("default");
   const [availableResources, setAvailableResources] = useState<{ id: string; name: string }[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState(config.resources[0]?.providerId ?? providers[0]?.id ?? "");
+  const [selectedProvider, setSelectedProvider] = useState(
+    config.resources[0]?.providerId ?? providers[0]?.id ?? ""
+  );
 
   const displays = knownDisplays ?? KNOWN_DISPLAYS;
-  const currentDisplay = activeDisplay === "default"
-    ? displays[0]
-    : displays.find(d => `${d.width}x${d.height}` === activeDisplay) ?? displays[0];
+  const currentDisplay =
+    activeDisplay === "default"
+      ? displays[0]
+      : (displays.find((d) => `${d.width}x${d.height}` === activeDisplay) ?? displays[0]);
 
   // Fetch available resources when provider changes
   useEffect(() => {
     if (!selectedProvider) return;
     fetch(`/api/v1/admin/anny-resources?providerId=${selectedProvider}`)
-      .then(r => r.ok ? r.json() : [])
+      .then((r) => (r.ok ? r.json() : []))
       .then(setAvailableResources)
       .catch(() => setAvailableResources([]));
   }, [selectedProvider]);
 
-  const toggleResource = useCallback((resourceId: string, resourceName: string) => {
-    const exists = config.resources.find(r => r.resourceId === resourceId && r.providerId === selectedProvider);
-    if (exists) {
-      onChange({ ...config, resources: config.resources.filter(r => !(r.resourceId === resourceId && r.providerId === selectedProvider)) });
-    } else {
-      onChange({ ...config, resources: [...config.resources, { providerId: selectedProvider, resourceId, resourceName }] });
-    }
-  }, [config, onChange, selectedProvider]);
+  const toggleResource = useCallback(
+    (resourceId: string, resourceName: string) => {
+      const exists = config.resources.find(
+        (r) => r.resourceId === resourceId && r.providerId === selectedProvider
+      );
+      if (exists) {
+        onChange({
+          ...config,
+          resources: config.resources.filter(
+            (r) => !(r.resourceId === resourceId && r.providerId === selectedProvider)
+          ),
+        });
+      } else {
+        onChange({
+          ...config,
+          resources: [
+            ...config.resources,
+            { providerId: selectedProvider, resourceId, resourceName },
+          ],
+        });
+      }
+    },
+    [config, onChange, selectedProvider]
+  );
 
-  const updateDesign = useCallback((design: Design) => {
-    if (activeDisplay === "default") {
-      onChange({ ...config, design });
-    } else {
-      onChange({ ...config, designOverrides: { ...config.designOverrides, [activeDisplay]: design } });
-    }
-  }, [config, onChange, activeDisplay]);
+  const updateDesign = useCallback(
+    (design: Design) => {
+      if (activeDisplay === "default") {
+        onChange({ ...config, design });
+      } else {
+        onChange({
+          ...config,
+          designOverrides: { ...config.designOverrides, [activeDisplay]: design },
+        });
+      }
+    },
+    [config, onChange, activeDisplay]
+  );
 
-  const updateRowTemplate = useCallback((patch: Partial<RowTemplate>) => {
-    onChange({ ...config, rowTemplate: { ...config.rowTemplate, ...patch } });
-  }, [config, onChange]);
+  const updateRowTemplate = useCallback(
+    (patch: Partial<RowTemplate>) => {
+      onChange({ ...config, rowTemplate: { ...config.rowTemplate, ...patch } });
+    },
+    [config, onChange]
+  );
 
-  const activeDesign = activeDisplay === "default"
-    ? config.design
-    : (config.designOverrides[activeDisplay] ?? config.design);
+  const activeDesign =
+    activeDisplay === "default"
+      ? config.design
+      : (config.designOverrides[activeDisplay] ?? config.design);
 
   const headerVars = [{ key: "{resource_count}", label: "Number of resources" }];
-  const bgUrl = activeDesign.backgroundAssetId ? `/api/v1/admin/assets/${activeDesign.backgroundAssetId}` : null;
+  const bgUrl = activeDesign.backgroundAssetId
+    ? `/api/v1/admin/assets/${activeDesign.backgroundAssetId}`
+    : null;
 
   return (
     <div className="space-y-4">
       {/* Resource selection */}
       <div className="p-4 bg-surface-secondary rounded-lg space-y-3">
         <label className="block text-sm font-semibold text-label">{t("resource")}</label>
-        <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)}
-          className="w-full min-h-11 rounded-md bg-surface border border-separator px-3 text-sm text-label focus-ring">
-          {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        <select
+          value={selectedProvider}
+          onChange={(e) => setSelectedProvider(e.target.value)}
+          className="w-full min-h-11 rounded-md bg-surface border border-separator px-3 text-sm text-label focus-ring"
+        >
+          {providers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
         </select>
         <div className="max-h-48 overflow-y-auto space-y-1">
-          {availableResources.map(r => {
-            const checked = config.resources.some(cr => cr.resourceId === r.id && cr.providerId === selectedProvider);
+          {availableResources.map((r) => {
+            const checked = config.resources.some(
+              (cr) => cr.resourceId === r.id && cr.providerId === selectedProvider
+            );
             return (
-              <label key={r.id} className="flex items-center gap-2 text-sm text-label cursor-pointer hover:bg-surface-hover px-2 py-1 rounded">
-                <input type="checkbox" checked={checked} onChange={() => toggleResource(r.id, r.name)} className="accent-accent focus-ring" />
+              <label
+                key={r.id}
+                className="flex items-center gap-2 text-sm text-label cursor-pointer hover:bg-surface-hover px-2 py-1 rounded"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleResource(r.id, r.name)}
+                  className="accent-accent focus-ring"
+                />
                 {r.name}
               </label>
             );
           })}
-          {availableResources.length === 0 && <span className="text-xs text-label-tertiary">{t("loading")}</span>}
+          {availableResources.length === 0 && (
+            <span className="text-xs text-label-tertiary">{t("loading")}</span>
+          )}
         </div>
         {config.resources.length > 0 && (
           <div className="text-xs text-label-tertiary">{config.resources.length} selected</div>
@@ -98,15 +159,20 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
 
       {/* Display selector */}
       <div className="flex items-center gap-2 border-b border-separator pb-2 flex-wrap">
-        <button onClick={() => setActiveDisplay("default")}
-          className={`px-3 py-1.5 text-sm rounded-md transition focus-ring ${activeDisplay === "default" ? "bg-accent text-on-accent" : "bg-fill-tertiary text-label hover:bg-fill-secondary"}`}>
+        <button
+          onClick={() => setActiveDisplay("default")}
+          className={`px-3 py-1.5 text-sm rounded-md transition focus-ring ${activeDisplay === "default" ? "bg-accent text-on-accent" : "bg-fill-tertiary text-label hover:bg-fill-secondary"}`}
+        >
           Default
         </button>
-        {displays.map(d => {
+        {displays.map((d) => {
           const key = `${d.width}x${d.height}`;
           return (
-            <button key={key} onClick={() => setActiveDisplay(key)}
-              className={`px-3 py-1.5 text-sm rounded-md transition focus-ring ${activeDisplay === key ? "bg-accent text-on-accent" : "bg-fill-tertiary text-label hover:bg-fill-secondary"}`}>
+            <button
+              key={key}
+              onClick={() => setActiveDisplay(key)}
+              className={`px-3 py-1.5 text-sm rounded-md transition focus-ring ${activeDisplay === key ? "bg-accent text-on-accent" : "bg-fill-tertiary text-label hover:bg-fill-secondary"}`}
+            >
               {d.label}
             </button>
           );
@@ -116,17 +182,25 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
       {/* Header height slider */}
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-label">{t("template")}</label>
-        <input type="range" min="0.1" max="0.6" step="0.05" value={config.headerHeight}
-          onChange={e => onChange({ ...config, headerHeight: parseFloat(e.target.value) })}
-          className="flex-1 accent-accent focus-ring" />
-        <span className="text-xs text-label-tertiary">{Math.round(config.headerHeight * 100)}%</span>
+        <input
+          type="range"
+          min="0.1"
+          max="0.6"
+          step="0.05"
+          value={config.headerHeight}
+          onChange={(e) => onChange({ ...config, headerHeight: parseFloat(e.target.value) })}
+          className="flex-1 accent-accent focus-ring"
+        />
+        <span className="text-xs text-label-tertiary">
+          {Math.round(config.headerHeight * 100)}%
+        </span>
       </div>
 
       {/* Header TextBox editor */}
       <TextBoxCanvas
         label="Header Area"
         boxes={activeDesign.textBoxes}
-        onChange={boxes => updateDesign({ ...activeDesign, textBoxes: boxes })}
+        onChange={(boxes) => updateDesign({ ...activeDesign, textBoxes: boxes })}
         width={currentDisplay.width}
         height={Math.round(currentDisplay.height * config.headerHeight)}
         backgroundColor={activeDesign.backgroundColor}
@@ -138,9 +212,11 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
       <TextBoxCanvas
         label="Row Template (repeated per resource)"
         boxes={config.rowTemplate.textBoxes}
-        onChange={boxes => updateRowTemplate({ textBoxes: boxes })}
+        onChange={(boxes) => updateRowTemplate({ textBoxes: boxes })}
         width={currentDisplay.width}
-        height={Math.round(currentDisplay.height * (1 - config.headerHeight) / Math.max(config.resources.length, 3))}
+        height={Math.round(
+          (currentDisplay.height * (1 - config.headerHeight)) / Math.max(config.resources.length, 3)
+        )}
         backgroundColor={activeDesign.backgroundColor}
         templateVars={MULTI_TEMPLATE_VARS as unknown as { key: string; label: string }[]}
       />
@@ -149,32 +225,52 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
       <TextBoxCanvas
         label="Row Template (when free)"
         boxes={config.rowTemplate.freeTextBoxes}
-        onChange={boxes => updateRowTemplate({ freeTextBoxes: boxes })}
+        onChange={(boxes) => updateRowTemplate({ freeTextBoxes: boxes })}
         width={currentDisplay.width}
-        height={Math.round(currentDisplay.height * (1 - config.headerHeight) / Math.max(config.resources.length, 3))}
+        height={Math.round(
+          (currentDisplay.height * (1 - config.headerHeight)) / Math.max(config.resources.length, 3)
+        )}
         backgroundColor={activeDesign.backgroundColor}
         templateVars={MULTI_TEMPLATE_VARS as unknown as { key: string; label: string }[]}
       />
 
       {/* Preview */}
       <div className="p-3 bg-surface-secondary rounded-lg">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-label-tertiary mb-2">{t("previewAllSizes")}</label>
-        <div className="relative border border-separator rounded overflow-hidden"
-          style={{ width: "100%", maxWidth: 400, aspectRatio: `${currentDisplay.width}/${currentDisplay.height}`, background: activeDesign.backgroundColor }}>
-          {bgUrl && <img src={bgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+        <label className="block text-xs font-semibold uppercase tracking-wide text-label-tertiary mb-2">
+          {t("previewAllSizes")}
+        </label>
+        <div
+          className="relative border border-separator rounded overflow-hidden"
+          style={{
+            width: "100%",
+            maxWidth: 400,
+            aspectRatio: `${currentDisplay.width}/${currentDisplay.height}`,
+            background: activeDesign.backgroundColor,
+          }}
+        >
+          {bgUrl && (
+            <img src={bgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          )}
           {/* Header area indicator */}
-          <div className="absolute left-0 right-0 top-0 border-b border-dashed border-accent"
-            style={{ height: `${config.headerHeight * 100}%` }}>
+          <div
+            className="absolute left-0 right-0 top-0 border-b border-dashed border-accent"
+            style={{ height: `${config.headerHeight * 100}%` }}
+          >
             <span className="absolute top-1 left-2 text-[9px] text-accent">{t("header")}</span>
           </div>
           {/* Row indicators */}
           {config.resources.map((r, i) => (
-            <div key={r.resourceId} className="absolute left-0 right-0 border-b border-dashed border-separator flex items-center px-2"
+            <div
+              key={r.resourceId}
+              className="absolute left-0 right-0 border-b border-dashed border-separator flex items-center px-2"
               style={{
-                top: `${(config.headerHeight + (1 - config.headerHeight) * i / config.resources.length) * 100}%`,
-                height: `${(1 - config.headerHeight) / config.resources.length * 100}%`,
-              }}>
-              <span className="text-[9px] text-label-tertiary truncate">{r.resourceName ?? r.resourceId}</span>
+                top: `${(config.headerHeight + ((1 - config.headerHeight) * i) / config.resources.length) * 100}%`,
+                height: `${((1 - config.headerHeight) / config.resources.length) * 100}%`,
+              }}
+            >
+              <span className="text-[9px] text-label-tertiary truncate">
+                {r.resourceName ?? r.resourceId}
+              </span>
             </div>
           ))}
         </div>

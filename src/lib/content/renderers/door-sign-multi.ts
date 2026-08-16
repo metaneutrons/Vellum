@@ -15,14 +15,24 @@ import { TtlCache } from "@/lib/cache";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
 import { doorSignMultiConfigSchema, type ResourceEntry } from "./door-sign-multi-types";
-import { renderTextBoxes, selectDesign, formatTime, drawBackground, type TemplateContext } from "./shared";
+import {
+  renderTextBoxes,
+  selectDesign,
+  formatTime,
+  drawBackground,
+  type TemplateContext,
+} from "./shared";
 
 /* ── Booking cache ────────────────────────────────────────────── */
 
 const BOOKING_CACHE_TTL_MS = 60_000;
 const bookingCache = new TtlCache<CalendarEvent[]>(BOOKING_CACHE_TTL_MS);
 
-async function fetchEventsForResource(resource: ResourceEntry, timezone: string, now: Date): Promise<CalendarEvent[]> {
+async function fetchEventsForResource(
+  resource: ResourceEntry,
+  timezone: string,
+  now: Date
+): Promise<CalendarEvent[]> {
   const cacheKey = `door-sign-multi:${resource.providerId}:${resource.resourceId}`;
   const cached = bookingCache.get(cacheKey);
   if (cached) return cached;
@@ -32,8 +42,24 @@ async function fetchEventsForResource(resource: ResourceEntry, timezone: string,
   if (!impl) return [];
 
   const tzNow = new TZDate(now, timezone);
-  const dayStart = new TZDate(tzNow.getFullYear(), tzNow.getMonth(), tzNow.getDate(), 0, 0, 0, timezone);
-  const dayEnd = new TZDate(tzNow.getFullYear(), tzNow.getMonth(), tzNow.getDate() + 1, 0, 0, 0, timezone);
+  const dayStart = new TZDate(
+    tzNow.getFullYear(),
+    tzNow.getMonth(),
+    tzNow.getDate(),
+    0,
+    0,
+    0,
+    timezone
+  );
+  const dayEnd = new TZDate(
+    tzNow.getFullYear(),
+    tzNow.getMonth(),
+    tzNow.getDate() + 1,
+    0,
+    0,
+    0,
+    timezone
+  );
 
   const events = await impl.fetchEvents({
     credentials: provider.credentials,
@@ -75,13 +101,14 @@ export const doorSignMultiRenderer: ContentRenderer = {
     const rowH = Math.round(rowAreaHeight / resources.length);
 
     const allEvents = await Promise.all(
-      resources.map(r => fetchEventsForResource(r, config.timezone, params.now))
+      resources.map((r) => fetchEventsForResource(r, config.timezone, params.now))
     );
 
     for (let i = 0; i < resources.length; i++) {
       const resource = resources[i];
       const events = allEvents[i];
-      const currentEvent = events.find(e => params.now >= e.startTime && params.now < e.endTime) ?? null;
+      const currentEvent =
+        events.find((e) => params.now >= e.startTime && params.now < e.endTime) ?? null;
       const isOccupied = currentEvent !== null;
 
       const rowY = rowAreaTop + i * rowH;
@@ -103,7 +130,9 @@ export const doorSignMultiRenderer: ContentRenderer = {
       // Render row template TextBoxes — positions are relative to the row
       const boxes = isOccupied
         ? rowTemplate.textBoxes
-        : (rowTemplate.freeTextBoxes.length > 0 ? rowTemplate.freeTextBoxes : rowTemplate.textBoxes);
+        : rowTemplate.freeTextBoxes.length > 0
+          ? rowTemplate.freeTextBoxes
+          : rowTemplate.textBoxes;
 
       // Transform box positions from row-relative (0-1) to absolute pixels
       for (const box of boxes) {
@@ -144,6 +173,8 @@ export const doorSignMultiRenderer: ContentRenderer = {
 
 // Inline resolveTemplate for row rendering (avoids re-import complexity)
 function resolveTemplate(template: string, ctx: TemplateContext): string {
-  return template.replace(/\{([^}]+)\}/g, (_, key: string) => ctx[key] ?? "")
-    .replace(/\s{2,}/g, " ").trim();
+  return template
+    .replace(/\{([^}]+)\}/g, (_, key: string) => ctx[key] ?? "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }

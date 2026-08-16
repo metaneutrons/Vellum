@@ -5,10 +5,10 @@ decoupled so a server-only change never rebuilds firmware or pushes a needless
 OTA to the fleet, and a firmware-only change never rebuilds/re-tags the server
 image.
 
-| Artifact | release-please component | Version SSOT | Git tag | Built by |
-|----------|--------------------------|--------------|---------|----------|
-| **Server** (Next.js / Docker) | `server` (`.` root, `node`) | `package.json` | `vX.Y.Z` | `docker.yml` |
-| **Firmware** (ESP32 OTA) | `firmware` (`simple`) | `.release-please-manifest.json` → `firmware/main/Kconfig.projbuild` | `firmware-vX.Y.Z` | `firmware.yml` |
+| Artifact                      | release-please component    | Version SSOT                                                        | Git tag           | Built by       |
+| ----------------------------- | --------------------------- | ------------------------------------------------------------------- | ----------------- | -------------- |
+| **Server** (Next.js / Docker) | `server` (`.` root, `node`) | `package.json`                                                      | `vX.Y.Z`          | `docker.yml`   |
+| **Firmware** (ESP32 OTA)      | `firmware` (`simple`)       | `.release-please-manifest.json` → `firmware/main/Kconfig.projbuild` | `firmware-vX.Y.Z` | `firmware.yml` |
 
 > The firmware version of record is the `firmware` key in
 > `.release-please-manifest.json`; release-please propagates it into
@@ -122,7 +122,7 @@ The `firmware` component is anchored by the tag **`firmware-v1.2.0`** at the
 SHA for the component and would open a first firmware PR enumerating all
 historical firmware commits. The tag has no GitHub Release attached, so the fleet
 (which discovers by release asset) never sees it — it exists purely as a
-release-please anchor — there is intentionally no `firmware-v1.2.0` *release*.
+release-please anchor — there is intentionally no `firmware-v1.2.0` _release_.
 That anchor has since been superseded by the first real firmware release,
 **`firmware-v1.2.1`**, now the firmware version of record
 (`.release-please-manifest.json` `firmware` = `1.2.1`, propagated into the

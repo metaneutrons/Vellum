@@ -6,7 +6,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-interface Resource { id: string; name: string; description?: string; bookingUrl?: string }
+interface Resource {
+  id: string;
+  name: string;
+  description?: string;
+  bookingUrl?: string;
+}
 
 interface Props {
   providerId: string;
@@ -28,23 +33,30 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const fetchResources = useCallback(async (q: string) => {
-    if (!providerId) return;
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ providerId });
-      if (q) params.set("search", q);
-      const res = await fetch(`/api/v1/admin/anny-resources?${params}`);
-      if (res.ok) setResults((await res.json()).resources ?? []);
-    } catch { setResults([]); }
-    setLoading(false);
-  }, [providerId]);
+  const fetchResources = useCallback(
+    async (q: string) => {
+      if (!providerId) return;
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ providerId });
+        if (q) params.set("search", q);
+        const res = await fetch(`/api/v1/admin/anny-resources?${params}`);
+        if (res.ok) setResults((await res.json()).resources ?? []);
+      } catch {
+        setResults([]);
+      }
+      setLoading(false);
+    },
+    [providerId]
+  );
 
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchResources(search), 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [search, open, fetchResources]);
 
   useEffect(() => {
@@ -65,30 +77,55 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
   return (
     <div ref={containerRef} className="relative">
       {resourceId && !open ? (
-        <button type="button" onClick={() => { setOpen(true); fetchResources(""); }}
-          className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex justify-between items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(true);
+            fetchResources("");
+          }}
+          className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex justify-between items-center gap-2"
+        >
           <span className="truncate">{selectedName || resourceId}</span>
-          <span className="text-label-tertiary text-xs shrink-0 inline-flex items-center gap-1"><Pencil size={13} aria-hidden="true" />{t("change")}</span>
+          <span className="text-label-tertiary text-xs shrink-0 inline-flex items-center gap-1">
+            <Pencil size={13} aria-hidden="true" />
+            {t("change")}
+          </span>
         </button>
       ) : (
-        <input className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label placeholder:text-label-tertiary focus-ring"
+        <input
+          className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label placeholder:text-label-tertiary focus-ring"
           placeholder={t("search")}
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
-          onFocus={() => { setOpen(true); if (!results.length) fetchResources(""); }}
-          aria-label={t("search")} />
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            if (!results.length) fetchResources("");
+          }}
+          aria-label={t("search")}
+        />
       )}
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-surface border border-separator rounded-lg shadow-e3 max-h-64 overflow-y-auto">
           {loading && <div className="px-3 py-2 text-sm text-label-tertiary">{t("loading")}</div>}
           {!loading && results.length === 0 && (
-            <div className="px-3 py-2 text-sm text-label-tertiary">{search ? t("noResults") : t("noResources")}</div>
+            <div className="px-3 py-2 text-sm text-label-tertiary">
+              {search ? t("noResults") : t("noResources")}
+            </div>
           )}
           {results.map((r) => (
-            <button key={r.id} type="button" onClick={() => select(r)}
-              className={`w-full text-left px-3 py-2 hover:bg-surface-secondary focus-ring text-sm border-b border-separator last:border-0 ${r.id === resourceId ? "bg-accent-soft font-medium" : ""}`}>
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => select(r)}
+              className={`w-full text-left px-3 py-2 hover:bg-surface-secondary focus-ring text-sm border-b border-separator last:border-0 ${r.id === resourceId ? "bg-accent-soft font-medium" : ""}`}
+            >
               <div className="font-medium text-label">{r.name}</div>
-              {r.description && <div className="text-xs text-label-tertiary truncate">{r.description}</div>}
+              {r.description && (
+                <div className="text-xs text-label-tertiary truncate">{r.description}</div>
+              )}
             </button>
           ))}
         </div>

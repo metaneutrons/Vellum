@@ -73,7 +73,6 @@ describe("Property 15: All JSON responses use consistent envelope format", () =>
   });
 });
 
-
 /**
  * Property 16: API response serialization round-trip
  * Validates: Requirements 10.7

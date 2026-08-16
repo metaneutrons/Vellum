@@ -34,8 +34,19 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "filled", size = "md", loading = false, leading, trailing, children, className = "", disabled, type = "button", ...props },
-  ref,
+  {
+    variant = "filled",
+    size = "md",
+    loading = false,
+    leading,
+    trailing,
+    children,
+    className = "",
+    disabled,
+    type = "button",
+    ...props
+  },
+  ref
 ) {
   return (
     <button
@@ -47,7 +58,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {...props}
     >
       {loading && (
-        <span aria-hidden="true" className="size-4 rounded-full border-2 border-current border-t-transparent animate-spin motion-reduce:animate-none" />
+        <span
+          aria-hidden="true"
+          className="size-4 rounded-full border-2 border-current border-t-transparent animate-spin motion-reduce:animate-none"
+        />
       )}
       {!loading && leading}
       {children && <span>{children}</span>}

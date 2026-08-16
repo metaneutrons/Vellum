@@ -16,7 +16,15 @@ import { z } from "zod";
 
 /** Mirror of the statusSchema in src/lib/server-updater.ts. */
 const statusSchema = z.object({
-  state: z.enum(["starting", "checking", "preparing", "available", "updating", "current", "failed"]),
+  state: z.enum([
+    "starting",
+    "checking",
+    "preparing",
+    "available",
+    "updating",
+    "current",
+    "failed",
+  ]),
   currentVersion: z.string().nullable(),
   availableVersion: z.string().nullable(),
   updateAvailable: z.boolean(),
@@ -30,19 +38,44 @@ const statusSchema = z.object({
   updaterUpdateAvailable: z.boolean().optional(),
   updaterSelfUpdateCapable: z.boolean().optional(),
   updaterSelfUpdateEnabled: z.boolean().optional(),
-  updaterSwap: z.object({
-    outcome: z.enum(["succeeded", "failed", "rolled-back"]),
-    detail: z.string().max(300).nullable(),
-    at: z.string().nullable(),
-  }).nullable().optional(),
-  progress: z.object({
-    phase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]),
-    detail: z.string().max(200).nullable(),
-    at: z.string().nullable(),
-    startedAt: z.string().nullable(),
-    failedPhase: z.enum(["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"]).nullable().optional(),
-    rollbackAttempted: z.boolean().optional(),
-  }).nullable().optional(),
+  updaterSwap: z
+    .object({
+      outcome: z.enum(["succeeded", "failed", "rolled-back"]),
+      detail: z.string().max(300).nullable(),
+      at: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
+  progress: z
+    .object({
+      phase: z.enum([
+        "verifying",
+        "backing-up",
+        "deploying",
+        "waiting-for-health",
+        "done",
+        "rolling-back",
+        "failed",
+      ]),
+      detail: z.string().max(200).nullable(),
+      at: z.string().nullable(),
+      startedAt: z.string().nullable(),
+      failedPhase: z
+        .enum([
+          "verifying",
+          "backing-up",
+          "deploying",
+          "waiting-for-health",
+          "done",
+          "rolling-back",
+          "failed",
+        ])
+        .nullable()
+        .optional(),
+      rollbackAttempted: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 /** What the updater deployed before version reporting sends. */
@@ -93,8 +126,13 @@ describe("updater status compatibility", () => {
 
   it("passes through a reporting updater unchanged", () => {
     const status = normalize(
-      statusSchema.parse({ ...legacyPayload, updaterVersion: "v1.9.5", updaterUpdateAvailable: true,
-        updaterSelfUpdateCapable: true, updaterSelfUpdateEnabled: true }),
+      statusSchema.parse({
+        ...legacyPayload,
+        updaterVersion: "v1.9.5",
+        updaterUpdateAvailable: true,
+        updaterSelfUpdateCapable: true,
+        updaterSelfUpdateEnabled: true,
+      })
     );
     expect(status.updaterVersion).toBe("v1.9.5");
     expect(status.updaterUpdateAvailable).toBe(true);
@@ -105,23 +143,39 @@ describe("updater status compatibility", () => {
   it("carries a failed self-update through so the UI can surface it", () => {
     // The container that attempted the swap is gone; its replacement reports the
     // outcome. Without this the only trace would be container logs.
-    const status = normalize(statusSchema.parse({
-      ...legacyPayload,
-      updaterVersion: "v1.9.5",
-      updaterSwap: { outcome: "rolled-back", detail: "restored ghcr.io/x/vellum-updater:v1.9.5", at: "2026-08-13T00:10:00.000Z" },
-    }));
+    const status = normalize(
+      statusSchema.parse({
+        ...legacyPayload,
+        updaterVersion: "v1.9.5",
+        updaterSwap: {
+          outcome: "rolled-back",
+          detail: "restored ghcr.io/x/vellum-updater:v1.9.5",
+          at: "2026-08-13T00:10:00.000Z",
+        },
+      })
+    );
     expect(status.updaterSwap?.outcome).toBe("rolled-back");
     expect(status.updaterSwap?.detail).toContain("restored");
   });
 
   it("carries structured deployment failure and rollback progress", () => {
-    const status = normalize(statusSchema.parse({
-      ...legacyPayload,
-      progress: { phase: "failed", detail: "health check failed", at: "2026-08-15T09:10:00.000Z",
-        startedAt: "2026-08-15T09:08:00.000Z", failedPhase: "waiting-for-health", rollbackAttempted: true },
-    }));
+    const status = normalize(
+      statusSchema.parse({
+        ...legacyPayload,
+        progress: {
+          phase: "failed",
+          detail: "health check failed",
+          at: "2026-08-15T09:10:00.000Z",
+          startedAt: "2026-08-15T09:08:00.000Z",
+          failedPhase: "waiting-for-health",
+          rollbackAttempted: true,
+        },
+      })
+    );
     expect(status.progress).toMatchObject({
-      phase: "failed", failedPhase: "waiting-for-health", rollbackAttempted: true,
+      phase: "failed",
+      failedPhase: "waiting-for-health",
+      rollbackAttempted: true,
     });
   });
 
@@ -131,8 +185,15 @@ describe("updater status compatibility", () => {
 
   it("still rejects a genuinely malformed payload", () => {
     expect(statusSchema.safeParse({ ...legacyPayload, state: "rebooting" }).success).toBe(false);
-    expect(statusSchema.safeParse({ ...legacyPayload, maintenanceTime: "25:00" }).success).toBe(false);
+    expect(statusSchema.safeParse({ ...legacyPayload, maintenanceTime: "25:00" }).success).toBe(
+      false
+    );
     expect(statusSchema.safeParse({ ...legacyPayload, updaterVersion: 19 }).success).toBe(false);
-    expect(statusSchema.safeParse({ ...legacyPayload, updaterSwap: { outcome: "exploded", detail: null, at: null } }).success).toBe(false);
+    expect(
+      statusSchema.safeParse({
+        ...legacyPayload,
+        updaterSwap: { outcome: "exploded", detail: null, at: null },
+      }).success
+    ).toBe(false);
   });
 });

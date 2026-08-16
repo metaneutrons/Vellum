@@ -49,7 +49,10 @@ export function TimezonePicker({ value, onChange, label, className }: TimezonePi
       <button
         type="button"
         className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex items-center justify-between gap-2"
-        onClick={() => { setOpen(!open); setSearch(""); }}
+        onClick={() => {
+          setOpen(!open);
+          setSearch("");
+        }}
       >
         <span className={value ? "" : "text-label-tertiary"}>{value || t("selectTimezone")}</span>
         <ChevronsUpDown size={16} className="text-label-tertiary shrink-0" aria-hidden="true" />
@@ -69,7 +72,10 @@ export function TimezonePicker({ value, onChange, label, className }: TimezonePi
               <li
                 key={tz}
                 className={`px-3 py-1.5 text-[13px] cursor-pointer hover:bg-surface-secondary ${tz === value ? "bg-accent-soft text-accent font-medium" : "text-label"}`}
-                onClick={() => { onChange(tz); setOpen(false); }}
+                onClick={() => {
+                  onChange(tz);
+                  setOpen(false);
+                }}
               >
                 {tz.replace(/_/g, " ")}
               </li>

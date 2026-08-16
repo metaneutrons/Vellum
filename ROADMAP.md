@@ -114,9 +114,9 @@ the sections above are cross-referenced, not duplicated.
 ### OTA & Firmware Trust (88 → 100)
 
 - [x] **OTA key-revocation membership host-tested** (#65) — exact-length match, no `key1`/`key10` false-match.
-- [ ] Validate Secure Boot v2 + Flash-Enc on hardware — see *Production hardening → Phase B.5* above.
-- [ ] On-hardware signed-image OTA smoke test — see *Firmware & OTA* above.
-- [ ] Real-signed-image OTA digest KAT — see *Production hardening* above.
+- [ ] Validate Secure Boot v2 + Flash-Enc on hardware — see _Production hardening → Phase B.5_ above.
+- [ ] On-hardware signed-image OTA smoke test — see _Firmware & OTA_ above.
+- [ ] Real-signed-image OTA digest KAT — see _Production hardening_ above.
 - [ ] Wire KMS/HSM signing (Phase 3) end-to-end + a multi-key rotation drill; verify the anti-rollback eFuse counter blocks a downgrade.
 
 ### Server / API (88 → 100)
@@ -145,7 +145,7 @@ the sections above are cross-referenced, not duplicated.
 - [x] **Reproducible dependency installs** (M#13). All CI jobs and the
       `Dockerfile` run `pnpm install --frozen-lockfile` against the committed
       `pnpm-lock.yaml`; dependency build scripts are restricted by `allowBuilds`.
-- [ ] Make SLSA provenance + SBOM *gating* checks, and add Snyk. Both are already emitted (firmware `attest-build-provenance@v2`; docker `sbom: true` + `provenance: mode=max`), but nothing verifies them in-pipeline; Snyk is genuinely absent.
+- [ ] Make SLSA provenance + SBOM _gating_ checks, and add Snyk. Both are already emitted (firmware `attest-build-provenance@v2`; docker `sbom: true` + `provenance: mode=max`), but nothing verifies them in-pipeline; Snyk is genuinely absent.
 - [ ] Signed tags/commits + a dependency-review gate.
 
 ### Testing & QA (88 → 100)

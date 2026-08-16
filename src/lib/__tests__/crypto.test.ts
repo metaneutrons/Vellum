@@ -18,18 +18,31 @@ function decryptAsDevice(
     type: "spki",
   });
   const shared = crypto.diffieHellman({ privateKey: devicePrivateKey, publicKey: serverPub });
-  const aesKey = crypto.hkdfSync("sha256", shared, Buffer.alloc(0), Buffer.from("vellum-token-v1"), 32);
+  const aesKey = crypto.hkdfSync(
+    "sha256",
+    shared,
+    Buffer.alloc(0),
+    Buffer.from("vellum-token-v1"),
+    32
+  );
   const blob = Buffer.from(enc.ciphertext, "base64");
   const tag = blob.subarray(blob.length - 16);
   const body = blob.subarray(0, blob.length - 16);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", Buffer.from(aesKey), Buffer.from(enc.nonce, "base64"));
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    Buffer.from(aesKey),
+    Buffer.from(enc.nonce, "base64")
+  );
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(body), decipher.final()]).toString("utf-8");
 }
 
 function deviceKeyPair() {
   const kp = crypto.generateKeyPairSync("x25519");
-  const pubB64 = kp.publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("base64");
+  const pubB64 = kp.publicKey
+    .export({ type: "spki", format: "der" })
+    .subarray(-32)
+    .toString("base64");
   return { kp, pubB64 };
 }
 

@@ -5,14 +5,17 @@ import { annyProvider, fetchAnnyResources } from "../providers/anny";
 
 /** anny JSON:API bookings response. */
 function annyResponse(data: unknown[], lastPage = 1): Response {
-  return new Response(JSON.stringify({
-    data,
-    included: [],
-    meta: { page: { "current-page": 1, "last-page": lastPage } },
-  }), {
-    status: 200,
-    headers: { "content-type": "application/vnd.api+json" },
-  });
+  return new Response(
+    JSON.stringify({
+      data,
+      included: [],
+      meta: { page: { "current-page": 1, "last-page": lastPage } },
+    }),
+    {
+      status: 200,
+      headers: { "content-type": "application/vnd.api+json" },
+    }
+  );
 }
 
 const CREDS = { apiToken: "test-token", organizationId: "org-1" };
@@ -22,26 +25,31 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("anny provider — recurring series", () => {
   it("fetches every bookings page before filtering the requested time window", async () => {
-    const pageOne = [{
-      id: "past",
-      type: "bookings",
-      attributes: {
-        start_date: "2026-07-01T09:00:00+00:00",
-        end_date: "2026-07-01T10:00:00+00:00",
-        status: "accepted",
+    const pageOne = [
+      {
+        id: "past",
+        type: "bookings",
+        attributes: {
+          start_date: "2026-07-01T09:00:00+00:00",
+          end_date: "2026-07-01T10:00:00+00:00",
+          status: "accepted",
+        },
       },
-    }];
-    const pageTwo = [{
-      id: "today",
-      type: "bookings",
-      attributes: {
-        start_date: "2026-07-14T13:00:00+00:00",
-        end_date: "2026-07-14T14:00:00+00:00",
-        status: "accepted",
-        description: "Green Office",
+    ];
+    const pageTwo = [
+      {
+        id: "today",
+        type: "bookings",
+        attributes: {
+          start_date: "2026-07-14T13:00:00+00:00",
+          end_date: "2026-07-14T14:00:00+00:00",
+          status: "accepted",
+          description: "Green Office",
+        },
       },
-    }];
-    const fetchMock = vi.fn()
+    ];
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(annyResponse(pageOne, 2))
       .mockResolvedValueOnce(annyResponse(pageTwo));
     vi.stubGlobal("fetch", fetchMock);
@@ -95,7 +103,10 @@ describe("anny provider — recurring series", () => {
         },
       },
     ];
-    vi.stubGlobal("fetch", vi.fn(async () => annyResponse(data)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => annyResponse(data))
+    );
 
     const events = await annyProvider.fetchEvents({
       credentials: CREDS,
@@ -152,7 +163,10 @@ describe("anny provider — recurring series", () => {
         },
       },
     ];
-    vi.stubGlobal("fetch", vi.fn(async () => annyResponse(data)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => annyResponse(data))
+    );
 
     const events = await annyProvider.fetchEvents({
       credentials: CREDS,
@@ -160,9 +174,7 @@ describe("anny provider — recurring series", () => {
       windowStart,
       windowEnd,
     });
-    const busy = events.some(
-      (e) => e.startTime.getTime() <= now && e.endTime.getTime() > now,
-    );
+    const busy = events.some((e) => e.startTime.getTime() <= now && e.endTime.getTime() > now);
     expect(busy).toBe(false);
   });
 
@@ -180,7 +192,10 @@ describe("anny provider — recurring series", () => {
         },
       },
     ];
-    vi.stubGlobal("fetch", vi.fn(async () => annyResponse(data)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => annyResponse(data))
+    );
 
     const events = await annyProvider.fetchEvents({
       credentials: CREDS,
@@ -196,22 +211,36 @@ describe("anny provider — recurring series", () => {
 
 describe("anny provider — direct booking URLs", () => {
   it("uses a booking URL only when Anny explicitly supplies a resource slug", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => annyResponse([{
-      id: "resource-1",
-      type: "resources",
-      attributes: { name: "Team Room", slug: "team-room" },
-    }])));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        annyResponse([
+          {
+            id: "resource-1",
+            type: "resources",
+            attributes: { name: "Team Room", slug: "team-room" },
+          },
+        ])
+      )
+    );
 
     const result = await fetchAnnyResources(CREDS.apiToken, "org-1");
-    expect(result.resources).toEqual([{
-      id: "resource-1",
-      name: "Team Room",
-      description: undefined,
-      bookingUrl: "https://anny.co/b/book/team-room",
-    }]);
+    expect(result.resources).toEqual([
+      {
+        id: "resource-1",
+        name: "Team Room",
+        description: undefined,
+        bookingUrl: "https://anny.co/b/book/team-room",
+      },
+    ]);
   });
 
   it("does not infer a public booking URL from a resource ID or name", () => {
-    expect(annyProvider.getBookingUrl?.({ credentials: CREDS, roomConfig: { resourceId: "looks-like-a-slug" } })).toBeNull();
+    expect(
+      annyProvider.getBookingUrl?.({
+        credentials: CREDS,
+        roomConfig: { resourceId: "looks-like-a-slug" },
+      })
+    ).toBeNull();
   });
 });

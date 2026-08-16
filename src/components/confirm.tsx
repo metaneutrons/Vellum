@@ -17,8 +17,14 @@ interface ConfirmProps {
 }
 
 export function ConfirmDialog({
-  open, onClose, onConfirm, title, message,
-  confirmLabel = "Confirm", destructive = false, pending = false,
+  open,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmLabel = "Confirm",
+  destructive = false,
+  pending = false,
 }: ConfirmProps) {
   return (
     <Modal
@@ -36,7 +42,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={pending}
           >
-            {pending ? (confirmLabel + "...") : confirmLabel}
+            {pending ? confirmLabel + "..." : confirmLabel}
           </Button>
         </>
       }

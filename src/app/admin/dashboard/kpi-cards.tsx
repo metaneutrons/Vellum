@@ -3,13 +3,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  MonitorSmartphone,
-  Wifi,
-  UserCheck,
-  AlertTriangle,
-  type LucideIcon,
-} from "lucide-react";
+import { MonitorSmartphone, Wifi, UserCheck, AlertTriangle, type LucideIcon } from "lucide-react";
 import type { DashboardData } from "../dashboard-data";
 
 type ChipTone = "accent" | "green" | "orange" | "red";

@@ -75,10 +75,7 @@ export function ActivityFeed({
                 {recent.map((d) => {
                   const tone = batteryTone(d.batteryLevel);
                   return (
-                    <li
-                      key={d.mac}
-                      className="flex items-center gap-3 px-5 py-2.5"
-                    >
+                    <li key={d.mac} className="flex items-center gap-3 px-5 py-2.5">
                       <span
                         className={`size-2 rounded-full shrink-0 ${CONN_DOT[d.connectivity]}`}
                         aria-label={CONN_LABEL[d.connectivity]}
@@ -118,11 +115,7 @@ export function ActivityFeed({
                     key={`${r.mac}-${r.timestamp}-${i}`}
                     className="flex items-center gap-3 px-5 py-2.5"
                   >
-                    <AlertCircle
-                      size={15}
-                      className="text-orange shrink-0"
-                      aria-hidden="true"
-                    />
+                    <AlertCircle size={15} className="text-orange shrink-0" aria-hidden="true" />
                     <span className="flex-1 min-w-0 truncate text-[13px] text-label">
                       {r.issue ?? (
                         <span className="text-label-tertiary italic">{t("noDetail")}</span>

@@ -14,15 +14,21 @@ export default async function SystemPage() {
     getServerUpdateStatus(),
     getTranslations("system"),
   ]);
-  if (!hasPermission(principal, "system.read") && !hasPermission(principal, "system.update")) redirect("/admin");
+  if (!hasPermission(principal, "system.read") && !hasPermission(principal, "system.update"))
+    redirect("/admin");
 
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
+        <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">
+          {t("title")}
+        </h1>
         <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
       </div>
-      <ServerUpdatePanel initialStatus={status} canUpdate={hasPermission(principal, "system.update")} />
+      <ServerUpdatePanel
+        initialStatus={status}
+        canUpdate={hasPermission(principal, "system.update")}
+      />
     </div>
   );
 }

@@ -11,7 +11,11 @@
  * request URL. Non-browser API clients may omit Origin and still authenticate
  * with their scoped credential.
  */
-export function hasTrustedMutationOrigin(request: Request, publicUrl?: string, allowMissing = false): boolean {
+export function hasTrustedMutationOrigin(
+  request: Request,
+  publicUrl?: string,
+  allowMissing = false
+): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return allowMissing;
 

@@ -57,7 +57,6 @@ describe("Property 1: Room policy transforms public and private events correctly
   });
 });
 
-
 /**
  * Property 2: "Hide Subject" policy replaces all subjects with "Reserved"
  * Validates: Requirements 4.5

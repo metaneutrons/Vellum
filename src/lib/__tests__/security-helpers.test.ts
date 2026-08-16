@@ -8,19 +8,36 @@ import { dbResilience } from "../db-resilience";
 
 describe("safe-fetch SSRF guard — isBlockedAddress", () => {
   it.each([
-    ["127.0.0.1", true], ["10.0.0.1", true], ["172.16.0.1", true], ["172.31.255.1", true],
-    ["192.168.1.1", true], ["169.254.169.254", true], ["100.64.0.1", true], ["0.0.0.0", true],
-    ["224.0.0.1", true], ["::1", true], ["fe80::1", true], ["fc00::1", true], ["fd12::1", true],
+    ["127.0.0.1", true],
+    ["10.0.0.1", true],
+    ["172.16.0.1", true],
+    ["172.31.255.1", true],
+    ["192.168.1.1", true],
+    ["169.254.169.254", true],
+    ["100.64.0.1", true],
+    ["0.0.0.0", true],
+    ["224.0.0.1", true],
+    ["::1", true],
+    ["fe80::1", true],
+    ["fc00::1", true],
+    ["fd12::1", true],
     ["::ffff:127.0.0.1", true],
-    ["8.8.8.8", false], ["1.1.1.1", false], ["172.32.0.1", false], ["93.184.216.34", false],
+    ["8.8.8.8", false],
+    ["1.1.1.1", false],
+    ["172.32.0.1", false],
+    ["93.184.216.34", false],
     ["2606:4700:4700::1111", false],
   ])("%s → blocked=%s", (ip, blocked) => {
     expect(isBlockedAddress(ip)).toBe(blocked);
   });
 
   it("safeFetch rejects a loopback/metadata literal IP before any fetch", async () => {
-    await expect(safeFetch("http://127.0.0.1/x", { allowHttp: true })).rejects.toThrow(/blocked address/);
-    await expect(safeFetch("http://169.254.169.254/latest/meta-data", { allowHttp: true })).rejects.toThrow(/blocked address/);
+    await expect(safeFetch("http://127.0.0.1/x", { allowHttp: true })).rejects.toThrow(
+      /blocked address/
+    );
+    await expect(
+      safeFetch("http://169.254.169.254/latest/meta-data", { allowHttp: true })
+    ).rejects.toThrow(/blocked address/);
   });
 
   it("safeFetch rejects non-http(s) protocols", async () => {
@@ -39,7 +56,9 @@ describe("rate-limit", () => {
     expect(rl.check("other").allowed).toBe(true); // independent bucket
   });
 
-  afterEach(() => { delete process.env.TRUST_PROXY_HEADERS; });
+  afterEach(() => {
+    delete process.env.TRUST_PROXY_HEADERS;
+  });
 
   it("getClientIp trusts X-Forwarded-For only when proxy headers are trusted", () => {
     const req = new Request("http://x", { headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } });
@@ -58,8 +77,14 @@ describe("validation schemas", () => {
   });
 
   it("otaReportSchema requires a valid phase enum", () => {
-    expect(otaReportSchema.safeParse({ mac: "AA:BB:CC:DD:EE:FF", phase: "not-a-phase" }).success).toBe(false);
-    const ok = otaReportSchema.safeParse({ mac: "AA:BB:CC:DD:EE:FF", phase: "applied", toVersion: "1.1.0" });
+    expect(
+      otaReportSchema.safeParse({ mac: "AA:BB:CC:DD:EE:FF", phase: "not-a-phase" }).success
+    ).toBe(false);
+    const ok = otaReportSchema.safeParse({
+      mac: "AA:BB:CC:DD:EE:FF",
+      phase: "applied",
+      toVersion: "1.1.0",
+    });
     expect(ok.success).toBe(true);
   });
 
@@ -88,7 +113,10 @@ describe("db-resilience execute()", () => {
   it("does NOT retry a non-transient error (e.g. SQL syntax) — fails fast", async () => {
     let calls = 0;
     await expect(
-      dbResilience.execute(async () => { calls++; throw new Error("syntax error at or near"); })
+      dbResilience.execute(async () => {
+        calls++;
+        throw new Error("syntax error at or near");
+      })
     ).rejects.toThrow();
     expect(calls).toBe(1);
   });

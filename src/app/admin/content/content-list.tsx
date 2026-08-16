@@ -4,7 +4,12 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { createContentInstance, updateContentInstance, deleteContentInstance, testContentInstance } from "../actions";
+import {
+  createContentInstance,
+  updateContentInstance,
+  deleteContentInstance,
+  testContentInstance,
+} from "../actions";
 import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm";
@@ -16,10 +21,29 @@ import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { Plus, Search, FileText, Check, X } from "lucide-react";
 
-interface ContentInstance { id: string; typeSlug: string; name: string; config: unknown; }
-interface ContentType { slug: string; name: string; description?: string | null; }
-interface Provider { id: string; type: string; name: string; }
-interface Props { instances: ContentInstance[]; types: ContentType[]; providers: Provider[]; knownDisplays: DisplaySize[]; initialEditId?: string | null; }
+interface ContentInstance {
+  id: string;
+  typeSlug: string;
+  name: string;
+  config: unknown;
+}
+interface ContentType {
+  slug: string;
+  name: string;
+  description?: string | null;
+}
+interface Provider {
+  id: string;
+  type: string;
+  name: string;
+}
+interface Props {
+  instances: ContentInstance[];
+  types: ContentType[];
+  providers: Provider[];
+  knownDisplays: DisplaySize[];
+  initialEditId?: string | null;
+}
 
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
@@ -31,17 +55,35 @@ import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
 const selectCls =
   "w-full min-h-9 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
-
-function DoorSignMultiConfigEditor({ config, onChange, providers, knownDisplays }: {
-  config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
+function DoorSignMultiConfigEditor({
+  config,
+  onChange,
+  providers,
+  knownDisplays,
+}: {
+  config: Record<string, unknown>;
+  onChange: (c: Record<string, unknown>) => void;
+  providers: Provider[];
+  knownDisplays: DisplaySize[];
 }) {
   const parsed = doorSignMultiConfigSchema.safeParse(config);
-  const multiConfig = parsed.success ? parsed.data : {
-    resources: [], locale: "de", timezone: "Europe/Berlin", cachedProperties: {},
-    design: { backgroundAssetId: null, textBoxes: [], freeTextBoxes: [], backgroundColor: "#FFFFFF" },
-    designOverrides: {}, headerHeight: 0.25,
-    rowTemplate: { height: 0.12, textBoxes: [], freeTextBoxes: [] },
-  };
+  const multiConfig = parsed.success
+    ? parsed.data
+    : {
+        resources: [],
+        locale: "de",
+        timezone: "Europe/Berlin",
+        cachedProperties: {},
+        design: {
+          backgroundAssetId: null,
+          textBoxes: [],
+          freeTextBoxes: [],
+          backgroundColor: "#FFFFFF",
+        },
+        designOverrides: {},
+        headerHeight: 0.25,
+        rowTemplate: { height: 0.12, textBoxes: [], freeTextBoxes: [] },
+      };
   return (
     <DoorSignMultiEditor
       config={multiConfig}
@@ -52,32 +94,58 @@ function DoorSignMultiConfigEditor({ config, onChange, providers, knownDisplays 
   );
 }
 
-function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
-  config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[]; knownDisplays: DisplaySize[];
+function DoorSignConfigEditor({
+  config,
+  onChange,
+  providers,
+  knownDisplays,
+}: {
+  config: Record<string, unknown>;
+  onChange: (c: Record<string, unknown>) => void;
+  providers: Provider[];
+  knownDisplays: DisplaySize[];
 }) {
   const t = useTranslations("content");
   const td = useTranslations("content.doorSign");
-  const design = (config.design ?? { backgroundAssetId: null, textBoxes: [], freeTextBoxes: [], backgroundColor: "#FFFFFF" }) as Design;
+  const design = (config.design ?? {
+    backgroundAssetId: null,
+    textBoxes: [],
+    freeTextBoxes: [],
+    backgroundColor: "#FFFFFF",
+  }) as Design;
   const designOverrides = (config.designOverrides ?? {}) as Record<string, Design>;
 
   return (
     <>
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
-      <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
-        onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
+      <select
+        className={`${selectCls} mb-3`}
+        value={(config.providerId as string) ?? ""}
+        onChange={(e) => onChange({ ...config, providerId: e.target.value })}
+      >
         <option value="">— select —</option>
-        {providers.filter(p => p.type === "anny").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {providers
+          .filter((p) => p.type === "anny")
+          .map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
       </select>
 
       {config.providerId && (
         <>
-          <label className="block text-sm font-medium text-label-secondary mb-1">{td("resource")}</label>
+          <label className="block text-sm font-medium text-label-secondary mb-1">
+            {td("resource")}
+          </label>
           <div className="mb-3">
             <AnnyResourcePicker
               providerId={config.providerId as string}
               resourceId={(config.resourceId as string) ?? ""}
               resourceName={config.resourceName as string | undefined}
-            onChange={(resId, resName) => onChange({ ...config, resourceId: resId, resourceName: resName })}
+              onChange={(resId, resName) =>
+                onChange({ ...config, resourceId: resId, resourceName: resName })
+              }
             />
           </div>
         </>
@@ -85,41 +153,89 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <TimezonePicker label="Timezone" value={(config.timezone as string) ?? "Europe/Berlin"}
-            onChange={(v) => onChange({ ...config, timezone: v })} />
+          <TimezonePicker
+            label="Timezone"
+            value={(config.timezone as string) ?? "Europe/Berlin"}
+            onChange={(v) => onChange({ ...config, timezone: v })}
+          />
         </div>
         <div>
-          <LocalePicker label="Locale" value={(config.locale as string) ?? "de"}
-            onChange={(v) => onChange({ ...config, locale: v })} />
+          <LocalePicker
+            label="Locale"
+            value={(config.locale as string) ?? "de"}
+            onChange={(v) => onChange({ ...config, locale: v })}
+          />
         </div>
       </div>
 
       {/* Custom Properties — manual key-value pairs for template variables */}
       <div className="border-t border-separator pt-3 mt-3">
-        <label className="block text-sm font-semibold text-label mb-1">{td("customProperties")}</label>
+        <label className="block text-sm font-semibold text-label mb-1">
+          {td("customProperties")}
+        </label>
         <p className="text-xs text-label-tertiary mb-2">{td("customPropertiesHint")}</p>
-        {Object.entries((config.cachedProperties as Record<string, string>) ?? {}).map(([key, val]) => (
-          <div key={key} className="flex gap-2 mb-1">
-            <Input className="flex-1 min-h-9 text-[13px]" value={key} readOnly />
-            <Input className="flex-1 min-h-9 text-[13px]" value={val}
-              onChange={(e) => onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [key]: e.target.value } })} />
-            <Button size="sm" variant="plain" className="text-red px-2" aria-label={t("removeProperty")} onClick={() => {
-              const { [key]: _, ...rest } = (config.cachedProperties as Record<string, string>) ?? {};
-              onChange({ ...config, cachedProperties: rest });
-            }}><X size={16} aria-hidden="true" /></Button>
-          </div>
-        ))}
+        {Object.entries((config.cachedProperties as Record<string, string>) ?? {}).map(
+          ([key, val]) => (
+            <div key={key} className="flex gap-2 mb-1">
+              <Input className="flex-1 min-h-9 text-[13px]" value={key} readOnly />
+              <Input
+                className="flex-1 min-h-9 text-[13px]"
+                value={val}
+                onChange={(e) =>
+                  onChange({
+                    ...config,
+                    cachedProperties: {
+                      ...(config.cachedProperties as Record<string, string>),
+                      [key]: e.target.value,
+                    },
+                  })
+                }
+              />
+              <Button
+                size="sm"
+                variant="plain"
+                className="text-red px-2"
+                aria-label={t("removeProperty")}
+                onClick={() => {
+                  const { [key]: _, ...rest } =
+                    (config.cachedProperties as Record<string, string>) ?? {};
+                  onChange({ ...config, cachedProperties: rest });
+                }}
+              >
+                <X size={16} aria-hidden="true" />
+              </Button>
+            </div>
+          )
+        )}
         <div className="flex gap-2 mt-1">
-          <Input id="newPropKey" className="flex-1 min-h-9 text-[13px]" placeholder="prop.Raumnummer" />
+          <Input
+            id="newPropKey"
+            className="flex-1 min-h-9 text-[13px]"
+            placeholder="prop.Raumnummer"
+          />
           <Input id="newPropVal" className="flex-1 min-h-9 text-[13px]" placeholder="1J.2.02" />
-          <Button size="sm" variant="plain" leading={<Plus size={16} aria-hidden="true" />} onClick={() => {
-            const keyEl = document.getElementById("newPropKey") as HTMLInputElement;
-            const valEl = document.getElementById("newPropVal") as HTMLInputElement;
-            if (keyEl.value && valEl.value) {
-              onChange({ ...config, cachedProperties: { ...(config.cachedProperties as Record<string, string>), [keyEl.value]: valEl.value } });
-              keyEl.value = ""; valEl.value = "";
-            }
-          }}>{t("add")}</Button>
+          <Button
+            size="sm"
+            variant="plain"
+            leading={<Plus size={16} aria-hidden="true" />}
+            onClick={() => {
+              const keyEl = document.getElementById("newPropKey") as HTMLInputElement;
+              const valEl = document.getElementById("newPropVal") as HTMLInputElement;
+              if (keyEl.value && valEl.value) {
+                onChange({
+                  ...config,
+                  cachedProperties: {
+                    ...(config.cachedProperties as Record<string, string>),
+                    [keyEl.value]: valEl.value,
+                  },
+                });
+                keyEl.value = "";
+                valEl.value = "";
+              }
+            }}
+          >
+            {t("add")}
+          </Button>
         </div>
       </div>
 
@@ -139,67 +255,122 @@ function DoorSignConfigEditor({ config, onChange, providers, knownDisplays }: {
   );
 }
 
-function RoomBookingEditor({ config, onChange, providers }: {
-  config: Record<string, unknown>; onChange: (c: Record<string, unknown>) => void; providers: Provider[];
+function RoomBookingEditor({
+  config,
+  onChange,
+  providers,
+}: {
+  config: Record<string, unknown>;
+  onChange: (c: Record<string, unknown>) => void;
+  providers: Provider[];
 }) {
   const t = useTranslations("content");
   const roomConfig = (config.roomConfig ?? {}) as Record<string, string>;
   const bookingQr = (config.bookingQr ?? { visibility: "never", source: "provider" }) as {
-    visibility?: "never" | "always" | "free"; source?: "provider" | "custom"; customUrl?: string;
+    visibility?: "never" | "always" | "free";
+    source?: "provider" | "custom";
+    customUrl?: string;
   };
   const provider = providers.find((p) => p.id === config.providerId);
 
   const isAnny = provider?.type === "anny";
-  const fieldConfig = provider?.type === "google"
-    ? { label: "Calendar ID", placeholder: "calendar-id@group.calendar.google.com", key: "calendarId" }
-    : provider?.type === "anny"
-    ? { label: "Resource", placeholder: "", key: "resourceId" }
-    : provider?.type === "ical"
-    ? null  /* iCal URL is in provider credentials, not room config */
-    : { label: "Room Mailbox Email", placeholder: "room@company.com", key: "roomEmail" };
+  const fieldConfig =
+    provider?.type === "google"
+      ? {
+          label: "Calendar ID",
+          placeholder: "calendar-id@group.calendar.google.com",
+          key: "calendarId",
+        }
+      : provider?.type === "anny"
+        ? { label: "Resource", placeholder: "", key: "resourceId" }
+        : provider?.type === "ical"
+          ? null /* iCal URL is in provider credentials, not room config */
+          : { label: "Room Mailbox Email", placeholder: "room@company.com", key: "roomEmail" };
 
   return (
     <>
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
-      <select className={`${selectCls} mb-3`} value={(config.providerId as string) ?? ""}
-        onChange={(e) => onChange({ ...config, providerId: e.target.value })}>
+      <select
+        className={`${selectCls} mb-3`}
+        value={(config.providerId as string) ?? ""}
+        onChange={(e) => onChange({ ...config, providerId: e.target.value })}
+      >
         <option value="">— select —</option>
-        {providers.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
+        {providers.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name} ({p.type})
+          </option>
+        ))}
       </select>
 
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("roomName")}</label>
-      <Input className="mb-3" placeholder={t("roomNamePlaceholder")}
-        value={(config.roomName as string) ?? ""} onChange={(e) => onChange({ ...config, roomName: e.target.value })} />
+      <Input
+        className="mb-3"
+        placeholder={t("roomNamePlaceholder")}
+        value={(config.roomName as string) ?? ""}
+        onChange={(e) => onChange({ ...config, roomName: e.target.value })}
+      />
 
-      <label className="block text-sm font-medium text-label-secondary mb-1">{fieldConfig?.label ?? ""}</label>
+      <label className="block text-sm font-medium text-label-secondary mb-1">
+        {fieldConfig?.label ?? ""}
+      </label>
       {isAnny && config.providerId ? (
         <div className="mb-3">
           <AnnyResourcePicker
             providerId={config.providerId as string}
             resourceId={roomConfig.resourceId ?? ""}
             resourceName={roomConfig.resourceName}
-            onChange={(resId, resName, bookingUrl) => onChange({
-              ...config,
-              roomConfig: { resourceId: resId, resourceName: resName, ...(bookingUrl ? { bookingUrl } : {}) },
-              roomName: (config.roomName as string) || resName,
-            })}
+            onChange={(resId, resName, bookingUrl) =>
+              onChange({
+                ...config,
+                roomConfig: {
+                  resourceId: resId,
+                  resourceName: resName,
+                  ...(bookingUrl ? { bookingUrl } : {}),
+                },
+                roomName: (config.roomName as string) || resName,
+              })
+            }
           />
         </div>
       ) : fieldConfig ? (
-        <Input className="mb-3" placeholder={fieldConfig.placeholder}
+        <Input
+          className="mb-3"
+          placeholder={fieldConfig.placeholder}
           value={roomConfig[fieldConfig.key] ?? ""}
-          onChange={(e) => onChange({ ...config, roomConfig: { ...roomConfig, [fieldConfig.key]: e.target.value } })} />
-      ) : <div className="mb-3" /> }
+          onChange={(e) =>
+            onChange({
+              ...config,
+              roomConfig: { ...roomConfig, [fieldConfig.key]: e.target.value },
+            })
+          }
+        />
+      ) : (
+        <div className="mb-3" />
+      )}
 
-      <TimezonePicker label={t("timezone")} className="mb-3" value={(config.timezone as string) ?? "Europe/Berlin"}
-        onChange={(v) => onChange({ ...config, timezone: v })} />
+      <TimezonePicker
+        label={t("timezone")}
+        className="mb-3"
+        value={(config.timezone as string) ?? "Europe/Berlin"}
+        onChange={(v) => onChange({ ...config, timezone: v })}
+      />
 
-      <LocalePicker label={t("locale")} className="mb-3" value={(config.locale as string) ?? "en"}
-        onChange={(v) => onChange({ ...config, locale: v })} />
+      <LocalePicker
+        label={t("locale")}
+        className="mb-3"
+        value={(config.locale as string) ?? "en"}
+        onChange={(v) => onChange({ ...config, locale: v })}
+      />
 
-      <label className="block text-sm font-medium text-label-secondary mb-1">{t("dateFormat")}</label>
-      <select className={`${selectCls} mb-3`} value={(config.dateFormat as string) ?? "PPPP"}
-        onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}>
+      <label className="block text-sm font-medium text-label-secondary mb-1">
+        {t("dateFormat")}
+      </label>
+      <select
+        className={`${selectCls} mb-3`}
+        value={(config.dateFormat as string) ?? "PPPP"}
+        onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}
+      >
         <option value="PPPP">Sonntag, 3. Mai 2026</option>
         <option value="PPP">3. Mai 2026</option>
         <option value="PP">03.05.2026</option>
@@ -207,38 +378,72 @@ function RoomBookingEditor({ config, onChange, providers }: {
       </select>
 
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("layout")}</label>
-      <select className={`${selectCls} mb-3`} value={(config.layout as string) ?? "timeline"}
-        onChange={(e) => onChange({ ...config, layout: e.target.value })}>
+      <select
+        className={`${selectCls} mb-3`}
+        value={(config.layout as string) ?? "timeline"}
+        onChange={(e) => onChange({ ...config, layout: e.target.value })}
+      >
         <option value="timeline">{t("timeline")}</option>
         <option value="stacked">{t("stacked")}</option>
       </select>
 
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("policy")}</label>
-      <select className={`${selectCls} mb-3`} value={(config.policy as string) ?? "Show All"}
-        onChange={(e) => onChange({ ...config, policy: e.target.value })}>
-        {ROOM_POLICIES.map((p) => <option key={p} value={p}>{p}</option>)}
+      <select
+        className={`${selectCls} mb-3`}
+        value={(config.policy as string) ?? "Show All"}
+        onChange={(e) => onChange({ ...config, policy: e.target.value })}
+      >
+        {ROOM_POLICIES.map((p) => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
       </select>
 
       <div className="border-t border-separator pt-3 mt-1 mb-3">
         <label className="block text-sm font-semibold text-label mb-1">{t("bookingQr")}</label>
         <p className="text-xs text-label-tertiary mb-2">{t("bookingQrHint")}</p>
-        <label className="block text-sm font-medium text-label-secondary mb-1">{t("bookingQrVisibility")}</label>
-        <select className={`${selectCls} mb-2`} value={bookingQr.visibility ?? "never"}
-          onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, visibility: e.target.value } })}>
+        <label className="block text-sm font-medium text-label-secondary mb-1">
+          {t("bookingQrVisibility")}
+        </label>
+        <select
+          className={`${selectCls} mb-2`}
+          value={bookingQr.visibility ?? "never"}
+          onChange={(e) =>
+            onChange({ ...config, bookingQr: { ...bookingQr, visibility: e.target.value } })
+          }
+        >
           <option value="never">{t("bookingQrNever")}</option>
           <option value="always">{t("bookingQrAlways")}</option>
           <option value="free">{t("bookingQrWhenFree")}</option>
         </select>
 
-        <label className="block text-sm font-medium text-label-secondary mb-1">{t("bookingQrLink")}</label>
-        <select className={`${selectCls} mb-2`} value={bookingQr.source ?? "provider"}
-          onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, source: e.target.value } })}>
-          <option value="provider">{isAnny && roomConfig.bookingUrl ? t("bookingQrProviderAvailable") : t("bookingQrProvider")}</option>
+        <label className="block text-sm font-medium text-label-secondary mb-1">
+          {t("bookingQrLink")}
+        </label>
+        <select
+          className={`${selectCls} mb-2`}
+          value={bookingQr.source ?? "provider"}
+          onChange={(e) =>
+            onChange({ ...config, bookingQr: { ...bookingQr, source: e.target.value } })
+          }
+        >
+          <option value="provider">
+            {isAnny && roomConfig.bookingUrl
+              ? t("bookingQrProviderAvailable")
+              : t("bookingQrProvider")}
+          </option>
           <option value="custom">{t("bookingQrCustom")}</option>
         </select>
         {bookingQr.source === "custom" && (
-          <Input type="url" placeholder={t("bookingQrCustomPlaceholder")} value={bookingQr.customUrl ?? ""}
-            onChange={(e) => onChange({ ...config, bookingQr: { ...bookingQr, customUrl: e.target.value } })} />
+          <Input
+            type="url"
+            placeholder={t("bookingQrCustomPlaceholder")}
+            value={bookingQr.customUrl ?? ""}
+            onChange={(e) =>
+              onChange({ ...config, bookingQr: { ...bookingQr, customUrl: e.target.value } })
+            }
+          />
         )}
         {bookingQr.source !== "custom" && !roomConfig.bookingUrl && (
           <p className="text-xs text-label-tertiary">{t("bookingQrUnavailable")}</p>
@@ -246,10 +451,15 @@ function RoomBookingEditor({ config, onChange, providers }: {
       </div>
 
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("cacheTtl")}</label>
-      <Input type="number" className="mb-3" min={0} step={30}
+      <Input
+        type="number"
+        className="mb-3"
+        min={0}
+        step={30}
         placeholder="120"
         value={(config.cacheTtlS as number) ?? 120}
-        onChange={(e) => onChange({ ...config, cacheTtlS: parseInt(e.target.value) || 120 })} />
+        onChange={(e) => onChange({ ...config, cacheTtlS: parseInt(e.target.value) || 120 })}
+      />
     </>
   );
 }
@@ -265,25 +475,36 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [typeSlug, setTypeSlug] = useState("room-booking");
   const [search, setSearch] = useState("");
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string } | "loading">>({});
-  const filteredInstances = instances.filter((inst) => !search || inst.name.toLowerCase().includes(search.toLowerCase()) || inst.typeSlug.includes(search.toLowerCase()));
+  const [testResults, setTestResults] = useState<
+    Record<string, { ok: boolean; message: string } | "loading">
+  >({});
+  const filteredInstances = instances.filter(
+    (inst) =>
+      !search ||
+      inst.name.toLowerCase().includes(search.toLowerCase()) ||
+      inst.typeSlug.includes(search.toLowerCase())
+  );
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Record<string, unknown>>({});
 
   function startNew() {
-    setEditing("new"); setTypeSlug("room-booking"); setName("");
+    setEditing("new");
+    setTypeSlug("room-booking");
+    setName("");
     setConfig({ timezone: "Europe/Berlin", policy: "Show All", locale: uiLocale });
   }
 
   function startEdit(inst: ContentInstance) {
-    setEditing(inst.id); setTypeSlug(inst.typeSlug); setName(inst.name);
+    setEditing(inst.id);
+    setTypeSlug(inst.typeSlug);
+    setName(inst.name);
     setConfig(inst.config as Record<string, unknown>);
   }
 
   // Auto-open editor when navigated from device table
   useEffect(() => {
     if (initialEditId) {
-      const inst = instances.find(i => i.id === initialEditId);
+      const inst = instances.find((i) => i.id === initialEditId);
       if (inst) startEdit(inst);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -295,7 +516,9 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         else if (editing) await updateContentInstance(editing, name, config);
         toast("success", editing === "new" ? t("created") : t("updated"));
         setEditing(null);
-      } catch { toast("error", t("failedSave")); }
+      } catch {
+        toast("error", t("failedSave"));
+      }
     });
   }
 
@@ -304,8 +527,12 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
     const id = deleting;
     setDeleting(null);
     startTransition(async () => {
-      try { await deleteContentInstance(id); toast("success", t("deleted")); }
-      catch { toast("error", t("failedDelete")); }
+      try {
+        await deleteContentInstance(id);
+        toast("success", t("deleted"));
+      } catch {
+        toast("error", t("failedDelete"));
+      }
     });
   }
 
@@ -314,14 +541,28 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
       {/* Header */}
       <div className="flex flex-wrap items-end gap-4 mb-6">
         <div className="flex-1 min-w-0">
-          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">{t("title")}</h1>
+          <h1 className="text-[28px] font-bold tracking-tight text-label leading-none">
+            {t("title")}
+          </h1>
           <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
         </div>
         <div className="relative w-full sm:w-72">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" aria-hidden="true" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("search")} className="pl-9" aria-label={t("search")} />
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary"
+            aria-hidden="true"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("search")}
+            className="pl-9"
+            aria-label={t("search")}
+          />
         </div>
-        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>{t("add")}</Button>
+        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>
+          {t("add")}
+        </Button>
       </div>
 
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
@@ -334,21 +575,68 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
             <div className="flex items-center gap-2 shrink-0">
               {(() => {
                 const r = testResults[inst.id];
-                if (r === "loading") return <span className="text-xs text-label-tertiary animate-pulse">{t("test")}…</span>;
-                if (r && r.ok) return <span className="inline-flex items-center gap-1 text-xs text-green"><Check size={13} aria-hidden="true" />{r.message}</span>;
-                if (r && !r.ok) return <span className="inline-flex items-center gap-1 text-xs text-red max-w-48 truncate" title={r.message}><X size={13} aria-hidden="true" className="shrink-0" />{r.message}</span>;
+                if (r === "loading")
+                  return (
+                    <span className="text-xs text-label-tertiary animate-pulse">{t("test")}…</span>
+                  );
+                if (r && r.ok)
+                  return (
+                    <span className="inline-flex items-center gap-1 text-xs text-green">
+                      <Check size={13} aria-hidden="true" />
+                      {r.message}
+                    </span>
+                  );
+                if (r && !r.ok)
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs text-red max-w-48 truncate"
+                      title={r.message}
+                    >
+                      <X size={13} aria-hidden="true" className="shrink-0" />
+                      {r.message}
+                    </span>
+                  );
                 return null;
               })()}
-              <Button size="sm" variant="plain" onClick={() => { setTestResults((s) => ({ ...s, [inst.id]: "loading" })); startTransition(async () => { const res = await testContentInstance(inst.id); setTestResults((s) => ({ ...s, [inst.id]: res })); }); }}>{t("test")}</Button>
-              <Button size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>{t("preview")}</Button>
-              <Button size="sm" variant="gray" onClick={() => startEdit(inst)}>{t("edit")}</Button>
-              <Button size="sm" variant="plain" className="text-red" onClick={() => setDeleting(inst.id)}>{t("delete")}</Button>
+              <Button
+                size="sm"
+                variant="plain"
+                onClick={() => {
+                  setTestResults((s) => ({ ...s, [inst.id]: "loading" }));
+                  startTransition(async () => {
+                    const res = await testContentInstance(inst.id);
+                    setTestResults((s) => ({ ...s, [inst.id]: res }));
+                  });
+                }}
+              >
+                {t("test")}
+              </Button>
+              <Button size="sm" variant="plain" onClick={() => setPreviewing(inst.id)}>
+                {t("preview")}
+              </Button>
+              <Button size="sm" variant="gray" onClick={() => startEdit(inst)}>
+                {t("edit")}
+              </Button>
+              <Button
+                size="sm"
+                variant="plain"
+                className="text-red"
+                onClick={() => setDeleting(inst.id)}
+              >
+                {t("delete")}
+              </Button>
             </div>
           </div>
         ))}
         {filteredInstances.length === 0 && (
           <EmptyState
-            icon={instances.length === 0 ? <FileText size={24} aria-hidden="true" /> : <Search size={24} aria-hidden="true" />}
+            icon={
+              instances.length === 0 ? (
+                <FileText size={24} aria-hidden="true" />
+              ) : (
+                <Search size={24} aria-hidden="true" />
+              )
+            }
             title={instances.length === 0 ? t("noContent") : t("noMatch")}
             description={instances.length === 0 ? t("noContentHint") : undefined}
           />
@@ -356,44 +644,79 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
       </div>
 
       <Modal
-        open={!!editing} onSubmit={name ? save : undefined}
+        open={!!editing}
+        onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
         title={editing === "new" ? t("newTitle") : t("editTitle")}
         wide={typeSlug === "door-sign" || typeSlug === "door-sign-multi"}
         footer={
           <>
-            <Button variant="gray" onClick={() => setEditing(null)}>{t("cancel")}</Button>
-            <Button onClick={save} disabled={!name} loading={pending}>{t("save")}</Button>
+            <Button variant="gray" onClick={() => setEditing(null)}>
+              {t("cancel")}
+            </Button>
+            <Button onClick={save} disabled={!name} loading={pending}>
+              {t("save")}
+            </Button>
           </>
         }
       >
         {editing === "new" && (
           <>
-            <label className="block text-sm font-medium text-label-secondary mb-1">{t("contentType")}</label>
-            <select className={`${selectCls} mb-3`} value={typeSlug}
-              onChange={(e) => setTypeSlug(e.target.value)}>
-              {types.map((t) => <option key={t.slug} value={t.slug}>{tc(t.slug as string)}</option>)}
+            <label className="block text-sm font-medium text-label-secondary mb-1">
+              {t("contentType")}
+            </label>
+            <select
+              className={`${selectCls} mb-3`}
+              value={typeSlug}
+              onChange={(e) => setTypeSlug(e.target.value)}
+            >
+              {types.map((t) => (
+                <option key={t.slug} value={t.slug}>
+                  {tc(t.slug as string)}
+                </option>
+              ))}
             </select>
           </>
         )}
 
         <label className="block text-sm font-medium text-label-secondary mb-1">{t("name")}</label>
-        <Input className="mb-3" placeholder={t("namePlaceholder")}
-          value={name} onChange={(e) => setName(e.target.value)} />
+        <Input
+          className="mb-3"
+          placeholder={t("namePlaceholder")}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
 
         {typeSlug === "room-booking" && (
           <RoomBookingEditor config={config} onChange={setConfig} providers={providers} />
         )}
         {typeSlug === "door-sign" && (
-          <DoorSignConfigEditor config={config} onChange={setConfig} providers={providers} knownDisplays={knownDisplays} />
+          <DoorSignConfigEditor
+            config={config}
+            onChange={setConfig}
+            providers={providers}
+            knownDisplays={knownDisplays}
+          />
         )}
         {typeSlug === "door-sign-multi" && (
-          <DoorSignMultiConfigEditor config={config} onChange={setConfig} providers={providers} knownDisplays={knownDisplays} />
+          <DoorSignMultiConfigEditor
+            config={config}
+            onChange={setConfig}
+            providers={providers}
+            knownDisplays={knownDisplays}
+          />
         )}
       </Modal>
 
-      <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-        title={t("deleteTitle")} message={t("deleteMsg")} confirmLabel="Delete" destructive />
+      <ConfirmDialog
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={handleDelete}
+        title={t("deleteTitle")}
+        message={t("deleteMsg")}
+        confirmLabel="Delete"
+        destructive
+      />
 
       <Modal open={!!previewing} onClose={() => setPreviewing(null)} title={t("previewTitle")}>
         {previewing && (

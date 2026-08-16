@@ -24,7 +24,20 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { VellumMark } from "@/components/vellum-brand";
 
-const links: { href: string; key: "overview" | "devices" | "content" | "providers" | "themes" | "profiles" | "firmware" | "system" | "access"; Icon: LucideIcon }[] = [
+const links: {
+  href: string;
+  key:
+    | "overview"
+    | "devices"
+    | "content"
+    | "providers"
+    | "themes"
+    | "profiles"
+    | "firmware"
+    | "system"
+    | "access";
+  Icon: LucideIcon;
+}[] = [
   { href: "/admin", key: "overview", Icon: LayoutDashboard },
   { href: "/admin/devices", key: "devices", Icon: MonitorSmartphone },
   { href: "/admin/content", key: "content", Icon: FileText },
@@ -49,7 +62,10 @@ function logout() {
   window.location.href = "/login";
 }
 
-export function AdminNav({ canAccessManagement, canReadSystem }: {
+export function AdminNav({
+  canAccessManagement,
+  canReadSystem,
+}: {
   canAccessManagement: boolean;
   canReadSystem: boolean;
 }) {
@@ -75,7 +91,11 @@ export function AdminNav({ canAccessManagement, canReadSystem }: {
       </button>
 
       {open && (
-        <div className="md:hidden fixed inset-0 z-30 material-overlay" onClick={() => setOpen(false)} aria-hidden="true" />
+        <div
+          className="md:hidden fixed inset-0 z-30 material-overlay"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
       )}
 
       <nav
@@ -93,30 +113,35 @@ export function AdminNav({ canAccessManagement, canReadSystem }: {
         </Link>
 
         <div className="flex flex-col gap-0.5">
-          {links.filter((link) => (link.key !== "access" || canAccessManagement) &&
-            (link.key !== "system" || canReadSystem)).map(({ href, key, Icon }) => {
-            // Overview (/admin) is the index — exact match so it isn't perma-active
-            // under every sub-route. Sub-pages match themselves or a nested route,
-            // with a path boundary so e.g. /admin/devices doesn't light up for a
-            // hypothetical /admin/devices-settings.
-            const active =
-              href === "/admin"
-                ? pathname === "/admin"
-                : pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setOpen(false)}
-                aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-3 min-h-9 px-3 rounded-lg text-[15px] focus-ring transition
+          {links
+            .filter(
+              (link) =>
+                (link.key !== "access" || canAccessManagement) &&
+                (link.key !== "system" || canReadSystem)
+            )
+            .map(({ href, key, Icon }) => {
+              // Overview (/admin) is the index — exact match so it isn't perma-active
+              // under every sub-route. Sub-pages match themselves or a nested route,
+              // with a path boundary so e.g. /admin/devices doesn't light up for a
+              // hypothetical /admin/devices-settings.
+              const active =
+                href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname === href || pathname.startsWith(href + "/");
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex items-center gap-3 min-h-9 px-3 rounded-lg text-[15px] focus-ring transition
                   ${active ? "bg-accent-soft text-accent font-medium" : "text-label-secondary hover:bg-fill-tertiary hover:text-label"}`}
-              >
-                <Icon size={18} aria-hidden="true" />
-                {t(key)}
-              </Link>
-            );
-          })}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                  {t(key)}
+                </Link>
+              );
+            })}
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-1.5 pt-3 border-t border-separator whitespace-nowrap">

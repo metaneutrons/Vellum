@@ -67,12 +67,7 @@ export function CatalogPanel({ catalog }: { catalog: DashboardData["catalog"] })
 
       <Tile href="/admin/themes" icon={Palette} label="Themes" value={catalog.themes} />
 
-      <Tile
-        href="/admin/profiles"
-        icon={Timer}
-        label="Refresh profiles"
-        value={catalog.profiles}
-      />
+      <Tile href="/admin/profiles" icon={Timer} label="Refresh profiles" value={catalog.profiles} />
     </div>
   );
 }

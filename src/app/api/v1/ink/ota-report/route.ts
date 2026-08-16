@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
           errorCode: validation.data.errorCode ?? null,
           timestamp: new Date(),
         }),
-      "insert-ota-event",
+      "insert-ota-event"
     );
     return Response.json(okResponse({}));
   } catch (err) {

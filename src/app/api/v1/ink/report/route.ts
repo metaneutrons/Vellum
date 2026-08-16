@@ -33,15 +33,24 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await withDbWrite(() => db.insert(reports).values({
-      mac: validation.data.mac,
-      issue: validation.data.issue,
-      timestamp: new Date(),
-    }), "insert-report");
+    await withDbWrite(
+      () =>
+        db.insert(reports).values({
+          mac: validation.data.mac,
+          issue: validation.data.issue,
+          timestamp: new Date(),
+        }),
+      "insert-report"
+    );
 
     const t = extractTelemetry(request.headers);
-    if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() })
-      .catch((error) => log.warn("Report telemetry persistence failed", { mac: validation.data.mac, error: String(error) }));
+    if (t)
+      logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch((error) =>
+        log.warn("Report telemetry persistence failed", {
+          mac: validation.data.mac,
+          error: String(error),
+        })
+      );
 
     return Response.json(okResponse({}));
   } catch (err) {

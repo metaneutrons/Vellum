@@ -2,8 +2,9 @@
 
 This is the operator runbook for Vellum's Phase 3 hardening: moving firmware
 signing to a cloud KMS/HSM (keyless from CI) and enabling ESP32-S3 Secure Boot v2
-+ Flash Encryption on production units. **The code is in the tree and inert until
-you provision the infrastructure and set the CI variables described here.**
+
+- Flash Encryption on production units. **The code is in the tree and inert until
+  you provision the infrastructure and set the CI variables described here.**
 
 > ⚠️ **This runbook contains one-way operations that permanently alter or brick
 > hardware** (eFuse burns) and fleet-wide operations that can lock out devices
@@ -16,15 +17,15 @@ you provision the infrastructure and set the CI variables described here.**
 
 Do not conflate them — they use different algorithms, keys, and verifiers.
 
-| | **① OTA app signature** | **② Secure Boot v2** |
-|---|---|---|
-| Protects | firmware delivered over the air | what the ROM will boot at all |
-| Algorithm | Ed25519 (PureEdDSA) over the 32-byte app digest | RSA-3072-PSS over the image |
-| Private key | KMS (Ed25519) | KMS/HSM (RSA-3072) |
-| Public half | embedded `CONFIG_VELLUM_OTA_SIGNING_PUBKEY` + trust store | digest burned to eFuse `SECURE_BOOT_DIGEST0/1/2` |
-| Verified by | `ota_manager.c` in software, before an image is made bootable | ROM + bootloader at every boot |
-| Failure mode | a bad key ⇒ fleet rejects updates (recoverable via the trust store) | a bad key ⇒ **bricked**, no recovery |
-| Status today | **live** (Ed25519 required, fail-closed) | **off** until you provision |
+|              | **① OTA app signature**                                             | **② Secure Boot v2**                             |
+| ------------ | ------------------------------------------------------------------- | ------------------------------------------------ |
+| Protects     | firmware delivered over the air                                     | what the ROM will boot at all                    |
+| Algorithm    | Ed25519 (PureEdDSA) over the 32-byte app digest                     | RSA-3072-PSS over the image                      |
+| Private key  | KMS (Ed25519)                                                       | KMS/HSM (RSA-3072)                               |
+| Public half  | embedded `CONFIG_VELLUM_OTA_SIGNING_PUBKEY` + trust store           | digest burned to eFuse `SECURE_BOOT_DIGEST0/1/2` |
+| Verified by  | `ota_manager.c` in software, before an image is made bootable       | ROM + bootloader at every boot                   |
+| Failure mode | a bad key ⇒ fleet rejects updates (recoverable via the trust store) | a bad key ⇒ **bricked**, no recovery             |
+| Status today | **live** (Ed25519 required, fail-closed)                            | **off** until you provision                      |
 
 Chain ① is already enforced. Chain ② is opt-in and gated behind `SECURE=1`
 builds; the default `make build` is unchanged (unsigned, reflashable).
@@ -44,17 +45,17 @@ provisioning; they change the commands below.
    `MessageType=RAW` since Nov 2025; RSA-PSS for Secure Boot), but its Secure Boot
    PKCS#11 bridge is community-maintained. **Azure Key Vault is ruled out** — no
    Ed25519. Pick one; you set up GitHub OIDC once and it drives both keys.
-2. **Import vs. mint the OTA key.** *Strongly prefer importing* the existing
+2. **Import vs. mint the OTA key.** _Strongly prefer importing_ the existing
    Ed25519 key (`vellum-firmware-signing.key`) so the embedded pubkey stays valid
    and the migration is invisible to the fleet. Minting a fresh key forces a
-   firmware rollout carrying the new pubkey *first* (use the rotation runbook, §4).
+   firmware rollout carrying the new pubkey _first_ (use the rotation runbook, §4).
 3. **Flash Encryption?** Secure Boot v2 alone is one workstream; Flash Encryption
    RELEASE (the `prod` overlay) is a further, harsher one-way step that also gates
    NVS-at-rest encryption for the Wi-Fi PSK / device token / X25519 key. Decide
    whether production needs it, or Secure Boot only.
 4. **Digest-slot allocation.** The SoC has **3** Secure Boot key-digest slots. How
    many do you provision at the factory (for rotation headroom) vs. revoke
-   immediately? You can only *revoke* in the field, never *add*.
+   immediately? You can only _revoke_ in the field, never _add_.
 5. **P4 (d1001).** The overlays here are S3/RSA-3072-specific. The ESP32-P4 has a
    different Secure Boot key scheme and is currently excluded from `SECURE=1`.
    Decide if/when it gets its own profile.
@@ -66,15 +67,15 @@ provisioning; they change the commands below.
 Three overlays chain on top of the per-model base, climbing a ladder. **Prove
 each rung on a spare board before the next.** The default build is untouched.
 
-| Profile | `make` invocation | What it enables | Reversible? |
-|---|---|---|---|
-| `testsecure` | `make build MODEL=e1002 SECURE=1 SECURE_PROFILE=testsecure` | Software signature verification (`SECURE_SIGNED_APPS_NO_SECURE_BOOT`). **No eFuse.** | ✅ fully |
-| `secureboot` | `… SECURE_PROFILE=secureboot` | Secure Boot v2 (RSA-3072). Flash-Enc OFF, ROM-DL open. | ⚠️ first eFuse burns; board stays reflashable |
-| `prod` | `… SECURE_PROFILE=prod` | + Flash Encryption RELEASE + anti-rollback + NVS-enc. | ⚠️ **point of no return** |
+| Profile      | `make` invocation                                           | What it enables                                                                      | Reversible?                                   |
+| ------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `testsecure` | `make build MODEL=e1002 SECURE=1 SECURE_PROFILE=testsecure` | Software signature verification (`SECURE_SIGNED_APPS_NO_SECURE_BOOT`). **No eFuse.** | ✅ fully                                      |
+| `secureboot` | `… SECURE_PROFILE=secureboot`                               | Secure Boot v2 (RSA-3072). Flash-Enc OFF, ROM-DL open.                               | ⚠️ first eFuse burns; board stays reflashable |
+| `prod`       | `… SECURE_PROFILE=prod`                                     | + Flash Encryption RELEASE + anti-rollback + NVS-enc.                                | ⚠️ **point of no return**                     |
 
 All overlays set `CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n` — **no private key
 on the build host**; images are signed out-of-band by KMS. A `SECURE=1` build
-produces an *unsigned* image and prints a reminder to sign it before flashing.
+produces an _unsigned_ image and prints a reminder to sign it before flashing.
 
 **Partition layout.** A signed SB v2 bootloader measured **0x9000 bytes**, which
 overflows the default 0x8000 partition-table offset. The `secureboot`/`prod`
@@ -94,6 +95,7 @@ long-lived secret**. Device-side verification is unchanged and byte-compatible.
 ### 3.1 Create/import the key (GCP shown; AWS notes inline)
 
 **Preferred — import the existing key (invisible migration):**
+
 ```bash
 # 1. keyring + import-only Ed25519 key
 gcloud kms keyrings create fw --location global
@@ -107,15 +109,18 @@ gcloud kms keys versions import --key ota-ed25519 --keyring fw --location global
   --import-job ota-import --algorithm ec-sign-ed25519 \
   --pem-to-wrap vellum-firmware-signing.key    # (wrap per gcloud import docs)
 ```
+
 **Verify parity — this MUST match the embedded pubkey or the fleet rejects everything:**
+
 ```bash
 gcloud kms keys versions get-public-key 1 --key ota-ed25519 --keyring fw \
   --location global --output-file kms_pub.pem
 openssl pkey -pubin -in kms_pub.pem -pubout -outform DER | tail -c 32 | base64
 # → must equal CONFIG_VELLUM_OTA_SIGNING_PUBKEY = sdY80/jyxvaEuXOHjs8qb5hyDdf3petsG+JjlSYZJmc=
 ```
+
 **Alternative — mint a fresh key:** only if import is impossible. Then you must
-ship firmware carrying the new pubkey in `VELLUM_OTA_SIGNING_PUBKEY_NEXT` *first*
+ship firmware carrying the new pubkey in `VELLUM_OTA_SIGNING_PUBKEY_NEXT` _first_
 (follow §4, not this section).
 
 **AWS:** `aws kms create-key --key-spec ECC_NIST_EDWARDS25519 --key-usage
@@ -142,6 +147,7 @@ gcloud iam service-accounts add-iam-policy-binding fw-signer@PROJ.iam.gserviceac
   --role roles/iam.workloadIdentityUser \
   --member 'principalSet://iam.googleapis.com/projects/NUM/locations/global/workloadIdentityPools/gh/attribute.repository/metaneutrons/Vellum'
 ```
+
 Scope the attribute condition to `metaneutrons/Vellum` (and, for signing jobs,
 `refs/tags/*`) so no other repo/branch can mint a token that signs firmware.
 
@@ -161,6 +167,7 @@ gh variable set OTA_KMS_WIF_PROVIDER \
 gh variable set OTA_KMS_SERVICE_ACCOUNT \
   --body 'fw-signer@PROJ.iam.gserviceaccount.com'
 ```
+
 The manifest's `otaKeyId` is **derived automatically** from whichever embedded
 Kconfig key (`VELLUM_OTA_SIGNING_KEY_ID` / `…_KEY_ID_NEXT`) the signer's public
 key matches — no separate variable, and it stays correct mid-rotation.
@@ -181,7 +188,7 @@ secret: `gh secret delete FIRMWARE_SIGNING_KEY`.
   before base64 — the device rejects DER.
 - **Pure** Ed25519, not Ed25519ph. AWS `MessageType=DIGEST` (`ED25519_PH_SHA_512`)
   is pre-hash and verify-**fails** on device. The CI `openssl pkeyutl -verify
-  -rawin` roundtrip + the 64-byte length assert are the gate.
+-rawin` roundtrip + the 64-byte length assert are the gate.
 
 ---
 
@@ -190,7 +197,7 @@ secret: `gh secret delete FIRMWARE_SIGNING_KEY`.
 The device trust store (`components/ota_manager/ota_trust_keys.h`) holds a
 **primary** key plus a reserved **next** slot, and honors a revocation list
 (`CONFIG_VELLUM_OTA_REVOKED_KEY_IDS`). A signature is accepted if it validates
-under *any* non-revoked trusted key. This makes rotation a 3-generation overlap
+under _any_ non-revoked trusted key. This makes rotation a 3-generation overlap
 with **no hard cutover**.
 
 ### 4.1 Planned rotation
@@ -203,7 +210,7 @@ with **no hard cutover**.
    `ota_events` / rollout). Only devices ≥ N will accept new-key signatures.
 3. **Gen N+1 — switch signer.** Repoint `OTA_KMS_KEY_VERSION` to the new key
    version. Firmware N+1 is signed by it; N devices accept it (they trust both).
-   The CI pubkey guard accepts a match against *either* embedded slot, and
+   The CI pubkey guard accepts a match against _either_ embedded slot, and
    `otaKeyId` auto-resolves to the `…_KEY_ID_NEXT` you set in step 1.
 4. **Gen N+2 — retire.** Promote the new pubkey to `…_SIGNING_PUBKEY` (primary),
    clear `…_PUBKEY_NEXT`, add the old id to `…_REVOKED_KEY_IDS`. Ship N+2. In KMS,
@@ -237,15 +244,15 @@ with **no hard cutover**.
 
 1. Create the Secure Boot RSA-3072 key in KMS (no local PEM):
    `gcloud kms keys create secureboot-rsa3072 --keyring fw --location global
-   --purpose asymmetric-signing --default-algorithm rsa-sign-pss-3072-sha256
-   --protection-level hsm`. Export the public key to `firmware/keys/secureboot.pub`.
+--purpose asymmetric-signing --default-algorithm rsa-sign-pss-3072-sha256
+--protection-level hsm`. Export the public key to `firmware/keys/secureboot.pub`.
 2. Build the software-verify profile: `make build MODEL=e1002 SECURE=1
-   SECURE_PROFILE=testsecure` (no eFuse).
+SECURE_PROFILE=testsecure` (no eFuse).
 3. Sign remotely and verify:
    `espsecure.py sign_data --version 2 --hsm --hsm-config hsm_config.ini
-   --output app.signed.bin build/vellum-e1002.bin` then `espsecure.py
-   verify_signature --version 2 --keyfile firmware/keys/secureboot.pub
-   app.signed.bin`. Flash the spare; confirm it boots and rejects a deliberately
+--output app.signed.bin build/vellum-e1002.bin` then `espsecure.py
+verify_signature --version 2 --keyfile firmware/keys/secureboot.pub
+app.signed.bin`. Flash the spare; confirm it boots and rejects a deliberately
    corrupted signature.
 4. **Invariant check:** confirm the OTA Ed25519 path still works after the RSA-PSS
    block is appended — do a full OTA and confirm the device `otaSha256` still equals
@@ -272,7 +279,7 @@ with **no hard cutover**.
    unused digest slots at startup**, so provisioning all intended keys up front is
    mandatory for any future rotation headroom.
 2. **⚠️ IRREVERSIBLE — burn the digest(s):** `espefuse.py burn_key_digest …
-   SECURE_BOOT_DIGEST0/1/2`. **Never read-protect these blocks** — the digest must
+SECURE_BOOT_DIGEST0/1/2`. **Never read-protect these blocks** — the digest must
    stay software-readable or the device is permanently unbootable.
 3. Build + flash the `secureboot` profile (Flash-Enc OFF, ROM-DL open → still
    reflashable): `make build MODEL=e1002 SECURE=1 SECURE_PROFILE=secureboot`, sign,
@@ -291,7 +298,7 @@ with **no hard cutover**.
    `SECURE_DISABLE_ROM_DL_MODE`. **Do not power-interrupt the first-boot encryption
    pass** — it corrupts flash and bricks the unit.
 3. **⚠️ IRREVERSIBLE:** burn `SECURE_BOOT_KEY_REVOKE` for every unused digest slot
-   you are *not* reserving for rotation. Keep at least one slot reserved if you
+   you are _not_ reserving for rotation. Keep at least one slot reserved if you
    want in-field rotation headroom.
 4. **Anti-rollback:** advance `CONFIG_BOOTLOADER_APP_SECURE_VERSION` in lockstep
    with releases (coordinate with the release-please version anchor). A signed-but-
@@ -312,12 +319,12 @@ with **no hard cutover**.
   app (preferred, controlled) or `espefuse.py burn_efuse SECURE_BOOT_KEY_REVOKE<n>`.
   **Never revoke the slot the device is currently booting from.**
 - Keep `SECURE_BOOT_ENABLE_AGGRESSIVE_KEY_REVOKE` **off** in production unless
-  physical-attack resistance outweighs brick risk — it revokes on *any* verify
+  physical-attack resistance outweighs brick risk — it revokes on _any_ verify
   failure and can burn through all 3 slots.
 - **RSA-PSS parameters:** confirm the KMS/PKCS#11 provider does `CKM_RSA_PKCS_PSS`
   with SHA-256 and salt length 32. A mismatch produces a signature the ROM rejects
   → a secure device that won't boot with no UART recovery. Always `espsecure.py
-  verify_signature` before flashing; validate the `--hsm` flow with a local YubiKey
+verify_signature` before flashing; validate the `--hsm` flow with a local YubiKey
   first to isolate provider bugs.
 
 ---
@@ -342,18 +349,18 @@ Before any eFuse burn on a unit you care about, confirm **all**:
 
 ## 8. Reference — files & symbols
 
-| Path | Role |
-|---|---|
-| `firmware/components/ota_manager/ota_trust_keys.h` | on-device Ed25519 trust store (primary + next) |
-| `firmware/components/ota_manager/ota_manager.c` | `verify_ota_signature()` — multi-key verify |
-| `firmware/main/Kconfig.projbuild` | `VELLUM_OTA_SIGNING_*` / `…_NEXT` / `…_REVOKED_KEY_IDS` |
-| `firmware/sdkconfig.defaults.testsecure` | rung 1 — software verify, no eFuse |
-| `firmware/sdkconfig.defaults.secureboot` | rung 2 — Secure Boot v2, reflashable |
-| `firmware/sdkconfig.defaults.prod` | rung 3 — + Flash-Enc RELEASE + anti-rollback |
-| `firmware/partitions.secure.csv` | secure partition layout (table @ 0x10000) |
-| `firmware/keys/README.md` | key-custody rules; committed = public only |
-| `firmware/hsm_config.ini.example` | PKCS#11 template for `espsecure --hsm` |
-| `.github/workflows/firmware.yml` | `sign-and-release` — KMS-preferred, secret fallback |
+| Path                                               | Role                                                    |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `firmware/components/ota_manager/ota_trust_keys.h` | on-device Ed25519 trust store (primary + next)          |
+| `firmware/components/ota_manager/ota_manager.c`    | `verify_ota_signature()` — multi-key verify             |
+| `firmware/main/Kconfig.projbuild`                  | `VELLUM_OTA_SIGNING_*` / `…_NEXT` / `…_REVOKED_KEY_IDS` |
+| `firmware/sdkconfig.defaults.testsecure`           | rung 1 — software verify, no eFuse                      |
+| `firmware/sdkconfig.defaults.secureboot`           | rung 2 — Secure Boot v2, reflashable                    |
+| `firmware/sdkconfig.defaults.prod`                 | rung 3 — + Flash-Enc RELEASE + anti-rollback            |
+| `firmware/partitions.secure.csv`                   | secure partition layout (table @ 0x10000)               |
+| `firmware/keys/README.md`                          | key-custody rules; committed = public only              |
+| `firmware/hsm_config.ini.example`                  | PKCS#11 template for `espsecure --hsm`                  |
+| `.github/workflows/firmware.yml`                   | `sign-and-release` — KMS-preferred, secret fallback     |
 
 CI variables (set all three together to activate KMS): `OTA_KMS_KEY_VERSION`,
 `OTA_KMS_WIF_PROVIDER`, `OTA_KMS_SERVICE_ACCOUNT`. The manifest `otaKeyId` is
