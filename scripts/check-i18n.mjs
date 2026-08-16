@@ -4,10 +4,27 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import ts from "typescript";
 
 const messagesDir = path.resolve("src/i18n/messages");
 const sourceDir = path.resolve("src");
 const canonicalFile = "en.json";
+const guardedUiFiles = [
+  "src/app/admin/profiles/profile-list.tsx",
+  "src/app/admin/themes/theme-editor.tsx",
+  "src/components/schedule-timeline.tsx",
+];
+const humanFacingAttributes = new Set([
+  "alt",
+  "aria-label",
+  "cancelLabel",
+  "confirmLabel",
+  "description",
+  "label",
+  "message",
+  "placeholder",
+  "title",
+]);
 
 function flatten(value, prefix = "", keys = new Set()) {
   for (const [key, child] of Object.entries(value)) {
@@ -78,6 +95,63 @@ if (missingUsages.size) {
   process.exitCode = 1;
   console.error("\nTranslation keys used in source but missing from en.json:");
   for (const usage of [...missingUsages].sort()) console.error(`  ${usage}`);
+}
+
+// These high-density editors previously accumulated English JSX and toast
+// literals despite having complete locale schemas. Guard the human-facing
+// literal shapes that schema parity cannot detect.
+const hardcodedUiText = [];
+const containsWords = (value) => /\p{L}{2}/u.test(value);
+for (const relativeFile of guardedUiFiles) {
+  const file = path.resolve(relativeFile);
+  const sourceText = fs.readFileSync(file, "utf8");
+  const source = ts.createSourceFile(
+    file,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  );
+  const report = (node, value) => {
+    const position = source.getLineAndCharacterOfPosition(node.getStart(source));
+    hardcodedUiText.push(`${relativeFile}:${position.line + 1}: ${JSON.stringify(value.trim())}`);
+  };
+  const literal = (node) =>
+    ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : null;
+
+  function visit(node) {
+    if (ts.isJsxText(node) && containsWords(node.text.trim())) report(node, node.text);
+    if (
+      ts.isJsxAttribute(node) &&
+      humanFacingAttributes.has(node.name.getText(source)) &&
+      node.initializer &&
+      ts.isStringLiteral(node.initializer) &&
+      containsWords(node.initializer.text)
+    ) {
+      report(node.initializer, node.initializer.text);
+    }
+    if (ts.isJsxExpression(node) && node.expression) {
+      const value = literal(node.expression);
+      if (value && containsWords(value)) report(node.expression, value);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "toast" &&
+      node.arguments[1]
+    ) {
+      const value = literal(node.arguments[1]);
+      if (value && containsWords(value)) report(node.arguments[1], value);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+}
+
+if (hardcodedUiText.length) {
+  process.exitCode = 1;
+  console.error("\nHard-coded user-facing text found in i18n-guarded views:");
+  for (const issue of hardcodedUiText) console.error(`  ${issue}`);
 }
 
 if (!process.exitCode) console.log("i18n message schemas and static source usages are in sync.");
