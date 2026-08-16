@@ -7,6 +7,7 @@
 
 #include "http_client.h"
 #include "nvs_manager.h"
+#include "response_headers.h"
 #include "transport_policy.h"
 
 #include <string.h>
@@ -50,6 +51,7 @@ typedef struct {
      * failure with no HTTP response is a TLS handshake failure even when the
      * ESP-IDF error tracker has no mbedTLS code (for example, peer close). */
     bool    transport_connected;
+    vellum_response_headers_t headers;
 } resp_buf_t;
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
@@ -60,6 +62,9 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
     switch (evt->event_id) {
     case HTTP_EVENT_ON_CONNECTED:
         rb->transport_connected = true;
+        break;
+    case HTTP_EVENT_ON_HEADER:
+        vellum_response_headers_capture(&rb->headers, evt->header_key, evt->header_value);
         break;
     case HTTP_EVENT_ON_DATA:
         if (evt->data_len > 0) {
@@ -389,7 +394,7 @@ static void load_etag(void) {
 }
 
 static void save_etag(const char *etag) {
-    strncpy(s_last_etag, etag, sizeof(s_last_etag) - 1);
+    strlcpy(s_last_etag, etag, sizeof(s_last_etag));
     nvs_manager_set_str("etag", s_last_etag);
 }
 
@@ -437,30 +442,16 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
      * its device token. */
     if (err == ESP_OK || resp->status_code > 0) {
 
-        /* Parse X-Sleep-Duration header */
-        char *sleep_hdr_val = NULL;
-        esp_http_client_get_header(client, "X-Sleep-Duration", &sleep_hdr_val);
-        if (sleep_hdr_val) {
-            int parsed = atoi(sleep_hdr_val);
-            if (parsed > 0) {
-                resp->sleep_duration = parsed;
-            }
+        /* Response headers are delivered through HTTP_EVENT_ON_HEADER. The
+         * similarly named esp_http_client_get_header() reads REQUEST headers
+         * and therefore silently returned nothing here. That kept displays on
+         * the 900 s fallback while the server expected a 60 s USB cadence. */
+        resp->sleep_duration = rb.headers.sleep_duration;
+        if (rb.headers.error_backoff[0]) {
+            strlcpy(resp->error_backoff, rb.headers.error_backoff,
+                    sizeof(resp->error_backoff));
         }
-
-        /* Retry ladder for failed cycles; absent unless the device has a refresh
-         * profile that defines one. */
-        char *backoff_val = NULL;
-        esp_http_client_get_header(client, "X-Error-Backoff", &backoff_val);
-        if (backoff_val) {
-            strlcpy(resp->error_backoff, backoff_val, sizeof(resp->error_backoff));
-        }
-
-        /* Store ETag for next request */
-        char *etag_val = NULL;
-        esp_http_client_get_header(client, "ETag", &etag_val);
-        if (etag_val) {
-            save_etag(etag_val);
-        }
+        if (rb.headers.etag[0]) save_etag(rb.headers.etag);
 
         if (resp->status_code == 200) {
             resp->binary_body = (uint8_t *)rb.buf;

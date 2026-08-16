@@ -29,6 +29,7 @@ add_executable(host_tests
   test_transport_policy.c
   test_wifi_failure.c
   test_render_backoff.c
+  test_response_headers.c
   test_status_layout.c
   test_lcd_rotation.c
   test_d1001_power.c
@@ -36,6 +37,7 @@ add_executable(host_tests
   revocation.c
   ../components/board/sy6974b_power.c
   ../components/http_client/transport_policy.c
+  ../components/http_client/response_headers.c
   ../components/wifi_manager/wifi_failure.c
   ../components/sleep_manager/render_backoff.c
   ../components/vellum_display/status_layout.c
