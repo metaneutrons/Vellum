@@ -126,13 +126,7 @@ export function ServerUpdatePanel({
          * this page cannot narrate its own status. */
         beginUpdateWindow(
           next.currentVersion ?? status.currentVersion,
-          next.availableVersion ?? status.availableVersion,
-          next.progress ?? {
-            phase: "verifying",
-            detail: null,
-            at: null,
-            startedAt: new Date().toISOString(),
-          }
+          next.availableVersion ?? status.availableVersion
         );
       }
       toast("success", action === "apply" ? t("serverUpdateStarted") : t("serverCheckStarted"));

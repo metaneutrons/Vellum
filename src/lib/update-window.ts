@@ -171,17 +171,24 @@ function notify() {
   window.dispatchEvent(new Event(EVENT));
 }
 
-export function beginUpdateWindow(
-  fromVersion: string | null,
-  toVersion: string | null,
-  progress: UpdateProgress | null = null
-): boolean {
+export function beginUpdateWindow(fromVersion: string | null, toVersion: string | null): boolean {
   if (typeof window === "undefined") return false;
   /* Never create a success marker for a no-op or stale snapshot. The updater may
    * have completed a concurrent check between rendering and clicking; recording
    * 1.10.4 -> 1.10.4 would later become a false green success banner. */
   if (!toVersion || (fromVersion !== null && reachedVersion(fromVersion, toVersion))) return false;
-  const value: UpdateWindow = { startedAt: Date.now(), fromVersion, toVersion, progress };
+  const startedAt = Date.now();
+  /* The apply response can still carry the terminal journal entry from the
+   * previous update until the new worker writes its first entry. A new local
+   * update window therefore always owns a fresh initial state; authoritative
+   * polling advances it from here via recordUpdateWindowProgress(). */
+  const progress: UpdateProgress = {
+    phase: "verifying",
+    detail: null,
+    at: null,
+    startedAt: new Date(startedAt).toISOString(),
+  };
+  const value: UpdateWindow = { startedAt, fromVersion, toVersion, progress };
   try {
     window.sessionStorage.setItem(KEY, JSON.stringify(value));
   } catch {

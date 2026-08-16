@@ -73,6 +73,19 @@ describe("update window", () => {
     expect(readUpdateWindow()).toMatchObject({ fromVersion: "v1.9.5", toVersion: "v1.9.6" });
   });
 
+  it("always starts a new operation at verification instead of reusing stale progress", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-16T07:00:00Z"));
+
+    expect(beginUpdateWindow("v1.10.4", "v1.10.5")).toBe(true);
+    expect(readUpdateWindow()?.progress).toMatchObject({
+      phase: "verifying",
+      detail: null,
+      at: null,
+      startedAt: "2026-08-16T07:00:00.000Z",
+    });
+  });
+
   it("refuses a no-op marker that could become a false success banner", () => {
     expect(beginUpdateWindow("v1.10.4", "v1.10.4")).toBe(false);
     expect(beginUpdateWindow("v1.10.5", "v1.10.4")).toBe(false);
@@ -88,12 +101,7 @@ describe("update window", () => {
   });
 
   it("persists the last verified progress journal across a restart", () => {
-    beginUpdateWindow("v1.9.5", "v1.9.6", {
-      phase: "verifying",
-      detail: null,
-      at: "2026-08-16T07:00:00Z",
-      startedAt: "2026-08-16T07:00:00Z",
-    });
+    beginUpdateWindow("v1.9.5", "v1.9.6");
     recordUpdateWindowProgress({
       phase: "deploying",
       detail: "starting compose service",
