@@ -15,6 +15,7 @@ import type { ServerUpdateStatus } from "@/lib/server-updater";
 import type { UpdateProgress } from "@/lib/update-progress";
 import {
   endUpdateWindow,
+  progressForUpdateWindow,
   readUpdateWindow,
   recordUpdateWindowProgress,
   resolveUpdateOverlay,
@@ -109,16 +110,20 @@ export function DbDisconnectOverlay() {
         const status = (await response.json()) as ServerUpdateStatus;
         if (cancelled) return;
         setReconnecting(!status.supported);
-        if (status.supported && status.progress) {
-          setProgress(status.progress);
-          recordUpdateWindowProgress(status.progress);
+        const currentProgress = progressForUpdateWindow(updating, status.progress);
+        if (status.supported && currentProgress) {
+          setProgress(currentProgress);
+          recordUpdateWindowProgress(currentProgress);
         }
         /* Rolling back is an active recovery operation, not yet a terminal
          * failure. Keep polling so the operator sees whether recovery itself
          * completes or fails. */
-        const resolution = resolveUpdateOverlay(updating, status);
+        const resolution = resolveUpdateOverlay(updating, {
+          ...status,
+          progress: currentProgress,
+        });
         if (resolution.outcome !== "pending") {
-          if (resolution.outcome === "succeeded" && !status.progress) {
+          if (resolution.outcome === "succeeded" && !currentProgress) {
             setProgress({
               phase: "done",
               detail: null,

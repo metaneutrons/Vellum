@@ -126,7 +126,8 @@ export function ServerUpdatePanel({
          * this page cannot narrate its own status. */
         beginUpdateWindow(
           next.currentVersion ?? status.currentVersion,
-          next.availableVersion ?? status.availableVersion
+          next.availableVersion ?? status.availableVersion,
+          next.progress
         );
       }
       toast("success", action === "apply" ? t("serverUpdateStarted") : t("serverCheckStarted"));

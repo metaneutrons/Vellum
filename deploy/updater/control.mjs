@@ -2,7 +2,7 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 const token = process.env.UPDATER_TOKEN ?? "";
@@ -160,6 +160,39 @@ function lastProgress() {
     };
   } catch {
     return null;
+  }
+}
+
+/** Publish the new operation before /v1/apply answers. Without this synchronous
+ * hand-off, the first UI poll can still read the terminal journal from the
+ * previous update while the shell worker is only starting. */
+function startProgressJournal(targetVersion, now = new Date()) {
+  const at = now.toISOString();
+  const temporary = `${progressFile}.tmp`;
+  try {
+    mkdirSync(dirname(progressFile), { recursive: true, mode: 0o700 });
+    writeFileSync(
+      temporary,
+      `${JSON.stringify({
+        phase: "verifying",
+        detail: targetVersion || null,
+        at,
+        startedAt: at,
+        failedPhase: null,
+        rollbackAttempted: false,
+      })}\n`,
+      { mode: 0o600 }
+    );
+    renameSync(temporary, progressFile);
+    return true;
+  } catch (error) {
+    try {
+      rmSync(temporary, { force: true });
+    } catch {
+      // Journal cleanup is advisory too; never block the actual update.
+    }
+    console.error(`vellum-updater: cannot reset progress journal: ${error}`);
+    return false;
   }
 }
 
@@ -383,6 +416,7 @@ async function apply() {
   status.lastError = null;
   try {
     const targetVersion = status.availableVersion;
+    startProgressJournal(targetVersion);
     await command("/usr/local/bin/vellum-update", [], {
       env: { ...process.env, UPDATE_ONCE: "true" },
     });
@@ -504,4 +538,5 @@ export {
   validateConfig,
   zonedClock,
   publicStatus,
+  startProgressJournal,
 };

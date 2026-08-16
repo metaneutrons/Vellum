@@ -33,7 +33,13 @@ export type UpdateWindow = {
    * temporarily unreachable. Persisting it prevents the progress UI from
    * collapsing into an information-poor spinner during the critical phase. */
   progress?: UpdateProgress | null;
+  /** Journal entry returned while the new apply request was being accepted.
+   * Older updater versions can still expose the previous run at that instant.
+   * Keep its fingerprint so polling cannot re-import it as current progress. */
+  ignoredProgress?: UpdateProgressFingerprint | null;
 };
+
+type UpdateProgressFingerprint = Pick<UpdateProgress, "phase" | "at" | "startedAt">;
 
 export type UpdateStatusSnapshot = {
   supported: boolean;
@@ -171,7 +177,38 @@ function notify() {
   window.dispatchEvent(new Event(EVENT));
 }
 
-export function beginUpdateWindow(fromVersion: string | null, toVersion: string | null): boolean {
+function progressFingerprint(progress: UpdateProgress): UpdateProgressFingerprint {
+  return { phase: progress.phase, at: progress.at, startedAt: progress.startedAt };
+}
+
+function sameProgressEntry(
+  progress: UpdateProgress,
+  fingerprint: UpdateProgressFingerprint
+): boolean {
+  return (
+    progress.phase === fingerprint.phase &&
+    progress.at === fingerprint.at &&
+    progress.startedAt === fingerprint.startedAt
+  );
+}
+
+/** Reject only the exact journal entry observed while a fresh operation was
+ * accepted. A new entry — even one for the same phase — remains authoritative. */
+export function progressForUpdateWindow(
+  updateWindow: UpdateWindow,
+  progress: UpdateProgress | null
+): UpdateProgress | null {
+  if (!progress) return null;
+  return updateWindow.ignoredProgress && sameProgressEntry(progress, updateWindow.ignoredProgress)
+    ? null
+    : progress;
+}
+
+export function beginUpdateWindow(
+  fromVersion: string | null,
+  toVersion: string | null,
+  observedProgress: UpdateProgress | null = null
+): boolean {
   if (typeof window === "undefined") return false;
   /* Never create a success marker for a no-op or stale snapshot. The updater may
    * have completed a concurrent check between rendering and clicking; recording
@@ -188,7 +225,13 @@ export function beginUpdateWindow(fromVersion: string | null, toVersion: string 
     at: null,
     startedAt: new Date(startedAt).toISOString(),
   };
-  const value: UpdateWindow = { startedAt, fromVersion, toVersion, progress };
+  const value: UpdateWindow = {
+    startedAt,
+    fromVersion,
+    toVersion,
+    progress,
+    ignoredProgress: observedProgress ? progressFingerprint(observedProgress) : null,
+  };
   try {
     window.sessionStorage.setItem(KEY, JSON.stringify(value));
   } catch {
@@ -245,6 +288,7 @@ export function readUpdateWindow(): UpdateWindow | null {
       fromVersion: typeof value.fromVersion === "string" ? value.fromVersion : null,
       toVersion: typeof value.toVersion === "string" ? value.toVersion : null,
       progress,
+      ignoredProgress: parseProgressFingerprint(value.ignoredProgress),
     };
   } catch {
     endUpdateWindow();
@@ -290,6 +334,20 @@ function parseStoredProgress(value: unknown): UpdateProgress | null {
     startedAt,
     failedPhase,
     rollbackAttempted: candidate.rollbackAttempted,
+  };
+}
+
+function parseProgressFingerprint(value: unknown): UpdateProgressFingerprint | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<UpdateProgressFingerprint>;
+  if (!UPDATE_PHASES.includes(candidate.phase as UpdateProgressPhase)) return null;
+  if (candidate.at !== null && typeof candidate.at !== "string") return null;
+  if (candidate.startedAt !== null && typeof candidate.startedAt !== "string") return null;
+  if ((candidate.at?.length ?? 0) > 64 || (candidate.startedAt?.length ?? 0) > 64) return null;
+  return {
+    phase: candidate.phase as UpdateProgressPhase,
+    at: candidate.at ?? null,
+    startedAt: candidate.startedAt ?? null,
   };
 }
 
