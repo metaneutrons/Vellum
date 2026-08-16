@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.5](https://github.com/metaneutrons/Vellum/compare/v1.11.4...v1.11.5) (2026-08-16)
+
+
+### Bug Fixes
+
+* **firmware:** harden D1001 branding and OTA rendering ([56453b7](https://github.com/metaneutrons/Vellum/commit/56453b7375db8ad02c4cd3f2e67c9f2bd0ac823e))
+* **firmware:** restore D1001 branding and OTA recovery ([290000b](https://github.com/metaneutrons/Vellum/commit/290000bb468d5d93bdc6ff3c725f0bf27ded82ef))
+
 ## [1.11.4](https://github.com/metaneutrons/Vellum/compare/v1.11.3...v1.11.4) (2026-08-16)
 
 
