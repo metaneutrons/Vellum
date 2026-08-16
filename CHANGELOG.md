@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.6](https://github.com/metaneutrons/Vellum/compare/v1.11.5...v1.11.6) (2026-08-16)
+
+
+### Bug Fixes
+
+* **updater:** reset progress for each server update ([#243](https://github.com/metaneutrons/Vellum/issues/243)) ([11c4a48](https://github.com/metaneutrons/Vellum/commit/11c4a488dc03c16676a6c7e1aa551a6048de5e1b))
+
 ## [1.11.5](https://github.com/metaneutrons/Vellum/compare/v1.11.4...v1.11.5) (2026-08-16)
 
 
