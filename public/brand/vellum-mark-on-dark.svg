@@ -1,6 +1,4 @@
-<!-- Derived app tile. Canonical artwork: public/brand/vellum-mark-on-dark.svg -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="299 211 1450 1450">
-  <rect x="299" y="211" width="1450" height="1450" rx="300" fill="#0a0a0f"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="299 211 1450 1450" role="img" aria-label="Vellum">
   <polygon points="546.8 411.5 600.9 497.5 910.6 985.4 1024.2 1165 1199.8 887.9 1448.4 496.3 1502.2 411.5 1639.2 411.5 1639.3 530.5 1442.1 828.3 1203.9 1188 1024 1460.5 928.9 1315.2 649.6 893.5 408.7 530.2 408.8 411.5 546.8 411.5" fill="#e5dfe3"/>
   <polygon points="786.1 1170.8 841 1252.8 409 1252.8 409 608 513.7 760 513.6 1170.7 786.1 1170.8" fill="#8f8e93"/>
   <polygon points="1262.2 1170.9 1534.6 1170.7 1534.7 760.2 1639.2 608.1 1639.3 1252.7 1207.5 1252.8 1262.2 1170.9" fill="#8f8e93"/>

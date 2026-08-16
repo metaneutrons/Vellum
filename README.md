@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/vellum_logo.svg" alt="Vellum" width="240">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/brand/vellum-logo-on-dark.svg">
+    <img src="public/brand/vellum-logo-on-light.svg" alt="Vellum" width="240">
+  </picture>
 </p>
 
 <p align="center">
