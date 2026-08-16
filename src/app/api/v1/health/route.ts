@@ -6,8 +6,11 @@ export async function GET() {
   const state = dbResilience.getState();
   const status = state.circuit === "open" ? 503 : state.connected ? 200 : 503;
 
-  return Response.json({
-    status: state.connected ? "ok" : "degraded",
-    database: state,
-  }, { status });
+  return Response.json(
+    {
+      status: state.connected ? "ok" : "degraded",
+      database: state,
+    },
+    { status }
+  );
 }

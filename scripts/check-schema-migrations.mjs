@@ -49,9 +49,26 @@ const DRIZZLE_DIR = join(ROOT, "drizzle");
 
 /* Drizzle column builders whose first string argument is the SQL column name. */
 const COLUMN_BUILDERS = [
-  "text", "uuid", "timestamp", "jsonb", "json", "integer", "boolean", "serial",
-  "bigserial", "numeric", "real", "doublePrecision", "date", "time", "bigint",
-  "smallint", "varchar", "char", "inet", "interval",
+  "text",
+  "uuid",
+  "timestamp",
+  "jsonb",
+  "json",
+  "integer",
+  "boolean",
+  "serial",
+  "bigserial",
+  "numeric",
+  "real",
+  "doublePrecision",
+  "date",
+  "time",
+  "bigint",
+  "smallint",
+  "varchar",
+  "char",
+  "inet",
+  "interval",
 ];
 
 /* Table-qualified columns intentionally absent from drizzle/*.sql, with
@@ -62,7 +79,13 @@ const ALLOWLIST = new Map([]);
 /* Table-level constraint keywords: these open a definition inside CREATE TABLE
  * that is not a column. */
 const CONSTRAINT_KEYWORDS = new Set([
-  "primary", "unique", "foreign", "constraint", "check", "exclude", "like",
+  "primary",
+  "unique",
+  "foreign",
+  "constraint",
+  "check",
+  "exclude",
+  "like",
 ]);
 
 /** Text of the balanced block starting at `open` (which must be an opener). */
@@ -91,7 +114,7 @@ const schemaCode = schemaSrc
 
 const columnRe = new RegExp(
   String.raw`\b(?:${COLUMN_BUILDERS.join("|")})\(\s*["']([A-Za-z0-9_]+)["']`,
-  "g",
+  "g"
 );
 
 /** table -> Map(column -> line number in schema.ts) */
@@ -102,7 +125,9 @@ for (const match of schemaCode.matchAll(tableRe)) {
   const open = schemaCode.indexOf("{", match.index + match[0].length - 1);
   const block = balanced(schemaCode, open, "{", "}");
   if (block === null) {
-    console.error(`✖ schema guard: unbalanced braces in pgTable("${table}") — parser cannot continue.`);
+    console.error(
+      `✖ schema guard: unbalanced braces in pgTable("${table}") — parser cannot continue.`
+    );
     process.exit(1);
   }
   const columns = declared.get(table) ?? new Map();
@@ -119,14 +144,16 @@ const pairCount = [...declared.values()].reduce((n, cols) => n + cols.size, 0);
 if (pairCount === 0) {
   console.error(
     `✖ schema guard: parsed 0 columns from ${SCHEMA}.\n` +
-      "  The parser is broken (or schema.ts moved) — failing rather than passing vacuously.",
+      "  The parser is broken (or schema.ts moved) — failing rather than passing vacuously."
   );
   process.exit(1);
 }
 
 /* ── The migrations ──────────────────────────────────────────────────── */
 
-const sqlFiles = readdirSync(DRIZZLE_DIR).filter((f) => f.endsWith(".sql")).sort();
+const sqlFiles = readdirSync(DRIZZLE_DIR)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
 if (sqlFiles.length === 0) {
   console.error(`✖ schema guard: no .sql migrations found in ${DRIZZLE_DIR}.`);
   process.exit(1);
@@ -134,9 +161,7 @@ if (sqlFiles.length === 0) {
 const sql = sqlFiles.map((f) => readFileSync(join(DRIZZLE_DIR, f), "utf8")).join("\n");
 
 /* Strip SQL comments: a column named in a comment must not count as created. */
-const sqlCode = sql
-  .replace(/\/\*[\s\S]*?\*\//g, " ")
-  .replace(/^\s*--.*$/gm, "");
+const sqlCode = sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*--.*$/gm, "");
 
 /** table -> Set(columns the migrations actually create) */
 const createdBySql = new Map();
@@ -155,13 +180,16 @@ for (const match of sqlCode.matchAll(createRe)) {
   if (body === null) continue;
   /* Split on top-level commas only: a column's own type or DEFAULT may contain
    * parenthesised commas, e.g. numeric(10,2). */
-  let depth = 0, item = "";
+  let depth = 0,
+    item = "";
   const items = [];
   for (const ch of body.slice(1, -1)) {
     if (ch === "(") depth++;
     else if (ch === ")") depth--;
-    if (ch === "," && depth === 0) { items.push(item); item = ""; }
-    else item += ch;
+    if (ch === "," && depth === 0) {
+      items.push(item);
+      item = "";
+    } else item += ch;
   }
   items.push(item);
   for (const raw of items) {
@@ -180,14 +208,14 @@ for (const match of sqlCode.matchAll(alterRe)) add(match[1], match[2]);
 if (createdBySql.size === 0) {
   console.error(
     `✖ schema guard: parsed 0 tables from ${DRIZZLE_DIR}.\n` +
-      "  The SQL parser is broken — failing rather than passing vacuously.",
+      "  The SQL parser is broken — failing rather than passing vacuously."
   );
   process.exit(1);
 }
 
 /* ── Compare ─────────────────────────────────────────────────────────── */
 
-const missing = [];   // { table, column, line }
+const missing = []; // { table, column, line }
 const absentTables = [];
 for (const [table, columns] of declared) {
   const created = createdBySql.get(table);
@@ -205,7 +233,9 @@ missing.sort((a, b) => a.line - b.line);
 absentTables.sort((a, b) => a.line - b.line);
 
 if (absentTables.length > 0 || missing.length > 0) {
-  console.error("✖ schema guard: src/db/schema.ts declares database objects that drizzle/ never creates.\n");
+  console.error(
+    "✖ schema guard: src/db/schema.ts declares database objects that drizzle/ never creates.\n"
+  );
   for (const { table, line } of absentTables) {
     console.error(`    table "${table}" has no CREATE TABLE  (src/db/schema.ts:${line})`);
   }
@@ -217,12 +247,12 @@ if (absentTables.length > 0 || missing.length > 0) {
       "  runtime. Add a hand-written migration, e.g.:\n\n" +
       '      ALTER TABLE "<table>" ADD COLUMN IF NOT EXISTS "<column>" <type>;\n\n' +
       "  as drizzle/NNNN_<description>.sql (next free number). Do not rely on\n" +
-      "  `pnpm db:generate` — drizzle/meta snapshots are stale by design here.\n",
+      "  `pnpm db:generate` — drizzle/meta snapshots are stale by design here.\n"
   );
   process.exit(1);
 }
 
 console.log(
   `✔ schema guard: all ${pairCount} columns across ${declared.size} tables in ` +
-    `src/db/schema.ts are covered by ${sqlFiles.length} migration(s) in drizzle/.`,
+    `src/db/schema.ts are covered by ${sqlFiles.length} migration(s) in drizzle/.`
 );

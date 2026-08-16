@@ -187,9 +187,7 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
       }
 
       for (const release of releases) {
-        const manifestAsset = release.assets.find(
-          (a) => a.name === "firmware-manifest.json"
-        );
+        const manifestAsset = release.assets.find((a) => a.name === "firmware-manifest.json");
         if (!manifestAsset) continue;
         visibleManifestTags.add(release.tag_name);
 
@@ -230,8 +228,8 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
     }
 
     // Rebuild sorted list
-    sortedManifests = [...manifestCache.values()].sort(
-      (a, b) => compareSemver(b.version, a.version)
+    sortedManifests = [...manifestCache.values()].sort((a, b) =>
+      compareSemver(b.version, a.version)
     );
 
     if (newCount > 0 || removedCount > 0) {
@@ -252,9 +250,7 @@ export async function getAllManifests(): Promise<FirmwareManifest[]> {
 /**
  * Get manifests filtered by channel.
  */
-export async function getManifestsByChannel(
-  channel: FirmwareChannel
-): Promise<FirmwareManifest[]> {
+export async function getManifestsByChannel(channel: FirmwareChannel): Promise<FirmwareManifest[]> {
   const all = await getAllManifests();
   return all.filter((m) => m.channel === channel);
 }
@@ -322,8 +318,7 @@ export async function resolveOta(
   // onto a superseding STABLE release, so its candidate set is stable ∪ beta
   // (newest by compareSemver wins). 'stable' devices only ever see stable.
   const all = await getAllManifests();
-  const manifests =
-    channel === "beta" ? all : all.filter((m) => m.channel === "stable");
+  const manifests = channel === "beta" ? all : all.filter((m) => m.channel === "stable");
   if (manifests.length === 0) return NO_UPDATE;
 
   let target: FirmwareManifest | undefined;

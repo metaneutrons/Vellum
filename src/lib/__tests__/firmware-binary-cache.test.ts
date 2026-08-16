@@ -21,7 +21,12 @@ describe("FirmwareBinaryCache", () => {
   it("coalesces concurrent fleet downloads into one upstream request", async () => {
     const cache = new FirmwareBinaryCache(100, 500);
     let resolve!: (value: ArrayBuffer) => void;
-    const load = vi.fn(() => new Promise<ArrayBuffer>((done) => { resolve = done; }));
+    const load = vi.fn(
+      () =>
+        new Promise<ArrayBuffer>((done) => {
+          resolve = done;
+        })
+    );
     const first = cache.get("release:model", 2, load);
     const second = cache.get("release:model", 2, load);
     resolve(buffer(4, 5));

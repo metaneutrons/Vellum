@@ -14,7 +14,8 @@ import { requestHasPermission } from "@/lib/access";
  * Query params: model=e1002&channel=stable&version=1.0.0
  */
 export async function GET(request: NextRequest) {
-  if (!(await requestHasPermission(request, "firmware.flash"))) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await requestHasPermission(request, "firmware.flash")))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   const model = request.nextUrl.searchParams.get("model");
   const channel = request.nextUrl.searchParams.get("channel") as FirmwareChannel | null;
   const version = request.nextUrl.searchParams.get("version");
@@ -42,10 +43,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (!res.ok || !res.body) {
-    return Response.json(
-      { error: `Failed to fetch binary: ${res.status}` },
-      { status: 502 }
-    );
+    return Response.json({ error: `Failed to fetch binary: ${res.status}` }, { status: 502 });
   }
 
   return new Response(res.body, {

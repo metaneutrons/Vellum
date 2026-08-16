@@ -25,7 +25,11 @@ const BADGE_TEXT: Record<string, { free: string; busy: string }> = {
 };
 
 const UPDATED_TEXT: Record<string, string> = {
-  en: "updated", de: "aktualisiert", fr: "mis à jour", it: "aggiornato", es: "actualizado",
+  en: "updated",
+  de: "aktualisiert",
+  fr: "mis à jour",
+  it: "aggiornato",
+  es: "actualizado",
 };
 import { eq } from "drizzle-orm";
 import path from "path";
@@ -60,7 +64,9 @@ function ensureFonts() {
     GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Regular.ttf"), "Inter");
     GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Bold.ttf"), "Inter");
     GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Medium.ttf"), "Inter");
-  } catch { /* fonts not available — fall back to sans-serif */ }
+  } catch {
+    /* fonts not available — fall back to sans-serif */
+  }
   fontsRegistered = true;
 }
 
@@ -80,8 +86,14 @@ interface TextCtx {
 
 /** Draw text — bitmap for color e-paper, vector for everything else */
 function text(
-  t: TextCtx, x: number, y: number, str: string, font: BitmapFontSize,
-  color: string, align: "left" | "right" = "left", maxWidth?: number
+  t: TextCtx,
+  x: number,
+  y: number,
+  str: string,
+  font: BitmapFontSize,
+  color: string,
+  align: "left" | "right" = "left",
+  maxWidth?: number
 ): number {
   if (t.useBitmap) {
     if (align === "right") {
@@ -91,8 +103,8 @@ function text(
     return drawBitmapText(t.ctx, str, x, y, font, color, maxWidth);
   }
   const sizeMap: Record<BitmapFontSize, string> = {
-    "sm": `${Math.round(16 * t.scale)}px ${t.ff}`,
-    "md": `${Math.round(24 * t.scale)}px ${t.ff}`,
+    sm: `${Math.round(16 * t.scale)}px ${t.ff}`,
+    md: `${Math.round(24 * t.scale)}px ${t.ff}`,
     "md-bold": `bold ${Math.round(24 * t.scale)}px ${t.ff}`,
     "lg-bold": `bold ${Math.round(32 * t.scale)}px ${t.ff}`,
   };
@@ -108,8 +120,8 @@ function text(
 function textWidth(t: TextCtx, str: string, font: BitmapFontSize): number {
   if (t.useBitmap) return measureBitmapText(str, font);
   const sizeMap: Record<BitmapFontSize, string> = {
-    "sm": `${Math.round(16 * t.scale)}px ${t.ff}`,
-    "md": `${Math.round(24 * t.scale)}px ${t.ff}`,
+    sm: `${Math.round(16 * t.scale)}px ${t.ff}`,
+    md: `${Math.round(24 * t.scale)}px ${t.ff}`,
     "md-bold": `bold ${Math.round(24 * t.scale)}px ${t.ff}`,
     "lg-bold": `bold ${Math.round(32 * t.scale)}px ${t.ff}`,
   };
@@ -119,8 +131,15 @@ function textWidth(t: TextCtx, str: string, font: BitmapFontSize): number {
 
 /** Draw text with word-wrap. Returns number of lines drawn. */
 function textWrap(
-  t: TextCtx, x: number, y: number, str: string, font: BitmapFontSize,
-  color: string, maxWidth: number, lineH: number, maxLines: number
+  t: TextCtx,
+  x: number,
+  y: number,
+  str: string,
+  font: BitmapFontSize,
+  color: string,
+  maxWidth: number,
+  lineH: number,
+  maxLines: number
 ): number {
   const words = str.split(" ");
   let line = "";
@@ -148,15 +167,21 @@ function textWrap(
 export { ROOM_POLICIES } from "./room-booking-types";
 import { ROOM_POLICIES } from "./room-booking-types";
 
-const bookingQrConfigSchema = z.object({
-  visibility: z.enum(BOOKING_QR_VISIBILITIES).default("never"),
-  source: z.enum(["provider", "custom"]).default("provider"),
-  customUrl: z.string().max(256).optional(),
-}).superRefine((value, ctx) => {
-  if (value.source === "custom" && !normalizeBookingUrl(value.customUrl)) {
-    ctx.addIssue({ code: "custom", path: ["customUrl"], message: "A valid HTTP(S) booking URL is required." });
-  }
-});
+const bookingQrConfigSchema = z
+  .object({
+    visibility: z.enum(BOOKING_QR_VISIBILITIES).default("never"),
+    source: z.enum(["provider", "custom"]).default("provider"),
+    customUrl: z.string().max(256).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.source === "custom" && !normalizeBookingUrl(value.customUrl)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["customUrl"],
+        message: "A valid HTTP(S) booking URL is required.",
+      });
+    }
+  });
 
 export const roomBookingConfigSchema = z.object({
   providerId: z.string().uuid(),
@@ -174,7 +199,9 @@ export const roomBookingConfigSchema = z.object({
 
 const eventsCache = new TtlCache<CalendarEvent[]>(Infinity); // TTL managed per-entry
 
-export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema>): Promise<CalendarEvent[]> {
+export async function fetchEvents(
+  config: z.infer<typeof roomBookingConfigSchema>
+): Promise<CalendarEvent[]> {
   const cacheKey = `${config.providerId}:${JSON.stringify(config.roomConfig)}`;
 
   // Skip cache in development for instant feedback
@@ -185,7 +212,7 @@ export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema
 
   const [provider] = await withDbRead(
     () => db.select().from(dataProviders).where(eq(dataProviders.id, config.providerId)).limit(1),
-    "room-booking-provider",
+    "room-booking-provider"
   );
 
   if (!provider) throw new Error(`Calendar provider ${config.providerId} not found`);
@@ -207,21 +234,25 @@ export async function fetchEvents(config: z.infer<typeof roomBookingConfigSchema
 }
 
 /** Resolve an optional booking URL without coupling it to calendar events. */
-export async function resolveBookingUrl(config: z.infer<typeof roomBookingConfigSchema>): Promise<string | null> {
+export async function resolveBookingUrl(
+  config: z.infer<typeof roomBookingConfigSchema>
+): Promise<string | null> {
   if (config.bookingQr.source === "custom") return normalizeBookingUrl(config.bookingQr.customUrl);
 
   const [provider] = await withDbRead(
     () => db.select().from(dataProviders).where(eq(dataProviders.id, config.providerId)).limit(1),
-    "room-booking-url-provider",
+    "room-booking-url-provider"
   );
   if (!provider) return null;
 
   const impl = getCalendarProvider(provider.type);
   if (!impl?.getBookingUrl) return null;
-  return normalizeBookingUrl(impl.getBookingUrl({
-    credentials: decryptCredentials(provider.encryptedCredentials),
-    roomConfig: config.roomConfig,
-  }));
+  return normalizeBookingUrl(
+    impl.getBookingUrl({
+      credentials: decryptCredentials(provider.encryptedCredentials),
+      roomConfig: config.roomConfig,
+    })
+  );
 }
 
 /* ── Canvas rendering ─────────────────────────────────────────── */
@@ -265,15 +296,21 @@ export function computeTimelineLayout<T extends DisplayEvent>(
   windowStart: number,
   windowEnd: number,
   areaTop: number,
-  areaH: number,
+  areaH: number
 ): TimelineBlock<T>[] {
   const sorted = [...visible].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
   const columns: { end: number }[] = [];
   const layout: TimelineBlock<T>[] = [];
   for (const evt of sorted) {
-    const y1 = Math.max(timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop);
-    const y2 = Math.min(timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH), areaTop + areaH);
+    const y1 = Math.max(
+      timeToY(evt.startTime.getTime(), windowStart, windowEnd, areaTop, areaH),
+      areaTop
+    );
+    const y2 = Math.min(
+      timeToY(evt.endTime.getTime(), windowStart, windowEnd, areaTop, areaH),
+      areaTop + areaH
+    );
 
     // First column free by the time this event starts (touching ends may share).
     let col = 0;
@@ -309,7 +346,11 @@ export interface BookingQrRenderOptions {
 }
 
 function bookingLabel(locale: string): string {
-  return ({ en: "Book room", de: "Jetzt buchen", fr: "Réserver", it: "Prenota", es: "Reservar" }[locale] ?? "Book room");
+  return (
+    { en: "Book room", de: "Jetzt buchen", fr: "Réserver", it: "Prenota", es: "Reservar" }[
+      locale
+    ] ?? "Book room"
+  );
 }
 
 /** Draw a crisp, scanner-safe QR panel. Matrix modules are never interpolated. */
@@ -321,7 +362,7 @@ function renderBookingQr(
   height: number,
   scale: number,
   locale: string,
-  options: BookingQrRenderOptions | undefined,
+  options: BookingQrRenderOptions | undefined
 ): { visible: boolean; reservedWidth: number; reservedHeight: number } {
   if (!options || !shouldShowBookingQr(options.visibility, options.isRoomFree, options.url)) {
     return { visible: false, reservedWidth: 0, reservedHeight: 0 };
@@ -346,7 +387,12 @@ function renderBookingQr(
   for (let row = 0; row < qr.modules.size; row++) {
     for (let col = 0; col < qr.modules.size; col++) {
       if (qr.modules.get(row, col)) {
-        ctx.fillRect(qrX + (col + quietZone) * moduleSize, qrY + (row + quietZone) * moduleSize, moduleSize, moduleSize);
+        ctx.fillRect(
+          qrX + (col + quietZone) * moduleSize,
+          qrY + (row + quietZone) * moduleSize,
+          moduleSize,
+          moduleSize
+        );
       }
     }
   }
@@ -355,9 +401,20 @@ function renderBookingQr(
   const labelWidth = textWidth(tc, label, "sm");
   ctx.fillStyle = T.background;
   ctx.fillRect(panelX, panelY + panelSize, panelSize, labelH + 2);
-  text(tc, panelX + (panelSize - labelWidth) / 2, panelY + panelSize + labelH, label, "sm", T.footerText);
+  text(
+    tc,
+    panelX + (panelSize - labelWidth) / 2,
+    panelY + panelSize + labelH,
+    label,
+    "sm",
+    T.footerText
+  );
 
-  return { visible: true, reservedWidth: panelSize + Math.round(24 * scale), reservedHeight: panelSize + labelH + Math.round(28 * scale) };
+  return {
+    visible: true,
+    reservedWidth: panelSize + Math.round(24 * scale),
+    reservedHeight: panelSize + labelH + Math.round(28 * scale),
+  };
 }
 
 /** Render room-booking day view to canvas. Exported for testing. */
@@ -379,7 +436,8 @@ interface HeaderCtx {
 }
 
 function renderHeader(h: HeaderCtx): void {
-  const { ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events } = h;
+  const { ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events } =
+    h;
 
   ctx.fillStyle = T.headerBg;
   ctx.fillRect(0, 0, width, headerH);
@@ -392,7 +450,14 @@ function renderHeader(h: HeaderCtx): void {
   const badgeX = width - bw - Math.round(32 * scale);
   ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
   ctx.fillRect(badgeX, Math.round(20 * scale), bw + Math.round(16 * scale), Math.round(34 * scale));
-  text(tc, badgeX + Math.round(8 * scale), Math.round(46 * scale), badgeText, "md-bold", T.badgeText);
+  text(
+    tc,
+    badgeX + Math.round(8 * scale),
+    Math.round(46 * scale),
+    badgeText,
+    "md-bold",
+    T.badgeText
+  );
 
   const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
   const dateStr = format(new TZDate(now, timezone), dateFormat, { locale: dfLocale });
@@ -400,7 +465,16 @@ function renderHeader(h: HeaderCtx): void {
   const dateX = badgeX - dateW - Math.round(20 * scale);
   text(tc, dateX, Math.round(46 * scale), dateStr, "md", T.headerText);
 
-  text(tc, Math.round(16 * scale), Math.round(48 * scale), roomName, "lg-bold", T.headerText, "left", dateX - Math.round(28 * scale));
+  text(
+    tc,
+    Math.round(16 * scale),
+    Math.round(48 * scale),
+    roomName,
+    "lg-bold",
+    T.headerText,
+    "left",
+    dateX - Math.round(28 * scale)
+  );
 }
 
 export function renderToCanvas(
@@ -416,7 +490,7 @@ export function renderToCanvas(
   timelineShiftH: number = 2,
   locale: string = "en",
   dateFormat: string = "PPPP",
-  bookingQr?: BookingQrRenderOptions,
+  bookingQr?: BookingQrRenderOptions
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -435,8 +509,10 @@ export function renderToCanvas(
   const areaTop = headerH + Math.round(24 * scale);
   const areaH = height - headerH - footerH - Math.round(8 * scale);
   const eventLeft = gutterW + Math.round(4 * scale);
-  const qrReservation = bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
-    ? Math.max(Math.round(206 * scale), 138) : 0;
+  const qrReservation =
+    bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
+      ? Math.max(Math.round(206 * scale), 138)
+      : 0;
   const eventW = width - eventLeft - Math.round(16 * scale) - qrReservation;
   const nowMs = now.getTime();
   /* Round to timelineShiftH blocks — timeline only shifts every N hours */
@@ -451,7 +527,20 @@ export function renderToCanvas(
 
   // Header (shared with stacked layout)
   const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
-  renderHeader({ ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events });
+  renderHeader({
+    ctx,
+    tc,
+    width,
+    headerH,
+    scale,
+    T,
+    roomName,
+    timezone,
+    now,
+    locale,
+    dateFormat,
+    events,
+  });
 
   // Date locale for midnight separator
   const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
@@ -476,7 +565,15 @@ export function renderToCanvas(
       ctx.fillRect(gutterW, y + 1, width - Math.round(8 * scale) - gutterW, 1);
     }
 
-    text(tc, gutterW - Math.round(8 * scale), y + Math.round(8 * scale), fmtHour(hour), "md", T.slotSecondary, "right");
+    text(
+      tc,
+      gutterW - Math.round(8 * scale),
+      y + Math.round(8 * scale),
+      fmtHour(hour),
+      "md",
+      T.slotSecondary,
+      "right"
+    );
 
     ctx.fillStyle = "#000000";
     ctx.fillRect(gutterW, y, width - Math.round(8 * scale) - gutterW, Math.round(2 * scale));
@@ -495,7 +592,7 @@ export function renderToCanvas(
     const ew = colW - 2; /* 2px gap between columns */
     const pad = 8;
 
-    ctx.fillStyle = (evt.isPrivate || evt.showLockIcon) ? T.busyBadge : T.eventBg;
+    ctx.fillStyle = evt.isPrivate || evt.showLockIcon ? T.busyBadge : T.eventBg;
     /* Extend block 2px at bottom to fully cover the end grid line */
     ctx.fillRect(ex, y1, ew, blockH + 2);
 
@@ -517,14 +614,28 @@ export function renderToCanvas(
 
       if (availLines >= 1 && textWidth(tc, label, fontSizeBold) > labelMaxW) {
         /* Wrap subject across available lines */
-        textWrap(tc, ex + pad, textY, label, fontSizeBold, T.slotText, ew - pad * 2, lineH, availLines + 1);
+        textWrap(
+          tc,
+          ex + pad,
+          textY,
+          label,
+          fontSizeBold,
+          T.slotText,
+          ew - pad * 2,
+          lineH,
+          availLines + 1
+        );
       } else {
         text(tc, ex + pad, textY, label, fontSizeBold, T.slotText, "left", labelMaxW);
       }
     }
 
     const usedLines = blockH >= 16 ? 1 : 0;
-    if (blockH > lineH * (usedLines + 1) && evt.organizer && evt.organizer.trim() !== evt.displaySubject.trim()) {
+    if (
+      blockH > lineH * (usedLines + 1) &&
+      evt.organizer &&
+      evt.organizer.trim() !== evt.displaySubject.trim()
+    ) {
       text(tc, ex + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", ew - pad * 2);
     }
   }
@@ -535,7 +646,15 @@ export function renderToCanvas(
   // Footer
   const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
   const timeStr = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
-  text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${timeStr}`, "sm", T.footerText, "right");
+  text(
+    tc,
+    width - Math.round(12 * scale),
+    height - Math.round(10 * scale),
+    `${updatedLabel}: ${timeStr}`,
+    "sm",
+    T.footerText,
+    "right"
+  );
   renderBookingQr(ctx, tc, T, width, height, scale, locale, bookingQr);
 
   return canvas;
@@ -544,7 +663,14 @@ export function renderToCanvas(
 /* ── Offline fallback ─────────────────────────────────────────── */
 
 /** Render offline fallback. Exported for testing. */
-export function renderOffline(roomName: string, now: Date, T: Theme, width: number, height: number, locale: string = "en"): Canvas {
+export function renderOffline(
+  roomName: string,
+  now: Date,
+  T: Theme,
+  width: number,
+  height: number,
+  locale: string = "en"
+): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
@@ -559,11 +685,25 @@ export function renderOffline(roomName: string, now: Date, T: Theme, width: numb
 
   ctx.fillStyle = T.busyBadge;
   ctx.font = `bold 32px sans-serif`;
-  const msg = { en: "System Offline", de: "System Offline", fr: "Système hors ligne", it: "Sistema offline", es: "Sistema fuera de línea" }[locale] ?? "System Offline";
+  const msg =
+    {
+      en: "System Offline",
+      de: "System Offline",
+      fr: "Système hors ligne",
+      it: "Sistema offline",
+      es: "Sistema fuera de línea",
+    }[locale] ?? "System Offline";
   ctx.fillText(msg, (width - ctx.measureText(msg).width) / 2, height / 2);
   ctx.fillStyle = T.slotSecondary;
   ctx.font = `24px sans-serif`;
-  const sub = { en: "Calendar data unavailable", de: "Kalenderdaten nicht verfügbar", fr: "Données calendrier indisponibles", it: "Dati calendario non disponibili", es: "Datos del calendario no disponibles" }[locale] ?? "Calendar data unavailable";
+  const sub =
+    {
+      en: "Calendar data unavailable",
+      de: "Kalenderdaten nicht verfügbar",
+      fr: "Données calendrier indisponibles",
+      it: "Dati calendario non disponibili",
+      es: "Datos del calendario no disponibles",
+    }[locale] ?? "Calendar data unavailable";
   ctx.fillText(sub, (width - ctx.measureText(sub).width) / 2, height / 2 + 36);
 
   ctx.fillStyle = T.footerText;
@@ -588,7 +728,7 @@ function renderStacked(
   colorMode: string = "indexed",
   locale: string = "en",
   dateFormat: string = "PPPP",
-  bookingQr?: BookingQrRenderOptions,
+  bookingQr?: BookingQrRenderOptions
 ): Canvas {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -611,29 +751,51 @@ function renderStacked(
 
   // Shared header (same as timeline)
   const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
-  renderHeader({ ctx, tc, width, headerH, scale, T, roomName, timezone, now, locale, dateFormat, events });
+  renderHeader({
+    ctx,
+    tc,
+    width,
+    headerH,
+    scale,
+    T,
+    roomName,
+    timezone,
+    now,
+    locale,
+    dateFormat,
+    events,
+  });
 
   // Filter upcoming events
   const upcoming = events
-    .filter(e => e.endTime.getTime() > now.getTime())
+    .filter((e) => e.endTime.getTime() > now.getTime())
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
   let y = headerH + Math.round(24 * scale);
   let lastDateStr = "";
 
-  const qrReservedHeight = bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
-    ? Math.max(Math.round(234 * scale), 158) : 0;
+  const qrReservedHeight =
+    bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
+      ? Math.max(Math.round(234 * scale), 158)
+      : 0;
   for (const evt of upcoming) {
     if (y + cardH > height - Math.round(40 * scale) - qrReservedHeight) break;
 
     // Day separator
     const evtDate = format(new TZDate(evt.startTime, timezone), "yyyy-MM-dd");
     if (evtDate !== lastDateStr && lastDateStr !== "") {
-      const dayLabel = format(new TZDate(evt.startTime, timezone), "EEEE, d. MMM", { locale: dfLocale });
+      const dayLabel = format(new TZDate(evt.startTime, timezone), "EEEE, d. MMM", {
+        locale: dfLocale,
+      });
       ctx.fillStyle = T.slotSecondary;
       const labelW = textWidth(tc, dayLabel, "sm");
       text(tc, padding, y + Math.round(12 * scale), dayLabel, "sm", T.slotSecondary);
-      ctx.fillRect(padding + labelW + Math.round(8 * scale), y + Math.round(8 * scale), width - 2 * padding - labelW - Math.round(8 * scale), 1);
+      ctx.fillRect(
+        padding + labelW + Math.round(8 * scale),
+        y + Math.round(8 * scale),
+        width - 2 * padding - labelW - Math.round(8 * scale),
+        1
+      );
       y += sepH;
     }
     lastDateStr = evtDate;
@@ -645,11 +807,27 @@ function renderStacked(
 
     // Time
     const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
-    text(tc, padding + Math.round(12 * scale), y + Math.round(26 * scale), timeStr, "md-bold", isNow ? T.badgeText : T.slotText);
+    text(
+      tc,
+      padding + Math.round(12 * scale),
+      y + Math.round(26 * scale),
+      timeStr,
+      "md-bold",
+      isNow ? T.badgeText : T.slotText
+    );
 
     // Subject
     const maxSubW = width - 2 * padding - Math.round(24 * scale);
-    text(tc, padding + Math.round(12 * scale), y + Math.round(52 * scale), evt.displaySubject, "sm", isNow ? T.badgeText : T.slotSecondary, "left", maxSubW);
+    text(
+      tc,
+      padding + Math.round(12 * scale),
+      y + Math.round(52 * scale),
+      evt.displaySubject,
+      "sm",
+      isNow ? T.badgeText : T.slotSecondary,
+      "left",
+      maxSubW
+    );
 
     y += cardH + cardGap;
   }
@@ -657,7 +835,15 @@ function renderStacked(
   // Footer
   const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
   const footerTime = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
-  text(tc, width - Math.round(12 * scale), height - Math.round(10 * scale), `${updatedLabel}: ${footerTime}`, "sm", T.footerText, "right");
+  text(
+    tc,
+    width - Math.round(12 * scale),
+    height - Math.round(10 * scale),
+    `${updatedLabel}: ${footerTime}`,
+    "sm",
+    T.footerText,
+    "right"
+  );
   renderBookingQr(ctx, tc, T, width, height, scale, locale, bookingQr);
 
   return canvas;
@@ -688,14 +874,50 @@ export const roomBookingRenderer: ContentRenderer = {
       // A missing public booking link must never take the room display offline.
       log.warn("Room-booking QR URL resolution failed", { error: String(err) });
     }
-    const bookingQr: BookingQrRenderOptions | undefined = bookingUrl ? {
-      url: bookingUrl,
-      visibility: cfg.bookingQr.visibility,
-      isRoomFree: !events.some((event) => event.startTime.getTime() <= now.getTime() && event.endTime.getTime() > now.getTime()),
-    } : undefined;
+    const bookingQr: BookingQrRenderOptions | undefined = bookingUrl
+      ? {
+          url: bookingUrl,
+          visibility: cfg.bookingQr.visibility,
+          isRoomFree: !events.some(
+            (event) =>
+              event.startTime.getTime() <= now.getTime() && event.endTime.getTime() > now.getTime()
+          ),
+        }
+      : undefined;
     if (cfg.layout === "stacked") {
-      return { canvas: renderStacked(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.locale, cfg.dateFormat, bookingQr) };
+      return {
+        canvas: renderStacked(
+          displayEvents,
+          cfg.roomName,
+          cfg.timezone,
+          now,
+          theme,
+          width,
+          height,
+          colorCount,
+          display.colorMode,
+          cfg.locale,
+          cfg.dateFormat,
+          bookingQr
+        ),
+      };
     }
-    return { canvas: renderToCanvas(displayEvents, cfg.roomName, cfg.timezone, now, theme, width, height, colorCount, display.colorMode, cfg.timelineShiftH, cfg.locale, cfg.dateFormat, bookingQr) };
+    return {
+      canvas: renderToCanvas(
+        displayEvents,
+        cfg.roomName,
+        cfg.timezone,
+        now,
+        theme,
+        width,
+        height,
+        colorCount,
+        display.colorMode,
+        cfg.timelineShiftH,
+        cfg.locale,
+        cfg.dateFormat,
+        bookingQr
+      ),
+    };
   },
 };

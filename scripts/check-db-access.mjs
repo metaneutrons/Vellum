@@ -41,17 +41,34 @@ function enclosingWrapper(node, allowed) {
 const violations = [];
 for (const file of files(SRC)) {
   if (file === join(SRC, "db", "index.ts")) continue;
-  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true,
-    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
 
   function visit(node) {
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-        ts.isIdentifier(node.expression.expression) && node.expression.expression.text === "db") {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "db"
+    ) {
       const method = node.expression.name.text;
-      const kind = readMethods.has(method) ? "read" : writeMethods.has(method) ? "write" : method === "transaction" ? "transaction" : null;
+      const kind = readMethods.has(method)
+        ? "read"
+        : writeMethods.has(method)
+          ? "write"
+          : method === "transaction"
+            ? "transaction"
+            : null;
       if (kind && !enclosingWrapper(node, wrappers[kind])) {
         const position = source.getLineAndCharacterOfPosition(node.getStart(source));
-        violations.push(`${relative(ROOT, file)}:${position.line + 1} db.${method} must be enclosed by ${[...wrappers[kind]].join(" or ")}`);
+        violations.push(
+          `${relative(ROOT, file)}:${position.line + 1} db.${method} must be enclosed by ${[...wrappers[kind]].join(" or ")}`
+        );
       }
     }
     ts.forEachChild(node, visit);
@@ -60,8 +77,12 @@ for (const file of files(SRC)) {
 }
 
 if (violations.length) {
-  console.error("✖ database access contract violations:\n" + violations.map((line) => `  ${line}`).join("\n"));
+  console.error(
+    "✖ database access contract violations:\n" + violations.map((line) => `  ${line}`).join("\n")
+  );
   process.exit(1);
 }
 
-process.stdout.write("✔ every direct database call uses an explicit read, write, or transaction boundary.\n");
+process.stdout.write(
+  "✔ every direct database call uses an explicit read, write, or transaction boundary.\n"
+);

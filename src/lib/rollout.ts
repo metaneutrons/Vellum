@@ -56,17 +56,21 @@ export async function deviceFailedTarget(mac: string, version: string): Promise<
             and(
               eq(otaEvents.mac, mac),
               eq(otaEvents.toVersion, version),
-              inArray(otaEvents.phase, [...OTA_FAILED_PHASES]),
-            ),
+              inArray(otaEvents.phase, [...OTA_FAILED_PHASES])
+            )
           )
           .limit(1),
-      "ota-failed-check",
+      "ota-failed-check"
     );
     return rows.length > 0;
   } catch (error) {
     // Fail closed: without the persistent failure record we cannot prove this
     // target is safe to re-offer to the device.
-    log.error("OTA failure blocklist unavailable; suppressing update", { mac, version, error: String(error) });
+    log.error("OTA failure blocklist unavailable; suppressing update", {
+      mac,
+      version,
+      error: String(error),
+    });
     return true;
   }
 }
@@ -78,7 +82,7 @@ export async function deviceFailedTarget(mac: string, version: string): Promise<
 export async function isDeviceInRollout(
   mac: string,
   version: string,
-  channel: string,
+  channel: string
 ): Promise<boolean> {
   let rollout: { state: string; percent: number } | undefined;
   try {
@@ -89,12 +93,17 @@ export async function isDeviceInRollout(
           .from(firmwareRollouts)
           .where(and(eq(firmwareRollouts.version, version), eq(firmwareRollouts.channel, channel)))
           .limit(1),
-      "rollout-lookup",
+      "rollout-lookup"
     );
   } catch (error) {
     // A missing row means the default rollout, but an unavailable database is
     // different: we cannot prove an operator has not halted this release.
-    log.error("OTA rollout state unavailable; suppressing update", { mac, version, channel, error: String(error) });
+    log.error("OTA rollout state unavailable; suppressing update", {
+      mac,
+      version,
+      channel,
+      error: String(error),
+    });
     return false;
   }
 

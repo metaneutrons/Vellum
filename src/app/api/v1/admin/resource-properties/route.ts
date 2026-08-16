@@ -11,7 +11,8 @@ import { requestHasPermission } from "@/lib/access";
  * Called at config time (editor save), not at render time.
  */
 export async function GET(request: NextRequest) {
-  if (!(await requestHasPermission(request, "providers.manage_secrets"))) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await requestHasPermission(request, "providers.manage_secrets")))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   const providerId = request.nextUrl.searchParams.get("providerId");
   const resourceId = request.nextUrl.searchParams.get("resourceId");
 
@@ -52,14 +53,24 @@ export async function GET(request: NextRequest) {
 
       // Build property label map from included
       const propLabels = new Map<string, string>();
-      for (const inc of (data.included ?? []) as { id: string; type: string; attributes: { label?: string } }[]) {
+      for (const inc of (data.included ?? []) as {
+        id: string;
+        type: string;
+        attributes: { label?: string };
+      }[]) {
         if (inc.type === "properties" && inc.attributes.label) {
           propLabels.set(inc.id, inc.attributes.label);
         }
       }
 
       // Filter for our resource and resolve values
-      for (const rp of (data.data ?? []) as { attributes: { value: unknown }; relationships?: { resource?: { data?: { id: string } }; property?: { data?: { id: string } } } }[]) {
+      for (const rp of (data.data ?? []) as {
+        attributes: { value: unknown };
+        relationships?: {
+          resource?: { data?: { id: string } };
+          property?: { data?: { id: string } };
+        };
+      }[]) {
         if (rp.relationships?.resource?.data?.id !== resourceId) continue;
         const propId = rp.relationships?.property?.data?.id;
         const label = propId ? propLabels.get(propId) : undefined;

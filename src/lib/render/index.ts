@@ -33,7 +33,11 @@ function nearestColorQuantize(
   const output = Buffer.alloc(width * height);
   for (let i = 0; i < width * height; i++) {
     output[i] = nearestPaletteIndex(
-      imageData[i * 4], imageData[i * 4 + 1], imageData[i * 4 + 2], palette, reserved
+      imageData[i * 4],
+      imageData[i * 4 + 1],
+      imageData[i * 4 + 2],
+      palette,
+      reserved
     );
   }
   return output;
@@ -59,9 +63,18 @@ export function canvasToPixelBuffer(
   // Legacy QuantizeMode support
   if (format === "none") return canvas.toBuffer("image/png");
   if (format === "jpeg") return canvas.toBuffer("image/jpeg", 95);
-  if (format === "color") { format = "raw"; colorMode = "indexed"; }
-  if (format === "grayscale") { format = "raw"; colorMode = "grayscale"; }
-  if (format === "mono") { format = "raw"; colorMode = "mono"; }
+  if (format === "color") {
+    format = "raw";
+    colorMode = "indexed";
+  }
+  if (format === "grayscale") {
+    format = "raw";
+    colorMode = "grayscale";
+  }
+  if (format === "mono") {
+    format = "raw";
+    colorMode = "mono";
+  }
 
   // New format + colorMode (format is now guaranteed "raw" after legacy handling)
   if (colorMode === "fullcolor") {
@@ -79,20 +92,33 @@ export function canvasToPixelBuffer(
     const AA_THRESHOLD = 3000;
     const hasReserved = reserved.length > 0;
     for (let i = 0; i < width * height; i++) {
-      const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+      const r = data[i * 4],
+        g = data[i * 4 + 1],
+        b = data[i * 4 + 2];
       let bestDist = Infinity;
-      let bestR = 0, bestG = 0, bestB = 0;
+      let bestR = 0,
+        bestG = 0,
+        bestB = 0;
       for (let p = 0; p < palette.length; p++) {
         if (hasReserved && reserved.includes(p)) continue;
         const [pr, pg, pb] = palette[p];
         const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
-        if (dist < bestDist) { bestDist = dist; bestR = pr; bestG = pg; bestB = pb; }
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestR = pr;
+          bestG = pg;
+          bestB = pb;
+        }
       }
       if (bestDist < AA_THRESHOLD) {
-        data[i * 4] = bestR; data[i * 4 + 1] = bestG; data[i * 4 + 2] = bestB;
+        data[i * 4] = bestR;
+        data[i * 4 + 1] = bestG;
+        data[i * 4 + 2] = bestB;
       } else {
-        const v = (0.299 * r + 0.587 * g + 0.114 * b) > 128 ? 255 : 0;
-        data[i * 4] = v; data[i * 4 + 1] = v; data[i * 4 + 2] = v;
+        const v = 0.299 * r + 0.587 * g + 0.114 * b > 128 ? 255 : 0;
+        data[i * 4] = v;
+        data[i * 4 + 1] = v;
+        data[i * 4 + 2] = v;
       }
     }
     return packTo4bit(nearestColorQuantize(data, width, height, palette, reserved), width, height);
@@ -116,7 +142,7 @@ function packTo1bit(input: Buffer, width: number, height: number): Buffer {
   for (let i = 0; i < width * height; i++) {
     // Palette index 0 = black = bit 0, index 1 = white = bit 1
     if (input[i] > 0) {
-      output[Math.floor(i / 8)] |= (0x80 >> (i % 8));
+      output[Math.floor(i / 8)] |= 0x80 >> (i % 8);
     }
   }
   return output;
@@ -130,7 +156,7 @@ function packTo1bit(input: Buffer, width: number, height: number): Buffer {
 function packTo4bit(input: Buffer, width: number, height: number): Buffer {
   const output = Buffer.alloc((width * height) / 2);
   for (let i = 0; i < width * height; i += 2) {
-    output[i / 2] = ((input[i] & 0x0F) << 4) | (input[i + 1] & 0x0F);
+    output[i / 2] = ((input[i] & 0x0f) << 4) | (input[i + 1] & 0x0f);
   }
   return output;
 }

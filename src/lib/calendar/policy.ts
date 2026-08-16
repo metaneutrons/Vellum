@@ -3,11 +3,19 @@
 import type { CalendarEvent, DisplayEvent, RoomPolicy } from "@/lib/types";
 
 const RESERVED_TEXT: Record<string, string> = {
-  en: "Reserved", de: "Reserviert", fr: "Réservé", it: "Riservato", es: "Reservado",
+  en: "Reserved",
+  de: "Reserviert",
+  fr: "Réservé",
+  it: "Riservato",
+  es: "Reservado",
 };
 
 const BOOKED_BY_TEXT: Record<string, string> = {
-  en: "Booked by", de: "Gebucht von", fr: "Réservé par", it: "Prenotato da", es: "Reservado por",
+  en: "Booked by",
+  de: "Gebucht von",
+  fr: "Réservé par",
+  it: "Prenotato da",
+  es: "Reservado por",
 };
 
 /**

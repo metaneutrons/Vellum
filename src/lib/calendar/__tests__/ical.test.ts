@@ -23,7 +23,9 @@ describe("iCal parser", () => {
   });
 
   it("keeps all-day (VALUE=DATE) events instead of dropping them", () => {
-    const ics = vevent("SUMMARY:Holiday\r\nDTSTART;VALUE=DATE:20260423\r\nDTEND;VALUE=DATE:20260424");
+    const ics = vevent(
+      "SUMMARY:Holiday\r\nDTSTART;VALUE=DATE:20260423\r\nDTEND;VALUE=DATE:20260424"
+    );
     const [ev] = parseIcs(ics, WSTART, WEND);
     expect(ev).toBeDefined();
     expect(ev.subject).toBe("Holiday");

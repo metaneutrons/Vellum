@@ -118,9 +118,7 @@ describe("Improv WIFI_SETTINGS encoding", () => {
   });
 
   it("carries the zero-touch device token as the 4th string", () => {
-    const parsed = firmwareParse(
-      encodeWifiSettings("Net", "pw", "https://v.io", "a".repeat(64)),
-    );
+    const parsed = firmwareParse(encodeWifiSettings("Net", "pw", "https://v.io", "a".repeat(64)));
     expect(parsed.url).toBe("https://v.io");
     expect(parsed.token).toBe("a".repeat(64));
   });
@@ -133,7 +131,7 @@ describe("Improv WIFI_SETTINGS encoding", () => {
 
   it("carries the administrator NTP server as the fifth string", () => {
     const parsed = firmwareParse(
-      encodeWifiSettings("Net", "pw", "https://v.io", "tok123", "ntp.internal.example"),
+      encodeWifiSettings("Net", "pw", "https://v.io", "tok123", "ntp.internal.example")
     );
     expect(parsed.url).toBe("https://v.io");
     expect(parsed.token).toBe("tok123");
@@ -141,7 +139,9 @@ describe("Improv WIFI_SETTINGS encoding", () => {
   });
 
   it("uses positional empty URL and token strings for an NTP-only override", () => {
-    const parsed = firmwareParse(encodeWifiSettings("Net", "pw", undefined, undefined, "192.168.16.1"));
+    const parsed = firmwareParse(
+      encodeWifiSettings("Net", "pw", undefined, undefined, "192.168.16.1")
+    );
     expect(parsed.url).toBeUndefined();
     expect(parsed.token).toBeUndefined();
     expect(parsed.ntp).toBe("192.168.16.1");
@@ -149,7 +149,7 @@ describe("Improv WIFI_SETTINGS encoding", () => {
 
   it("carries browser UTC as the sixth string", () => {
     const parsed = firmwareParse(
-      encodeWifiSettings("Net", "pw", "https://v.io", "tok123", "ntp.internal", 1_786_291_200),
+      encodeWifiSettings("Net", "pw", "https://v.io", "tok123", "ntp.internal", 1_786_291_200)
     );
     expect(parsed.ntp).toBe("ntp.internal");
     expect(parsed.time).toBe("1786291200");
@@ -157,7 +157,7 @@ describe("Improv WIFI_SETTINGS encoding", () => {
 
   it("uses all positional placeholders for a timestamp-only profile", () => {
     const parsed = firmwareParse(
-      encodeWifiSettings("Net", "pw", undefined, undefined, undefined, 1_786_291_200),
+      encodeWifiSettings("Net", "pw", undefined, undefined, undefined, 1_786_291_200)
     );
     expect(parsed.url).toBeUndefined();
     expect(parsed.token).toBeUndefined();
@@ -166,14 +166,21 @@ describe("Improv WIFI_SETTINGS encoding", () => {
   });
 
   it("rejects timestamps outside the RTC-supported range", () => {
-    expect(() => encodeWifiSettings("Net", "pw", undefined, undefined, undefined, Number.NaN)).toThrow(
-      /UTC timestamp/,
-    );
-    expect(() => encodeWifiSettings("Net", "pw", undefined, undefined, undefined, 1_700_000_000)).toThrow(
-      /UTC timestamp/,
-    );
     expect(() =>
-      encodeWifiSettings("Net", "pw", undefined, undefined, undefined, MAX_PROVISIONING_UNIX_TIME + 1),
+      encodeWifiSettings("Net", "pw", undefined, undefined, undefined, Number.NaN)
+    ).toThrow(/UTC timestamp/);
+    expect(() =>
+      encodeWifiSettings("Net", "pw", undefined, undefined, undefined, 1_700_000_000)
+    ).toThrow(/UTC timestamp/);
+    expect(() =>
+      encodeWifiSettings(
+        "Net",
+        "pw",
+        undefined,
+        undefined,
+        undefined,
+        MAX_PROVISIONING_UNIX_TIME + 1
+      )
     ).toThrow(/UTC timestamp/);
   });
 
@@ -185,8 +192,8 @@ describe("Improv WIFI_SETTINGS encoding", () => {
         "https://vellum.example",
         undefined,
         "",
-        MAX_PROVISIONING_UNIX_TIME,
-      ),
+        MAX_PROVISIONING_UNIX_TIME
+      )
     ).not.toThrow();
   });
 
@@ -262,7 +269,7 @@ describe("WIFI_SETTINGS payload-size guard", () => {
 describe("ImprovParser (device → browser)", () => {
   it("explains a production firmware rejection without implying settings changed", () => {
     expect(improvErrorMessage(ImprovError.INSECURE_URL)).toBe(
-      "This production firmware requires an https:// server URL. No settings were changed.",
+      "This production firmware requires an https:// server URL. No settings were changed."
     );
   });
 
@@ -344,7 +351,9 @@ describe("Web Serial scan lifecycle", () => {
       return encodeFrame(ImprovType.RPC_RESULT, [cmd, encoded.length, ...encoded]);
     };
     const readable = new ReadableStream<Uint8Array>({
-      start(nextController) { controller = nextController; },
+      start(nextController) {
+        controller = nextController;
+      },
     });
     const writable = new WritableStream<Uint8Array>({
       write(chunk) {
@@ -364,18 +373,28 @@ describe("Web Serial scan lifecycle", () => {
     const port = {
       readable,
       writable,
-      async open() { openCount += 1; },
-      async close() { closeCount += 1; },
+      async open() {
+        openCount += 1;
+      },
+      async close() {
+        closeCount += 1;
+      },
     };
     vi.stubGlobal("navigator", {
-      serial: { requestPort: async () => { pickerCount += 1; return port; } },
+      serial: {
+        requestPort: async () => {
+          pickerCount += 1;
+          return port;
+        },
+      },
     });
 
     const session = await SerialProvisioningSession.connect();
     await expect(session.scanNetworks({ timeoutMs: 500 })).resolves.toMatchObject({ ok: true });
     await expect(session.scanNetworks({ timeoutMs: 500 })).resolves.toMatchObject({ ok: true });
-    await expect(session.provision({ ssid: "Office", password: "secret", timeoutMs: 500 }))
-      .resolves.toEqual({ ok: true, redirectUrl: "https://vellum.test/devices/1" });
+    await expect(
+      session.provision({ ssid: "Office", password: "secret", timeoutMs: 500 })
+    ).resolves.toEqual({ ok: true, redirectUrl: "https://vellum.test/devices/1" });
     expect(session.connected).toBe(true);
     await session.disconnect();
 
@@ -416,8 +435,12 @@ describe("Web Serial scan lifecycle", () => {
     const port = {
       readable,
       writable,
-      async open() { openCount += 1; },
-      async close() { closeCount += 1; },
+      async open() {
+        openCount += 1;
+      },
+      async close() {
+        closeCount += 1;
+      },
       async setSignals() {},
     };
     vi.stubGlobal("navigator", {
@@ -436,7 +459,9 @@ describe("Web Serial scan lifecycle", () => {
     let controller: ReadableStreamDefaultController<Uint8Array>;
     const signalCalls: unknown[] = [];
     const readable = new ReadableStream<Uint8Array>({
-      start(nextController) { controller = nextController; },
+      start(nextController) {
+        controller = nextController;
+      },
     });
     const writable = new WritableStream<Uint8Array>({
       write(chunk) {
@@ -452,7 +477,9 @@ describe("Web Serial scan lifecycle", () => {
       writable,
       async open() {},
       async close() {},
-      async setSignals(signals: unknown) { signalCalls.push(signals); },
+      async setSignals(signals: unknown) {
+        signalCalls.push(signals);
+      },
     };
     vi.stubGlobal("navigator", { serial: { requestPort: async () => port } });
 
@@ -470,20 +497,20 @@ describe("Web Serial scan lifecycle", () => {
 describe("serial error explanations", () => {
   it("recognises the wordings browsers actually use for a busy port", () => {
     // Chrome: another context holds the port.
-    expect(describeSerialError(new Error("Failed to open serial port.")))
-      .toMatch(/already in use/);
+    expect(describeSerialError(new Error("Failed to open serial port."))).toMatch(/already in use/);
     // Chrome: opening a port this tab already opened.
-    expect(describeSerialError(new Error("The port is already open.")))
-      .toMatch(/already in use/);
+    expect(describeSerialError(new Error("The port is already open."))).toMatch(/already in use/);
     // Both point at the fix rather than restating the failure.
-    expect(describeSerialError(new Error("Failed to open serial port.")))
-      .toMatch(/Close the flash tool/);
+    expect(describeSerialError(new Error("Failed to open serial port."))).toMatch(
+      /Close the flash tool/
+    );
   });
 
   it("passes an unrelated fault through verbatim", () => {
     // An invented explanation for an unknown fault is worse than the browser's.
-    expect(describeSerialError(new Error("The device has been lost.")))
-      .toBe("The device has been lost.");
+    expect(describeSerialError(new Error("The device has been lost."))).toBe(
+      "The device has been lost."
+    );
   });
 
   it("survives a non-Error throw", () => {
@@ -495,7 +522,9 @@ describe("serial error explanations", () => {
     const port = {
       readable: new ReadableStream<Uint8Array>(),
       writable: new WritableStream<Uint8Array>(),
-      async open() { throw new Error("Failed to open serial port."); },
+      async open() {
+        throw new Error("Failed to open serial port.");
+      },
       async close() {},
       async setSignals() {},
     };
@@ -514,7 +543,9 @@ describe("serial error explanations", () => {
     // produced advice about a problem the operator did not have.
     vi.stubGlobal("navigator", {
       serial: {
-        requestPort: async () => { throw new Error("No port selected by the user."); },
+        requestPort: async () => {
+          throw new Error("No port selected by the user.");
+        },
       },
     });
 
@@ -528,7 +559,9 @@ describe("serial error explanations", () => {
     const port = {
       readable: new ReadableStream<Uint8Array>(),
       writable: new WritableStream<Uint8Array>(),
-      async open() { throw new Error("The port is already open."); },
+      async open() {
+        throw new Error("The port is already open.");
+      },
       async close() {},
       async setSignals() {},
     };

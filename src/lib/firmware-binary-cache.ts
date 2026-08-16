@@ -20,7 +20,7 @@ export class FirmwareBinaryCache {
   constructor(
     private readonly maxBytes = FIRMWARE_CACHE_MAX_BYTES,
     private readonly ttlMs = FIRMWARE_CACHE_TTL_MS,
-    private readonly now: () => number = Date.now,
+    private readonly now: () => number = Date.now
   ) {}
 
   clear(): void {
@@ -59,7 +59,11 @@ export class FirmwareBinaryCache {
     }
   }
 
-  async get(key: string, expectedSize: number, load: () => Promise<ArrayBuffer>): Promise<Uint8Array> {
+  async get(
+    key: string,
+    expectedSize: number,
+    load: () => Promise<ArrayBuffer>
+  ): Promise<Uint8Array> {
     const cached = this.entries.get(key);
     const now = this.now();
     if (cached && cached.expiresAt > now) {
@@ -74,7 +78,9 @@ export class FirmwareBinaryCache {
     const pending = (async () => {
       const bytes = new Uint8Array(await load());
       if (bytes.byteLength !== expectedSize) {
-        throw new Error(`firmware size mismatch: expected ${expectedSize}, received ${bytes.byteLength}`);
+        throw new Error(
+          `firmware size mismatch: expected ${expectedSize}, received ${bytes.byteLength}`
+        );
       }
       // Oversized images are still served, just never retained at the expense
       // of evicting the whole useful cache.

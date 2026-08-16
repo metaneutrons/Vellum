@@ -35,9 +35,8 @@ export function ThemeToggle() {
 
   useEffect(() => {
     const stored = localStorage.getItem("vellum-theme");
-    const saved: Theme = stored === "light" || stored === "dark" || stored === "system"
-      ? stored
-      : "system";
+    const saved: Theme =
+      stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
     setTheme(saved);
     // The inline layout script prevents a flash on a normal document load.
     // Apply again after hydration: this also recovers the correct system

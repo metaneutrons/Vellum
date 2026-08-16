@@ -30,7 +30,7 @@ import { sql } from "drizzle-orm";
 
 export const dataProviders = pgTable("data_providers", {
   id: uuid("id").defaultRandom().primaryKey(),
-  type: text("type").notNull(),           /* "microsoft365" | "google" | "ical" — validated in code */
+  type: text("type").notNull() /* "microsoft365" | "google" | "ical" — validated in code */,
   category: text("category").notNull().default("calendar"),
   name: text("name").notNull(),
   encryptedCredentials: text("encrypted_credentials").notNull(),
@@ -52,15 +52,17 @@ export const themes = pgTable(
   },
   (t) => [
     index("themes_is_default_idx").on(t.isDefault),
-    uniqueIndex("themes_one_default_idx").on(t.isDefault).where(sql`${t.isDefault}`),
-  ],
+    uniqueIndex("themes_one_default_idx")
+      .on(t.isDefault)
+      .where(sql`${t.isDefault}`),
+  ]
 );
 
 /* ── Content Instances ────────────────────────────────────────── */
 
 export const contentInstances = pgTable("content_instances", {
   id: uuid("id").defaultRandom().primaryKey(),
-  typeSlug: text("type_slug").notNull(),  /* renderer slug — validated against registry in code */
+  typeSlug: text("type_slug").notNull() /* renderer slug — validated against registry in code */,
   name: text("name").notNull(),
   config: jsonb("config").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -91,8 +93,10 @@ export const refreshProfiles = pgTable(
   },
   (t) => [
     index("refresh_profiles_is_default_idx").on(t.isDefault),
-    uniqueIndex("refresh_profiles_one_default_idx").on(t.isDefault).where(sql`${t.isDefault}`),
-  ],
+    uniqueIndex("refresh_profiles_one_default_idx")
+      .on(t.isDefault)
+      .where(sql`${t.isDefault}`),
+  ]
 );
 
 /* ── Settings (KV store) ──────────────────────────────────────── */
@@ -124,7 +128,7 @@ export const adminUsers = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("admin_users_email_ci_idx").on(sql`lower(${t.email})`)],
+  (t) => [uniqueIndex("admin_users_email_ci_idx").on(sql`lower(${t.email})`)]
 );
 
 /** System roles are seeded in code; custom roles use the same permission rows. */
@@ -141,10 +145,12 @@ export const rolePermissions = pgTable(
   "role_permissions",
   {
     id: serial("id").primaryKey(),
-    roleId: text("role_id").notNull().references(() => accessRoles.id, { onDelete: "cascade" }),
+    roleId: text("role_id")
+      .notNull()
+      .references(() => accessRoles.id, { onDelete: "cascade" }),
     permission: text("permission").notNull(),
   },
-  (t) => [uniqueIndex("role_permissions_role_permission_idx").on(t.roleId, t.permission)],
+  (t) => [uniqueIndex("role_permissions_role_permission_idx").on(t.roleId, t.permission)]
 );
 
 /** A role can be global (workspace) or restricted to a future site/fleet/device scope. */
@@ -152,8 +158,12 @@ export const userRoleAssignments = pgTable(
   "user_role_assignments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
-    roleId: text("role_id").notNull().references(() => accessRoles.id, { onDelete: "restrict" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: "cascade" }),
+    roleId: text("role_id")
+      .notNull()
+      .references(() => accessRoles.id, { onDelete: "restrict" }),
     scopeType: text("scope_type").notNull().default("workspace"),
     scopeId: text("scope_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -161,7 +171,7 @@ export const userRoleAssignments = pgTable(
   (t) => [
     index("user_role_assignments_user_idx").on(t.userId),
     index("user_role_assignments_role_idx").on(t.roleId),
-  ],
+  ]
 );
 
 /** Opaque, revocable server-side sessions. Only a SHA-256 token digest is stored. */
@@ -169,7 +179,9 @@ export const adminSessions = pgTable(
   "admin_sessions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     revokedAt: timestamp("revoked_at"),
@@ -178,7 +190,10 @@ export const adminSessions = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("admin_sessions_token_hash_idx").on(t.tokenHash), index("admin_sessions_user_idx").on(t.userId)],
+  (t) => [
+    uniqueIndex("admin_sessions_token_hash_idx").on(t.tokenHash),
+    index("admin_sessions_user_idx").on(t.userId),
+  ]
 );
 
 export const adminInvitations = pgTable(
@@ -188,7 +203,9 @@ export const adminInvitations = pgTable(
     email: text("email").notNull(),
     displayName: text("display_name").notNull(),
     tokenHash: text("token_hash").notNull(),
-    roleId: text("role_id").notNull().references(() => accessRoles.id, { onDelete: "restrict" }),
+    roleId: text("role_id")
+      .notNull()
+      .references(() => accessRoles.id, { onDelete: "restrict" }),
     scopeType: text("scope_type").notNull().default("workspace"),
     scopeId: text("scope_id"),
     expiresAt: timestamp("expires_at").notNull(),
@@ -201,7 +218,7 @@ export const adminInvitations = pgTable(
     index("admin_invitations_email_idx").on(t.email),
     index("admin_invitations_role_idx").on(t.roleId),
     index("admin_invitations_created_by_idx").on(t.createdBy),
-  ],
+  ]
 );
 
 /** Immutable, issuer-bound SSO identities. Email is metadata, never the key. */
@@ -209,7 +226,9 @@ export const oidcIdentities = pgTable(
   "oidc_identities",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: "cascade" }),
     issuer: text("issuer").notNull(),
     subject: text("subject").notNull(),
     tenantId: text("tenant_id").notNull(),
@@ -217,7 +236,10 @@ export const oidcIdentities = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     lastLoginAt: timestamp("last_login_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("oidc_identities_issuer_subject_idx").on(t.issuer, t.subject), index("oidc_identities_user_idx").on(t.userId)],
+  (t) => [
+    uniqueIndex("oidc_identities_issuer_subject_idx").on(t.issuer, t.subject),
+    index("oidc_identities_user_idx").on(t.userId),
+  ]
 );
 
 /** Non-human automation identities replace the global ADMIN_API_KEY over time. */
@@ -237,19 +259,21 @@ export const serviceAccounts = pgTable(
   (t) => [
     uniqueIndex("service_accounts_token_hash_idx").on(t.tokenHash),
     index("service_accounts_created_by_idx").on(t.createdBy),
-  ],
+  ]
 );
 
 export const serviceAccountPermissions = pgTable(
   "service_account_permissions",
   {
     id: serial("id").primaryKey(),
-    serviceAccountId: uuid("service_account_id").notNull().references(() => serviceAccounts.id, { onDelete: "cascade" }),
+    serviceAccountId: uuid("service_account_id")
+      .notNull()
+      .references(() => serviceAccounts.id, { onDelete: "cascade" }),
     permission: text("permission").notNull(),
     scopeType: text("scope_type").notNull().default("workspace"),
     scopeId: text("scope_id"),
   },
-  (t) => [index("service_account_permissions_account_idx").on(t.serviceAccountId)],
+  (t) => [index("service_account_permissions_account_idx").on(t.serviceAccountId)]
 );
 
 /** Append-only security record. Secret material is intentionally never stored here. */
@@ -269,7 +293,10 @@ export const auditLogs = pgTable(
     ip: text("ip"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("audit_logs_created_at_idx").on(t.createdAt), index("audit_logs_actor_idx").on(t.actorId)],
+  (t) => [
+    index("audit_logs_created_at_idx").on(t.createdAt),
+    index("audit_logs_actor_idx").on(t.actorId),
+  ]
 );
 
 /* ── Devices ──────────────────────────────────────────────────── */
@@ -278,14 +305,19 @@ export const devices = pgTable(
   "devices",
   {
     mac: text("mac").primaryKey(),
-    status: text("status").notNull().default("pending"),  /* "pending" | "approved" | "rejected" */
+    status: text("status").notNull().default("pending") /* "pending" | "approved" | "rejected" */,
     token: text("token"),
     publicKey: text("public_key"),
     displayCaps: jsonb("display_caps"),
-    orientationOverride: text("orientation_override"),  /* null = use device-reported, "portrait" | "landscape" */
-    contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id, { onDelete: "set null" }),
+    orientationOverride:
+      text("orientation_override") /* null = use device-reported, "portrait" | "landscape" */,
+    contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id, {
+      onDelete: "set null",
+    }),
     themeId: uuid("theme_id").references(() => themes.id, { onDelete: "set null" }),
-    refreshProfileId: uuid("refresh_profile_id").references(() => refreshProfiles.id, { onDelete: "set null" }),
+    refreshProfileId: uuid("refresh_profile_id").references(() => refreshProfiles.id, {
+      onDelete: "set null",
+    }),
     firmwareChannel: text("firmware_channel").default("stable"),
     firmwarePinVersion: text("firmware_pin_version"),
     approvedAt: timestamp("approved_at"),
@@ -301,7 +333,7 @@ export const devices = pgTable(
     index("devices_content_instance_idx").on(t.contentInstanceId),
     index("devices_theme_idx").on(t.themeId),
     index("devices_refresh_profile_idx").on(t.refreshProfileId),
-  ],
+  ]
 );
 
 /**
@@ -330,8 +362,12 @@ export const provisioningVouchers = pgTable("provisioning_vouchers", {
 /* ── Custom column types ───────────────────────────────────────── */
 
 const bytea = customType<{ data: Buffer }>({
-  dataType() { return "bytea"; },
-  toDriver(value: Buffer) { return value; },
+  dataType() {
+    return "bytea";
+  },
+  toDriver(value: Buffer) {
+    return value;
+  },
   fromDriver(value: unknown) {
     if (Buffer.isBuffer(value)) return value;
     if (value instanceof Uint8Array) return Buffer.from(value);
@@ -362,25 +398,33 @@ export const assets = pgTable("assets", {
 export const contentProviderDependencies = pgTable(
   "content_provider_dependencies",
   {
-    contentInstanceId: uuid("content_instance_id").notNull().references(() => contentInstances.id, { onDelete: "cascade" }),
-    providerId: uuid("provider_id").notNull().references(() => dataProviders.id, { onDelete: "restrict" }),
+    contentInstanceId: uuid("content_instance_id")
+      .notNull()
+      .references(() => contentInstances.id, { onDelete: "cascade" }),
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => dataProviders.id, { onDelete: "restrict" }),
   },
   (t) => [
     primaryKey({ columns: [t.contentInstanceId, t.providerId] }),
     index("content_provider_dependencies_provider_idx").on(t.providerId),
-  ],
+  ]
 );
 
 export const contentAssetDependencies = pgTable(
   "content_asset_dependencies",
   {
-    contentInstanceId: uuid("content_instance_id").notNull().references(() => contentInstances.id, { onDelete: "cascade" }),
-    assetId: uuid("asset_id").notNull().references(() => assets.id, { onDelete: "restrict" }),
+    contentInstanceId: uuid("content_instance_id")
+      .notNull()
+      .references(() => contentInstances.id, { onDelete: "cascade" }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "restrict" }),
   },
   (t) => [
     primaryKey({ columns: [t.contentInstanceId, t.assetId] }),
     index("content_asset_dependencies_asset_idx").on(t.assetId),
-  ],
+  ]
 );
 
 /* ── Telemetry ────────────────────────────────────────────────── */
@@ -389,7 +433,9 @@ export const telemetry = pgTable(
   "telemetry",
   {
     id: serial("id").primaryKey(),
-    mac: text("mac").notNull().references(() => devices.mac, { onDelete: "cascade" }),
+    mac: text("mac")
+      .notNull()
+      .references(() => devices.mac, { onDelete: "cascade" }),
     batteryVoltage: real("battery_voltage"),
     batteryLevel: integer("battery_level"),
     powerSource: text("power_source").$type<"usb" | "battery">(),
@@ -403,7 +449,7 @@ export const telemetry = pgTable(
     index("telemetry_mac_timestamp_idx").on(t.mac, t.timestamp.desc()),
     // telemetry-cleanup deletes by timestamp across all devices
     index("telemetry_timestamp_idx").on(t.timestamp),
-  ],
+  ]
 );
 
 /* ── Reports ──────────────────────────────────────────────────── */
@@ -412,11 +458,13 @@ export const reports = pgTable(
   "reports",
   {
     id: serial("id").primaryKey(),
-    mac: text("mac").notNull().references(() => devices.mac, { onDelete: "cascade" }),
+    mac: text("mac")
+      .notNull()
+      .references(() => devices.mac, { onDelete: "cascade" }),
     issue: text("issue"),
     timestamp: timestamp("timestamp").defaultNow().notNull(),
   },
-  (t) => [index("reports_mac_timestamp_idx").on(t.mac, t.timestamp.desc())],
+  (t) => [index("reports_mac_timestamp_idx").on(t.mac, t.timestamp.desc())]
 );
 
 /* ── OTA events ───────────────────────────────────────────────────
@@ -431,7 +479,9 @@ export const otaEvents = pgTable(
   "ota_events",
   {
     id: serial("id").primaryKey(),
-    mac: text("mac").notNull().references(() => devices.mac, { onDelete: "cascade" }),
+    mac: text("mac")
+      .notNull()
+      .references(() => devices.mac, { onDelete: "cascade" }),
     model: text("model"),
     fromVersion: text("from_version"),
     toVersion: text("to_version"),
@@ -444,7 +494,7 @@ export const otaEvents = pgTable(
     index("ota_events_mac_to_version_idx").on(t.mac, t.toVersion),
     // Rollout dashboard: recent events / failure-rate windows.
     index("ota_events_timestamp_idx").on(t.timestamp),
-  ],
+  ]
 );
 
 /* ── Firmware rollouts ─────────────────────────────────────────────
@@ -470,5 +520,5 @@ export const firmwareRollouts = pgTable(
   (t) => [
     // One rollout row per (version, channel) — enables a clean upsert.
     uniqueIndex("firmware_rollouts_version_channel_idx").on(t.version, t.channel),
-  ],
+  ]
 );

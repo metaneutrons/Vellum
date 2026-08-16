@@ -44,11 +44,10 @@ export async function getSetting<K extends SettingKey>(key: K): Promise<Settings
   if (cached && cached.expiresAt > Date.now()) return cached.value as SettingsMap[K];
   if (cached) cache.delete(key);
 
-  const [row] = await withDbRead(() => db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, key))
-    .limit(1), "get-setting");
+  const [row] = await withDbRead(
+    () => db.select().from(settings).where(eq(settings.key, key)).limit(1),
+    "get-setting"
+  );
 
   const value = row ? (row.value as SettingsMap[K]) : DEFAULTS[key];
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
@@ -59,13 +58,17 @@ export async function setSetting<K extends SettingKey>(
   key: K,
   value: SettingsMap[K]
 ): Promise<void> {
-  await withDbWrite(() => db
-    .insert(settings)
-    .values({ key, value: value as never, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: settings.key,
-      set: { value: value as never, updatedAt: new Date() },
-    }), "set-setting");
+  await withDbWrite(
+    () =>
+      db
+        .insert(settings)
+        .values({ key, value: value as never, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: settings.key,
+          set: { value: value as never, updatedAt: new Date() },
+        }),
+    "set-setting"
+  );
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
@@ -73,9 +76,10 @@ export async function setSetting<K extends SettingKey>(
 export async function setSettingInTransaction<K extends SettingKey>(
   tx: DbTransaction,
   key: K,
-  value: SettingsMap[K],
+  value: SettingsMap[K]
 ): Promise<void> {
-  await tx.insert(settings)
+  await tx
+    .insert(settings)
     .values({ key, value: value as never, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: settings.key,

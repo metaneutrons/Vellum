@@ -24,8 +24,10 @@ export interface TemplateContext {
 }
 
 export function resolveTemplate(template: string, ctx: TemplateContext): string {
-  return template.replace(/\{([^}]+)\}/g, (_, key: string) => ctx[key] ?? "")
-    .replace(/\s{2,}/g, " ").trim();
+  return template
+    .replace(/\{([^}]+)\}/g, (_, key: string) => ctx[key] ?? "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 /* ── Load background asset (cached) ──────────────────────────── */
@@ -34,8 +36,10 @@ export async function loadBackgroundAsset(assetId: string): Promise<Buffer | nul
   const cached = assetCache.get(assetId);
   if (cached) return cached;
 
-  const [asset] = await withDbRead(() => db.select({ data: assets.data }).from(assets)
-    .where(eq(assets.id, assetId)).limit(1), "load-background-asset");
+  const [asset] = await withDbRead(
+    () => db.select({ data: assets.data }).from(assets).where(eq(assets.id, assetId)).limit(1),
+    "load-background-asset"
+  );
   if (!asset) return null;
 
   assetCache.set(assetId, asset.data);
@@ -45,7 +49,9 @@ export async function loadBackgroundAsset(assetId: string): Promise<Buffer | nul
 /* ── Design selection by display size ─────────────────────────── */
 
 export function selectDesign<T extends { design: Design; designOverrides: Record<string, Design> }>(
-  config: T, width: number, height: number
+  config: T,
+  width: number,
+  height: number
 ): Design {
   return config.designOverrides[`${width}x${height}`] ?? config.design;
 }
@@ -53,12 +59,22 @@ export function selectDesign<T extends { design: Design; designOverrides: Record
 /* ── Time formatting ──────────────────────────────────────────── */
 
 export function formatTime(date: Date, locale: string, timezone: string): string {
-  return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone: timezone });
+  return date.toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: timezone,
+  });
 }
 
 /* ── Render text boxes onto canvas ────────────────────────────── */
 
-export function renderTextBoxes(c: SKRSContext2D, boxes: TextBox[], ctx: TemplateContext, width: number, height: number): void {
+export function renderTextBoxes(
+  c: SKRSContext2D,
+  boxes: TextBox[],
+  ctx: TemplateContext,
+  width: number,
+  height: number
+): void {
   for (const box of boxes) {
     const text = resolveTemplate(box.template, ctx);
     if (!text) continue;
@@ -101,7 +117,12 @@ export function renderTextBoxes(c: SKRSContext2D, boxes: TextBox[], ctx: Templat
 
 /* ── Draw background (color + optional image) ─────────────────── */
 
-export async function drawBackground(c: SKRSContext2D, design: Design, width: number, height: number): Promise<void> {
+export async function drawBackground(
+  c: SKRSContext2D,
+  design: Design,
+  width: number,
+  height: number
+): Promise<void> {
   c.fillStyle = design.backgroundColor;
   c.fillRect(0, 0, width, height);
 
@@ -113,7 +134,10 @@ export async function drawBackground(c: SKRSContext2D, design: Design, width: nu
         c.drawImage(img, 0, 0, width, height);
       }
     } catch (err) {
-      log.warn("door-sign: failed to load background image", { assetId: design.backgroundAssetId, error: String(err) });
+      log.warn("door-sign: failed to load background image", {
+        assetId: design.backgroundAssetId,
+        error: String(err),
+      });
     }
   }
 }

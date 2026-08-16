@@ -4,7 +4,7 @@ on:
     types: [published]
   push:
     branches: [main]
-    paths-ignore: ['firmware/**', '*.md']
+    paths-ignore: ["firmware/**", "*.md"]
 
 env:
   REGISTRY: ghcr.io
@@ -50,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
-      packages: write   # push-by-digest + attestations; cosign/OIDC lives in the merge job
+      packages: write # push-by-digest + attestations; cosign/OIDC lives in the merge job
     steps:
       - name: Prepare platform label
         run: |
@@ -125,7 +125,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write   # cosign keyless OIDC
+      id-token: write # cosign keyless OIDC
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v4
         with:

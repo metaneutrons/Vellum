@@ -8,7 +8,7 @@ export default tseslint.config(
     plugins: { "react-hooks": reactHooks },
     rules: {
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "error",
     },
   },
   {
@@ -19,11 +19,18 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
-      "no-console": ["warn", { allow: ["error"] }],
+      "no-console": ["error", { allow: ["error"] }],
       // Allow the `x != null` idiom (null-or-undefined); require strict elsewhere.
       eqeqeq: ["error", "always", { null: "ignore" }],
       "no-var": "error",
       "prefer-const": "error",
+    },
+  },
+  {
+    files: ["scripts/**/*.mjs"],
+    rules: {
+      // Command-line scripts intentionally report progress and results.
+      "no-console": "off",
     },
   },
   {

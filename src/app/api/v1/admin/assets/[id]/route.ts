@@ -7,11 +7,15 @@ import { UUID_RE } from "@/lib/validation";
 import { requestHasPermission } from "@/lib/access";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await requestHasPermission(request, "content.read"))) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await requestHasPermission(request, "content.read")))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   if (!UUID_RE.test(id)) return Response.json({ error: "Invalid asset ID" }, { status: 400 });
 
-  const [asset] = await withDbRead(() => db.select().from(assets).where(eq(assets.id, id)).limit(1), "get-asset-by-id");
+  const [asset] = await withDbRead(
+    () => db.select().from(assets).where(eq(assets.id, id)).limit(1),
+    "get-asset-by-id"
+  );
   if (!asset) return Response.json({ error: "Asset not found" }, { status: 404 });
 
   return new Response(new Uint8Array(asset.data), {

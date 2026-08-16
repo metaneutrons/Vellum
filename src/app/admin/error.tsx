@@ -7,7 +7,8 @@ import { useTranslations } from "next-intl";
 export default function AdminError({ error, reset }: { error: Error; reset: () => void }) {
   const t = useTranslations("error");
 
-  const isDbError = error.message?.includes("connect") ||
+  const isDbError =
+    error.message?.includes("connect") ||
     error.message?.includes("ECONNREFUSED") ||
     error.message?.includes("Failed query") ||
     error.message?.includes("timeout");
@@ -20,7 +21,7 @@ export default function AdminError({ error, reset }: { error: Error; reset: () =
           {isDbError ? t("dbUnavailable") : t("somethingWrong")}
         </h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          {isDbError ? t("dbHint") : (error.message || t("unexpected"))}
+          {isDbError ? t("dbHint") : error.message || t("unexpected")}
         </p>
         <button
           onClick={reset}

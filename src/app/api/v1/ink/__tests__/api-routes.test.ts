@@ -144,10 +144,9 @@ describe("GET /api/v1/ink/config", () => {
   it("returns 401 for invalid token", async () => {
     mockedValidateToken.mockResolvedValue(false);
 
-    const req = makeRequest(
-      "http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF",
-      { headers: { "x-device-token": "bad-token" } },
-    );
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "bad-token" },
+    });
 
     const res = await configHandler(req);
     const body = await res.json();
@@ -160,10 +159,9 @@ describe("GET /api/v1/ink/config", () => {
   it("returns config for authenticated device", async () => {
     mockedValidateToken.mockResolvedValue(true);
 
-    const req = makeRequest(
-      "http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF",
-      { headers: { "x-device-token": "valid-token" } },
-    );
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token" },
+    });
 
     const res = await configHandler(req);
     const body = await res.json();
@@ -176,7 +174,8 @@ describe("GET /api/v1/ink/config", () => {
   it("returns a short-lived Vellum URL instead of the GitHub OTA URL", async () => {
     mockedValidateToken.mockResolvedValue(true);
     vi.mocked(resolveOta).mockResolvedValueOnce({
-      otaUrl: "https://github.com/metaneutrons/Vellum/releases/download/firmware-v1.4.3/e1003-ota.bin",
+      otaUrl:
+        "https://github.com/metaneutrons/Vellum/releases/download/firmware-v1.4.3/e1003-ota.bin",
       otaTag: "firmware-v1.4.3",
       otaVersion: "1.4.3",
       otaSha256: "00".repeat(32),
@@ -256,7 +255,11 @@ describe("GET /api/v1/ink/config — display model resolution", () => {
     mockedValidateToken.mockResolvedValue(true);
 
     const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
-      headers: { "x-device-token": "valid-token", "x-display-model": "d1001", "x-firmware-ver": "1.3.2" },
+      headers: {
+        "x-device-token": "valid-token",
+        "x-display-model": "d1001",
+        "x-firmware-ver": "1.3.2",
+      },
     });
 
     const res = await configHandler(req);
@@ -267,7 +270,7 @@ describe("GET /api/v1/ink/config — display model resolution", () => {
     expect(displayModel).toBe("d1001");
   });
 
-  it("falls back to \"unknown\" only when the device sends no model", async () => {
+  it('falls back to "unknown" only when the device sends no model', async () => {
     mockedValidateToken.mockResolvedValue(true);
 
     const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {

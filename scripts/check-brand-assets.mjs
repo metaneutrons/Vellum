@@ -31,7 +31,13 @@ for (const file of masters) {
 }
 
 const textExtensions = new Set([".c", ".css", ".html", ".md", ".mjs", ".sh", ".svg", ".tsx"]);
-const legacyPatterns = [/#183157/i, /#1c8a8f/i, /vellum-(?:logo|icon)\.svg/, /vellum_logo(?:_light)?\.svg/, /dark:invert/];
+const legacyPatterns = [
+  /#183157/i,
+  /#1c8a8f/i,
+  /vellum-(?:logo|icon)\.svg/,
+  /vellum_logo(?:_light)?\.svg/,
+  /dark:invert/,
+];
 function scan(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -44,13 +50,18 @@ function scan(directory) {
     }
   }
 }
-for (const directory of ["assets", "firmware/components/wifi_manager", "public", "src"]) scan(directory);
+for (const directory of ["assets", "firmware/components/wifi_manager", "public", "src"])
+  scan(directory);
 for (const pattern of legacyPatterns) {
-  if (pattern.test(readFileSync("README.md", "utf8"))) failures.push(`README.md contains legacy brand token ${pattern}`);
+  if (pattern.test(readFileSync("README.md", "utf8")))
+    failures.push(`README.md contains legacy brand token ${pattern}`);
 }
 
-const looseRasterLogos = readdirSync("assets").filter((file) => /^vellum_(?:logo|icon).*\.(?:png|jpe?g)$/i.test(file));
-if (looseRasterLogos.length) failures.push(`loose raster logo derivatives: ${looseRasterLogos.join(", ")}`);
+const looseRasterLogos = readdirSync("assets").filter((file) =>
+  /^vellum_(?:logo|icon).*\.(?:png|jpe?g)$/i.test(file)
+);
+if (looseRasterLogos.length)
+  failures.push(`loose raster logo derivatives: ${looseRasterLogos.join(", ")}`);
 
 if (failures.length) {
   for (const failure of failures) console.error(`✖ ${failure}`);

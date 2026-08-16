@@ -1,11 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { validateRequest } from "@/lib/api-response";
-import {
-  helloRequestSchema,
-  reportRequestSchema,
-  renderQuerySchema,
-} from "@/lib/validation";
+import { helloRequestSchema, reportRequestSchema, renderQuerySchema } from "@/lib/validation";
 
 /**
  * Property 14: Missing required parameters return HTTP 400
@@ -21,13 +17,11 @@ describe("Property 14: Missing required parameters return HTTP 400", () => {
       fc.constant({}),
       fc.constant({ mac: "" }),
       fc.record({
-        mac: fc.string().filter(
-          (s) => !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(s)
-        ),
+        mac: fc.string().filter((s) => !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(s)),
       }),
       fc.constant(null),
       fc.constant(42),
-      fc.constant("string"),
+      fc.constant("string")
     );
 
     await fc.assert(
@@ -43,7 +37,7 @@ describe("Property 14: Missing required parameters return HTTP 400", () => {
           expect(json.error.length).toBeGreaterThan(0);
         }
       }),
-      { numRuns: 100 },
+      { numRuns: 100 }
     );
   });
 
@@ -54,7 +48,7 @@ describe("Property 14: Missing required parameters return HTTP 400", () => {
       fc.constant({ issue: "broken" }), // missing mac
       fc.constant({ mac: "bad", issue: "broken" }), // invalid mac
       fc.constant({ mac: "AA:BB:CC:DD:EE:FF", issue: "" }), // empty issue
-      fc.constant(null),
+      fc.constant(null)
     );
 
     await fc.assert(
@@ -70,7 +64,7 @@ describe("Property 14: Missing required parameters return HTTP 400", () => {
           expect(json.error.length).toBeGreaterThan(0);
         }
       }),
-      { numRuns: 100 },
+      { numRuns: 100 }
     );
   });
 
@@ -80,10 +74,8 @@ describe("Property 14: Missing required parameters return HTTP 400", () => {
       fc.constant({ mac: "" }),
       fc.constant({ mac: null }),
       fc.record({
-        mac: fc.string().filter(
-          (s) => !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(s)
-        ),
-      }),
+        mac: fc.string().filter((s) => !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(s)),
+      })
     );
 
     await fc.assert(
@@ -99,7 +91,7 @@ describe("Property 14: Missing required parameters return HTTP 400", () => {
           expect(json.error.length).toBeGreaterThan(0);
         }
       }),
-      { numRuns: 100 },
+      { numRuns: 100 }
     );
   });
 });

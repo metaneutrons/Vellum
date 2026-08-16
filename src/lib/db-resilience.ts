@@ -126,14 +126,18 @@ export class DbResilienceManager extends EventEmitter {
   }
 
   /** Execute a database operation with retry and circuit breaker */
-  async execute<T>(operation: () => Promise<T>, label?: string, kind: DbOperationKind = "read"): Promise<T> {
+  async execute<T>(
+    operation: () => Promise<T>,
+    label?: string,
+    kind: DbOperationKind = "read"
+  ): Promise<T> {
     // Circuit breaker: reject immediately if open
     if (this.circuit === "open") {
       const elapsed = Date.now() - this.circuitOpenedAt;
       if (elapsed < CIRCUIT_BREAKER_RESET_MS) {
         throw new DbUnavailableError(
           `Database circuit breaker open (${this.consecutiveFailures} consecutive failures). ` +
-          `Retry in ${Math.ceil((CIRCUIT_BREAKER_RESET_MS - elapsed) / 1000)}s.`
+            `Retry in ${Math.ceil((CIRCUIT_BREAKER_RESET_MS - elapsed) / 1000)}s.`
         );
       }
       // Half-open: allow one attempt
@@ -162,18 +166,15 @@ export class DbResilienceManager extends EventEmitter {
         }
 
         const code = errorCode(err);
-        const retryIsSafe = kind === "read" ||
-          (kind === "transaction" && (code === "40001" || code === "40P01"));
+        const retryIsSafe =
+          kind === "read" || (kind === "transaction" && (code === "40001" || code === "40P01"));
         if (!retryIsSafe) {
           this.recordFailure(err);
           throw err;
         }
 
         this.totalRetries++;
-        const delay = Math.min(
-          RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1),
-          RETRY_MAX_DELAY_MS
-        );
+        const delay = Math.min(RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1), RETRY_MAX_DELAY_MS);
 
         if (attempt < maxAttempts) {
           log.warn("Database operation failed, retrying", {

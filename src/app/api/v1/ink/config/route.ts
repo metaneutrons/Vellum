@@ -58,12 +58,15 @@ export async function GET(request: NextRequest) {
   if (device && headerModel && storedModel !== headerModel) {
     const caps = { ...((device.displayCaps as Record<string, unknown>) ?? {}), model: headerModel };
     await withDbWrite(
-      () => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, validation.data.mac)),
-      "config-backfill-display-model",
-    ).catch((error) => log.warn("Failed to persist display model backfill", {
-      mac: validation.data.mac,
-      error: String(error),
-    }));
+      () =>
+        db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, validation.data.mac)),
+      "config-backfill-display-model"
+    ).catch((error) =>
+      log.warn("Failed to persist display model backfill", {
+        mac: validation.data.mac,
+        error: String(error),
+      })
+    );
   }
 
   const ota = await resolveOta(
@@ -79,18 +82,28 @@ export async function GET(request: NextRequest) {
   // development, retain the GitHub URL because production firmware correctly
   // refuses plaintext OTA transport.
   const otaOrigin = env.VELLUM_PUBLIC_URL ?? request.nextUrl.origin;
-  const otaUrl = ota.otaUrl && ota.otaTag && otaOrigin.startsWith("https://")
-    ? createOtaDownloadUrl(otaOrigin, {
-      mac: validation.data.mac,
-      tag: ota.otaTag,
-      model: displayModel,
-    }, token)
-    : ota.otaUrl;
+  const otaUrl =
+    ota.otaUrl && ota.otaTag && otaOrigin.startsWith("https://")
+      ? createOtaDownloadUrl(
+          otaOrigin,
+          {
+            mac: validation.data.mac,
+            tag: ota.otaTag,
+            model: displayModel,
+          },
+          token
+        )
+      : ota.otaUrl;
   const { otaTag: _otaTag, ...publicOta } = ota;
 
   const t = extractTelemetry(request.headers);
-  if (t) logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() })
-    .catch((error) => log.warn("Config telemetry persistence failed", { mac: validation.data.mac, error: String(error) }));
+  if (t)
+    logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch((error) =>
+      log.warn("Config telemetry persistence failed", {
+        mac: validation.data.mac,
+        error: String(error),
+      })
+    );
 
   return Response.json(
     okResponse({

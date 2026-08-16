@@ -13,12 +13,17 @@ const port = Number(process.env.CONTROL_PORT ?? 8080);
 // /releases/latest endpoint is repository-wide, so a newer firmware-v* release
 // can hide the newest server release. Fetch the release collection and select by
 // component instead.
-const releaseApi = process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases?per_page=100";
+const releaseApi =
+  process.env.RELEASE_API ??
+  "https://api.github.com/repos/metaneutrons/Vellum/releases?per_page=100";
 const serverImageRepository = process.env.IMAGE_REPOSITORY ?? "ghcr.io/metaneutrons/vellum";
-const updaterImageRepository = process.env.UPDATER_IMAGE_REPOSITORY ?? "ghcr.io/metaneutrons/vellum-updater";
+const updaterImageRepository =
+  process.env.UPDATER_IMAGE_REPOSITORY ?? "ghcr.io/metaneutrons/vellum-updater";
 const cosignIssuer = "https://token.actions.githubusercontent.com";
-const serverIdentity = "^https://github\\.com/metaneutrons/Vellum/\\.github/workflows/docker\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$";
-const updaterIdentity = "^https://github\\.com/metaneutrons/Vellum/\\.github/workflows/updater\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$";
+const serverIdentity =
+  "^https://github\\.com/metaneutrons/Vellum/\\.github/workflows/docker\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$";
+const updaterIdentity =
+  "^https://github\\.com/metaneutrons/Vellum/\\.github/workflows/updater\\.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$";
 /* Own image version, baked in at build time (Dockerfile ARG UPDATER_VERSION).
  * Current updaters can hand their replacement to a detached, health-checked
  * helper. Older updaters omit these fields, which lets the UI show the one-time
@@ -42,7 +47,9 @@ function lastSwap() {
       detail: typeof value.detail === "string" ? value.detail.slice(0, 300) : null,
       at: typeof value.at === "string" ? value.at : null,
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 const target = process.env.TARGET_CONTAINER ?? "vellum";
 const configFile = process.env.UPDATER_CONFIG_FILE ?? "/state/config.json";
@@ -54,12 +61,24 @@ const defaultConfig = {
 };
 
 function validTimezone(value) {
-  try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return true; } catch { return false; }
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
 }
 function validateConfig(value) {
-  return value && ["manual", "automatic"].includes(value.mode) && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.maintenanceTime)
-    && typeof value.timezone === "string" && value.timezone.length <= 100 && validTimezone(value.timezone)
-    && (value.lastAutomaticAttemptDate == null || /^\d{4}-\d{2}-\d{2}$/.test(value.lastAutomaticAttemptDate));
+  return (
+    value &&
+    ["manual", "automatic"].includes(value.mode) &&
+    /^([01]\d|2[0-3]):[0-5]\d$/.test(value.maintenanceTime) &&
+    typeof value.timezone === "string" &&
+    value.timezone.length <= 100 &&
+    validTimezone(value.timezone) &&
+    (value.lastAutomaticAttemptDate == null ||
+      /^\d{4}-\d{2}-\d{2}$/.test(value.lastAutomaticAttemptDate))
+  );
 }
 if (process.env.VELLUM_UPDATER_TEST !== "true") {
   if (token.length < 32) throw new Error("UPDATER_TOKEN must contain at least 32 characters");
@@ -67,11 +86,16 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
   // is exactly 32 characters and would otherwise pass the check above — leaving
   // this root-equivalent control API guarded by a token published in the repo.
   if (/replace[-_]with|change[-_]?me/i.test(token)) {
-    throw new Error("UPDATER_TOKEN still contains the example placeholder — generate a real value with: openssl rand -hex 32");
+    throw new Error(
+      "UPDATER_TOKEN still contains the example placeholder — generate a real value with: openssl rand -hex 32"
+    );
   }
-  if (!Number.isInteger(intervalSeconds) || intervalSeconds < 300) throw new Error("POLL_INTERVAL_SECONDS must be at least 300");
-  if (!Number.isInteger(operationTimeoutMs) || operationTimeoutMs < 60_000) throw new Error("UPDATE_TIMEOUT_SECONDS must be at least 60");
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("CONTROL_PORT is invalid");
+  if (!Number.isInteger(intervalSeconds) || intervalSeconds < 300)
+    throw new Error("POLL_INTERVAL_SECONDS must be at least 300");
+  if (!Number.isInteger(operationTimeoutMs) || operationTimeoutMs < 60_000)
+    throw new Error("UPDATE_TIMEOUT_SECONDS must be at least 60");
+  if (!Number.isInteger(port) || port < 1 || port > 65_535)
+    throw new Error("CONTROL_PORT is invalid");
   if (!validateConfig(defaultConfig)) throw new Error("invalid default update schedule");
 }
 
@@ -81,7 +105,8 @@ function loadConfig() {
     if (validateConfig(stored)) return { ...defaultConfig, ...stored };
     console.error("vellum-updater: ignoring invalid persisted configuration");
   } catch (error) {
-    if (error?.code !== "ENOENT") console.error(`vellum-updater: cannot read persisted configuration: ${error}`);
+    if (error?.code !== "ENOENT")
+      console.error(`vellum-updater: cannot read persisted configuration: ${error}`);
   }
   return { ...defaultConfig };
 }
@@ -93,13 +118,30 @@ function saveConfig() {
   renameSync(temporary, configFile);
 }
 
-const status = { state: "starting", currentVersion: null, availableVersion: null,
-  updateAvailable: false, lastCheckedAt: null, lastUpdatedAt: null, lastError: null,
-  updaterVersion, updaterUpdateAvailable: false, updaterSelfUpdateCapable,
-  updaterSelfUpdateEnabled };
+const status = {
+  state: "starting",
+  currentVersion: null,
+  availableVersion: null,
+  updateAvailable: false,
+  lastCheckedAt: null,
+  lastUpdatedAt: null,
+  lastError: null,
+  updaterVersion,
+  updaterUpdateAvailable: false,
+  updaterSelfUpdateCapable,
+  updaterSelfUpdateEnabled,
+};
 let active = false;
 
-const PHASES = ["verifying", "backing-up", "deploying", "waiting-for-health", "done", "rolling-back", "failed"];
+const PHASES = [
+  "verifying",
+  "backing-up",
+  "deploying",
+  "waiting-for-health",
+  "done",
+  "rolling-back",
+  "failed",
+];
 /* The phase journal written by update.sh. The server is the thing being replaced,
  * so it cannot report its own restart — this is the only progress the admin UI
  * can show while the container is gone, and it is read back afterwards to
@@ -116,15 +158,24 @@ function lastProgress() {
       failedPhase: PHASES.includes(value.failedPhase) ? value.failedPhase : null,
       rollbackAttempted: value.rollbackAttempted === true,
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function publicStatus() {
-  return { ...status, updateMode: config.mode, maintenanceTime: config.maintenanceTime, timezone: config.timezone,
-    updaterSwap: lastSwap(), progress: lastProgress() };
+  return {
+    ...status,
+    updateMode: config.mode,
+    maintenanceTime: config.maintenanceTime,
+    timezone: config.timezone,
+    updaterSwap: lastSwap(),
+    progress: lastProgress(),
+  };
 }
 function equalToken(candidate) {
-  const a = Buffer.from(candidate ?? ""); const b = Buffer.from(token);
+  const a = Buffer.from(candidate ?? "");
+  const b = Buffer.from(token);
   return a.length === b.length && timingSafeEqual(a, b);
 }
 function parts(value) {
@@ -132,14 +183,18 @@ function parts(value) {
   return match ? match.slice(1).map(Number) : null;
 }
 function newer(current, candidate) {
-  const a = parts(current); const b = parts(candidate);
+  const a = parts(current);
+  const b = parts(candidate);
   if (!b) return false;
   if (!a) return true;
-  for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return b[i] > a[i]; }
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return b[i] > a[i];
+  }
   return false;
 }
 function reached(current, targetVersion) {
-  const currentParts = parts(current); const targetParts = parts(targetVersion);
+  const currentParts = parts(current);
+  const targetParts = parts(targetVersion);
   if (!currentParts || !targetParts) return false;
   for (let i = 0; i < 3; i++) {
     if (currentParts[i] !== targetParts[i]) return currentParts[i] > targetParts[i];
@@ -149,42 +204,88 @@ function reached(current, targetVersion) {
 function releaseDecision(current, available, artifactsReady) {
   const releaseIsNewer = newer(current, available);
   return {
-    state: releaseIsNewer && !artifactsReady ? "preparing" : releaseIsNewer ? "available" : "current",
+    state:
+      releaseIsNewer && !artifactsReady ? "preparing" : releaseIsNewer ? "available" : "current",
     updateAvailable: releaseIsNewer && artifactsReady,
   };
 }
 function stableServerReleaseTag(payload) {
   const releases = Array.isArray(payload) ? payload : [payload];
-  return releases
-    .filter((release) => release && release.draft === false && release.prerelease === false
-      && /^v\d+\.\d+\.\d+$/.test(release.tag_name ?? ""))
-    .map((release) => release.tag_name)
-    .sort((left, right) => {
-      const a = parts(left); const b = parts(right);
-      for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return b[i] - a[i]; }
-      return 0;
-    })[0] ?? null;
+  return (
+    releases
+      .filter(
+        (release) =>
+          release &&
+          release.draft === false &&
+          release.prerelease === false &&
+          /^v\d+\.\d+\.\d+$/.test(release.tag_name ?? "")
+      )
+      .map((release) => release.tag_name)
+      .sort((left, right) => {
+        const a = parts(left);
+        const b = parts(right);
+        for (let i = 0; i < 3; i++) {
+          if (a[i] !== b[i]) return b[i] - a[i];
+        }
+        return 0;
+      })[0] ?? null
+  );
 }
 function zonedClock(date, timezone) {
-  const values = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric",
-    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-  return { date: `${values.year}-${values.month}-${values.day}`, time: `${values.hour}:${values.minute}` };
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    time: `${values.hour}:${values.minute}`,
+  };
 }
 function command(commandName, args, options = {}) {
   return new Promise((resolve, reject) => {
     const { quietStderr = false, ...spawnOptions } = options;
-    const child = spawn(commandName, args, { timeout: operationTimeoutMs, killSignal: "SIGTERM", ...spawnOptions, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = ""; let stderr = "";
-    child.stdout.on("data", (data) => { stdout += data; });
-    child.stderr.on("data", (data) => { stderr += data; if (!quietStderr) process.stderr.write(data); });
+    const child = spawn(commandName, args, {
+      timeout: operationTimeoutMs,
+      killSignal: "SIGTERM",
+      ...spawnOptions,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (data) => {
+      stdout += data;
+    });
+    child.stderr.on("data", (data) => {
+      stderr += data;
+      if (!quietStderr) process.stderr.write(data);
+    });
     child.on("error", reject);
-    child.on("close", (code) => code === 0 ? resolve(stdout.trim()) : reject(new Error(stderr.trim() || `${commandName} exited ${code}`)));
+    child.on("close", (code) =>
+      code === 0
+        ? resolve(stdout.trim())
+        : reject(new Error(stderr.trim() || `${commandName} exited ${code}`))
+    );
   });
 }
 async function currentVersion() {
   const image = await command("docker", ["inspect", "--format", "{{.Image}}", target]);
-  return command("docker", ["image", "inspect", "--format", '{{ index .Config.Labels "org.opencontainers.image.version" }}', image]);
+  return command("docker", [
+    "image",
+    "inspect",
+    "--format",
+    '{{ index .Config.Labels "org.opencontainers.image.version" }}',
+    image,
+  ]);
 }
 async function releaseVersion() {
   const headers = { Accept: "application/vnd.github+json", "User-Agent": "vellum-updater" };
@@ -197,26 +298,39 @@ async function releaseVersion() {
 }
 async function signedImageReady(repository, tag, identity) {
   try {
-    await command("cosign", ["verify", "--certificate-oidc-issuer", cosignIssuer,
-      "--certificate-identity-regexp", identity, `${repository}:${tag}`],
-    { timeout: 20_000, quietStderr: true });
+    await command(
+      "cosign",
+      [
+        "verify",
+        "--certificate-oidc-issuer",
+        cosignIssuer,
+        "--certificate-identity-regexp",
+        identity,
+        `${repository}:${tag}`,
+      ],
+      { timeout: 20_000, quietStderr: true }
+    );
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 async function releaseArtifactsReady(tag) {
   const checks = [signedImageReady(serverImageRepository, tag, serverIdentity)];
-  if (updaterSelfUpdateEnabled) checks.push(signedImageReady(updaterImageRepository, tag, updaterIdentity));
+  if (updaterSelfUpdateEnabled)
+    checks.push(signedImageReady(updaterImageRepository, tag, updaterIdentity));
   return (await Promise.all(checks)).every(Boolean);
 }
 let readinessRetryTimer = null;
 let readinessRetryAttempt = 0;
 function clearReadinessRetry() {
   if (readinessRetryTimer) clearTimeout(readinessRetryTimer);
-  readinessRetryTimer = null; readinessRetryAttempt = 0;
+  readinessRetryTimer = null;
+  readinessRetryAttempt = 0;
 }
 function scheduleReadinessRetry() {
   if (readinessRetryTimer) clearTimeout(readinessRetryTimer);
-  const delaySeconds = Math.min(15 * (2 ** readinessRetryAttempt), 300);
+  const delaySeconds = Math.min(15 * 2 ** readinessRetryAttempt, 300);
   readinessRetryAttempt += 1;
   readinessRetryTimer = setTimeout(() => {
     readinessRetryTimer = null;
@@ -226,13 +340,16 @@ function scheduleReadinessRetry() {
 }
 async function check() {
   if (active) return;
-  active = true; status.state = "checking"; status.lastError = null;
+  active = true;
+  status.state = "checking";
+  status.lastError = null;
   try {
     const [current, available] = await Promise.all([currentVersion(), releaseVersion()]);
-    status.currentVersion = current || null; status.availableVersion = available;
+    status.currentVersion = current || null;
+    status.availableVersion = available;
     status.lastCheckedAt = new Date().toISOString();
     const releaseIsNewer = newer(current, available);
-    const artifactsReady = !releaseIsNewer || await releaseArtifactsReady(available);
+    const artifactsReady = !releaseIsNewer || (await releaseArtifactsReady(available));
     const decision = releaseDecision(current, available, artifactsReady);
     status.updateAvailable = decision.updateAvailable;
     /* Both images are pinned to the same release tag by deployment-assets.yml, so
@@ -248,37 +365,52 @@ async function check() {
     } else {
       status.state = decision.state;
     }
-    if (status.state === "preparing") scheduleReadinessRetry(); else clearReadinessRetry();
+    if (status.state === "preparing") scheduleReadinessRetry();
+    else clearReadinessRetry();
   } catch (error) {
     clearReadinessRetry();
-    status.state = "failed"; status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
-  } finally { active = false; }
+    status.state = "failed";
+    status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
+  } finally {
+    active = false;
+  }
   await tryScheduledApply();
 }
 async function apply() {
   if (active) return false;
-  active = true; status.state = "updating"; status.lastError = null;
+  active = true;
+  status.state = "updating";
+  status.lastError = null;
   try {
     const targetVersion = status.availableVersion;
-    await command("/usr/local/bin/vellum-update", [], { env: { ...process.env, UPDATE_ONCE: "true" } });
+    await command("/usr/local/bin/vellum-update", [], {
+      env: { ...process.env, UPDATE_ONCE: "true" },
+    });
     const runningVersion = await currentVersion();
     if (!reached(runningVersion, targetVersion)) {
-      throw new Error(`update command completed but ${runningVersion || "no version"} is running instead of ${targetVersion || "the requested release"}`);
+      throw new Error(
+        `update command completed but ${runningVersion || "no version"} is running instead of ${targetVersion || "the requested release"}`
+      );
     }
-    status.currentVersion = runningVersion; status.updateAvailable = false;
-    status.lastUpdatedAt = new Date().toISOString(); status.state = "current";
+    status.currentVersion = runningVersion;
+    status.updateAvailable = false;
+    status.lastUpdatedAt = new Date().toISOString();
+    status.state = "current";
   } catch (error) {
     const progress = lastProgress();
     status.state = "failed";
-    status.lastError = progress?.detail
-      ?? String(error instanceof Error ? error.message : error).slice(-500);
-  } finally { active = false; }
+    status.lastError =
+      progress?.detail ?? String(error instanceof Error ? error.message : error).slice(-500);
+  } finally {
+    active = false;
+  }
   return true;
 }
 async function tryScheduledApply(now = new Date()) {
   if (active || !status.updateAvailable || config.mode !== "automatic") return false;
   const clock = zonedClock(now, config.timezone);
-  if (clock.time !== config.maintenanceTime || clock.date === config.lastAutomaticAttemptDate) return false;
+  if (clock.time !== config.maintenanceTime || clock.date === config.lastAutomaticAttemptDate)
+    return false;
   config.lastAutomaticAttemptDate = clock.date;
   saveConfig();
   return apply();
@@ -291,40 +423,64 @@ function readJson(request) {
   return new Promise((resolve, reject) => {
     let body = "";
     request.setEncoding("utf8");
-    request.on("data", (chunk) => { body += chunk; if (body.length > 4096) request.destroy(); });
-    request.on("end", () => { try { resolve(JSON.parse(body)); } catch { reject(new Error("invalid_json")); } });
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 4096) request.destroy();
+    });
+    request.on("end", () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        reject(new Error("invalid_json"));
+      }
+    });
     request.on("error", reject);
   });
 }
-function startServer() { return createServer(async (request, response) => {
-  try {
-    if (!equalToken(request.headers.authorization?.replace(/^Bearer /, ""))) return send(response, 401, { error: "unauthorized" });
-    if (request.method === "GET" && request.url === "/v1/status") return send(response, 200, publicStatus());
-    if (request.method === "POST" && request.url === "/v1/check") {
-      if (active) return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
-      void check(); return send(response, 202, publicStatus());
+function startServer() {
+  return createServer(async (request, response) => {
+    try {
+      if (!equalToken(request.headers.authorization?.replace(/^Bearer /, "")))
+        return send(response, 401, { error: "unauthorized" });
+      if (request.method === "GET" && request.url === "/v1/status")
+        return send(response, 200, publicStatus());
+      if (request.method === "POST" && request.url === "/v1/check") {
+        if (active)
+          return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+        void check();
+        return send(response, 202, publicStatus());
+      }
+      if (request.method === "POST" && request.url === "/v1/apply") {
+        if (active)
+          return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+        if (!status.updateAvailable) return send(response, 200, publicStatus());
+        void apply();
+        return send(response, 202, publicStatus());
+      }
+      if (request.method === "POST" && request.url === "/v1/config") {
+        if (active)
+          return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+        const input = await readJson(request);
+        if (!validateConfig(input)) return send(response, 400, { error: "invalid_config" });
+        config = {
+          mode: input.mode,
+          maintenanceTime: input.maintenanceTime,
+          timezone: input.timezone,
+          lastAutomaticAttemptDate: null,
+        };
+        saveConfig();
+        void tryScheduledApply();
+        return send(response, 200, publicStatus());
+      }
+      return send(response, 404, { error: "not_found" });
+    } catch (error) {
+      console.error(`vellum-updater: control request failed: ${error}`);
+      if (!response.headersSent) return send(response, 400, { error: "invalid_request" });
     }
-    if (request.method === "POST" && request.url === "/v1/apply") {
-      if (active) return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
-      if (!status.updateAvailable) return send(response, 200, publicStatus());
-      void apply(); return send(response, 202, publicStatus());
-    }
-    if (request.method === "POST" && request.url === "/v1/config") {
-      if (active) return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
-      const input = await readJson(request);
-      if (!validateConfig(input)) return send(response, 400, { error: "invalid_config" });
-      config = { mode: input.mode, maintenanceTime: input.maintenanceTime, timezone: input.timezone,
-        lastAutomaticAttemptDate: null };
-      saveConfig();
-      void tryScheduledApply();
-      return send(response, 200, publicStatus());
-    }
-    return send(response, 404, { error: "not_found" });
-  } catch (error) {
-    console.error(`vellum-updater: control request failed: ${error}`);
-    if (!response.headersSent) return send(response, 400, { error: "invalid_request" });
-  }
-}).listen(port, "0.0.0.0", () => console.error(`vellum-updater: control API listening on ${port}`)); }
+  }).listen(port, "0.0.0.0", () =>
+    console.error(`vellum-updater: control API listening on ${port}`)
+  );
+}
 
 if (process.env.VELLUM_UPDATER_TEST !== "true") {
   const server = startServer();
@@ -339,4 +495,13 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
   setInterval(() => void tryScheduledApply(), 30_000).unref();
 }
 
-export { equalToken, newer, reached, releaseDecision, stableServerReleaseTag, validateConfig, zonedClock, publicStatus };
+export {
+  equalToken,
+  newer,
+  reached,
+  releaseDecision,
+  stableServerReleaseTag,
+  validateConfig,
+  zonedClock,
+  publicStatus,
+};

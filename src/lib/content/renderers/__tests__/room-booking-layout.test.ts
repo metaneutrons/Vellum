@@ -61,7 +61,11 @@ describe("computeTimelineLayout — column packing", () => {
       evt("Standup", "09:00", "10:00"),
       evt("Interview", "09:30", "10:30"), // overlaps Standup
     ];
-    const cols = layout(events).map((b) => ({ s: b.evt.displaySubject, col: b.col, total: b.totalCols }));
+    const cols = layout(events).map((b) => ({
+      s: b.evt.displaySubject,
+      col: b.col,
+      total: b.totalCols,
+    }));
     expect(cols).toEqual([
       { s: "Standup", col: 0, total: 2 },
       { s: "Interview", col: 1, total: 2 },

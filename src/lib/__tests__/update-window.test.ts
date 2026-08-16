@@ -53,8 +53,13 @@ function installBrowserGlobals() {
 }
 
 describe("update window", () => {
-  beforeEach(() => { installBrowserGlobals(); });
-  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+  beforeEach(() => {
+    installBrowserGlobals();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it("is closed by default, so a plain outage stays an outage", () => {
     expect(readUpdateWindow()).toBeNull();
@@ -81,24 +86,34 @@ describe("update window", () => {
 
   it("persists the last verified progress journal across a restart", () => {
     beginUpdateWindow("v1.9.5", "v1.9.6", {
-      phase: "verifying", detail: null, at: "2026-08-16T07:00:00Z",
+      phase: "verifying",
+      detail: null,
+      at: "2026-08-16T07:00:00Z",
       startedAt: "2026-08-16T07:00:00Z",
     });
     recordUpdateWindowProgress({
-      phase: "deploying", detail: "starting compose service",
-      at: "2026-08-16T07:00:08Z", startedAt: "2026-08-16T07:00:00Z",
+      phase: "deploying",
+      detail: "starting compose service",
+      at: "2026-08-16T07:00:08Z",
+      startedAt: "2026-08-16T07:00:00Z",
     });
     expect(readUpdateWindow()?.progress).toMatchObject({
-      phase: "deploying", detail: "starting compose service",
+      phase: "deploying",
+      detail: "starting compose service",
     });
   });
 
   it("ignores a corrupted progress journal without discarding the update window", () => {
     const { store } = installBrowserGlobals();
-    store.set("vellum.updateWindow", JSON.stringify({
-      startedAt: Date.now(), fromVersion: "v1.9.5", toVersion: "v1.9.6",
-      progress: { phase: "invented", detail: 42 },
-    }));
+    store.set(
+      "vellum.updateWindow",
+      JSON.stringify({
+        startedAt: Date.now(),
+        fromVersion: "v1.9.5",
+        toVersion: "v1.9.6",
+        progress: { phase: "invented", detail: 42 },
+      })
+    );
     expect(readUpdateWindow()).toMatchObject({ toVersion: "v1.9.6", progress: null });
   });
 
@@ -144,9 +159,15 @@ describe("update window", () => {
   it("does not throw when storage is unavailable", () => {
     vi.stubGlobal("window", {
       sessionStorage: {
-        getItem: () => { throw new Error("denied"); },
-        setItem: () => { throw new Error("denied"); },
-        removeItem: () => { throw new Error("denied"); },
+        getItem: () => {
+          throw new Error("denied");
+        },
+        setItem: () => {
+          throw new Error("denied");
+        },
+        removeItem: () => {
+          throw new Error("denied");
+        },
       },
       addEventListener: () => undefined,
       removeEventListener: () => undefined,
@@ -161,8 +182,16 @@ describe("update window", () => {
   it("does not mistake the old server returning for a successful update", () => {
     const window = { startedAt: Date.now(), fromVersion: "v1.10.3", toVersion: "v1.10.4" };
     expect(resolveUpdateWindow(window, status())).toEqual({ outcome: "pending" });
-    expect(resolveUpdateWindow(window, status({ state: "available", progress: { phase: "failed" },
-      lastError: "health check failed" }))).toEqual({
+    expect(
+      resolveUpdateWindow(
+        window,
+        status({
+          state: "available",
+          progress: { phase: "failed" },
+          lastError: "health check failed",
+        })
+      )
+    ).toEqual({
       outcome: "failed",
       fromVersion: "v1.10.3",
       toVersion: "v1.10.4",
@@ -173,8 +202,17 @@ describe("update window", () => {
 
   it("prioritizes a recorded rollback over a stale reached-version marker", () => {
     const window = { startedAt: Date.now(), fromVersion: "v1.10.4", toVersion: "v1.10.4" };
-    expect(resolveUpdateWindow(window, status({ state: "available", currentVersion: "v1.10.4",
-      progress: { phase: "failed" }, lastError: "compose environment mount is invalid" }))).toEqual({
+    expect(
+      resolveUpdateWindow(
+        window,
+        status({
+          state: "available",
+          currentVersion: "v1.10.4",
+          progress: { phase: "failed" },
+          lastError: "compose environment mount is invalid",
+        })
+      )
+    ).toEqual({
       outcome: "failed",
       fromVersion: "v1.10.4",
       toVersion: "v1.10.4",
@@ -185,23 +223,53 @@ describe("update window", () => {
 
   it("keeps the update overlay active while rollback is still running", () => {
     const window = { startedAt: Date.now(), fromVersion: "v1.10.3", toVersion: "v1.10.4" };
-    expect(resolveUpdateOverlay(window, status({ state: "updating",
-      progress: { phase: "rolling-back" }, lastError: "health check failed" })))
-      .toEqual({ outcome: "pending" });
-    expect(resolveUpdateOverlay(window, status({ state: "failed",
-      progress: { phase: "failed" }, lastError: "rollback failed" })))
-      .toMatchObject({ outcome: "failed", detail: "rollback failed" });
+    expect(
+      resolveUpdateOverlay(
+        window,
+        status({
+          state: "updating",
+          progress: { phase: "rolling-back" },
+          lastError: "health check failed",
+        })
+      )
+    ).toEqual({ outcome: "pending" });
+    expect(
+      resolveUpdateOverlay(
+        window,
+        status({ state: "failed", progress: { phase: "failed" }, lastError: "rollback failed" })
+      )
+    ).toMatchObject({ outcome: "failed", detail: "rollback failed" });
   });
 
   it("only reports success after the requested version is actually running", () => {
     const window = { startedAt: Date.now(), fromVersion: "v1.10.3", toVersion: "v1.10.4" };
-    expect(resolveUpdateWindow(window, status({ state: "current", currentVersion: "v1.10.4",
-      updateAvailable: false, progress: { phase: "done" } }))).toEqual({
-      outcome: "succeeded", fromVersion: "v1.10.3", toVersion: "v1.10.4",
+    expect(
+      resolveUpdateWindow(
+        window,
+        status({
+          state: "current",
+          currentVersion: "v1.10.4",
+          updateAvailable: false,
+          progress: { phase: "done" },
+        })
+      )
+    ).toEqual({
+      outcome: "succeeded",
+      fromVersion: "v1.10.3",
+      toVersion: "v1.10.4",
     });
     // A newer release winning the race is also a successful outcome.
-    expect(resolveUpdateWindow(window, status({ state: "current", currentVersion: "v1.11.0",
-      updateAvailable: false, progress: null }))).toMatchObject({ outcome: "succeeded", toVersion: "v1.11.0" });
+    expect(
+      resolveUpdateWindow(
+        window,
+        status({
+          state: "current",
+          currentVersion: "v1.11.0",
+          updateAvailable: false,
+          progress: null,
+        })
+      )
+    ).toMatchObject({ outcome: "succeeded", toVersion: "v1.11.0" });
   });
 
   it("polls checks responsively without making idle pages noisy", () => {

@@ -27,7 +27,10 @@ const stateKeys = {
 
 const COMPOSE_UPGRADE_URL = `${REPO_URL}/blob/main/README.md#upgrade-an-existing-compose-installation`;
 
-export function ServerUpdatePanel({ initialStatus, canUpdate }: {
+export function ServerUpdatePanel({
+  initialStatus,
+  canUpdate,
+}: {
   initialStatus: ServerUpdateStatus;
   canUpdate: boolean;
 }) {
@@ -58,17 +61,20 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
         if (cancelled || !value) return;
         nextState = value.state;
         setStatus(value);
-      } catch { /* A deliberate restart is expected; keep polling until the window expires. */ }
-      finally {
+      } catch {
+        /* A deliberate restart is expected; keep polling until the window expires. */
+      } finally {
         if (!cancelled) {
-          timer = window.setTimeout(refresh,
-            serverUpdatePollInterval(nextState, false));
+          timer = window.setTimeout(refresh, serverUpdatePollInterval(nextState, false));
         }
       }
     };
     const openWindow = readUpdateWindow() !== null;
     timer = window.setTimeout(refresh, serverUpdatePollInterval(status.state, openWindow));
-    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [status.state]);
 
   useEffect(() => {
@@ -89,8 +95,14 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
         body: JSON.stringify({ action }),
       });
       if (!response.ok) {
-        toast("error", response.status === 403 ? t("serverActionForbidden")
-          : response.status === 503 ? t("serverUpdaterUnavailable") : t("serverActionFailed"));
+        toast(
+          "error",
+          response.status === 403
+            ? t("serverActionForbidden")
+            : response.status === 503
+              ? t("serverUpdaterUnavailable")
+              : t("serverActionFailed")
+        );
         return;
       }
       const next: ServerUpdateStatus = await response.json();
@@ -99,10 +111,16 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
         /* Open immediately after the updater accepts the request. The global
          * overlay owns the complete experience, including the restart where
          * this page cannot narrate its own status. */
-        beginUpdateWindow(next.currentVersion ?? status.currentVersion,
-          next.availableVersion ?? status.availableVersion, next.progress ?? {
-          phase: "verifying", detail: null, at: null, startedAt: new Date().toISOString(),
-        });
+        beginUpdateWindow(
+          next.currentVersion ?? status.currentVersion,
+          next.availableVersion ?? status.availableVersion,
+          next.progress ?? {
+            phase: "verifying",
+            detail: null,
+            at: null,
+            startedAt: new Date().toISOString(),
+          }
+        );
       }
       toast("success", action === "apply" ? t("serverUpdateStarted") : t("serverCheckStarted"));
     } catch {
@@ -121,8 +139,14 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
         body: JSON.stringify({ action: "configure", mode: updateMode, maintenanceTime, timezone }),
       });
       if (!response.ok) {
-        toast("error", response.status === 403 ? t("serverActionForbidden")
-          : response.status === 503 ? t("serverUpdaterUnavailable") : t("serverScheduleFailed"));
+        toast(
+          "error",
+          response.status === 403
+            ? t("serverActionForbidden")
+            : response.status === 503
+              ? t("serverUpdaterUnavailable")
+              : t("serverScheduleFailed")
+        );
         return;
       }
       setStatus(await response.json());
@@ -142,36 +166,66 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex-1 min-w-[240px]">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-label">{status.currentVersion ?? t("serverVersionUnknown")}</span>
-              <StatusPill tone={!status.supported ? "neutral" : status.state === "failed" ? "red"
-                : status.state === "preparing" || status.updateAvailable ? "orange"
-                : status.state === "current" ? "green" : "neutral"}>
+              <span className="font-semibold text-label">
+                {status.currentVersion ?? t("serverVersionUnknown")}
+              </span>
+              <StatusPill
+                tone={
+                  !status.supported
+                    ? "neutral"
+                    : status.state === "failed"
+                      ? "red"
+                      : status.state === "preparing" || status.updateAvailable
+                        ? "orange"
+                        : status.state === "current"
+                          ? "green"
+                          : "neutral"
+                }
+              >
                 {t(stateKeys[status.state])}
               </StatusPill>
             </div>
             <p className="text-sm text-label-secondary mt-1">
-              {!status.supported ? t("serverUpdaterUnavailable")
-                : status.state === "failed" ? t("serverUpdateFailedGeneric")
-                : status.state === "preparing" ? t("serverReleasePreparing", { version: status.availableVersion ?? "" })
-                : status.updateAvailable ? t("serverUpdateAvailable", { version: status.availableVersion ?? "" })
-                : (status.updateMode === "automatic"
-                  ? t("serverAutomaticSchedule", { time: status.maintenanceTime, timezone: status.timezone })
-                  : t("serverManualSchedule"))}
+              {!status.supported
+                ? t("serverUpdaterUnavailable")
+                : status.state === "failed"
+                  ? t("serverUpdateFailedGeneric")
+                  : status.state === "preparing"
+                    ? t("serverReleasePreparing", { version: status.availableVersion ?? "" })
+                    : status.updateAvailable
+                      ? t("serverUpdateAvailable", { version: status.availableVersion ?? "" })
+                      : status.updateMode === "automatic"
+                        ? t("serverAutomaticSchedule", {
+                            time: status.maintenanceTime,
+                            timezone: status.timezone,
+                          })
+                        : t("serverManualSchedule")}
             </p>
           </div>
           {status.supported && status.state === "failed" && (
-            <div role="alert" className="w-full order-last rounded-lg bg-red/10 border border-red/30 p-3">
+            <div
+              role="alert"
+              className="w-full order-last rounded-lg bg-red/10 border border-red/30 p-3"
+            >
               <p className="text-sm font-semibold text-red">{t("serverUpdateFailedGeneric")}</p>
-              {status.lastError && <p className="text-sm text-label-secondary mt-1">{status.lastError}</p>}
+              {status.lastError && (
+                <p className="text-sm text-label-secondary mt-1">{status.lastError}</p>
+              )}
             </div>
           )}
           {!status.supported && (
-            <div role="status"
-              className="w-full order-last rounded-lg bg-orange/10 border border-orange/30 p-3">
+            <div
+              role="status"
+              className="w-full order-last rounded-lg bg-orange/10 border border-orange/30 p-3"
+            >
               <p className="text-sm font-semibold text-label">{t("serverUpdaterSetupTitle")}</p>
               <p className="text-sm text-label-secondary mt-1">{t("serverUpdaterSetupHint")}</p>
-              <a href={COMPOSE_UPGRADE_URL} target="_blank" rel="noreferrer"
-                className="inline-flex mt-2 text-sm font-medium text-accent underline underline-offset-2 focus-ring">
+              <a
+                href={COMPOSE_UPGRADE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex mt-2 text-sm font-medium text-accent underline underline-offset-2 focus-ring"
+              >
                 {t("serverUpdaterSetupLink")}
               </a>
             </div>
@@ -182,7 +236,9 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
              * gone, so without this the only trace would be container logs. */
             <div className="w-full order-last rounded-lg bg-red/10 border border-red/30 p-3">
               <p className="text-sm font-semibold text-red">
-                {status.updaterSwap.outcome === "rolled-back" ? t("updaterSwapRolledBack") : t("updaterSwapFailed")}
+                {status.updaterSwap.outcome === "rolled-back"
+                  ? t("updaterSwapRolledBack")
+                  : t("updaterSwapFailed")}
               </p>
               {status.updaterSwap.detail && (
                 <p className="text-sm text-label-secondary mt-1">{status.updaterSwap.detail}</p>
@@ -195,32 +251,55 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
             <div className="w-full order-last rounded-lg bg-fill-tertiary/60 border border-separator/60 p-3">
               <p className="text-sm text-label">
                 {status.updaterVersion
-                  ? t("updaterOutdated", { current: status.updaterVersion, available: status.availableVersion ?? "" })
+                  ? t("updaterOutdated", {
+                      current: status.updaterVersion,
+                      available: status.availableVersion ?? "",
+                    })
                   : t("updaterVersionUnknown")}
               </p>
-              {!status.updaterSelfUpdateCapable ? <>
-                <p className="text-sm text-label-secondary mt-1">{t("updaterBootstrapHint")}</p>
-                <pre className="mt-2 text-xs font-mono text-label-secondary whitespace-pre-wrap select-all">
-                  docker compose pull updater{"\n"}docker compose up -d --no-deps updater
-                </pre>
-                <a href={COMPOSE_UPGRADE_URL} target="_blank" rel="noreferrer"
-                  className="inline-flex mt-2 text-sm font-medium text-accent underline underline-offset-2 focus-ring">
-                  {t("serverUpdaterSetupLink")}
-                </a>
-              </> : <p className="text-sm text-label-secondary mt-1">
-                {status.updaterSelfUpdateEnabled ? t("updaterAutomaticHint") : t("updaterAutomaticDisabledHint")}
-              </p>}
+              {!status.updaterSelfUpdateCapable ? (
+                <>
+                  <p className="text-sm text-label-secondary mt-1">{t("updaterBootstrapHint")}</p>
+                  <pre className="mt-2 text-xs font-mono text-label-secondary whitespace-pre-wrap select-all">
+                    docker compose pull updater{"\n"}docker compose up -d --no-deps updater
+                  </pre>
+                  <a
+                    href={COMPOSE_UPGRADE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex mt-2 text-sm font-medium text-accent underline underline-offset-2 focus-ring"
+                  >
+                    {t("serverUpdaterSetupLink")}
+                  </a>
+                </>
+              ) : (
+                <p className="text-sm text-label-secondary mt-1">
+                  {status.updaterSelfUpdateEnabled
+                    ? t("updaterAutomaticHint")
+                    : t("updaterAutomaticDisabledHint")}
+                </p>
+              )}
             </div>
           )}
           {canUpdate && status.supported && (
             <div className="flex gap-2">
-              <button disabled={actionPending || status.state === "updating" || status.state === "checking"} onClick={() => runAction("check")}
-                className="min-h-10 px-3 rounded-md bg-fill-tertiary text-sm font-semibold disabled:opacity-50 focus-ring">
+              <button
+                disabled={
+                  actionPending || status.state === "updating" || status.state === "checking"
+                }
+                onClick={() => runAction("check")}
+                className="min-h-10 px-3 rounded-md bg-fill-tertiary text-sm font-semibold disabled:opacity-50 focus-ring"
+              >
                 {status.state === "checking" ? t("serverChecking") : t("serverCheck")}
               </button>
               {status.updateAvailable && (
-                <button disabled={actionPending || status.state === "updating" || status.state === "checking"} onClick={() => setConfirmUpdate(true)}
-                  className="min-h-10 px-4 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring">
+                <button
+                  disabled={
+                    actionPending || status.state === "updating" || status.state === "checking"
+                  }
+                  onClick={() => setConfirmUpdate(true)}
+                  className="min-h-10 px-4 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring"
+                >
                   {status.state === "failed" ? t("serverRetryUpdate") : t("serverInstall")}
                 </button>
               )}
@@ -232,8 +311,14 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
           <div className="mt-4 pt-4 border-t border-separator flex items-end gap-3 flex-wrap">
             <label className="flex flex-col gap-1 text-xs text-label-secondary">
               {t("serverUpdateMode")}
-              <select className={selectCls} value={updateMode}
-                onChange={(event) => { setUpdateMode(event.target.value as "manual" | "automatic"); setScheduleDirty(true); }}>
+              <select
+                className={selectCls}
+                value={updateMode}
+                onChange={(event) => {
+                  setUpdateMode(event.target.value as "manual" | "automatic");
+                  setScheduleDirty(true);
+                }}
+              >
                 <option value="manual">{t("serverModeManual")}</option>
                 <option value="automatic">{t("serverModeAutomatic")}</option>
               </select>
@@ -242,29 +327,53 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
               <>
                 <label className="flex flex-col gap-1 text-xs text-label-secondary">
                   {t("serverMaintenanceTime")}
-                  <input className={selectCls} type="time" required value={maintenanceTime}
-                    onChange={(event) => { setMaintenanceTime(event.target.value); setScheduleDirty(true); }} />
+                  <input
+                    className={selectCls}
+                    type="time"
+                    required
+                    value={maintenanceTime}
+                    onChange={(event) => {
+                      setMaintenanceTime(event.target.value);
+                      setScheduleDirty(true);
+                    }}
+                  />
                 </label>
                 <label className="flex flex-col gap-1 text-xs text-label-secondary flex-1 min-w-[190px]">
                   {t("serverTimezone")}
-                  <input className={selectCls} required maxLength={100} value={timezone}
-                    placeholder="Europe/Berlin" onChange={(event) => { setTimezone(event.target.value); setScheduleDirty(true); }} />
+                  <input
+                    className={selectCls}
+                    required
+                    maxLength={100}
+                    value={timezone}
+                    placeholder="Europe/Berlin"
+                    onChange={(event) => {
+                      setTimezone(event.target.value);
+                      setScheduleDirty(true);
+                    }}
+                  />
                 </label>
               </>
             )}
-            <button disabled={actionPending || !scheduleDirty || !maintenanceTime || !timezone} onClick={saveSchedule}
-              className="min-h-8 px-3 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring">
+            <button
+              disabled={actionPending || !scheduleDirty || !maintenanceTime || !timezone}
+              onClick={saveSchedule}
+              className="min-h-8 px-3 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring"
+            >
               {t("serverSaveSchedule")}
             </button>
           </div>
         )}
       </div>
 
-      <ConfirmDialog open={confirmUpdate} onClose={() => setConfirmUpdate(false)}
-        onConfirm={() => runAction("apply")} pending={actionPending}
+      <ConfirmDialog
+        open={confirmUpdate}
+        onClose={() => setConfirmUpdate(false)}
+        onConfirm={() => runAction("apply")}
+        pending={actionPending}
         title={t("serverConfirmTitle")}
         message={`${t("serverConfirmMessage", { version: status.availableVersion ?? "" })}\n\n${t("serverConfirmSteps")}\n\n${t("serverConfirmDowntime")}`}
-        confirmLabel={status.state === "failed" ? t("serverRetryUpdate") : t("serverInstall")} />
+        confirmLabel={status.state === "failed" ? t("serverRetryUpdate") : t("serverInstall")}
+      />
     </>
   );
 }

@@ -113,14 +113,16 @@ export function encodeWifiSettings(
   serverUrl?: string,
   deviceToken?: string,
   ntpServer?: string,
-  provisionedAtUnix?: number,
+  provisionedAtUnix?: number
 ): Uint8Array {
   const payload = [...lenPrefixed(ssid), ...lenPrefixed(password)];
   const hasTime = provisionedAtUnix !== undefined;
   // URL, token, NTP, and UTC time are positional. Emit empty placeholders when
   // a later field is provided so older firmware can still parse earlier forms.
-  if (serverUrl || deviceToken || ntpServer !== undefined || hasTime) payload.push(...lenPrefixed(serverUrl ?? ""));
-  if (deviceToken || ntpServer !== undefined || hasTime) payload.push(...lenPrefixed(deviceToken ?? ""));
+  if (serverUrl || deviceToken || ntpServer !== undefined || hasTime)
+    payload.push(...lenPrefixed(serverUrl ?? ""));
+  if (deviceToken || ntpServer !== undefined || hasTime)
+    payload.push(...lenPrefixed(deviceToken ?? ""));
   if (ntpServer !== undefined || hasTime) payload.push(...lenPrefixed(ntpServer ?? ""));
   if (hasTime) payload.push(...lenPrefixed(utcTimestampString(provisionedAtUnix)));
   if (payload.length > MAX_WIFI_SETTINGS_PAYLOAD) {
@@ -128,7 +130,7 @@ export function encodeWifiSettings(
     // cmd_len+2), so it can't exceed 253 or the length wraps and the firmware
     // rejects the frame. Fail loudly instead of sending a corrupt frame.
     throw new Error(
-      `Improv profile too large (${payload.length} > ${MAX_WIFI_SETTINGS_PAYLOAD} bytes) — shorten the server URL.`,
+      `Improv profile too large (${payload.length} > ${MAX_WIFI_SETTINGS_PAYLOAD} bytes) — shorten the server URL.`
     );
   }
   return encodeRpcCommand(ImprovCmd.WIFI_SETTINGS, payload);
@@ -147,13 +149,15 @@ export function wifiSettingsPayloadLength(
   serverUrl?: string,
   deviceToken?: string,
   ntpServer?: string,
-  provisionedAtUnix?: number,
+  provisionedAtUnix?: number
 ): number {
   const enc = new TextEncoder();
   const hasTime = provisionedAtUnix !== undefined;
   let n = 1 + enc.encode(ssid).length + 1 + enc.encode(password).length;
-  if (serverUrl || deviceToken || ntpServer !== undefined || hasTime) n += 1 + enc.encode(serverUrl ?? "").length;
-  if (deviceToken || ntpServer !== undefined || hasTime) n += 1 + enc.encode(deviceToken ?? "").length;
+  if (serverUrl || deviceToken || ntpServer !== undefined || hasTime)
+    n += 1 + enc.encode(serverUrl ?? "").length;
+  if (deviceToken || ntpServer !== undefined || hasTime)
+    n += 1 + enc.encode(deviceToken ?? "").length;
   if (ntpServer !== undefined || hasTime) n += 1 + enc.encode(ntpServer ?? "").length;
   if (hasTime) n += 1 + enc.encode(utcTimestampString(provisionedAtUnix)).length;
   return n;
@@ -195,8 +199,7 @@ export class ImprovParser {
 
       const frame = this.buf.slice(0, frameLen);
       const ok =
-        frame[6] === IMPROV_VERSION &&
-        checksum(frame.slice(0, 9 + len)) === frame[9 + len];
+        frame[6] === IMPROV_VERSION && checksum(frame.slice(0, 9 + len)) === frame[9 + len];
       if (ok) {
         out.push({ type: frame[7], payload: new Uint8Array(frame.slice(9, 9 + len)) });
         this.buf.splice(0, frameLen);
@@ -264,13 +267,7 @@ function getSerial(): SerialLike | undefined {
 }
 
 export type ProvisionPhase =
-  | "connecting"
-  | "checking"
-  | "waking"
-  | "sending"
-  | "provisioning"
-  | "provisioned"
-  | "error";
+  "connecting" | "checking" | "waking" | "sending" | "provisioning" | "provisioned" | "error";
 
 export interface ProvisionResult {
   ok: boolean;
@@ -306,7 +303,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 async function closeSerial(
   port: SerialPortLike,
   reader?: ReadableStreamDefaultReader<Uint8Array>,
-  writer?: WritableStreamDefaultWriter<Uint8Array>,
+  writer?: WritableStreamDefaultWriter<Uint8Array>
 ): Promise<void> {
   try {
     await reader?.cancel();
@@ -331,7 +328,7 @@ interface ReadySerialConnection {
  */
 async function openReadyImprovConnection(
   port: SerialPortLike,
-  onPhase?: (phase: ProvisionPhase) => void,
+  onPhase?: (phase: ProvisionPhase) => void
 ): Promise<ReadySerialConnection> {
   onPhase?.("connecting");
   await port.open({ baudRate: SERIAL_BAUD_RATE });
@@ -434,7 +431,7 @@ export class SerialProvisioningSession {
     private readonly port: SerialPortLike,
     private readonly reader: ReadableStreamDefaultReader<Uint8Array>,
     private readonly writer: WritableStreamDefaultWriter<Uint8Array>,
-    onDisconnect?: () => void,
+    onDisconnect?: () => void
   ) {
     this.disconnectListener = (event) => {
       if (event.target && event.target !== this.port) return;
@@ -450,7 +447,7 @@ export class SerialProvisioningSession {
 
   static async connect(
     onPhase?: (phase: ProvisionPhase) => void,
-    onDisconnect?: () => void,
+    onDisconnect?: () => void
   ): Promise<SerialProvisioningSession> {
     const serial = getSerial();
     if (!serial) throw new Error("Web Serial is not supported in this browser.");
@@ -465,7 +462,13 @@ export class SerialProvisioningSession {
 
     try {
       const connection = await openReadyImprovConnection(port, onPhase);
-      return new SerialProvisioningSession(serial, port, connection.reader, connection.writer, onDisconnect);
+      return new SerialProvisioningSession(
+        serial,
+        port,
+        connection.reader,
+        connection.writer,
+        onDisconnect
+      );
     } catch (error) {
       throw new Error(describeSerialError(error));
     }
@@ -513,19 +516,22 @@ export class SerialProvisioningSession {
 
       const send = async (withTime: boolean) => {
         onPhase("sending");
-        await this.writer.write(encodeWifiSettings(
-          opts.ssid,
-          opts.password,
-          opts.serverUrl,
-          opts.deviceToken,
-          opts.ntpServer,
-          withTime ? (opts.provisionedAtUnix ?? Math.floor(Date.now() / 1000)) : undefined,
-        ));
+        await this.writer.write(
+          encodeWifiSettings(
+            opts.ssid,
+            opts.password,
+            opts.serverUrl,
+            opts.deviceToken,
+            opts.ntpServer,
+            withTime ? (opts.provisionedAtUnix ?? Math.floor(Date.now() / 1000)) : undefined
+          )
+        );
       };
       await send(true);
 
       while (Date.now() < deadline) {
-        const graceDeadline = provisionedAt === undefined ? deadline : Math.min(deadline, provisionedAt + 600);
+        const graceDeadline =
+          provisionedAt === undefined ? deadline : Math.min(deadline, provisionedAt + 600);
         const frames = await this.readFrames(graceDeadline - Date.now());
         if (!frames) {
           if (provisionedAt !== undefined) return { ok: true, redirectUrl };
@@ -564,7 +570,8 @@ export class SerialProvisioningSession {
 
       return {
         ok: false,
-        error: "Timed out waiting for the device to respond after restarting. Press Refresh on the display and try again.",
+        error:
+          "Timed out waiting for the device to respond after restarting. Press Refresh on the display and try again.",
       };
     });
   }
@@ -599,7 +606,10 @@ export class SerialProvisioningSession {
 
   private exclusive<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.operation.then(operation, operation);
-    this.operation = result.then(() => undefined, () => undefined);
+    this.operation = result.then(
+      () => undefined,
+      () => undefined
+    );
     return result;
   }
 }
@@ -642,9 +652,7 @@ export function decodeScanNetwork(strings: string[]): WifiNetwork | null {
  * Ask the device to scan for nearby Wi-Fi networks (Improv SCAN_WIFI) and
  * return the deduped list, strongest signal first. Browser-only.
  */
-export async function scanNetworksOverSerial(opts?: {
-  timeoutMs?: number;
-}): Promise<ScanResult> {
+export async function scanNetworksOverSerial(opts?: { timeoutMs?: number }): Promise<ScanResult> {
   let session: SerialProvisioningSession | undefined;
   try {
     session = await SerialProvisioningSession.connect();

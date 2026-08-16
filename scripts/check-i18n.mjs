@@ -37,7 +37,10 @@ function sourceFiles(dir) {
 }
 
 const canonical = load(canonicalFile);
-for (const file of fs.readdirSync(messagesDir).filter((name) => name.endsWith(".json")).sort()) {
+for (const file of fs
+  .readdirSync(messagesDir)
+  .filter((name) => name.endsWith(".json"))
+  .sort()) {
   const keys = load(file);
   const missing = [...canonical].filter((key) => !keys.has(key));
   const extra = [...keys].filter((key) => !canonical.has(key));
@@ -55,7 +58,8 @@ for (const file of fs.readdirSync(messagesDir).filter((name) => name.endsWith(".
 const missingUsages = new Set();
 for (const file of sourceFiles(sourceDir)) {
   const source = fs.readFileSync(file, "utf8");
-  const bindingPattern = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*["']([^"']+)["']\s*\)/g;
+  const bindingPattern =
+    /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*["']([^"']+)["']\s*\)/g;
   let binding;
   while ((binding = bindingPattern.exec(source)) !== null) {
     const [, translator, namespace] = binding;

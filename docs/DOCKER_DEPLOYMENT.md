@@ -29,17 +29,17 @@ openssl, a checksum tool, a reachable daemon), verifies `docker-compose.yml` and
 writes a `0600` `.env`, starts the stack, waits for `/api/v1/health`, and prints
 the generated owner password once.
 
-| Flag | Effect |
-|---|---|
-| `--dir <path>` | Installation directory (default `./vellum`) |
-| `--url <origin>` | Public HTTPS origin, no path. Omit to decide later |
-| `--tz <zone>` | IANA timezone for the maintenance window; defaults to the host's |
-| `--admin-user <name>` | Bootstrap owner name (default `admin`) |
-| `--version <tag>` | Install a specific release instead of the latest |
-| `--from <dir>` | Use assets already on disk — air-gapped hosts |
-| `--dry-run` | Prepare the directory and `.env`, start nothing |
-| `--yes` | Take every default without prompting |
-| `--force` | Overwrite an existing `.env` (destructive) |
+| Flag                  | Effect                                                           |
+| --------------------- | ---------------------------------------------------------------- |
+| `--dir <path>`        | Installation directory (default `./vellum`)                      |
+| `--url <origin>`      | Public HTTPS origin, no path. Omit to decide later               |
+| `--tz <zone>`         | IANA timezone for the maintenance window; defaults to the host's |
+| `--admin-user <name>` | Bootstrap owner name (default `admin`)                           |
+| `--version <tag>`     | Install a specific release instead of the latest                 |
+| `--from <dir>`        | Use assets already on disk — air-gapped hosts                    |
+| `--dry-run`           | Prepare the directory and `.env`, start nothing                  |
+| `--yes`               | Take every default without prompting                             |
+| `--force`             | Overwrite an existing `.env` (destructive)                       |
 
 It refuses to overwrite an existing `.env` without `--force`, so it cannot
 silently replace the secrets of a live stack. It is a first-install tool: later
@@ -188,7 +188,7 @@ only after its checksummed migrations commit successfully.
 
 The updater cannot recreate its own running container directly — that would kill
 the process performing the swap. With the default `AUTO_UPDATE_UPDATER=true`,
-after a *healthy* server update it verifies the matching updater image against
+after a _healthy_ server update it verifies the matching updater image against
 the `updater.yml` Sigstore
 identity, then hands the swap to a **detached one-shot helper** and exits. The
 helper is not a child process, so it survives its parent being replaced, and it

@@ -21,6 +21,10 @@ export function firmwareBetaVersion(stableVersion, betaNumber, shortSha) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const result = firmwareBetaVersion(process.argv[2] ?? "", process.argv[3] ?? "", process.argv[4] ?? "");
+  const result = firmwareBetaVersion(
+    process.argv[2] ?? "",
+    process.argv[3] ?? "",
+    process.argv[4] ?? ""
+  );
   process.stdout.write(`version=${result.version}\ntag=${result.tag}\n`);
 }
