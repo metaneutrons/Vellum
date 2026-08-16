@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/metaneutrons/Vellum/compare/v1.11.6...v1.12.0) (2026-08-16)
+
+
+### Features
+
+* **admin:** complete i18n and service account lifecycle ([#247](https://github.com/metaneutrons/Vellum/issues/247)) ([f825c54](https://github.com/metaneutrons/Vellum/commit/f825c546404cc4924a5c985dfa9ef666a26bb23c))
+
 ## [1.11.6](https://github.com/metaneutrons/Vellum/compare/v1.11.5...v1.11.6) (2026-08-16)
 
 
