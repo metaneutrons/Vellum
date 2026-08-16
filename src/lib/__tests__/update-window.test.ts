@@ -10,6 +10,8 @@ import {
   beginUpdateWindow,
   endUpdateWindow,
   readUpdateWindow,
+  recordUpdateWindowProgress,
+  resolveUpdateOverlay,
   resolveUpdateWindow,
   serverUpdatePollInterval,
   subscribeUpdateWindow,
@@ -75,6 +77,29 @@ describe("update window", () => {
     // A reload re-imports the module but keeps sessionStorage; reading again is
     // exactly what the fresh page does.
     expect(readUpdateWindow()).not.toBeNull();
+  });
+
+  it("persists the last verified progress journal across a restart", () => {
+    beginUpdateWindow("v1.9.5", "v1.9.6", {
+      phase: "verifying", detail: null, at: "2026-08-16T07:00:00Z",
+      startedAt: "2026-08-16T07:00:00Z",
+    });
+    recordUpdateWindowProgress({
+      phase: "deploying", detail: "starting compose service",
+      at: "2026-08-16T07:00:08Z", startedAt: "2026-08-16T07:00:00Z",
+    });
+    expect(readUpdateWindow()?.progress).toMatchObject({
+      phase: "deploying", detail: "starting compose service",
+    });
+  });
+
+  it("ignores a corrupted progress journal without discarding the update window", () => {
+    const { store } = installBrowserGlobals();
+    store.set("vellum.updateWindow", JSON.stringify({
+      startedAt: Date.now(), fromVersion: "v1.9.5", toVersion: "v1.9.6",
+      progress: { phase: "invented", detail: 42 },
+    }));
+    expect(readUpdateWindow()).toMatchObject({ toVersion: "v1.9.6", progress: null });
   });
 
   it("closes on request", () => {
@@ -156,6 +181,16 @@ describe("update window", () => {
       currentVersion: "v1.10.4",
       detail: "compose environment mount is invalid",
     });
+  });
+
+  it("keeps the update overlay active while rollback is still running", () => {
+    const window = { startedAt: Date.now(), fromVersion: "v1.10.3", toVersion: "v1.10.4" };
+    expect(resolveUpdateOverlay(window, status({ state: "updating",
+      progress: { phase: "rolling-back" }, lastError: "health check failed" })))
+      .toEqual({ outcome: "pending" });
+    expect(resolveUpdateOverlay(window, status({ state: "failed",
+      progress: { phase: "failed" }, lastError: "rollback failed" })))
+      .toMatchObject({ outcome: "failed", detail: "rollback failed" });
   });
 
   it("only reports success after the requested version is actually running", () => {
