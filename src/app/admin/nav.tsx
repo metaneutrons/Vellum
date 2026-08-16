@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { VellumMark } from "@/components/vellum-brand";
 
 const links: { href: string; key: "overview" | "devices" | "content" | "providers" | "themes" | "profiles" | "firmware" | "system" | "access"; Icon: LucideIcon }[] = [
   { href: "/admin", key: "overview", Icon: LayoutDashboard },
@@ -87,7 +88,7 @@ export function AdminNav({ canAccessManagement, canReadSystem }: {
           onClick={() => setOpen(false)}
           className="flex items-center gap-2.5 px-2 pb-4 rounded-lg focus-ring"
         >
-          <img src="/vellum-icon.svg" alt="" width={28} height={28} className="dark:invert" />
+          <VellumMark alt="" width={28} height={28} className="size-7" />
           <span className="text-[17px] font-semibold tracking-tight text-label">{t("title")}</span>
         </Link>
 
