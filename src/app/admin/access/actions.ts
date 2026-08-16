@@ -18,6 +18,7 @@ import {
   createInvitation,
   createServiceAccount,
   requirePermission,
+  rotateServiceAccountToken,
   type Permission,
   withAuditedTransaction,
 } from "@/lib/access";
@@ -256,6 +257,34 @@ export async function revokeAutomationAccount(id: string) {
         });
       }),
     "access-revoke-service-account"
+  );
+  revalidatePath("/admin/access");
+}
+
+export async function rotateAutomationAccountKey(id: string) {
+  const actor = await requirePermission("access.manage");
+  const result = await rotateServiceAccountToken(id, actor);
+  revalidatePath("/admin/access");
+  return result;
+}
+
+export async function deleteAutomationAccount(id: string) {
+  const actor = await requirePermission("access.manage");
+  await withAuditedTransaction(
+    actor,
+    {
+      action: "access.service_account.delete",
+      targetType: "service_account",
+      targetId: id,
+    },
+    async (tx) => {
+      const deleted = await tx
+        .delete(serviceAccounts)
+        .where(eq(serviceAccounts.id, id))
+        .returning({ id: serviceAccounts.id });
+      if (deleted.length === 0) throw new Error("service_account_not_found");
+    },
+    "access-delete-service-account"
   );
   revalidatePath("/admin/access");
 }

@@ -47,7 +47,7 @@ interface ScheduleRule {
   intervalS: number;
 }
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"];
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const WEEKEND = [0, 6];
 
@@ -75,24 +75,36 @@ const INTERVAL_PRESETS = [
   { label: "4h", value: 14400 },
 ];
 
-const RULE_TEMPLATES: { label: string; rule: ScheduleRule }[] = [
+const RULE_TEMPLATES: {
+  labelKey: string;
+  nameKey: string;
+  rule: Omit<ScheduleRule, "name">;
+}[] = [
   {
-    label: "🌙 Night (22–6)",
-    rule: { name: "Night", days: [], startHour: 22, endHour: 6, intervalS: 7200 },
+    labelKey: "templateNight",
+    nameKey: "templateNightName",
+    rule: { days: [], startHour: 22, endHour: 6, intervalS: 7200 },
   },
   {
-    label: "🏖 Weekend",
-    rule: { name: "Weekend", days: WEEKEND, startHour: 0, endHour: 23, intervalS: 3600 },
+    labelKey: "templateWeekend",
+    nameKey: "templateWeekendName",
+    rule: { days: WEEKEND, startHour: 0, endHour: 23, intervalS: 3600 },
   },
   {
-    label: "🍽 Lunch (12–13)",
-    rule: { name: "Lunch Break", days: WEEKDAYS, startHour: 12, endHour: 13, intervalS: 1800 },
+    labelKey: "templateLunch",
+    nameKey: "templateLunchName",
+    rule: { days: WEEKDAYS, startHour: 12, endHour: 13, intervalS: 1800 },
   },
   {
-    label: "🏢 Office (8–18)",
-    rule: { name: "Office Hours", days: WEEKDAYS, startHour: 8, endHour: 18, intervalS: 300 },
+    labelKey: "templateOffice",
+    nameKey: "templateOfficeName",
+    rule: { days: WEEKDAYS, startHour: 8, endHour: 18, intervalS: 300 },
   },
-  { label: "✏️ Custom", rule: { name: "", days: [], startHour: 0, endHour: 23, intervalS: 900 } },
+  {
+    labelKey: "templateCustom",
+    nameKey: "templateCustomName",
+    rule: { days: [], startHour: 0, endHour: 23, intervalS: 900 },
+  },
 ];
 
 function IntervalPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -174,7 +186,7 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
         </Button>
       </div>
       <div className="flex gap-1">
-        {DAY_NAMES.map((d, i) => (
+        {DAY_KEYS.map((dayKey, i) => (
           <Button
             key={i}
             size="sm"
@@ -182,7 +194,7 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
             onClick={() => toggle(i)}
             className="w-9 px-0"
           >
-            {d}
+            {t(dayKey)}
           </Button>
         ))}
       </div>
@@ -192,25 +204,25 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
 
 const BASE_FIELDS: {
   key: string;
-  label: string;
+  labelKey: string;
   type: "interval" | "number" | "slider";
   unit?: string;
   min?: number;
   max?: number;
 }[] = [
-  { key: "usbIntervalS", label: "USB Refresh Interval", type: "interval" },
-  { key: "batteryIntervalS", label: "Battery Refresh Interval", type: "interval" },
-  { key: "lowBatteryIntervalS", label: "Low Battery Interval", type: "interval" },
+  { key: "usbIntervalS", labelKey: "usbInterval", type: "interval" },
+  { key: "batteryIntervalS", labelKey: "batteryInterval", type: "interval" },
+  { key: "lowBatteryIntervalS", labelKey: "lowBatteryInterval", type: "interval" },
   {
     key: "lowBatteryThresholdPct",
-    label: "Low Battery Threshold",
+    labelKey: "lowBatteryThreshold",
     type: "slider",
     unit: "%",
     min: 5,
     max: 50,
   },
-  { key: "imminentEventWindowS", label: "Imminent Event Window", type: "interval" },
-  { key: "wakeBeforeEventS", label: "Wake Before Event", type: "interval" },
+  { key: "imminentEventWindowS", labelKey: "imminentEventWindow", type: "interval" },
+  { key: "wakeBeforeEventS", labelKey: "wakeBeforeEvent", type: "interval" },
 ];
 
 /** Mirrors RENDER_BACKOFF_MAX_STEPS in firmware/components/sleep_manager. */
@@ -247,8 +259,8 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   function setSchedule(s: ScheduleRule[]) {
     setConfig((c) => ({ ...c, schedule: s }));
   }
-  function addTemplate(tpl: ScheduleRule) {
-    setSchedule([...schedule, { ...tpl }]);
+  function addTemplate(template: (typeof RULE_TEMPLATES)[number]) {
+    setSchedule([...schedule, { ...template.rule, name: t(template.nameKey) }]);
   }
   function removeRule(i: number) {
     setSchedule(schedule.filter((_, j) => j !== i));
@@ -279,10 +291,10 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       try {
         if (editing === "new") await createRefreshProfile(name, config);
         else if (editing) await updateRefreshProfile(editing, name, config);
-        toast("success", editing === "new" ? "Profile created" : "Profile updated");
+        toast("success", editing === "new" ? t("created") : t("updated"));
         setEditing(null);
       } catch {
-        toast("error", "Failed to save");
+        toast("error", t("saveFailed"));
       }
     });
   }
@@ -293,9 +305,9 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
     startTransition(async () => {
       try {
         await deleteRefreshProfile(id);
-        toast("success", "Deleted");
+        toast("success", t("deleted"));
       } catch {
-        toast("error", "Failed to delete");
+        toast("error", t("deleteFailed"));
       }
     });
   }
@@ -306,7 +318,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         await setDefaultRefreshProfile(id);
         toast("success", t("defaultSet"));
       } catch {
-        toast("error", "Failed to set default");
+        toast("error", t("defaultFailed"));
       }
     });
   }
@@ -372,18 +384,20 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                     {p.isDefault && <StatusPill tone="accent">{t("default")}</StatusPill>}
                     {rules.length > 0 && (
                       <StatusPill tone="accent">
-                        {rules.length} rule{rules.length > 1 ? "s" : ""}
+                        {t("ruleCount", { count: rules.length })}
                       </StatusPill>
                     )}
                   </div>
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-label-secondary tabular-nums">
                     <span className="inline-flex items-center gap-1">
                       <Clock size={14} aria-hidden="true" />
-                      USB {fmtInterval(c.usbIntervalS as number)}
+                      {t("usbSummary", { interval: fmtInterval(c.usbIntervalS as number) })}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <Clock size={14} aria-hidden="true" />
-                      Battery {fmtInterval(c.batteryIntervalS as number)}
+                      {t("batterySummary", {
+                        interval: fmtInterval(c.batteryIntervalS as number),
+                      })}
                     </span>
                   </div>
                 </div>
@@ -418,8 +432,8 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         {filtered.length === 0 && (
           <EmptyState
             icon={<CalendarClock size={24} aria-hidden="true" />}
-            title={profiles.length === 0 ? "No refresh profiles." : "No matching profiles."}
-            description="Create profiles to control how often devices refresh."
+            title={profiles.length === 0 ? t("emptyTitle") : t("noMatchesTitle")}
+            description={t("emptyDescription")}
           />
         )}
       </div>
@@ -428,7 +442,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       <Modal
         open={!!editing}
         onClose={() => setEditing(null)}
-        title={editing === "new" ? "New Refresh Profile" : "Edit Profile"}
+        title={editing === "new" ? t("newProfile") : t("editProfile")}
         onSubmit={name ? save : undefined}
         footer={
           <>
@@ -454,7 +468,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
           {BASE_FIELDS.map((f) => (
             <div key={f.key}>
               <label className="block text-xs font-medium text-label-secondary mb-1">
-                {f.label}
+                {t(f.labelKey)}
               </label>
               {f.type === "interval" ? (
                 <IntervalPicker
@@ -506,20 +520,16 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
           />
         </div>
 
-        <h3 className="text-sm font-semibold text-label mb-1">Error Retry Ladder</h3>
-        <p className="text-xs text-label-secondary mb-3">
-          How long a display waits after a failed refresh: the first failure uses step 1, the second
-          step 2, and so on, holding at the last step. Keep the first step well below the refresh
-          interval so a single dropped request recovers quickly. Remove every step to keep the
-          normal interval on failure.
-        </p>
+        <h3 className="text-sm font-semibold text-label mb-1">{t("errorRetryTitle")}</h3>
+        <p className="text-xs text-label-secondary mb-3">{t("errorRetryHint")}</p>
         <div className="space-y-3 mb-6">
           {backoff.map((step, i) => (
             <div key={i}>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-label-secondary">
-                  Step {i + 1}
-                  {i === backoff.length - 1 && backoff.length > 1 ? " (held)" : ""}
+                  {i === backoff.length - 1 && backoff.length > 1
+                    ? t("retryStepHeld", { step: i + 1 })
+                    : t("retryStep", { step: i + 1 })}
                 </label>
                 <Button
                   size="sm"
@@ -545,23 +555,25 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
               setBackoff([...backoff, backoff.length ? backoff[backoff.length - 1] * 2 : 60])
             }
           >
-            Add step
+            {t("addStep")}
           </Button>
         </div>
 
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-sm font-semibold text-label">{t("scheduleRules")}</h3>
         </div>
-        <p className="text-xs text-label-secondary mb-3">
-          Override the battery interval for specific days/times. Rules are checked top-to-bottom —
-          first match wins.
-        </p>
+        <p className="text-xs text-label-secondary mb-3">{t("scheduleHint")}</p>
 
         {/* Templates */}
         <div className="flex flex-wrap gap-1 mb-3">
-          {RULE_TEMPLATES.map((tpl, i) => (
-            <Button key={i} size="sm" variant="gray" onClick={() => addTemplate(tpl.rule)}>
-              {tpl.label}
+          {RULE_TEMPLATES.map((template) => (
+            <Button
+              key={template.labelKey}
+              size="sm"
+              variant="gray"
+              onClick={() => addTemplate(template)}
+            >
+              {t(template.labelKey)}
             </Button>
           ))}
         </div>
@@ -659,7 +671,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
 
         {schedule.length === 0 && (
           <div className="text-center py-4 text-xs text-label-tertiary border border-separator rounded-lg border-dashed">
-            No schedule rules. Add a template above or the default intervals will be used 24/7.
+            {t("noScheduleRules")}
           </div>
         )}
 
@@ -676,6 +688,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         title={t("deleteTitle")}
         message={t("deleteMessage")}
         confirmLabel={t("delete")}
+        cancelLabel={t("cancel")}
         destructive
       />
     </div>

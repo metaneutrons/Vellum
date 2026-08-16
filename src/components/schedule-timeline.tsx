@@ -84,8 +84,10 @@ export function ScheduleTimeline({
   return (
     <div className="mt-4 mb-2">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-xs font-medium">24h Timeline (today)</span>
-        <span className="text-xs text-gray-500">Default: {fmtInterval(defaultIntervalS)}</span>
+        <span className="text-xs font-medium">{t("timelineToday")}</span>
+        <span className="text-xs text-gray-500">
+          {t("timelineDefault", { interval: fmtInterval(defaultIntervalS) })}
+        </span>
       </div>
 
       {/* Timeline bar */}
@@ -166,8 +168,8 @@ export function ScheduleTimeline({
                 style={{ background: COLORS[i % COLORS.length] }}
               />
               <span className={`text-[10px] ${active ? "font-bold text-white" : "text-gray-500"}`}>
-                {rule.name || `Rule ${i + 1}`} ({fmtInterval(rule.intervalS)})
-                {active && <span className="ml-1 text-orange-400">● active</span>}
+                {rule.name || t("ruleFallback", { number: i + 1 })} ({fmtInterval(rule.intervalS)})
+                {active && <span className="ml-1 text-orange-400">● {t("active")}</span>}
                 {isOvernight(rule) && <span className="ml-1">🌙</span>}
               </span>
               {hasOverlap && (
@@ -183,8 +185,10 @@ export function ScheduleTimeline({
       {/* Overlap warnings */}
       {overlaps.length > 0 && (
         <div className="mt-2 text-[10px] text-yellow-500">
-          ⚠ Rules overlap: {overlaps.map(([a, b]) => `#${a + 1}↔#${b + 1}`).join(", ")} — first
-          match wins
+          ⚠{" "}
+          {t("overlapSummary", {
+            pairs: overlaps.map(([a, b]) => `#${a + 1}↔#${b + 1}`).join(", "),
+          })}
         </div>
       )}
     </div>

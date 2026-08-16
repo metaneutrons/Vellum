@@ -539,8 +539,7 @@ export async function createServiceAccount(
   ) {
     throw new Error("A service account needs a name and at least one valid permission");
   }
-  const token = `vls_${crypto.randomBytes(32).toString("base64url")}`;
-  const prefix = token.slice(0, 12);
+  const { token, prefix, hash } = issueServiceAccountToken();
   const [account] = await withDbTransaction(
     () =>
       db.transaction(async (tx) => {
@@ -549,7 +548,7 @@ export async function createServiceAccount(
           .values({
             name: input.name.trim(),
             tokenPrefix: prefix,
-            tokenHash: digest(token),
+            tokenHash: hash,
             expiresAt: input.expiresAt ?? null,
             createdBy: actor.id,
           })
@@ -572,6 +571,42 @@ export async function createServiceAccount(
     "create-service-account"
   );
   return { id: account.id, token };
+}
+
+function issueServiceAccountToken(): { token: string; prefix: string; hash: string } {
+  const token = `vls_${crypto.randomBytes(32).toString("base64url")}`;
+  return { token, prefix: token.slice(0, 12), hash: digest(token) };
+}
+
+/**
+ * Replace an active automation credential without ever persisting plaintext.
+ * The old token becomes invalid in the same transaction in which the rotation
+ * is audited; callers receive the replacement exactly once.
+ */
+export async function rotateServiceAccountToken(
+  id: string,
+  actor: Principal
+): Promise<{ token: string }> {
+  const secret = issueServiceAccountToken();
+  await withAuditedTransaction(
+    actor,
+    {
+      action: "access.service_account.rotate",
+      targetType: "service_account",
+      targetId: id,
+      metadata: { tokenPrefix: secret.prefix },
+    },
+    async (tx) => {
+      const updated = await tx
+        .update(serviceAccounts)
+        .set({ tokenPrefix: secret.prefix, tokenHash: secret.hash })
+        .where(and(eq(serviceAccounts.id, id), eq(serviceAccounts.status, "active")))
+        .returning({ id: serviceAccounts.id });
+      if (updated.length === 0) throw new Error("service_account_not_active");
+    },
+    "rotate-service-account-token"
+  );
+  return { token: secret.token };
 }
 
 async function principalFromServiceToken(token: string): Promise<Principal | null> {

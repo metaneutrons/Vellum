@@ -12,6 +12,7 @@ interface ConfirmProps {
   title: string;
   message: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   destructive?: boolean;
   pending?: boolean;
 }
@@ -23,6 +24,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   destructive = false,
   pending = false,
 }: ConfirmProps) {
@@ -34,7 +36,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="plain" size="sm" onClick={onClose}>
-            Cancel
+            {cancelLabel}
           </Button>
           <Button
             variant={destructive ? "destructive" : "filled"}

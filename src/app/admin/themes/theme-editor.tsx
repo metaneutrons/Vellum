@@ -96,7 +96,7 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
         await setDefaultTheme(id);
         toast("success", tp("defaultSet"));
       } catch {
-        toast("error", "Failed to set default");
+        toast("error", tt("defaultFailed"));
       }
     });
   }
@@ -192,12 +192,8 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
         {filteredThemes.length === 0 && (
           <EmptyState
             icon={<Palette size={24} aria-hidden="true" />}
-            title={themes.length === 0 ? "No themes yet" : "No themes match your search"}
-            description={
-              themes.length === 0
-                ? "Create a theme to customize the display appearance."
-                : undefined
-            }
+            title={themes.length === 0 ? tt("emptyTitle") : tt("noMatchesTitle")}
+            description={themes.length === 0 ? tt("emptyDescription") : undefined}
           />
         )}
       </div>
@@ -253,6 +249,7 @@ export function ThemeEditor({ themes }: { themes: DbTheme[] }) {
         title={tt("deleteThemeTitle")}
         message={tt("deleteThemeMessage")}
         confirmLabel={tt("delete")}
+        cancelLabel={tt("cancel")}
         destructive
       />
     </div>
