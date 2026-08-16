@@ -2,7 +2,7 @@ menu "Vellum Configuration"
 
     config VELLUM_FIRMWARE_VERSION
         string "Firmware version"
-        default "1.4.8" # x-release-please-version
+        default "1.4.9" # x-release-please-version
 
     config VELLUM_DEFAULT_SERVER_URL
         string "Default server URL"
