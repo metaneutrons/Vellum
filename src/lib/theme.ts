@@ -78,7 +78,8 @@ export function snapThemeToPalette(theme: Theme, palette: [number, number, numbe
       const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
       if (dist < bestDist) {
         bestDist = dist;
-        bestColor = `#${pr.toString(16).padStart(2, "0")}${pg.toString(16).padStart(2, "0")}${pb.toString(16).padStart(2, "0")}`.toUpperCase();
+        bestColor =
+          `#${pr.toString(16).padStart(2, "0")}${pg.toString(16).padStart(2, "0")}${pb.toString(16).padStart(2, "0")}`.toUpperCase();
       }
     }
     return bestColor;

@@ -18,12 +18,18 @@ export function SearchInput({ value, onChange, placeholder = "Search..." }: Sear
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder === "Search..." ? t("search") : placeholder} aria-label={placeholder === "Search..." ? t("search") : placeholder}
+        placeholder={placeholder === "Search..." ? t("search") : placeholder}
+        aria-label={placeholder === "Search..." ? t("search") : placeholder}
         className="w-64 border rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />
       {value && (
-        <button onClick={() => onChange("")}
-          aria-label={t("clearSearch")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+        <button
+          onClick={() => onChange("")}
+          aria-label={t("clearSearch")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+        >
+          ✕
+        </button>
       )}
     </div>
   );

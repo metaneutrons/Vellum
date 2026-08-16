@@ -28,9 +28,7 @@ const m = mdns();
 const ips = getLocalIPs();
 
 m.on("query", (query) => {
-  const dominated = query.questions.some(
-    (q) => q.name === SERVICE || q.name === HOSTNAME
-  );
+  const dominated = query.questions.some((q) => q.name === SERVICE || q.name === HOSTNAME);
   if (!dominated) return;
 
   m.respond({

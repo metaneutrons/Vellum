@@ -5,7 +5,9 @@ import { normalizeBookingUrl, shouldShowBookingQr } from "../booking-qr";
 
 describe("booking QR safety and visibility", () => {
   it("accepts only bounded HTTP(S) booking URLs", () => {
-    expect(normalizeBookingUrl("https://anny.co/b/book/team-room")).toBe("https://anny.co/b/book/team-room");
+    expect(normalizeBookingUrl("https://anny.co/b/book/team-room")).toBe(
+      "https://anny.co/b/book/team-room"
+    );
     expect(normalizeBookingUrl("javascript:alert(1)")).toBeNull();
     expect(normalizeBookingUrl("mailto:room@example.com")).toBeNull();
     expect(normalizeBookingUrl("not a url")).toBeNull();

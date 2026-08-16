@@ -30,7 +30,7 @@ describe("device-owned records", () => {
     ["OTA events", otaEvents],
   ])("deletes %s with its device", (_name, table) => {
     const deviceReference = getTableConfig(table).foreignKeys.find(
-      (foreignKey) => foreignKey.reference().foreignTable === devices,
+      (foreignKey) => foreignKey.reference().foreignTable === devices
     );
 
     expect(deviceReference, "device foreign key").toBeDefined();
@@ -45,7 +45,7 @@ describe("device assignments", () => {
     ["refresh profile", refreshProfiles],
   ])("clears an assigned %s when it is deleted", (_name, parent) => {
     const reference = getTableConfig(devices).foreignKeys.find(
-      (foreignKey) => foreignKey.reference().foreignTable === parent,
+      (foreignKey) => foreignKey.reference().foreignTable === parent
     );
 
     expect(reference, "assignment foreign key").toBeDefined();
@@ -58,7 +58,9 @@ describe("database-selected defaults", () => {
     ["theme", themes, "themes_one_default_idx"],
     ["refresh profile", refreshProfiles, "refresh_profiles_one_default_idx"],
   ])("allows only one default %s", (_name, table, indexName) => {
-    const index = getTableConfig(table).indexes.find((candidate) => candidate.config.name === indexName);
+    const index = getTableConfig(table).indexes.find(
+      (candidate) => candidate.config.name === indexName
+    );
 
     expect(index, "partial unique index").toBeDefined();
     expect(index?.config.unique).toBe(true);
@@ -72,8 +74,12 @@ describe("JSON content dependencies", () => {
     ["asset", contentAssetDependencies, assets],
   ])("restricts deletion of a referenced %s", (_name, dependencyTable, parent) => {
     const config = getTableConfig(dependencyTable);
-    const contentReference = config.foreignKeys.find((key) => key.reference().foreignTable === contentInstances);
-    const resourceReference = config.foreignKeys.find((key) => key.reference().foreignTable === parent);
+    const contentReference = config.foreignKeys.find(
+      (key) => key.reference().foreignTable === contentInstances
+    );
+    const resourceReference = config.foreignKeys.find(
+      (key) => key.reference().foreignTable === parent
+    );
 
     expect(contentReference?.onDelete).toBe("cascade");
     expect(resourceReference?.onDelete).toBe("restrict");
@@ -106,7 +112,7 @@ describe("foreign-key performance", () => {
       const localColumn = foreignKey.reference().columns[0];
       expect(
         leadingColumns.some((column) => "name" in column && column.name === localColumn.name),
-        `${config.name}.${localColumn.name} needs a leading index`,
+        `${config.name}.${localColumn.name} needs a leading index`
       ).toBe(true);
     }
   });

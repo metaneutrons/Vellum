@@ -21,8 +21,10 @@ export interface ResolvedProvider {
  * Throws if not found.
  */
 export async function getProviderWithCredentials(id: string): Promise<ResolvedProvider> {
-  const [provider] = await withDbRead(() => db.select().from(dataProviders)
-    .where(eq(dataProviders.id, id)).limit(1), "get-provider-with-credentials");
+  const [provider] = await withDbRead(
+    () => db.select().from(dataProviders).where(eq(dataProviders.id, id)).limit(1),
+    "get-provider-with-credentials"
+  );
   if (!provider) throw new Error(`Provider ${id} not found`);
 
   return {

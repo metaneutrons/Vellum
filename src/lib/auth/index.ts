@@ -45,74 +45,105 @@ export interface DeviceRepository {
 
 export const drizzleDeviceRepo: DeviceRepository = {
   async findByMac(mac) {
-    const rows = await withDbRead(() => db
-      .select({
-        mac: devices.mac,
-        status: devices.status,
-        token: devices.token,
-        publicKey: devices.publicKey,
-      })
-      .from(devices)
-      .where(eq(devices.mac, mac))
-      .limit(1), "auth-find-device-by-mac");
+    const rows = await withDbRead(
+      () =>
+        db
+          .select({
+            mac: devices.mac,
+            status: devices.status,
+            token: devices.token,
+            publicKey: devices.publicKey,
+          })
+          .from(devices)
+          .where(eq(devices.mac, mac))
+          .limit(1),
+      "auth-find-device-by-mac"
+    );
     return rows[0] ?? null;
   },
   async insertPending(mac, publicKey) {
-    await withDbWrite(() => db.insert(devices).values({ mac, status: "pending", publicKey }).onConflictDoNothing(), "auth-insert-pending-device");
+    await withDbWrite(
+      () => db.insert(devices).values({ mac, status: "pending", publicKey }).onConflictDoNothing(),
+      "auth-insert-pending-device"
+    );
   },
   async updatePublicKey(mac, publicKey) {
-    await withDbWrite(() => db.update(devices).set({ publicKey }).where(eq(devices.mac, mac)), "auth-update-public-key");
+    await withDbWrite(
+      () => db.update(devices).set({ publicKey }).where(eq(devices.mac, mac)),
+      "auth-update-public-key"
+    );
   },
   async updateDisplayCaps(mac, caps) {
-    await withDbWrite(() => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, mac)), "auth-update-display-caps");
+    await withDbWrite(
+      () => db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, mac)),
+      "auth-update-display-caps"
+    );
   },
   async updateApproved(mac, token) {
-    await withDbWrite(() => db
-      .update(devices)
-      .set({ status: "approved", token, approvedAt: new Date() })
-      .where(eq(devices.mac, mac)), "auth-update-approved");
+    await withDbWrite(
+      () =>
+        db
+          .update(devices)
+          .set({ status: "approved", token, approvedAt: new Date() })
+          .where(eq(devices.mac, mac)),
+      "auth-update-approved"
+    );
   },
   async updateLastSeen(mac) {
-    await withDbWrite(() => db.update(devices).set({ lastSeen: new Date() }).where(eq(devices.mac, mac)), "auth-update-last-seen");
+    await withDbWrite(
+      () => db.update(devices).set({ lastSeen: new Date() }).where(eq(devices.mac, mac)),
+      "auth-update-last-seen"
+    );
   },
   async claimVoucherAndEnroll(token, mac) {
-    return withDbTransaction(() => db.transaction(async (tx) => {
-      // Single atomic UPDATE ... WHERE claimed_by_mac IS NULL RETURNING — prevents
-      // two devices claiming the same voucher (single-use, bound to the first MAC).
-      const rows = await tx
-        .update(provisioningVouchers)
-        .set({ claimedByMac: mac, claimedAt: new Date() })
-        .where(and(
-          eq(provisioningVouchers.token, token),
-          isNull(provisioningVouchers.claimedByMac),
-          // Unexpired: no expiry set, or expiry still in the future.
-          or(isNull(provisioningVouchers.expiresAt), gt(provisioningVouchers.expiresAt, new Date())),
-        ))
-        .returning({
-          token: provisioningVouchers.token,
-          firmwareChannel: provisioningVouchers.firmwareChannel,
-          firmwarePinVersion: provisioningVouchers.firmwarePinVersion,
-        });
-      if (rows.length === 0) return false;
-      // Same transaction: if this insert throws, the voucher claim rolls back,
-      // so the voucher stays available for a retry instead of being burned.
-      const voucher = rows[0];
-      const enrollment = {
-        status: "approved",
-        token,
-        approvedAt: new Date(),
-        ...(voucher.firmwareChannel ? { firmwareChannel: voucher.firmwareChannel } : {}),
-        ...(voucher.firmwarePinVersion ? { firmwarePinVersion: voucher.firmwarePinVersion } : {}),
-      };
-      await tx
-        .insert(devices)
-        .values({ mac, ...enrollment })
-        .onConflictDoUpdate({
-          target: devices.mac,
-          set: enrollment,
-        });
-      return true;
-    }), "auth-claim-voucher-enroll");
+    return withDbTransaction(
+      () =>
+        db.transaction(async (tx) => {
+          // Single atomic UPDATE ... WHERE claimed_by_mac IS NULL RETURNING — prevents
+          // two devices claiming the same voucher (single-use, bound to the first MAC).
+          const rows = await tx
+            .update(provisioningVouchers)
+            .set({ claimedByMac: mac, claimedAt: new Date() })
+            .where(
+              and(
+                eq(provisioningVouchers.token, token),
+                isNull(provisioningVouchers.claimedByMac),
+                // Unexpired: no expiry set, or expiry still in the future.
+                or(
+                  isNull(provisioningVouchers.expiresAt),
+                  gt(provisioningVouchers.expiresAt, new Date())
+                )
+              )
+            )
+            .returning({
+              token: provisioningVouchers.token,
+              firmwareChannel: provisioningVouchers.firmwareChannel,
+              firmwarePinVersion: provisioningVouchers.firmwarePinVersion,
+            });
+          if (rows.length === 0) return false;
+          // Same transaction: if this insert throws, the voucher claim rolls back,
+          // so the voucher stays available for a retry instead of being burned.
+          const voucher = rows[0];
+          const enrollment = {
+            status: "approved",
+            token,
+            approvedAt: new Date(),
+            ...(voucher.firmwareChannel ? { firmwareChannel: voucher.firmwareChannel } : {}),
+            ...(voucher.firmwarePinVersion
+              ? { firmwarePinVersion: voucher.firmwarePinVersion }
+              : {}),
+          };
+          await tx
+            .insert(devices)
+            .values({ mac, ...enrollment })
+            .onConflictDoUpdate({
+              target: devices.mac,
+              set: enrollment,
+            });
+          return true;
+        }),
+      "auth-claim-voucher-enroll"
+    );
   },
 };
 
@@ -158,8 +189,11 @@ export async function handleHello(
   // both cases the token must not be handed to an unproven key; the device has
   // to be re-approved by an operator. We never overwrite the stored key here.
   if (publicKey && device.publicKey && publicKey !== device.publicKey) {
-    log.warn("hello: approved device presented a different handshake key — " +
-      "refusing token, re-provisioning required", { mac });
+    log.warn(
+      "hello: approved device presented a different handshake key — " +
+        "refusing token, re-provisioning required",
+      { mac }
+    );
     return { status: "pending" };
   }
 

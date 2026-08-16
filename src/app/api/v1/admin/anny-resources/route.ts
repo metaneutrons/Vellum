@@ -13,9 +13,10 @@ import { requestHasPermission } from "@/lib/access";
  * Query params: providerId, organizationId, search (optional), page (optional)
  */
 export async function GET(request: NextRequest) {
-  if (!(await requestHasPermission(request, "providers.manage_secrets"))) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await requestHasPermission(request, "providers.manage_secrets")))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   const providerId = request.nextUrl.searchParams.get("providerId");
-  
+
   const search = request.nextUrl.searchParams.get("search") ?? undefined;
   const page = parseInt(request.nextUrl.searchParams.get("page") ?? "1", 10);
 
@@ -23,19 +24,29 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Missing providerId" }, { status: 400 });
   }
 
-  const [provider] = await withDbRead(() => db.select().from(dataProviders).where(eq(dataProviders.id, providerId)).limit(1), "get-anny-provider");
+  const [provider] = await withDbRead(
+    () => db.select().from(dataProviders).where(eq(dataProviders.id, providerId)).limit(1),
+    "get-anny-provider"
+  );
   if (!provider || provider.type !== "anny") {
     return Response.json({ error: "Provider not found or not anny type" }, { status: 404 });
   }
 
   try {
-    const credentials = decryptCredentials(provider.encryptedCredentials) as { apiToken: string; organizationId?: string };
+    const credentials = decryptCredentials(provider.encryptedCredentials) as {
+      apiToken: string;
+      organizationId?: string;
+    };
     const { extractOrgFromToken } = await import("@/lib/calendar/providers/anny");
     const orgId = credentials.organizationId || extractOrgFromToken(credentials.apiToken) || "";
-    if (!orgId) return Response.json({ error: "Cannot determine organization ID" }, { status: 400 });
+    if (!orgId)
+      return Response.json({ error: "Cannot determine organization ID" }, { status: 400 });
     const result = await fetchAnnyResources(credentials.apiToken, orgId, search, page);
     return Response.json(result);
   } catch (err) {
-    return Response.json({ error: String(err instanceof Error ? err.message : err) }, { status: 502 });
+    return Response.json(
+      { error: String(err instanceof Error ? err.message : err) },
+      { status: 502 }
+    );
   }
 }

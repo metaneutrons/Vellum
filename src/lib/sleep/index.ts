@@ -65,10 +65,7 @@ export const refreshProfileSchema = z.object({
    * Not sent when empty — the device then keeps its normal cadence on failure,
    * which is the safe direction (retries too often, never too rarely).
    */
-  errorBackoffS: z
-    .array(z.number().int().positive())
-    .max(8)
-    .default([60, 300, 900, 3600]),
+  errorBackoffS: z.array(z.number().int().positive()).max(8).default([60, 300, 900, 3600]),
   /**
    * Ceiling on the refresh interval while a display has no content assigned.
    *

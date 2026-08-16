@@ -17,8 +17,7 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
 };
 
 const minLevel: LogLevel =
-  (process.env.LOG_LEVEL as LogLevel | undefined) ??
-  (process.env.VITEST ? "error" : "info");
+  (process.env.LOG_LEVEL as LogLevel | undefined) ?? (process.env.VITEST ? "error" : "info");
 
 function shouldLog(level: LogLevel): boolean {
   return LEVEL_ORDER[level] >= LEVEL_ORDER[minLevel];

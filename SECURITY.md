@@ -39,6 +39,7 @@ Provision that URL via the captive portal, Improv serial, or the console `server
 command. `.local` / bare-IP endpoints will not validate against public roots.
 
 ### Token confidentiality
+
 **On the network `/hello` path**, the device token is delivered **end-to-end
 encrypted** (X25519 ECDH → HKDF-SHA256 → AES-256-GCM) so it is protected even
 from the TLS-terminating proxy
@@ -63,9 +64,9 @@ The OTA trust chain verifies the image **before it is ever made bootable**
 (`ota_manager.c`):
 
 1. Download into the inactive OTA slot (not bootable yet).
-2. SHA-256 the *staged partition*.
+2. SHA-256 the _staged partition_.
 3. **Ed25519-verify** the server signature over that device-computed digest
-   (`PSA_ALG_PURE_EDDSA`). The signed message is the digest the *device* computed,
+   (`PSA_ALG_PURE_EDDSA`). The signed message is the digest the _device_ computed,
    so a substituted image cannot pass.
 4. Only then `esp_https_ota_finish()` sets the boot partition
    (`PENDING_VERIFY` + bootloader rollback).
@@ -73,13 +74,13 @@ The OTA trust chain verifies the image **before it is ever made bootable**
    `ota_manager_mark_valid()`; otherwise the bootloader rolls back.
 
 - **`CONFIG_VELLUM_OTA_REQUIRE_SIGNATURE` now defaults to `y` (fail-closed).**
-  With Secure Boot disabled (dev builds) this app-level signature is the *only*
+  With Secure Boot disabled (dev builds) this app-level signature is the _only_
   control preventing malicious firmware, so it must never fail open.
 - The signing **public** key ships in the firmware
   (`CONFIG_VELLUM_OTA_SIGNING_PUBKEY`, raw 32-byte Ed25519, base64). The matching
   **private** key must live only on the signing server / in an HSM.
 - The production profile additionally enables **anti-rollback** to reject
-  validly-signed but *older* images.
+  validly-signed but _older_ images.
 
 ---
 
@@ -114,13 +115,13 @@ in NVS (`firmware/components/nvs_manager/`).
   provisioning voucher (`provisioning_vouchers` table, `src/db/schema.ts`) whose
   `token` **is** the device bearer token, and pushes it over USB with the Wi-Fi
   profile. On the device's first authenticated request `claimVoucherAndEnroll`
-  (`src/lib/auth/index.ts`) claims *and* enrols it: the voucher is bound to the
+  (`src/lib/auth/index.ts`) claims _and_ enrols it: the voucher is bound to the
   first claiming MAC by a single atomic
   `UPDATE … WHERE claimed_by_mac IS NULL`, and the claim + device enrolment run in
   **one transaction** — a crash mid-way rolls both back, so the voucher is never
   burned without the device being enrolled. An optional expiry (`expiresAt`,
   default 7 days) bounds the leak window of an unclaimed voucher; **`expiresAt =
-  NULL` never expires, so this expiry mitigation is opt-in.** Enrolment is
+NULL` never expires, so this expiry mitigation is opt-in.** Enrolment is
   auth-gated by **possession of the voucher** (not open enrolment — an unknown MAC
   with no matching voucher is rejected), and after approval the device's handshake
   public key is **frozen**, so a spoofed MAC can no longer extract the token
@@ -128,7 +129,7 @@ in NVS (`firmware/components/nvs_manager/`).
 
 ---
 
-## 5. Production hardening runbook  ⚠️ irreversible
+## 5. Production hardening runbook ⚠️ irreversible
 
 The profile in `firmware/sdkconfig.defaults.prod` enables Secure Boot v2, Flash
 Encryption (Release), NVS encryption and anti-rollback. **First boot burns eFuses
@@ -152,6 +153,7 @@ idf.py -p <PORT> flash monitor
 ```
 
 Checklist before mass production:
+
 - [ ] Secure Boot signing key backed up offline; access-controlled.
 - [ ] OTA Ed25519 private key on the signing server only; public half in Kconfig.
 - [ ] `keys/` is git-ignored (see below); no key material in the repo.
@@ -159,6 +161,7 @@ Checklist before mass production:
 - [ ] `CONFIG_SECURE_DISABLE_ROM_DL_MODE=y` confirmed (locks UART download).
 
 Add to `firmware/.gitignore` (or the repo root):
+
 ```
 firmware/keys/
 *.pem
@@ -168,15 +171,15 @@ firmware/keys/
 
 ## 6. Residual / accepted risks
 
-| Risk | Status |
-|------|--------|
-| Dev builds: secrets in plaintext flash, board freely reflashable | **Accepted for dev only.** Use the production profile for field units. |
-| Open SoftAP during first-time provisioning | Accepted; setup window is treated as physical-trust and is brief. |
-| Physical USB console/Improv grants device control | Accepted; equivalent to physical possession. Locked out by Secure Boot + disabled ROM-DL in prod. |
-| Render content spoofing if the operator uses a non-public-CA endpoint | Mitigated by enforced HTTPS + CA validation; operator must use a valid public cert. |
-| OTA downgrade to an older *signed* image | Mitigated in prod by anti-rollback; in dev only the version-gate applies. |
-| `X-Forwarded-For` is trusted for rate-limit keying | Accepted **behind a trusted proxy** that overwrites XFF; a directly-exposed instance lets a client spoof it and bypass limits (see §7). |
-| CSP is a non-breaking subset (no `script-src` lockdown) | Accepted; clickjacking / `<base>` / plugin / form-hijack are covered. Full nonce-based CSP tracked in ROADMAP. |
+| Risk                                                                  | Status                                                                                                                                  |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Dev builds: secrets in plaintext flash, board freely reflashable      | **Accepted for dev only.** Use the production profile for field units.                                                                  |
+| Open SoftAP during first-time provisioning                            | Accepted; setup window is treated as physical-trust and is brief.                                                                       |
+| Physical USB console/Improv grants device control                     | Accepted; equivalent to physical possession. Locked out by Secure Boot + disabled ROM-DL in prod.                                       |
+| Render content spoofing if the operator uses a non-public-CA endpoint | Mitigated by enforced HTTPS + CA validation; operator must use a valid public cert.                                                     |
+| OTA downgrade to an older _signed_ image                              | Mitigated in prod by anti-rollback; in dev only the version-gate applies.                                                               |
+| `X-Forwarded-For` is trusted for rate-limit keying                    | Accepted **behind a trusted proxy** that overwrites XFF; a directly-exposed instance lets a client spoof it and bypass limits (see §7). |
+| CSP is a non-breaking subset (no `script-src` lockdown)               | Accepted; clickjacking / `<base>` / plugin / form-hijack are covered. Full nonce-based CSP tracked in ROADMAP.                          |
 
 ---
 

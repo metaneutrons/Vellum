@@ -15,7 +15,7 @@ import { z } from "zod";
 const optionalEnv = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-    schema.optional(),
+    schema.optional()
   );
 
 /* Both env templates ship placeholders that satisfy every length rule, so
@@ -37,13 +37,16 @@ const secret = (name: string, min: number, hint: string) =>
     .min(min, `${name} must be at least ${min} characters`)
     .refine(
       (value) => !PLACEHOLDER_RE.test(value),
-      `${name} still contains the example placeholder from .env.example — generate a real value (${hint})`,
+      `${name} still contains the example placeholder from .env.example — generate a real value (${hint})`
     );
 
-const publicOrigin = z.string().url("VELLUM_PUBLIC_URL must be an absolute HTTPS origin").refine((value) => {
-  const url = new URL(value);
-  return url.protocol === "https:" && url.pathname === "/" && !url.search && !url.hash;
-}, "VELLUM_PUBLIC_URL must be an HTTPS origin without a path, query, or fragment");
+const publicOrigin = z
+  .string()
+  .url("VELLUM_PUBLIC_URL must be an absolute HTTPS origin")
+  .refine((value) => {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.pathname === "/" && !url.search && !url.hash;
+  }, "VELLUM_PUBLIC_URL must be an HTTPS origin without a path, query, or fragment");
 
 /* Exported for tests: importing `env` runs loadEnv() at module load, which
  * process.exit(1)s on invalid input, so the schema is validated directly. */
@@ -53,7 +56,7 @@ export const envSchema = z.object({
     .url("DATABASE_URL must be a valid URL")
     .refine(
       (value) => !PLACEHOLDER_RE.test(value),
-      "DATABASE_URL still contains the example placeholder password from deploy/vellum.env.example — set a real POSTGRES_PASSWORD and use it here",
+      "DATABASE_URL still contains the example placeholder password from deploy/vellum.env.example — set a real POSTGRES_PASSWORD and use it here"
     ),
   ENCRYPTION_KEY: secret("ENCRYPTION_KEY", 32, "openssl rand -hex 32"),
   SESSION_SECRET: secret("SESSION_SECRET", 32, "openssl rand -hex 32"),
@@ -62,7 +65,9 @@ export const envSchema = z.object({
   ADMIN_PASS: secret("ADMIN_PASS", 8, "use a password manager"),
   ENTRA_TENANT_ID: optionalEnv(z.string().uuid("ENTRA_TENANT_ID must be a UUID")),
   ENTRA_CLIENT_ID: optionalEnv(z.string().uuid("ENTRA_CLIENT_ID must be a UUID")),
-  ENTRA_CLIENT_SECRET: optionalEnv(secret("ENTRA_CLIENT_SECRET", 1, "copy it from the Entra app registration")),
+  ENTRA_CLIENT_SECRET: optionalEnv(
+    secret("ENTRA_CLIENT_SECRET", 1, "copy it from the Entra app registration")
+  ),
   VELLUM_PUBLIC_URL: optionalEnv(publicOrigin),
   UPDATER_URL: optionalEnv(z.string().url()),
   UPDATER_TOKEN: optionalEnv(secret("UPDATER_TOKEN", 32, "openssl rand -hex 32")),

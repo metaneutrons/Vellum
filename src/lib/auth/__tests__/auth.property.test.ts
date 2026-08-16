@@ -54,9 +54,7 @@ function createInMemoryRepo(): DeviceRepository & {
 
 // --- Generator: valid MAC addresses ---
 
-const arbMac = fc
-  .stringMatching(/^[0-9A-F]{12}$/)
-  .map((s) => s.match(/.{2}/g)!.join(":"));
+const arbMac = fc.stringMatching(/^[0-9A-F]{12}$/).map((s) => s.match(/.{2}/g)!.join(":"));
 
 /**
  * Property 10: Unknown MAC registration creates pending device
@@ -174,56 +172,44 @@ describe("Property 12: Invalid or missing token returns 401", () => {
 
   it("validateToken rejects wrong token for approved device", async () => {
     await fc.assert(
-      fc.asyncProperty(
-        arbMac,
-        fc.stringMatching(/^[0-9a-f]{64}$/),
-        async (mac, fakeToken) => {
-          const repo = createInMemoryRepo();
-          await handleHello(mac, null, undefined, repo);
-          await approveDevice(mac, repo);
+      fc.asyncProperty(arbMac, fc.stringMatching(/^[0-9a-f]{64}$/), async (mac, fakeToken) => {
+        const repo = createInMemoryRepo();
+        await handleHello(mac, null, undefined, repo);
+        await approveDevice(mac, repo);
 
-          const realToken = repo.store.get(mac)!.token!;
-          // Only test when fakeToken differs from the real one
-          fc.pre(fakeToken !== realToken);
+        const realToken = repo.store.get(mac)!.token!;
+        // Only test when fakeToken differs from the real one
+        fc.pre(fakeToken !== realToken);
 
-          const valid = await validateToken(mac, fakeToken, repo);
-          expect(valid).toBe(false);
-        }
-      ),
+        const valid = await validateToken(mac, fakeToken, repo);
+        expect(valid).toBe(false);
+      }),
       { numRuns: 100 }
     );
   });
 
   it("validateToken rejects unknown MAC", async () => {
     await fc.assert(
-      fc.asyncProperty(
-        arbMac,
-        fc.stringMatching(/^[0-9a-f]{64}$/),
-        async (mac, token) => {
-          const repo = createInMemoryRepo();
-          // Don't register the device at all
-          const valid = await validateToken(mac, token, repo);
-          expect(valid).toBe(false);
-        }
-      ),
+      fc.asyncProperty(arbMac, fc.stringMatching(/^[0-9a-f]{64}$/), async (mac, token) => {
+        const repo = createInMemoryRepo();
+        // Don't register the device at all
+        const valid = await validateToken(mac, token, repo);
+        expect(valid).toBe(false);
+      }),
       { numRuns: 100 }
     );
   });
 
   it("validateToken rejects pending device even with a token string", async () => {
     await fc.assert(
-      fc.asyncProperty(
-        arbMac,
-        fc.stringMatching(/^[0-9a-f]{64}$/),
-        async (mac, token) => {
-          const repo = createInMemoryRepo();
-          await handleHello(mac, null, undefined, repo);
-          // Device is pending, not approved
+      fc.asyncProperty(arbMac, fc.stringMatching(/^[0-9a-f]{64}$/), async (mac, token) => {
+        const repo = createInMemoryRepo();
+        await handleHello(mac, null, undefined, repo);
+        // Device is pending, not approved
 
-          const valid = await validateToken(mac, token, repo);
-          expect(valid).toBe(false);
-        }
-      ),
+        const valid = await validateToken(mac, token, repo);
+        expect(valid).toBe(false);
+      }),
       { numRuns: 100 }
     );
   });

@@ -28,103 +28,162 @@ const titlePattern = "chore${scope}: release${component} ${version}";
 const server = config.packages?.["."];
 const firmware = config.packages?.firmware;
 
-expect(config["separate-pull-requests"] === true,
-  "server and firmware must use separate release PRs");
-expect(config["pull-request-title-pattern"] === titlePattern,
-  "release PR titles must expose scope, component, and version");
+expect(
+  config["separate-pull-requests"] === true,
+  "server and firmware must use separate release PRs"
+);
+expect(
+  config["pull-request-title-pattern"] === titlePattern,
+  "release PR titles must expose scope, component, and version"
+);
 
 expect(server?.["release-type"] === "node", "server release type must be node");
 expect(server?.["package-name"] === "vellum", "server package name must be vellum");
 expect(server?.component === "server", "server component must be explicit");
-expect(server?.["include-component-in-tag"] === false,
-  "server tags must remain vX.Y.Z");
-expect(server?.["exclude-paths"]?.includes("firmware"),
-  "server releases must exclude firmware/**");
+expect(server?.["include-component-in-tag"] === false, "server tags must remain vX.Y.Z");
+expect(server?.["exclude-paths"]?.includes("firmware"), "server releases must exclude firmware/**");
 
 expect(firmware?.["release-type"] === "simple", "firmware release type must be simple");
-expect(firmware?.["package-name"] === "vellum-firmware",
-  "firmware package name must be vellum-firmware");
+expect(
+  firmware?.["package-name"] === "vellum-firmware",
+  "firmware package name must be vellum-firmware"
+);
 expect(firmware?.component === "firmware", "firmware component must be explicit");
-expect(firmware?.["include-component-in-tag"] === true,
-  "firmware tags must include the firmware component");
+expect(
+  firmware?.["include-component-in-tag"] === true,
+  "firmware tags must include the firmware component"
+);
 expect(firmware?.["tag-separator"] === "-", "firmware tag separator must be '-'");
-expect(firmware?.["extra-files"]?.some((entry) =>
-  entry?.type === "generic" && entry?.path === "main/Kconfig.projbuild"),
-"release-please must update the firmware Kconfig version");
+expect(
+  firmware?.["extra-files"]?.some(
+    (entry) => entry?.type === "generic" && entry?.path === "main/Kconfig.projbuild"
+  ),
+  "release-please must update the firmware Kconfig version"
+);
 
-expect(manifest["."] === packageJson.version,
-  `server manifest version ${manifest["."]} must match package.json ${packageJson.version}`);
+expect(
+  manifest["."] === packageJson.version,
+  `server manifest version ${manifest["."]} must match package.json ${packageJson.version}`
+);
 const firmwareVersion = firmwareKconfig.match(
-  /default\s+"([^"]+)"\s+#\s+x-release-please-version/,
+  /default\s+"([^"]+)"\s+#\s+x-release-please-version/
 )?.[1];
-expect(manifest.firmware === firmwareVersion,
-  `firmware manifest version ${manifest.firmware} must match Kconfig ${firmwareVersion ?? "<missing>"}`);
+expect(
+  manifest.firmware === firmwareVersion,
+  `firmware manifest version ${manifest.firmware} must match Kconfig ${firmwareVersion ?? "<missing>"}`
+);
 
-expect(workflow.includes("config-file: release-please-config.json"),
-  "release workflow must use the manifest configuration");
-expect(workflow.includes("manifest-file: .release-please-manifest.json"),
-  "release workflow must use the version manifest");
-expect(workflow.includes("Require release automation token") &&
-  workflow.includes("token: ${{ secrets.RELEASE_PAT }}") &&
-  !workflow.includes("secrets.RELEASE_PAT || secrets.GITHUB_TOKEN"),
-"release automation must fail closed without RELEASE_PAT");
+expect(
+  workflow.includes("config-file: release-please-config.json"),
+  "release workflow must use the manifest configuration"
+);
+expect(
+  workflow.includes("manifest-file: .release-please-manifest.json"),
+  "release workflow must use the version manifest"
+);
+expect(
+  workflow.includes("Require release automation token") &&
+    workflow.includes("token: ${{ secrets.RELEASE_PAT }}") &&
+    !workflow.includes("secrets.RELEASE_PAT || secrets.GITHUB_TOKEN"),
+  "release automation must fail closed without RELEASE_PAT"
+);
 
 const releaseCommitFixtures = [
   ["chore(main): release firmware 1.3.3 (#174)", "firmware"],
   ["chore(firmware): release firmware 2.0.0", "firmware"],
-  ["Merge pull request #174 from metaneutrons/release-please--branches--main--components--firmware", "firmware"],
+  [
+    "Merge pull request #174 from metaneutrons/release-please--branches--main--components--firmware",
+    "firmware",
+  ],
   ["chore(main): release 1.9.4 (#175)", "server"],
   ["chore(main): release server 2.0.0", "server"],
-  ["Merge pull request #175 from metaneutrons/release-please--branches--main--components--server", "server"],
+  [
+    "Merge pull request #175 from metaneutrons/release-please--branches--main--components--server",
+    "server",
+  ],
   ["fix(firmware): mention chore(main): release firmware 9.9.9 in docs", "none"],
   ["fix: release-please--branches is not a component marker", "none"],
 ];
 for (const [message, expected] of releaseCommitFixtures) {
-  expect(classifyReleaseCommit(message) === expected,
-    `release commit classifier must map ${JSON.stringify(message)} to ${expected}`);
+  expect(
+    classifyReleaseCommit(message) === expected,
+    `release commit classifier must map ${JSON.stringify(message)} to ${expected}`
+  );
 }
 for (const [name, contents] of [
   ["firmware", firmwareWorkflow],
   ["Docker", dockerWorkflow],
 ]) {
-  expect(contents.includes("node scripts/classify-release-commit.mjs"),
-    `${name} workflow must use the shared release commit classifier`);
+  expect(
+    contents.includes("node scripts/classify-release-commit.mjs"),
+    `${name} workflow must use the shared release commit classifier`
+  );
 }
-expect(firmwareWorkflow.includes("needs.version.outputs.release_component == 'none'"),
-  "firmware workflow must suppress all Release Please push builds");
-expect(firmwareWorkflow.includes("node scripts/firmware-beta-version.mjs"),
-  "firmware beta builds must use the tested next-patch version helper");
-expect(dockerWorkflow.includes("needs.routing.outputs.release_component == 'none'"),
-  "Docker workflow must suppress all Release Please push builds");
+expect(
+  firmwareWorkflow.includes("needs.version.outputs.release_component == 'none'"),
+  "firmware workflow must suppress all Release Please push builds"
+);
+expect(
+  firmwareWorkflow.includes("node scripts/firmware-beta-version.mjs"),
+  "firmware beta builds must use the tested next-patch version helper"
+);
+expect(
+  dockerWorkflow.includes("needs.routing.outputs.release_component == 'none'"),
+  "Docker workflow must suppress all Release Please push builds"
+);
 
 const betaFixture = firmwareBetaVersion("1.4.2", 13, "2028a59");
-expect(betaFixture.version === "1.4.3-beta.13+2028a59",
-  "post-1.4.2 beta builds must target the next patch, never 1.4.2-beta");
-expect(betaFixture.tag === "firmware-v1.4.3-beta.13-2028a59",
-  "beta firmware tags must be SemVer-derived and git-ref safe");
+expect(
+  betaFixture.version === "1.4.3-beta.13+2028a59",
+  "post-1.4.2 beta builds must target the next patch, never 1.4.2-beta"
+);
+expect(
+  betaFixture.tag === "firmware-v1.4.3-beta.13-2028a59",
+  "beta firmware tags must be SemVer-derived and git-ref safe"
+);
 
-expect(deploymentAssetsWorkflow.includes("release:\n    types: [published]"),
-  "deployment assets must be published with each GitHub release");
-expect(deploymentAssetsWorkflow.includes("workflow_dispatch:"),
-  "deployment assets must support backfilling an existing server release");
-expect(deploymentAssetsWorkflow.includes("github.event_name == 'workflow_dispatch' && github.sha || env.RELEASE_TAG"),
-  "deployment assets must use the tag normally and the current ref for backfills");
-expect(deploymentAssetsWorkflow.includes('server_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}"') &&
-  deploymentAssetsWorkflow.includes('VELLUM_IMAGE=${server_image}'),
-  "deployment assets must pin the initial server image to the release tag");
-expect(deploymentAssetsWorkflow.includes('updater_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum-updater:${RELEASE_TAG}"') &&
-  deploymentAssetsWorkflow.includes('UPDATER_IMAGE=${updater_image}'),
-  "deployment assets must pin the updater image to the release tag");
-expect(deploymentAssetsWorkflow.includes("Wait for signed release images") &&
-  deploymentAssetsWorkflow.includes("cosign verify"),
-  "deployment assets must wait for both signed release images");
+expect(
+  deploymentAssetsWorkflow.includes("release:\n    types: [published]"),
+  "deployment assets must be published with each GitHub release"
+);
+expect(
+  deploymentAssetsWorkflow.includes("workflow_dispatch:"),
+  "deployment assets must support backfilling an existing server release"
+);
+expect(
+  deploymentAssetsWorkflow.includes(
+    "github.event_name == 'workflow_dispatch' && github.sha || env.RELEASE_TAG"
+  ),
+  "deployment assets must use the tag normally and the current ref for backfills"
+);
+expect(
+  deploymentAssetsWorkflow.includes(
+    'server_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum:${RELEASE_TAG}"'
+  ) && deploymentAssetsWorkflow.includes("VELLUM_IMAGE=${server_image}"),
+  "deployment assets must pin the initial server image to the release tag"
+);
+expect(
+  deploymentAssetsWorkflow.includes(
+    'updater_image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vellum-updater:${RELEASE_TAG}"'
+  ) && deploymentAssetsWorkflow.includes("UPDATER_IMAGE=${updater_image}"),
+  "deployment assets must pin the updater image to the release tag"
+);
+expect(
+  deploymentAssetsWorkflow.includes("Wait for signed release images") &&
+    deploymentAssetsWorkflow.includes("cosign verify"),
+  "deployment assets must wait for both signed release images"
+);
 for (const asset of ["docker-compose.yml", "vellum.env.example", "install.sh", "SHA256SUMS"]) {
-  expect(deploymentAssetsWorkflow.includes(`dist/${asset}`),
-    `deployment release must upload ${asset}`);
+  expect(
+    deploymentAssetsWorkflow.includes(`dist/${asset}`),
+    `deployment release must upload ${asset}`
+  );
 }
-expect(dependabotConfig.includes('package-ecosystem: "docker-compose"') &&
-  dependabotConfig.includes('directory: "/deploy"'),
-"Dependabot must monitor production Compose image pins");
+expect(
+  dependabotConfig.includes('package-ecosystem: "docker-compose"') &&
+    dependabotConfig.includes('directory: "/deploy"'),
+  "Dependabot must monitor production Compose image pins"
+);
 for (const path of [
   "./data/postgres:/var/lib/postgresql",
   "./data/backups:/backups",
@@ -132,32 +191,57 @@ for (const path of [
   "./docker-compose.yml:/stack/docker-compose.yml:ro",
   "./.env:/stack/.env",
 ]) {
-  expect(productionCompose.includes(path),
-    `production Compose must keep ${path} inside the portable stack directory`);
+  expect(
+    productionCompose.includes(path),
+    `production Compose must keep ${path} inside the portable stack directory`
+  );
 }
-expect(productionCompose.includes('HOST_STACK_DIR: ${HOST_STACK_DIR:-${PWD}}'),
-  "updater must capture the host project directory before running Compose in-container");
-expect((productionCompose.match(/^\s+- \$\{COMPOSE_ENV_FILE:-\.\/\.env\}$/gm) ?? []).length === 2,
-  "server and updater must load the stack-local env file through a client-visible path");
-expect(productionCompose.includes("COMPOSE_ENV_FILE: /stack/.env"),
-  "in-container Compose must read env_file from its mounted stack path");
-expect(productionCompose.includes("image: ${VELLUM_IMAGE:?set VELLUM_IMAGE in .env}"),
-  "production Compose must reject a missing server image pin");
-expect(productionCompose.includes("image: ${UPDATER_IMAGE:?set UPDATER_IMAGE in .env}"),
-  "production Compose must reject a missing updater image pin");
-expect(productionCompose.includes("AUTO_UPDATE_UPDATER: ${AUTO_UPDATE_UPDATER:-true}"),
-  "production Compose must enable health-checked updater self-updates by default");
-expect(deploymentEnv.includes("AUTO_UPDATE_UPDATER=true"),
-  "release environment template must enable updater self-updates by default");
-for (const [name, contents] of [["control API", updaterControl], ["update script", updaterScript]]) {
-  expect(contents.includes("/releases?per_page=100"),
-    `updater ${name} must search the release collection by component`);
-  expect(!contents.includes("api.github.com/repos/metaneutrons/Vellum/releases/latest"),
-    `updater ${name} must not let a firmware release mask the latest server release`);
+expect(
+  productionCompose.includes("HOST_STACK_DIR: ${HOST_STACK_DIR:-${PWD}}"),
+  "updater must capture the host project directory before running Compose in-container"
+);
+expect(
+  (productionCompose.match(/^\s+- \$\{COMPOSE_ENV_FILE:-\.\/\.env\}$/gm) ?? []).length === 2,
+  "server and updater must load the stack-local env file through a client-visible path"
+);
+expect(
+  productionCompose.includes("COMPOSE_ENV_FILE: /stack/.env"),
+  "in-container Compose must read env_file from its mounted stack path"
+);
+expect(
+  productionCompose.includes("image: ${VELLUM_IMAGE:?set VELLUM_IMAGE in .env}"),
+  "production Compose must reject a missing server image pin"
+);
+expect(
+  productionCompose.includes("image: ${UPDATER_IMAGE:?set UPDATER_IMAGE in .env}"),
+  "production Compose must reject a missing updater image pin"
+);
+expect(
+  productionCompose.includes("AUTO_UPDATE_UPDATER: ${AUTO_UPDATE_UPDATER:-true}"),
+  "production Compose must enable health-checked updater self-updates by default"
+);
+expect(
+  deploymentEnv.includes("AUTO_UPDATE_UPDATER=true"),
+  "release environment template must enable updater self-updates by default"
+);
+for (const [name, contents] of [
+  ["control API", updaterControl],
+  ["update script", updaterScript],
+]) {
+  expect(
+    contents.includes("/releases?per_page=100"),
+    `updater ${name} must search the release collection by component`
+  );
+  expect(
+    !contents.includes("api.github.com/repos/metaneutrons/Vellum/releases/latest"),
+    `updater ${name} must not let a firmware release mask the latest server release`
+  );
 }
 for (const variable of ["VELLUM_DATA_DIR", "VELLUM_COMPOSE_FILE", "VELLUM_ENV_FILE"]) {
-  expect(!deploymentEnv.includes(`${variable}=`),
-    `production environment template must not require obsolete host path ${variable}`);
+  expect(
+    !deploymentEnv.includes(`${variable}=`),
+    `production environment template must not require obsolete host path ${variable}`
+  );
 }
 
 if (failures.length > 0) {

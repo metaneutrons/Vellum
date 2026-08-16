@@ -34,7 +34,7 @@ export async function proxy(req: NextRequest) {
     }
     return NextResponse.json(
       { status: "error", data: null, error: "Unauthorized" },
-      { status: 401 },
+      { status: 401 }
     );
   }
 

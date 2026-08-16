@@ -9,7 +9,7 @@ name: Firmware PR Build
 
 on:
   pull_request:
-    paths: ['firmware/**']
+    paths: ["firmware/**"]
 
 permissions:
   contents: read

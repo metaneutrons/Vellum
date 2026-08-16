@@ -10,12 +10,9 @@ describe("resolveFlashModel", () => {
     expect(resolveFlashModel("d1001", models)).toBe("d1001");
   });
 
-  it.each([null, "", "retired-model"])(
-    "falls back to the first registry item for %s",
-    (stored) => {
-      expect(resolveFlashModel(stored, models)).toBe("e1001");
-    },
-  );
+  it.each([null, "", "retired-model"])("falls back to the first registry item for %s", (stored) => {
+    expect(resolveFlashModel(stored, models)).toBe("e1001");
+  });
 
   it("handles an empty registry defensively", () => {
     expect(resolveFlashModel("d1001", [])).toBe("");

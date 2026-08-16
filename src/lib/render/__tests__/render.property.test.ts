@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { floydSteinbergDither, type ColorPalette } from "../dither";
-import { renderToCanvas as renderLayout, renderOffline as renderOfflineLayout } from "@/lib/content/renderers/room-booking";
+import {
+  renderToCanvas as renderLayout,
+  renderOffline as renderOfflineLayout,
+} from "@/lib/content/renderers/room-booking";
 import { THEME_MONO } from "@/lib/theme";
 import type { DisplayEvent } from "@/lib/types";
 
@@ -14,47 +17,40 @@ describe("Property 7: Dithered output contains only palette indices and preserve
   const arbDimension = fc.integer({ min: 1, max: 50 });
 
   // Generator for a non-empty color palette (1-8 colors)
-  const arbPalette: fc.Arbitrary<ColorPalette> = fc
-    .array(
-      fc.tuple(
-        fc.integer({ min: 0, max: 255 }),
-        fc.integer({ min: 0, max: 255 }),
-        fc.integer({ min: 0, max: 255 })
-      ),
-      { minLength: 1, maxLength: 8 }
-    );
+  const arbPalette: fc.Arbitrary<ColorPalette> = fc.array(
+    fc.tuple(
+      fc.integer({ min: 0, max: 255 }),
+      fc.integer({ min: 0, max: 255 }),
+      fc.integer({ min: 0, max: 255 })
+    ),
+    { minLength: 1, maxLength: 8 }
+  );
 
   it("output has exactly width × height entries and every entry is a valid palette index", () => {
     fc.assert(
-      fc.property(
-        arbDimension,
-        arbDimension,
-        arbPalette,
-        (width, height, palette) => {
-          // Generate random RGBA image data
-          const size = width * height * 4;
-          const imageData = new Uint8ClampedArray(size);
-          for (let i = 0; i < size; i++) {
-            imageData[i] = Math.floor(Math.random() * 256);
-          }
-
-          const result = floydSteinbergDither(imageData, width, height, palette);
-
-          // Output dimensions match
-          expect(result.length).toBe(width * height);
-
-          // Every entry is a valid palette index
-          for (let i = 0; i < result.length; i++) {
-            expect(result[i]).toBeGreaterThanOrEqual(0);
-            expect(result[i]).toBeLessThan(palette.length);
-          }
+      fc.property(arbDimension, arbDimension, arbPalette, (width, height, palette) => {
+        // Generate random RGBA image data
+        const size = width * height * 4;
+        const imageData = new Uint8ClampedArray(size);
+        for (let i = 0; i < size; i++) {
+          imageData[i] = Math.floor(Math.random() * 256);
         }
-      ),
+
+        const result = floydSteinbergDither(imageData, width, height, palette);
+
+        // Output dimensions match
+        expect(result.length).toBe(width * height);
+
+        // Every entry is a valid palette index
+        for (let i = 0; i < result.length; i++) {
+          expect(result[i]).toBeGreaterThanOrEqual(0);
+          expect(result[i]).toBeLessThan(palette.length);
+        }
+      }),
       { numRuns: 100 }
     );
   });
 });
-
 
 /**
  * Property 8: Render layout contains required visual elements
@@ -75,8 +71,12 @@ describe("Property 8: Render layout contains required visual elements", () => {
     return fc.record({
       displaySubject: fc.string({ minLength: 1, maxLength: 40 }).filter((s) => s.trim().length > 0),
       organizer: fc.string({ minLength: 1, maxLength: 30 }).filter((s) => s.trim().length > 0),
-      startTime: fc.integer({ min: futureStart, max: futureStart + 8 * 3_600_000 }).map((t) => new Date(t)),
-      endTime: fc.integer({ min: futureStart + 1_800_000, max: futureStart + 10 * 3_600_000 }).map((t) => new Date(t)),
+      startTime: fc
+        .integer({ min: futureStart, max: futureStart + 8 * 3_600_000 })
+        .map((t) => new Date(t)),
+      endTime: fc
+        .integer({ min: futureStart + 1_800_000, max: futureStart + 10 * 3_600_000 })
+        .map((t) => new Date(t)),
       isPrivate: fc.boolean(),
       showLockIcon: fc.boolean(),
     });
@@ -167,7 +167,9 @@ describe("Property 8: Render layout contains required visual elements", () => {
  */
 describe("Property 9: Stale calendar data triggers fail-safe", () => {
   const arbRoomName = fc.string({ minLength: 1, maxLength: 30 }).filter((s) => s.trim().length > 0);
-  const arbNow = fc.date({ min: new Date("2020-01-01"), max: new Date("2030-12-31") }).filter((d) => !isNaN(d.getTime()));
+  const arbNow = fc
+    .date({ min: new Date("2020-01-01"), max: new Date("2030-12-31") })
+    .filter((d) => !isNaN(d.getTime()));
 
   it("renderOfflineLayout produces 800x480 canvas with content in the center region", () => {
     fc.assert(
@@ -232,7 +234,11 @@ describe("Property 9: Stale calendar data triggers fail-safe", () => {
         for (let y = 200; y < 300 && !hasOfflineText; y++) {
           for (let x = 100; x < 700 && !hasOfflineText; x++) {
             const idx = (y * 800 + x) * 4;
-            if (offlineData.data[idx] < 50 && offlineData.data[idx + 1] < 50 && offlineData.data[idx + 2] < 50) {
+            if (
+              offlineData.data[idx] < 50 &&
+              offlineData.data[idx + 1] < 50 &&
+              offlineData.data[idx + 2] < 50
+            ) {
               hasOfflineText = true;
             }
           }

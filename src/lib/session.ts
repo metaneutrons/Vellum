@@ -54,7 +54,7 @@ async function hmac(data: string): Promise<string> {
     encoder.encode(secret()),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"],
+    ["sign"]
   );
   const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
   return b64urlEncode(new Uint8Array(sig));
@@ -69,7 +69,10 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /** Create a signed, expiring session token for an opaque database session id. */
-export async function createSessionToken(subject: string, ttlMs: number = DEFAULT_TTL_MS): Promise<string> {
+export async function createSessionToken(
+  subject: string,
+  ttlMs: number = DEFAULT_TTL_MS
+): Promise<string> {
   const payload = b64urlEncodeStr(JSON.stringify({ sub: subject, exp: Date.now() + ttlMs }));
   const sig = await hmac(payload);
   return `${payload}.${sig}`;
@@ -93,7 +96,9 @@ export async function verifySessionToken(token: string | undefined | null): Prom
 }
 
 /** Return a verified token subject without making this Edge-safe module depend on the DB. */
-export async function getSessionTokenSubject(token: string | undefined | null): Promise<string | null> {
+export async function getSessionTokenSubject(
+  token: string | undefined | null
+): Promise<string | null> {
   if (!(await verifySessionToken(token)) || !token) return null;
   try {
     const payload = token.slice(0, token.indexOf("."));

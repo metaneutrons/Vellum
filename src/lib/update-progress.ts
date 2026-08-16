@@ -8,7 +8,7 @@ export const UPDATE_MAIN_PHASES = [
   "waiting-for-health",
 ] as const;
 
-export type UpdateMainPhase = typeof UPDATE_MAIN_PHASES[number];
+export type UpdateMainPhase = (typeof UPDATE_MAIN_PHASES)[number];
 export type UpdateProgressPhase = UpdateMainPhase | "done" | "rolling-back" | "failed";
 export type UpdateStepState = "pending" | "active" | "done" | "failed";
 
@@ -32,9 +32,12 @@ export type UpdateProgressRow = {
  * rollback completed after the server starts answering again. */
 export function updateProgressRows(progress: UpdateProgress): UpdateProgressRow[] {
   const terminalFailure = progress.phase === "failed" || progress.phase === "rolling-back";
-  const failedPhase = progress.failedPhase && UPDATE_MAIN_PHASES.includes(progress.failedPhase as UpdateMainPhase)
-    ? progress.failedPhase as UpdateMainPhase
-    : terminalFailure ? "deploying" : null;
+  const failedPhase =
+    progress.failedPhase && UPDATE_MAIN_PHASES.includes(progress.failedPhase as UpdateMainPhase)
+      ? (progress.failedPhase as UpdateMainPhase)
+      : terminalFailure
+        ? "deploying"
+        : null;
   const failedIndex = failedPhase ? UPDATE_MAIN_PHASES.indexOf(failedPhase) : -1;
   const activeIndex = UPDATE_MAIN_PHASES.indexOf(progress.phase as UpdateMainPhase);
 
@@ -53,9 +56,12 @@ export function updateProgressRows(progress: UpdateProgress): UpdateProgressRow[
   if (progress.rollbackAttempted || progress.phase === "rolling-back") {
     rows.push({
       phase: "rolling-back",
-      state: progress.phase === "rolling-back"
-        ? "active"
-        : progress.failedPhase === "rolling-back" ? "failed" : "done",
+      state:
+        progress.phase === "rolling-back"
+          ? "active"
+          : progress.failedPhase === "rolling-back"
+            ? "failed"
+            : "done",
     });
   }
   return rows;

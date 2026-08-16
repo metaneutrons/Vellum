@@ -102,7 +102,7 @@ function pinningDispatcher(): Agent {
               if (isBlockedAddress(a.address))
                 return callback(
                   new Error(`safeFetch: blocked address ${a.address} for host ${host}`),
-                  "",
+                  ""
                 );
             }
             deliver(addrs[0].address);

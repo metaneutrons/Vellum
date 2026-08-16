@@ -72,14 +72,15 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
     <DashCard title={t("fleetHealth")} icon={<Activity size={16} />}>
       {!hasDevices ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-          <span className="size-12 rounded-full bg-accent-soft text-accent grid place-items-center" aria-hidden="true">
+          <span
+            className="size-12 rounded-full bg-accent-soft text-accent grid place-items-center"
+            aria-hidden="true"
+          >
             <MonitorSmartphone size={22} />
           </span>
           <div>
             <p className="text-[15px] font-semibold text-label">{t("noDevices")}</p>
-            <p className="text-[13px] text-label-secondary mt-0.5">
-              {t("fleetHint")}
-            </p>
+            <p className="text-[13px] text-label-secondary mt-0.5">{t("fleetHint")}</p>
           </div>
         </div>
       ) : (
@@ -142,19 +143,35 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
           {/* ── Legend ── */}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[13px]">
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
-              <span className="size-2.5 rounded-full" style={{ backgroundColor: healthStroke }} aria-hidden="true" />
+              <span
+                className="size-2.5 rounded-full"
+                style={{ backgroundColor: healthStroke }}
+                aria-hidden="true"
+              />
               <span className="font-medium text-label tabular-nums">{online}</span> online
             </span>
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
-              <span className="size-2.5 rounded-full" style={{ backgroundColor: "var(--color-orange)" }} aria-hidden="true" />
+              <span
+                className="size-2.5 rounded-full"
+                style={{ backgroundColor: "var(--color-orange)" }}
+                aria-hidden="true"
+              />
               <span className="font-medium text-label tabular-nums">{late}</span> late
             </span>
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
-              <span className="size-2.5 rounded-full" style={{ backgroundColor: "var(--color-red)" }} aria-hidden="true" />
+              <span
+                className="size-2.5 rounded-full"
+                style={{ backgroundColor: "var(--color-red)" }}
+                aria-hidden="true"
+              />
               <span className="font-medium text-label tabular-nums">{offline}</span> offline
             </span>
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
-              <span className="size-2.5 rounded-full" style={{ backgroundColor: "var(--color-separator)" }} aria-hidden="true" />
+              <span
+                className="size-2.5 rounded-full"
+                style={{ backgroundColor: "var(--color-separator)" }}
+                aria-hidden="true"
+              />
               <span className="font-medium text-label tabular-nums">{never}</span> never seen
             </span>
           </div>

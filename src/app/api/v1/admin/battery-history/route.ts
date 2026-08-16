@@ -7,7 +7,8 @@ import { eq, and, gte } from "drizzle-orm";
 import { requestHasPermission } from "@/lib/access";
 
 export async function GET(request: NextRequest) {
-  if (!(await requestHasPermission(request, "devices.read"))) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await requestHasPermission(request, "devices.read")))
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   const mac = request.nextUrl.searchParams.get("mac");
   const days = parseInt(request.nextUrl.searchParams.get("days") ?? "30") || 30;
 
@@ -15,15 +16,20 @@ export async function GET(request: NextRequest) {
 
   const since = new Date(Date.now() - days * 86400_000);
 
-  const rows = await withDbRead(() => db.select({
-    voltage: telemetry.batteryVoltage,
-    level: telemetry.batteryLevel,
-    timestamp: telemetry.timestamp,
-  })
-    .from(telemetry)
-    .where(and(eq(telemetry.mac, mac), gte(telemetry.timestamp, since)))
-    .orderBy(telemetry.timestamp)
-    .limit(1000), "get-battery-history");
+  const rows = await withDbRead(
+    () =>
+      db
+        .select({
+          voltage: telemetry.batteryVoltage,
+          level: telemetry.batteryLevel,
+          timestamp: telemetry.timestamp,
+        })
+        .from(telemetry)
+        .where(and(eq(telemetry.mac, mac), gte(telemetry.timestamp, since)))
+        .orderBy(telemetry.timestamp)
+        .limit(1000),
+    "get-battery-history"
+  );
 
   return Response.json(rows);
 }
