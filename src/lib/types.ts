@@ -25,9 +25,11 @@ export interface ApiResponse<T> {
 
 export interface TelemetryEntry {
   mac: string;
-  batteryVoltage: number;
-  batteryLevel: number;
-  wifiRssi: number;
-  firmwareVersion: string;
+  batteryVoltage: number | null;
+  batteryLevel: number | null;
+  powerSource: "usb" | "battery" | null;
+  batteryStatus: "charging" | "full" | "discharging" | "unknown" | null;
+  wifiRssi: number | null;
+  firmwareVersion: string | null;
   timestamp: Date;
 }

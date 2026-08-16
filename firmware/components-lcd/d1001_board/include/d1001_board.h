@@ -5,6 +5,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_io_expander.h"
+#include "d1001_power_logic.h"
 #include <time.h>
 
 /* ── Pin Definitions ─────────────────────────────────────────── */
@@ -33,6 +34,7 @@
 /* Battery */
 #define D1001_BAT_ADC           GPIO_NUM_18
 #define D1001_BAT_CHARGE_STATE  GPIO_NUM_15
+#define D1001_BAT_VSYS_PG       GPIO_NUM_4
 #define D1001_USB_INSERT_DET    GPIO_NUM_17
 
 /* Button */
@@ -102,6 +104,12 @@ int d1001_battery_percent(void);
 
 /** @brief Read USB voltage in mV */
 int d1001_usb_voltage(void);
+
+/** @brief True while USB VBUS is present. */
+bool d1001_is_usb_powered(void);
+
+/** @brief Charging/full/discharging state derived from VBUS and CHARGE_STATE. */
+d1001_battery_status_t d1001_battery_status(void);
 
 /** @brief Power off the board */
 void d1001_power_off(void);

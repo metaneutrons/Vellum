@@ -4,8 +4,8 @@ if(NOT "${IDF_TARGET}" STREQUAL "esp32p4")
 endif()
 
 idf_component_register(
-    SRCS "d1001_board.c"
+    SRCS "d1001_board.c" "d1001_power_logic.c"
     INCLUDE_DIRS "include"
     REQUIRES driver esp_driver_gpio esp_driver_i2c esp_driver_ledc
-    PRIV_REQUIRES esp_adc esp_io_expander_pca9535
+    PRIV_REQUIRES esp_adc esp_timer esp_io_expander_pca9535
 )

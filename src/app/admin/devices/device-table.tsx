@@ -18,6 +18,7 @@ import { parseDeviceTs } from "../dashboard/ts";
 import {
   AlertTriangle, Battery, BatteryLow, Wifi, Trash2, Search,
   ImageOff, MonitorSmartphone,
+  PlugZap,
 } from "lucide-react";
 
 interface Device {
@@ -34,6 +35,8 @@ interface Device {
   expected_interval_s: number | null;
   battery_level: number | null;
   battery_voltage: number | null;
+  power_source: "usb" | "battery" | null;
+  battery_status: "charging" | "full" | "discharging" | "unknown" | null;
   wifi_rssi: number | null;
   firmware_version: string | null;
 }
@@ -179,6 +182,16 @@ export function DeviceTable({ devices: rawDevices, themes, contentInstances, ref
                         {d.battery_level}%
                         <span className="text-label-tertiary">({Number(d.battery_voltage ?? 0).toFixed(2)}V)</span>
                       </button>
+                    )}
+                    {d.power_source && (
+                      <span className="inline-flex items-center gap-1">
+                        {d.power_source === "usb"
+                          ? <PlugZap size={15} aria-hidden="true" />
+                          : <Battery size={15} aria-hidden="true" />}
+                        {d.battery_status && d.battery_status !== "unknown"
+                          ? t(`power.${d.battery_status}`)
+                          : t(`power.${d.power_source}`)}
+                      </span>
                     )}
                     {d.wifi_rssi !== null && (
                       <span className={`inline-flex items-center gap-1 ${rWarn ? "text-orange font-medium" : ""}`}>

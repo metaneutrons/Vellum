@@ -81,6 +81,15 @@
     "telemetryHistory": "Telemetrieverlauf",
     "time": "Zeit",
     "battery": "Akku",
+    "power": {
+      "source": "Stromversorgung",
+      "usb": "USB-Strom",
+      "battery": "Akkubetrieb",
+      "charging": "Wird geladen",
+      "full": "Vollständig geladen",
+      "discharging": "Akkubetrieb",
+      "unknown": "Stromstatus unbekannt"
+    },
     "rssi": "RSSI",
     "wifiRssi": "WLAN-RSSI",
     "model": "Modell",

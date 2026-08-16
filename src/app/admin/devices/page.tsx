@@ -22,10 +22,12 @@ export default async function DevicesPage() {
         d.mac, d.status, d.content_instance_id, d.theme_id,
         d.refresh_profile_id, d.firmware_channel, d.firmware_pin_version,
         d.display_caps, d.orientation_override, d.last_seen, d.expected_interval_s, d.approved_at, d.created_at,
-        t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
+        t.battery_level, t.battery_voltage, t.power_source, t.battery_status,
+        t.wifi_rssi, t.firmware_version
       FROM devices d
       LEFT JOIN LATERAL (
-        SELECT battery_level, battery_voltage, wifi_rssi, firmware_version
+        SELECT battery_level, battery_voltage, power_source, battery_status,
+               wifi_rssi, firmware_version
         FROM telemetry WHERE mac = d.mac ORDER BY timestamp DESC LIMIT 1
       ) t ON true
       ORDER BY d.last_seen DESC NULLS LAST

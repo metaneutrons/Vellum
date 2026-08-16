@@ -23,6 +23,19 @@ float board_battery_voltage(void);
 /** Battery charge level, clamped to 0-100%. */
 int board_battery_level(void);
 
+typedef enum {
+    BOARD_BATTERY_STATUS_UNKNOWN = 0,
+    BOARD_BATTERY_STATUS_DISCHARGING,
+    BOARD_BATTERY_STATUS_CHARGING,
+    BOARD_BATTERY_STATUS_FULL,
+} board_battery_status_t;
+
+/** Current battery/charger state. */
+board_battery_status_t board_battery_status(void);
+
+/** Stable wire value for telemetry. */
+const char *board_battery_status_name(board_battery_status_t status);
+
 /** True when external USB power is present on hardware that can detect it. */
 bool board_is_usb_powered(void);
 
