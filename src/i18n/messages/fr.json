@@ -342,8 +342,6 @@
     "serverActionFailed": "Échec de l’action de mise à jour",
     "serverActionForbidden": "Cette action n’est pas autorisée. Rechargez la page ou vérifiez votre autorisation.",
     "serverUpdateFailedGeneric": "Le service de mise à jour n’a pas pu terminer l’opération.",
-    "serverUpdateNotCompleted": "La mise à jour vers {version} ne s’est pas terminée.",
-    "serverUpdateStillCurrent": "Le serveur exécute toujours {version}. La version précédente a été conservée ou restaurée.",
     "serverStateUnavailable": "Indisponible",
     "serverStateStarting": "Démarrage",
     "serverStateChecking": "Vérification",
@@ -367,10 +365,7 @@
     "phaseRollingBack": "Restauration de la version précédente",
     "serverUpdateProgress": "Progression de la mise à jour du serveur",
     "serverConfirmSteps": "Étapes : vérifier la signature, sauvegarder la base, démarrer la nouvelle version, attendre son signal de bonne santé — et revenir en arrière automatiquement sinon.",
-    "serverConfirmDowntime": "Le serveur redémarre à la fin : cette page perd brièvement la connexion et se reconnecte d'elle-même.",
-    "serverUpdateDone": "Mise à jour de {from} vers {to}.",
-    "serverUpdateDoneShort": "Mise à jour vers {version}.",
-    "serverUpdateDoneDismiss": "Masquer"
+    "serverConfirmDowntime": "À la fin, le serveur redémarre. Cette page perd brièvement la connexion et se reconnecte automatiquement."
   },
   "firmware": {
     "rolloutAdoption": "appareils exécutant cette version",
@@ -485,6 +480,13 @@
     "updateRestartBody": "Le serveur redémarre pour terminer la mise à jour. Cette page se reconnecte d'elle-même.",
     "updateRestartToVersion": "Redémarrage pour terminer la mise à jour vers {version}. Cette page se reconnecte d'elle-même.",
     "updateRestartElapsed": "En attente depuis {elapsed}",
+    "updateVersionTransition": "{from} → {to}",
+    "updateInProgressBody": "Vellum applique la mise à jour de manière sécurisée en arrière-plan. Gardez cette fenêtre ouverte.",
+    "updateConnectionRestoring": "La nouvelle version démarre. La connexion sera rétablie automatiquement…",
+    "updateCompleteTitle": "Mise à jour terminée",
+    "updateCompleteBody": "La nouvelle version est prête. La console reprendra dans un instant.",
+    "updateFailedTitle": "Mise à jour non terminée",
+    "updateFailedBody": "Vellum utilise toujours la version précédente ou l’a restaurée automatiquement.",
     "databaseReconnecting": "Tentative de reconnexion…"
   },
   "contentTypes": {
