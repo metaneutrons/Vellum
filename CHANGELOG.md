@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.4](https://github.com/metaneutrons/Vellum/compare/v1.11.3...v1.11.4) (2026-08-16)
+
+
+### Bug Fixes
+
+* handle updater reconnects after server updates ([90ff2d1](https://github.com/metaneutrons/Vellum/commit/90ff2d17ed82f85034df4e33dc8f3f9db743d046))
+* handle updater reconnects after server updates ([de9251b](https://github.com/metaneutrons/Vellum/commit/de9251b4e70f08e1b4779c6b03aaecd828267b81))
+
 ## [1.11.3](https://github.com/metaneutrons/Vellum/compare/v1.11.2...v1.11.3) (2026-08-16)
 
 
