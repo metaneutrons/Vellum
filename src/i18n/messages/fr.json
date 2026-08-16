@@ -414,7 +414,11 @@
     "rolloutHint": "Le déploiement — et non le build le plus récent — décide ce qui est livré",
     "noFirmwareVersions": "Aucune version firmware.",
     "recentOta": "Événements OTA récents",
-    "noOta": "Aucun rapport OTA."
+    "noOta": "Aucun rapport OTA.",
+    "retryOta": "Réessayer le firmware {version} sur l’appareil {mac}",
+    "retryOtaShort": "Réessayer",
+    "retryOtaSuccess": "Le firmware {version} sera proposé à nouveau",
+    "retryOtaFailed": "La nouvelle tentative du firmware n’a pas pu être activée"
   },
   "flash": {
     "title": "Flasher le firmware",

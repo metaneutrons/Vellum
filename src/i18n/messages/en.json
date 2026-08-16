@@ -414,7 +414,11 @@
     "rolloutHint": "The rollout — not the newest build — decides what ships",
     "noFirmwareVersions": "No firmware versions yet.",
     "recentOta": "Recent OTA events",
-    "noOta": "No OTA reports yet."
+    "noOta": "No OTA reports yet.",
+    "retryOta": "Retry firmware {version} on device {mac}",
+    "retryOtaShort": "Retry",
+    "retryOtaSuccess": "Firmware {version} will be offered again",
+    "retryOtaFailed": "Firmware retry could not be enabled"
   },
   "flash": {
     "title": "Flash Firmware",

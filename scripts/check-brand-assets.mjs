@@ -30,6 +30,16 @@ for (const file of masters) {
   if (!source.includes(expectedInk)) failures.push(`${file} is missing ${expectedInk}`);
 }
 
+// The D1001 panel consumes native RGB565. LVGL indexed assets compile but are
+// invisible on this MIPI-DSI path, so guard the generated descriptor in CI.
+const d1001Logo = readFileSync(
+  "firmware/components/vellum_display/logos/vellum_logo_color_360px.c",
+  "utf8"
+);
+if (!d1001Logo.includes(".header.cf = LV_COLOR_FORMAT_RGB565")) {
+  failures.push("D1001 logo must be generated as native LV_COLOR_FORMAT_RGB565");
+}
+
 const textExtensions = new Set([".c", ".css", ".html", ".md", ".mjs", ".sh", ".svg", ".tsx"]);
 const legacyPatterns = [
   /#183157/i,

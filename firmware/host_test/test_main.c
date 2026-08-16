@@ -10,6 +10,7 @@ UNITY_DEFINE_GLOBALS();
 
 void run_version_compare_tests(void);
 void run_ota_signature_tests(void);
+void run_ota_model_guard_tests(void);
 void run_secure_channel_tests(void);
 void run_key_revocation_tests(void);
 void run_sy6974b_power_tests(void);
@@ -25,6 +26,7 @@ int main(void)
     UNITY_BEGIN();
     run_version_compare_tests();
     run_ota_signature_tests();
+    run_ota_model_guard_tests();
     run_secure_channel_tests();
     run_key_revocation_tests();
     run_sy6974b_power_tests();

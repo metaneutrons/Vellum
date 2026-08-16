@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, withDbRead } from "@/db";
 import { safeFetch } from "@/lib/safe-fetch";
@@ -16,7 +16,7 @@ import {
   otaEvents,
   provisioningVouchers,
 } from "@/db/schema";
-import type { RolloutState } from "@/lib/rollout";
+import { OTA_FAILED_PHASES, type RolloutState } from "@/lib/rollout";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { log } from "@/lib/logger";
 import { randomBytes } from "node:crypto";
@@ -873,6 +873,45 @@ export async function getRecentOtaEvents(limit = 100) {
         .limit(limit),
     "get-ota-events"
   );
+}
+
+/**
+ * Remove only the persistent failure markers that suppress one exact OTA
+ * target for one exact device. This is an explicit, audited operator retry;
+ * successful history and failures for every other device/version remain intact.
+ */
+export async function retryDeviceOta(mac: string, version: string) {
+  const actor = await requireAdmin("firmware.rollout");
+  const normalizedMac = mac.trim().toUpperCase();
+  const normalizedVersion = version.trim();
+  if (!/^[0-9A-F]{12}$/.test(normalizedMac)) throw new Error("invalid_device_mac");
+  if (!/^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(normalizedVersion)) {
+    throw new Error("invalid_firmware_version");
+  }
+
+  const removed = await withAuditedTransaction(
+    actor,
+    (rows: { id: number }[]) => ({
+      action: "firmware.ota.retry",
+      targetType: "device_firmware",
+      targetId: `${normalizedMac}:${normalizedVersion}`,
+      metadata: { removedFailureMarkers: rows.length },
+    }),
+    (tx) =>
+      tx
+        .delete(otaEvents)
+        .where(
+          and(
+            eq(otaEvents.mac, normalizedMac),
+            eq(otaEvents.toVersion, normalizedVersion),
+            inArray(otaEvents.phase, [...OTA_FAILED_PHASES])
+          )
+        )
+        .returning({ id: otaEvents.id }),
+    "retry-device-ota"
+  );
+  if (removed.length === 0) throw new Error("ota_failure_marker_not_found");
+  revalidatePath("/admin/firmware");
 }
 
 export interface RolloutOverview {

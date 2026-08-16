@@ -22,6 +22,7 @@ add_executable(host_tests
   test_main.c
   test_version_compare.c
   test_ota_signature.c
+  test_ota_model_guard.c
   test_secure_channel.c
   test_key_revocation.c
   test_sy6974b_power.c
@@ -43,6 +44,7 @@ add_executable(host_tests
 target_include_directories(host_tests PRIVATE
   ../components/board/include
   ../components/http_client/include
+  ../components/ota_manager/include
   ../components/wifi_manager/include
   ../components/vellum_display/include
   ../components/sleep_manager/include)
