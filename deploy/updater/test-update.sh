@@ -111,9 +111,13 @@ swap_probe() {
 
 export PROBE_LOG="${test_directory}/probe.log"
 : >"$PROBE_LOG"
+swap_result="${test_directory}/state/swap.json"
+mkdir -p "$(dirname "$swap_result")"
+printf '%s\n' '{"outcome":"rolled-back","detail":"stale","at":null}' >"$swap_result"
 
 # Behind the release -> hand off to a detached helper for the right candidate.
 swap_probe v1.8.1 v1.8.2
+assert test ! -e "$swap_result"
 assert grep -q -- '--swap-updater ghcr.io/metaneutrons/vellum-updater:v1.8.2' "$PROBE_LOG"
 # Must inherit the mounts rather than pass container paths as host paths.
 assert grep -q -- '--volumes-from self-id' "$PROBE_LOG"
@@ -130,6 +134,26 @@ if [[ -s "$PROBE_LOG" ]]; then
   printf 'FAILED: helper launched despite an up-to-date updater\n' >&2
   exit 1
 fi
+
+# A helper launch failure is terminal and must replace any stale outcome with a
+# result the new server can surface instead of leaving its overlay spinning.
+# shellcheck disable=SC2016
+env AUTO_UPDATE_UPDATER=true UPDATER_VERSION=v1.8.1 UPDATE_ONCE=true \
+  COMPOSE_FILE="$COMPOSE_FILE" VELLUM_ENV_FILE="$VELLUM_ENV_FILE" \
+  HOST_STACK_DIR="$test_directory" ENV_BACKUP_FILE="$ENV_BACKUP_FILE" \
+  SWAP_RESULT_FILE="$swap_result" UPDATE_SH="$update_sh" \
+  bash -c '
+    source "$UPDATE_SH"
+    verify_image() { return 0; }
+    updater_container_id() { printf "self-id"; }
+    docker() {
+      [[ "$1" == "inspect" ]] && printf "ghcr.io/metaneutrons/vellum-updater:1.8.1\n"
+      [[ "$1" != "run" ]]
+    }
+    if schedule_updater_swap v1.8.2; then exit 1; fi
+  '
+assert jq -e '.outcome == "failed" and (.detail | contains("detached updater swap helper"))' \
+  "$swap_result" >/dev/null
 
 printf 'updater self-update assertions passed\n'
 

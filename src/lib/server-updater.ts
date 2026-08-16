@@ -6,6 +6,7 @@ import type { UpdateProgress } from "@/lib/update-progress";
 
 export type ServerUpdateStatus = {
   supported: boolean;
+  availabilityReason: "ready" | "not-configured" | "unreachable" | "invalid-response";
   state:
     | "unavailable"
     | "starting"
@@ -45,25 +46,30 @@ export type ServerUpdateStatus = {
   progress: UpdateProgress | null;
 };
 
-const unavailable: ServerUpdateStatus = {
-  supported: false,
-  state: "unavailable",
-  currentVersion: null,
-  availableVersion: null,
-  updateAvailable: false,
-  updateMode: "manual",
-  maintenanceTime: "02:00",
-  timezone: "UTC",
-  lastCheckedAt: null,
-  lastUpdatedAt: null,
-  lastError: null,
-  updaterVersion: null,
-  updaterUpdateAvailable: false,
-  updaterSelfUpdateCapable: false,
-  updaterSelfUpdateEnabled: false,
-  updaterSwap: null,
-  progress: null,
-};
+function unavailable(
+  availabilityReason: Exclude<ServerUpdateStatus["availabilityReason"], "ready">
+): ServerUpdateStatus {
+  return {
+    supported: false,
+    availabilityReason,
+    state: "unavailable",
+    currentVersion: null,
+    availableVersion: null,
+    updateAvailable: false,
+    updateMode: "manual",
+    maintenanceTime: "02:00",
+    timezone: "UTC",
+    lastCheckedAt: null,
+    lastUpdatedAt: null,
+    lastError: null,
+    updaterVersion: null,
+    updaterUpdateAvailable: false,
+    updaterSelfUpdateCapable: false,
+    updaterSelfUpdateEnabled: false,
+    updaterSwap: null,
+    progress: null,
+  };
+}
 
 const statusSchema = z.object({
   state: z.enum([
@@ -132,7 +138,7 @@ const statusSchema = z.object({
 });
 
 async function request(path: string, method = "GET", body?: unknown): Promise<ServerUpdateStatus> {
-  if (!env.UPDATER_URL || !env.UPDATER_TOKEN) return unavailable;
+  if (!env.UPDATER_URL || !env.UPDATER_TOKEN) return unavailable("not-configured");
   try {
     const response = await fetch(new URL(path, env.UPDATER_URL), {
       method,
@@ -144,14 +150,17 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
       cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok && response.status !== 202 && response.status !== 409) return unavailable;
-    const raw = (await response.json()) as { status?: unknown };
+    if (!response.ok && response.status !== 202 && response.status !== 409)
+      return unavailable(response.status >= 500 ? "unreachable" : "invalid-response");
+    const raw = (await response.json().catch(() => null)) as { status?: unknown } | null;
+    if (!raw) return unavailable("invalid-response");
     const value = raw.status ?? raw;
     const parsed = statusSchema.safeParse(value);
-    if (!parsed.success) return unavailable;
+    if (!parsed.success) return unavailable("invalid-response");
     return {
       ...parsed.data,
       supported: true,
+      availabilityReason: "ready",
       updaterVersion: parsed.data.updaterVersion ?? null,
       updaterUpdateAvailable: parsed.data.updaterUpdateAvailable ?? false,
       updaterSelfUpdateCapable: parsed.data.updaterSelfUpdateCapable ?? false,
@@ -160,7 +169,7 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
       progress: parsed.data.progress ?? null,
     };
   } catch {
-    return unavailable;
+    return unavailable("unreachable");
   }
 }
 

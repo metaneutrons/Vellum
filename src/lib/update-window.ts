@@ -49,6 +49,12 @@ export type UpdateStatusSnapshot = {
   currentVersion: string | null;
   updateAvailable: boolean;
   lastError: string | null;
+  updaterUpdateAvailable?: boolean;
+  updaterSelfUpdateEnabled?: boolean;
+  updaterSwap?: {
+    outcome: "succeeded" | "failed" | "rolled-back";
+    detail: string | null;
+  } | null;
   progress: {
     phase:
       | "verifying"
@@ -96,10 +102,13 @@ export function resolveUpdateWindow(
   window: UpdateWindow,
   status: UpdateStatusSnapshot
 ): UpdateResolution {
+  const updaterFailure =
+    status.updaterSwap && status.updaterSwap.outcome !== "succeeded" ? status.updaterSwap : null;
   const terminalFailure =
     status.state === "failed" ||
     status.progress?.phase === "failed" ||
-    status.progress?.phase === "rolling-back";
+    status.progress?.phase === "rolling-back" ||
+    updaterFailure !== null;
   const oldVersionSettled = Boolean(
     window.toVersion &&
     status.currentVersion &&
@@ -112,11 +121,20 @@ export function resolveUpdateWindow(
       fromVersion: window.fromVersion,
       toVersion: window.toVersion,
       currentVersion: status.currentVersion,
-      detail: status.lastError,
+      detail: updaterFailure?.detail ?? status.lastError,
     };
   }
 
   const reached = status.currentVersion;
+  /* The server becomes healthy before the updater hands its own replacement to
+   * the detached swap helper. Do not dismiss the update overlay in that gap: a
+   * transiently unreachable updater is an expected part of the same operation,
+   * not evidence that the service disappeared from the installation. */
+  const updaterStillSettling =
+    status.updaterSelfUpdateEnabled === true && status.updaterUpdateAvailable === true;
+  if (reached && reachedVersion(reached, window.toVersion) && updaterStillSettling) {
+    return { outcome: "pending" };
+  }
   if (reached && reachedVersion(reached, window.toVersion)) {
     return { outcome: "succeeded", fromVersion: window.fromVersion, toVersion: reached };
   }
@@ -138,11 +156,14 @@ export function resolveUpdateOverlay(
  * quiet. Kept pure so the timing contract is regression-tested. */
 export function serverUpdatePollInterval(
   state: UpdateStatusSnapshot["state"],
-  updateWindowOpen: boolean
+  updateWindowOpen: boolean,
+  transientFailureCount = 0
 ): number {
   if (state === "checking") return 750;
   if (state === "preparing") return 3_000;
   if (state === "updating" || updateWindowOpen) return 1_500;
+  if (state === "unavailable" && transientFailureCount > 0)
+    return Math.min(1_500 * 2 ** (transientFailureCount - 1), 30_000);
   return 30_000;
 }
 

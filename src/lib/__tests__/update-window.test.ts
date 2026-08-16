@@ -24,6 +24,9 @@ const status = (overrides: Partial<UpdateStatusSnapshot> = {}): UpdateStatusSnap
   currentVersion: "v1.10.3",
   updateAvailable: true,
   lastError: null,
+  updaterUpdateAvailable: false,
+  updaterSelfUpdateEnabled: false,
+  updaterSwap: null,
   progress: { phase: "deploying" },
   ...overrides,
 });
@@ -272,11 +275,60 @@ describe("update window", () => {
     ).toMatchObject({ outcome: "succeeded", toVersion: "v1.11.0" });
   });
 
+  it("keeps the overlay open while the updater replaces itself", () => {
+    const window = { startedAt: Date.now(), fromVersion: "v1.11.2", toVersion: "v1.11.3" };
+    expect(
+      resolveUpdateWindow(
+        window,
+        status({
+          state: "current",
+          currentVersion: "v1.11.3",
+          updateAvailable: false,
+          progress: { phase: "done" },
+          updaterSelfUpdateEnabled: true,
+          updaterUpdateAvailable: true,
+        })
+      )
+    ).toEqual({ outcome: "pending" });
+    expect(
+      resolveUpdateWindow(
+        window,
+        status({
+          state: "current",
+          currentVersion: "v1.11.3",
+          updateAvailable: false,
+          progress: { phase: "done" },
+          updaterSelfUpdateEnabled: true,
+          updaterUpdateAvailable: false,
+        })
+      )
+    ).toMatchObject({ outcome: "succeeded", toVersion: "v1.11.3" });
+  });
+
+  it("surfaces a failed updater self-swap instead of claiming success", () => {
+    const window = { startedAt: Date.now(), fromVersion: "v1.11.2", toVersion: "v1.11.3" };
+    expect(
+      resolveUpdateWindow(
+        window,
+        status({
+          state: "current",
+          currentVersion: "v1.11.3",
+          updateAvailable: false,
+          progress: { phase: "done" },
+          updaterSwap: { outcome: "rolled-back", detail: "restored v1.11.2" },
+        })
+      )
+    ).toMatchObject({ outcome: "failed", detail: "restored v1.11.2" });
+  });
+
   it("polls checks responsively without making idle pages noisy", () => {
     expect(serverUpdatePollInterval("checking", false)).toBe(750);
     expect(serverUpdatePollInterval("preparing", false)).toBe(3_000);
     expect(serverUpdatePollInterval("updating", false)).toBe(1_500);
     expect(serverUpdatePollInterval("current", true)).toBe(1_500);
     expect(serverUpdatePollInterval("current", false)).toBe(30_000);
+    expect(serverUpdatePollInterval("unavailable", false, 1)).toBe(1_500);
+    expect(serverUpdatePollInterval("unavailable", false, 2)).toBe(3_000);
+    expect(serverUpdatePollInterval("unavailable", false, 10)).toBe(30_000);
   });
 });

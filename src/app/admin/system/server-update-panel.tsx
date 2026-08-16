@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ConfirmDialog } from "@/components/confirm";
 import { useToast } from "@/components/toast";
@@ -43,6 +43,9 @@ export function ServerUpdatePanel({
   const [maintenanceTime, setMaintenanceTime] = useState(status.maintenanceTime);
   const [timezone, setTimezone] = useState(status.timezone);
   const [scheduleDirty, setScheduleDirty] = useState(false);
+  const transientFailureCount = useRef(
+    initialStatus.supported || initialStatus.availabilityReason === "not-configured" ? 0 : 1
+  );
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
@@ -60,17 +63,27 @@ export function ServerUpdatePanel({
         const value: ServerUpdateStatus | null = response.ok ? await response.json() : null;
         if (cancelled || !value) return;
         nextState = value.state;
+        transientFailureCount.current =
+          value.supported || value.availabilityReason === "not-configured"
+            ? 0
+            : transientFailureCount.current + 1;
         setStatus(value);
       } catch {
         /* A deliberate restart is expected; keep polling until the window expires. */
       } finally {
         if (!cancelled) {
-          timer = window.setTimeout(refresh, serverUpdatePollInterval(nextState, false));
+          timer = window.setTimeout(
+            refresh,
+            serverUpdatePollInterval(nextState, false, transientFailureCount.current)
+          );
         }
       }
     };
     const openWindow = readUpdateWindow() !== null;
-    timer = window.setTimeout(refresh, serverUpdatePollInterval(status.state, openWindow));
+    timer = window.setTimeout(
+      refresh,
+      serverUpdatePollInterval(status.state, openWindow, transientFailureCount.current)
+    );
     return () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
@@ -187,7 +200,11 @@ export function ServerUpdatePanel({
             </div>
             <p className="text-sm text-label-secondary mt-1">
               {!status.supported
-                ? t("serverUpdaterUnavailable")
+                ? status.availabilityReason === "not-configured"
+                  ? t("serverUpdaterNotConfigured")
+                  : status.availabilityReason === "invalid-response"
+                    ? t("serverUpdaterInvalidResponse")
+                    : t("serverUpdaterReconnecting")
                 : status.state === "failed"
                   ? t("serverUpdateFailedGeneric")
                   : status.state === "preparing"
@@ -213,7 +230,7 @@ export function ServerUpdatePanel({
               )}
             </div>
           )}
-          {!status.supported && (
+          {!status.supported && status.availabilityReason === "not-configured" && (
             <div
               role="status"
               className="w-full order-last rounded-lg bg-orange/10 border border-orange/30 p-3"
@@ -228,6 +245,33 @@ export function ServerUpdatePanel({
               >
                 {t("serverUpdaterSetupLink")}
               </a>
+            </div>
+          )}
+          {!status.supported && status.availabilityReason !== "not-configured" && (
+            <div
+              role="status"
+              className="w-full order-last rounded-lg bg-fill-tertiary/60 border border-separator/60 p-3"
+            >
+              <p className="text-sm font-semibold text-label">
+                {status.availabilityReason === "invalid-response"
+                  ? t("serverUpdaterInvalidTitle")
+                  : t("serverUpdaterReconnectingTitle")}
+              </p>
+              <p className="text-sm text-label-secondary mt-1">
+                {status.availabilityReason === "invalid-response"
+                  ? t("serverUpdaterInvalidHint")
+                  : t("serverUpdaterReconnectingHint")}
+              </p>
+              {status.availabilityReason === "invalid-response" && (
+                <a
+                  href={COMPOSE_UPGRADE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex mt-2 text-sm font-medium text-accent underline underline-offset-2 focus-ring"
+                >
+                  {t("serverUpdaterSetupLink")}
+                </a>
+              )}
             </div>
           )}
           {status.supported && status.updaterSwap && status.updaterSwap.outcome !== "succeeded" && (
