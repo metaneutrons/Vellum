@@ -69,6 +69,7 @@
 #define D1001_LCD_VSYNC         4
 #define D1001_LCD_VBP           16
 #define D1001_LCD_VFP           16
+#define D1001_LCD_DPI_CLOCK_MHZ 40
 
 /* ── API ─────────────────────────────────────────────────────── */
 

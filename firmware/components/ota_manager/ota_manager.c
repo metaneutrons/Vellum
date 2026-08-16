@@ -50,6 +50,7 @@
 #include "esp_rom_crc.h"
 #include "sdkconfig.h"
 #include "ota_trust_keys.h"
+#include "ota_model_guard.h"
 
 static const char *TAG = "ota";
 
@@ -99,11 +100,15 @@ static void ota_defer_retry(const char *version)
     }
 }
 
-static ota_check_result_t ota_show_failure_and_restore(const char *version)
+static ota_check_result_t ota_show_failure_and_restore(const char *version,
+                                                        const char *detail)
 {
     ota_defer_retry(version);
+    char message[160];
+    snprintf(message, sizeof(message), "%s\nWill retry automatically",
+             detail && *detail ? detail : "The update could not be completed");
     display_show_status_message(VD_ICON_WARNING, "Firmware update failed",
-                                "The display keeps running and will retry later");
+                                message);
     board_buzzer_beep(500, 500);
     /* Error feedback needs to be visible, but must not become the display's
      * steady state. The caller redraws normal content immediately afterwards. */
@@ -437,7 +442,8 @@ ota_check_result_t ota_manager_check_and_apply(void)
         ESP_LOGW(TAG, "esp_https_ota_begin failed");
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return ota_show_failure_and_restore(to_ver);
+        ota_report(to_ver, "deferred", "download_begin");
+        return ota_show_failure_and_restore(to_ver, "Could not start the firmware download");
     }
 
     /* ── Anti-brick: reject a wrong-model image BEFORE downloading it ────
@@ -445,29 +451,28 @@ ota_check_result_t ota_manager_check_and_apply(void)
      * so the Ed25519 signature can't tell them apart — a mis-targeted image
      * would verify and then brick the device. The app descriptor project_name
      * is baked per-model as "vellum-<model>" (see CMakeLists.txt); compare the
-     * staged image's project_name against the running one and abort on any
-     * mismatch. esp_https_ota_begin() has already fetched the image header, so
-     * the descriptor is available here. */
+     * staged image's project_name against the model compiled into this image
+     * and abort on any mismatch. This also lets older/manual builds migrate to
+     * the canonical per-model project name. esp_https_ota_begin() has already
+     * fetched the image header, so the descriptor is available here. */
     esp_app_desc_t staged_desc;
     if (esp_https_ota_get_img_desc(handle, &staged_desc) != ESP_OK) {
         ESP_LOGE(TAG, "Cannot read staged image descriptor — aborting OTA");
         esp_https_ota_abort(handle);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return ota_show_failure_and_restore(to_ver);
+        ota_report(to_ver, "verify_fail", "image_header");
+        return ota_show_failure_and_restore(to_ver, "The firmware header could not be read");
     }
-    const esp_app_desc_t *running_desc = esp_app_get_description();
-    if (!running_desc ||
-        strncmp(staged_desc.project_name, running_desc->project_name,
-                sizeof(staged_desc.project_name)) != 0) {
-        ESP_LOGE(TAG, "OTA model mismatch: staged '%s' != running '%s' — aborting",
-                 staged_desc.project_name,
-                 running_desc ? running_desc->project_name : "?");
+    if (!ota_model_matches(staged_desc.project_name, CONFIG_VELLUM_DISPLAY_MODEL)) {
+        ESP_LOGE(TAG, "OTA model mismatch: staged '%s' is not model '%s' — aborting",
+                 staged_desc.project_name, CONFIG_VELLUM_DISPLAY_MODEL);
         ota_report(to_ver, "verify_fail", "model_mismatch");
         esp_https_ota_abort(handle);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return ota_show_failure_and_restore(to_ver);
+        return ota_show_failure_and_restore(to_ver,
+                                            "Firmware is for a different display model");
     }
 
     /* Download the image into the inactive slot (not yet bootable).  IDF's
@@ -495,7 +500,8 @@ ota_check_result_t ota_manager_check_and_apply(void)
         esp_https_ota_abort(handle);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return ota_show_failure_and_restore(to_ver);
+        ota_report(to_ver, "deferred", "download_interrupted");
+        return ota_show_failure_and_restore(to_ver, "The firmware download was interrupted");
     }
 
     /* ── Verify the staged image BEFORE making it bootable ──────── */
@@ -541,7 +547,10 @@ ota_check_result_t ota_manager_check_and_apply(void)
         esp_https_ota_abort(handle);
         cJSON_Delete(root);
         http_client_free_response(&resp);
-        return ota_show_failure_and_restore(to_ver);
+        const char *detail = strcmp(verify_error, "signature") == 0
+            ? "The firmware signature is invalid"
+            : "The firmware integrity check failed";
+        return ota_show_failure_and_restore(to_ver, detail);
     }
 
     /* Verified — finish() sets the boot partition (PENDING_VERIFY w/ rollback). */
@@ -551,7 +560,8 @@ ota_check_result_t ota_manager_check_and_apply(void)
 
     if (fin != ESP_OK) {
         ESP_LOGE(TAG, "esp_https_ota_finish failed: %s", esp_err_to_name(fin));
-        return ota_show_failure_and_restore(to_ver);
+        ota_report(to_ver, "deferred", "activate_failed");
+        return ota_show_failure_and_restore(to_ver, "The firmware could not be activated");
     }
 
     ESP_LOGI(TAG, "OTA verified + applied — restarting");

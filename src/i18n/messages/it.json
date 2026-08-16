@@ -414,7 +414,11 @@
     "rolloutHint": "È il rilascio — non la build più recente — a decidere cosa viene distribuito",
     "noFirmwareVersions": "Nessuna versione firmware.",
     "recentOta": "Eventi OTA recenti",
-    "noOta": "Nessun report OTA."
+    "noOta": "Nessun report OTA.",
+    "retryOta": "Riprova il firmware {version} sul dispositivo {mac}",
+    "retryOtaShort": "Riprova",
+    "retryOtaSuccess": "Il firmware {version} verrà proposto di nuovo",
+    "retryOtaFailed": "Impossibile abilitare il nuovo tentativo del firmware"
   },
   "flash": {
     "title": "Flash firmware",

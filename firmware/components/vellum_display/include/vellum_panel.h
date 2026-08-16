@@ -31,6 +31,10 @@ typedef struct {
     void          (*refresh)(void);
     /** Render a server-provided buffer (raw pixels for e-paper, JPEG for LCD). */
     esp_err_t     (*draw_raw)(const uint8_t *buf, size_t len);
+    /** Optional native fast path for an already-created OTA progress bar.
+     *  Coordinates use the panel's logical orientation. */
+    esp_err_t     (*update_ota_progress)(uint8_t percent, int x, int y,
+                                         int width, int height);
     void          (*sleep)(void);   /**< may be NULL */
     void          (*wake)(void);    /**< may be NULL */
     void          (*off)(void);     /**< may be NULL */

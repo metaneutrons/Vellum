@@ -79,7 +79,11 @@ echo "D1001: full-color logo on black"
 render_logo "${BRAND}/vellum-logo-on-dark.svg" 360 black \
   "${WORK}/vellum_logo_color_360px.png" color
 publish_preview "${WORK}/vellum_logo_color_360px.png"
-"$PNG2LVGL" "${WORK}/vellum_logo_color_360px.png" -f indexed8 --overwrite \
+# D1001's RGB565 framebuffer cannot reliably display LVGL indexed images; an
+# indexed8 regeneration made the logo invisible in firmware 1.4.7. Keep this
+# target in its native framebuffer format so brand regeneration cannot regress
+# the hardware again.
+"$PNG2LVGL" "${WORK}/vellum_logo_color_360px.png" -f true-color --overwrite \
   -o "${LOGOS}/vellum_logo_color_360px.c"
 clean_generated "${LOGOS}/vellum_logo_color_360px.c"
 

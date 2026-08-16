@@ -18,6 +18,9 @@ SHELL := /bin/bash
 PORT ?= $(shell ls /dev/cu.usbserial-* /dev/cu.wchusbserial* /dev/cu.usbmodem* 2>/dev/null | head -1)
 BAUD ?= 460800
 MODEL ?= e1002
+# Keep ESP-IDF's app descriptor and Vellum's runtime version on one release
+# value for local/manual builds too. CI injects the same value explicitly.
+FIRMWARE_VERSION := $(shell awk '/config VELLUM_FIRMWARE_VERSION/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$$/,"");print;exit}' main/Kconfig.projbuild)
 MODEL_DEFAULTS =
 DEV_HTTP ?= 0
 DEV_DEFAULTS =
@@ -76,6 +79,7 @@ IDF_ENV := export IDF_PATH=/Volumes/Dev/esp-idf/v6.0/esp-idf && export IDF_PYTHO
 .PHONY: build flash monitor fm erase-nvs erase-all merged-bin clean check-port
 
 build:
+	@printf '%s\n' "$(FIRMWARE_VERSION)" > version.txt
 ifeq ($(SECURE),1)
 	@echo "SECURE build ($(SECURE_PROFILE)) for $(MODEL) ($(TARGET_CHIP))..."
 	@if [ "$(TARGET_CHIP)" = "esp32p4" ]; then \

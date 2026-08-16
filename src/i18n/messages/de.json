@@ -414,7 +414,11 @@
     "rolloutHint": "Der Rollout — nicht der neueste Build — entscheidet, was ausgeliefert wird",
     "noFirmwareVersions": "Noch keine Firmware-Versionen.",
     "recentOta": "Letzte OTA-Ereignisse",
-    "noOta": "Noch keine OTA-Berichte."
+    "noOta": "Noch keine OTA-Berichte.",
+    "retryOta": "Firmware {version} auf Gerät {mac} erneut versuchen",
+    "retryOtaShort": "Erneut versuchen",
+    "retryOtaSuccess": "Firmware {version} wird erneut angeboten",
+    "retryOtaFailed": "Firmware-Wiederholung konnte nicht aktiviert werden"
   },
   "flash": {
     "title": "Firmware flashen",

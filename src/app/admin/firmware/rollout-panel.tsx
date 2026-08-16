@@ -3,12 +3,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setRollout, type RolloutOverview } from "../actions";
+import { retryDeviceOta, setRollout, type RolloutOverview } from "../actions";
 import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Rocket, OctagonX, History, AlertCircle } from "lucide-react";
+import { Rocket, OctagonX, History, AlertCircle, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 
 type RolloutState = "full" | "canary" | "percent" | "paused" | "halted";
 const STATES: RolloutState[] = ["paused", "canary", "percent", "full", "halted"];
@@ -32,6 +33,36 @@ function phaseTone(phase: string): "green" | "orange" | "red" {
   if (phase === "verify_fail" || phase === "rolled_back") return "red";
   if (phase === "deferred") return "orange";
   return "green";
+}
+
+function RetryOtaButton({ mac, version }: { mac: string; version: string }) {
+  const t = useTranslations("firmware");
+  const { toast } = useToast();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  return (
+    <Button
+      size="sm"
+      variant="plain"
+      disabled={pending}
+      aria-label={t("retryOta", { mac, version })}
+      onClick={() =>
+        start(async () => {
+          try {
+            await retryDeviceOta(mac, version);
+            toast("success", t("retryOtaSuccess", { version }));
+            router.refresh();
+          } catch {
+            toast("error", t("retryOtaFailed"));
+          }
+        })
+      }
+    >
+      <RotateCcw size={14} aria-hidden="true" />
+      {t("retryOtaShort")}
+    </Button>
+  );
 }
 
 function RolloutRow({
@@ -188,6 +219,9 @@ export function RolloutPanel({ overview, versions }: Props) {
                 {e.fromVersion ?? "?"} → {e.toVersion ?? "?"}
               </span>
               {e.errorCode && <span className="text-xs text-red truncate">{e.errorCode}</span>}
+              {(e.phase === "verify_fail" || e.phase === "rolled_back") && e.toVersion && (
+                <RetryOtaButton mac={e.mac} version={e.toVersion} />
+              )}
               <span className="ml-auto text-xs text-label-tertiary shrink-0">
                 {new Date(e.timestamp).toLocaleString(undefined, {
                   day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",

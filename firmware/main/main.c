@@ -20,6 +20,7 @@
 #include <sys/time.h>
 
 #include "esp_log.h"
+#include "esp_app_desc.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_sleep.h"
@@ -190,13 +191,16 @@ static vellum_telemetry_t gather_telemetry(void)
     const int battery_level = board_battery_level();
     const bool usb_powered = board_is_usb_powered();
     const board_battery_status_t battery_status = board_battery_status();
+    const esp_app_desc_t *app = esp_app_get_description();
+    const char *firmware_version =
+        (app && app->version[0]) ? app->version : CONFIG_VELLUM_FIRMWARE_VERSION;
     vellum_telemetry_t t = {
         .battery_voltage = battery_voltage,
         .battery_level   = battery_level,
         .power_source    = usb_powered ? "usb" : "battery",
         .battery_status  = board_battery_status_name(battery_status),
         .wifi_rssi       = wifi_manager_get_rssi(),
-        .firmware_ver    = CONFIG_VELLUM_FIRMWARE_VERSION,
+        .firmware_ver    = firmware_version,
     };
     return t;
 }
@@ -585,7 +589,10 @@ static void d1001_button_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "===== Vellum Firmware v%s =====", CONFIG_VELLUM_FIRMWARE_VERSION);
+    const esp_app_desc_t *app = esp_app_get_description();
+    const char *firmware_version =
+        (app && app->version[0]) ? app->version : CONFIG_VELLUM_FIRMWARE_VERSION;
+    ESP_LOGI(TAG, "===== Vellum Firmware v%s =====", firmware_version);
 
     /* 1. Initialize core subsystems */
     ESP_ERROR_CHECK(nvs_manager_init());
@@ -628,7 +635,7 @@ void app_main(void)
 
     /* Only show boot screen on first power-on */
     if (wake == WAKE_REASON_POWER_ON) {
-        display_show_boot(CONFIG_VELLUM_FIRMWARE_VERSION);
+        display_show_boot(firmware_version);
         board_buzzer_beep(1000, 100);
     }
     board_led_on();
