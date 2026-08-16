@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/metaneutrons/Vellum/compare/v1.12.0...v1.12.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **updater:** reject stale update progress ([#249](https://github.com/metaneutrons/Vellum/issues/249)) ([b69f128](https://github.com/metaneutrons/Vellum/commit/b69f128a942cc4478e7716255dfebb13a1e77333))
+
 ## [1.12.0](https://github.com/metaneutrons/Vellum/compare/v1.11.6...v1.12.0) (2026-08-16)
 
 
