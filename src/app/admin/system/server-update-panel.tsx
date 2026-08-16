@@ -9,9 +9,7 @@ import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
 import { REPO_URL } from "@/lib/app-meta";
 import type { ServerUpdateStatus } from "@/lib/server-updater";
-import { updateProgressRows } from "@/lib/update-progress";
-import { beginUpdateWindow, endUpdateWindow, readUpdateWindow, resolveUpdateWindow,
-  serverUpdatePollInterval } from "@/lib/update-window";
+import { beginUpdateWindow, readUpdateWindow, serverUpdatePollInterval } from "@/lib/update-window";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
@@ -25,14 +23,6 @@ const stateKeys = {
   updating: "serverStateUpdating",
   current: "serverStateCurrent",
   failed: "serverStateFailed",
-} as const;
-
-const PHASE_KEYS = {
-  verifying: "phaseVerifying",
-  "backing-up": "phaseBackingUp",
-  deploying: "phaseDeploying",
-  "waiting-for-health": "phaseWaitingForHealth",
-  "rolling-back": "phaseRollingBack",
 } as const;
 
 const COMPOSE_UPGRADE_URL = `${REPO_URL}/blob/main/README.md#upgrade-an-existing-compose-installation`;
@@ -50,18 +40,17 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
   const [maintenanceTime, setMaintenanceTime] = useState(status.maintenanceTime);
   const [timezone, setTimezone] = useState(status.timezone);
   const [scheduleDirty, setScheduleDirty] = useState(false);
-  /* Set when THIS browser started the update, so the database overlay can show a
-   * restart instead of an outage. Survives a reload during the downtime. */
-  const [updateNotice, setUpdateNotice] = useState<
-    | { outcome: "succeeded"; from: string | null; to: string }
-    | { outcome: "failed"; target: string | null; current: string | null; detail: string | null }
-    | null
-  >(null);
-
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
     const refresh = async () => {
+      /* The global overlay owns the live journal while an update is active.
+       * Avoid issuing the same status request from two mounted components; this
+       * timer resumes the panel automatically after the overlay closes. */
+      if (readUpdateWindow() !== null) {
+        timer = window.setTimeout(refresh, 1_500);
+        return;
+      }
       let nextState = status.state;
       try {
         const response = await fetch("/api/v1/admin/server-update", { cache: "no-store" });
@@ -69,23 +58,11 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
         if (cancelled || !value) return;
         nextState = value.state;
         setStatus(value);
-        const openWindow = readUpdateWindow();
-        if (openWindow) {
-          const resolution = resolveUpdateWindow(openWindow, value);
-          if (resolution.outcome === "succeeded") {
-            endUpdateWindow();
-            setUpdateNotice({ outcome: "succeeded", from: resolution.fromVersion, to: resolution.toVersion });
-          } else if (resolution.outcome === "failed") {
-            endUpdateWindow();
-            setUpdateNotice({ outcome: "failed", target: resolution.toVersion,
-              current: resolution.currentVersion, detail: resolution.detail });
-          }
-        }
       } catch { /* A deliberate restart is expected; keep polling until the window expires. */ }
       finally {
         if (!cancelled) {
           timer = window.setTimeout(refresh,
-            serverUpdatePollInterval(nextState, readUpdateWindow() !== null));
+            serverUpdatePollInterval(nextState, false));
         }
       }
     };
@@ -119,10 +96,13 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
       const next: ServerUpdateStatus = await response.json();
       setStatus(next);
       if (action === "apply") {
-        /* Opened BEFORE the container goes away: once it is gone, this page can no
-         * longer be told anything. */
-        setUpdateNotice(null);
-        beginUpdateWindow(status.currentVersion, status.availableVersion);
+        /* Open immediately after the updater accepts the request. The global
+         * overlay owns the complete experience, including the restart where
+         * this page cannot narrate its own status. */
+        beginUpdateWindow(next.currentVersion ?? status.currentVersion,
+          next.availableVersion ?? status.availableVersion, next.progress ?? {
+          phase: "verifying", detail: null, at: null, startedAt: new Date().toISOString(),
+        });
       }
       toast("success", action === "apply" ? t("serverUpdateStarted") : t("serverCheckStarted"));
     } catch {
@@ -179,51 +159,7 @@ export function ServerUpdatePanel({ initialStatus, canUpdate }: {
                   : t("serverManualSchedule"))}
             </p>
           </div>
-          {status.supported && status.progress && (
-            /* Real step-level progress. update.sh writes each phase to the state
-             * volume because the server cannot narrate its own restart. Keep the
-             * terminal result visible for inspection. */
-            <ol aria-label={t("serverUpdateProgress")}
-              className="w-full order-last space-y-1.5 rounded-lg bg-fill-tertiary/40 border border-separator/50 p-3">
-              {updateProgressRows(status.progress).map(({ phase, state }) => {
-                return (
-                  <li key={phase} className="flex items-center gap-2 text-sm">
-                    <span aria-hidden="true" className={state === "done" ? "text-green" : state === "failed" ? "text-red" : state === "active" ? "text-accent" : "text-label-tertiary"}>
-                      {state === "done" ? "✓" : state === "failed" ? "×" : state === "active" ? "◐" : "○"}
-                    </span>
-                    <span className={state === "pending" ? "text-label-tertiary" : state === "failed" ? "text-red font-medium" : "text-label"}>{t(PHASE_KEYS[phase])}</span>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-          {updateNotice && (
-            <div role={updateNotice.outcome === "failed" ? "alert" : "status"}
-              className={`w-full order-last rounded-lg p-3 border ${updateNotice.outcome === "failed"
-                ? "bg-red/10 border-red/30" : "bg-green/10 border-green/30"}`}>
-              <p className={`text-sm font-semibold ${updateNotice.outcome === "failed" ? "text-red" : "text-green"}`}>
-                {updateNotice.outcome === "succeeded"
-                  ? updateNotice.from
-                    ? t("serverUpdateDone", { from: updateNotice.from, to: updateNotice.to })
-                    : t("serverUpdateDoneShort", { version: updateNotice.to })
-                  : updateNotice.target
-                    ? t("serverUpdateNotCompleted", { version: updateNotice.target })
-                    : t("serverUpdateFailedGeneric")}
-              </p>
-              {updateNotice.outcome === "failed" && (
-                <p className="text-sm text-label-secondary mt-1">
-                  {updateNotice.detail ?? (updateNotice.current
-                    ? t("serverUpdateStillCurrent", { version: updateNotice.current })
-                    : t("serverUpdateFailedGeneric"))}
-                </p>
-              )}
-              <button onClick={() => setUpdateNotice(null)}
-                className="mt-2 text-sm text-label-secondary underline focus-ring">
-                {t("serverUpdateDoneDismiss")}
-              </button>
-            </div>
-          )}
-          {status.supported && status.state === "failed" && !updateNotice && (
+          {status.supported && status.state === "failed" && (
             <div role="alert" className="w-full order-last rounded-lg bg-red/10 border border-red/30 p-3">
               <p className="text-sm font-semibold text-red">{t("serverUpdateFailedGeneric")}</p>
               {status.lastError && <p className="text-sm text-label-secondary mt-1">{status.lastError}</p>}

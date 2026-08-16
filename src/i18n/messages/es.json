@@ -342,8 +342,6 @@
     "serverActionFailed": "Error en la acción de actualización",
     "serverActionForbidden": "Esta acción no está permitida. Recargue la página o compruebe su permiso.",
     "serverUpdateFailedGeneric": "El servicio de actualización no pudo completar la operación.",
-    "serverUpdateNotCompleted": "La actualización a {version} no se completó.",
-    "serverUpdateStillCurrent": "El servidor sigue ejecutando {version}. La versión anterior se conservó o se restauró.",
     "serverStateUnavailable": "No disponible",
     "serverStateStarting": "Iniciando",
     "serverStateChecking": "Comprobando",
@@ -367,10 +365,7 @@
     "phaseRollingBack": "Restaurando la versión anterior",
     "serverUpdateProgress": "Progreso de la actualización del servidor",
     "serverConfirmSteps": "Pasos: verificar la firma, copiar la base de datos, iniciar la nueva versión, esperar su señal de estado correcto — y revertir automáticamente si no llega.",
-    "serverConfirmDowntime": "Al final el servidor se reinicia: esta página pierde la conexión un momento y se reconecta por sí sola.",
-    "serverUpdateDone": "Actualizado de {from} a {to}.",
-    "serverUpdateDoneShort": "Actualizado a {version}.",
-    "serverUpdateDoneDismiss": "Ocultar"
+    "serverConfirmDowntime": "Al final, el servidor se reinicia. Esta página pierde brevemente la conexión y vuelve a conectarse automáticamente."
   },
   "firmware": {
     "rolloutAdoption": "dispositivos con esta versión",
@@ -485,6 +480,13 @@
     "updateRestartBody": "El servidor se está reiniciando para terminar la actualización. Esta página se reconecta por sí sola.",
     "updateRestartToVersion": "Reiniciando para terminar la actualización a {version}. Esta página se reconecta por sí sola.",
     "updateRestartElapsed": "Esperando {elapsed}",
+    "updateVersionTransition": "{from} → {to}",
+    "updateInProgressBody": "Vellum está aplicando la actualización de forma segura en segundo plano. Mantén esta ventana abierta.",
+    "updateConnectionRestoring": "La nueva versión se está iniciando. La conexión se restablecerá automáticamente…",
+    "updateCompleteTitle": "Actualización completada",
+    "updateCompleteBody": "La nueva versión está lista. La consola continuará en unos instantes.",
+    "updateFailedTitle": "Actualización no completada",
+    "updateFailedBody": "Vellum sigue ejecutando la versión anterior o la restauró automáticamente.",
     "databaseReconnecting": "Intentando reconectar…"
   },
   "contentTypes": {
