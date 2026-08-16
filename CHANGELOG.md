@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/metaneutrons/Vellum/compare/v1.11.0...v1.11.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* publish calibrated battery telemetry ([61e50aa](https://github.com/metaneutrons/Vellum/commit/61e50aae4a3efcdc952972bcb5c443f4bc7249f7))
+
 ## [1.11.0](https://github.com/metaneutrons/Vellum/compare/v1.10.8...v1.11.0) (2026-08-15)
 
 
