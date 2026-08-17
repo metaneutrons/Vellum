@@ -18,6 +18,8 @@ const deploymentEnv = readFileSync("deploy/vellum.env.example", "utf8");
 const updaterControl = readFileSync("deploy/updater/control.mjs", "utf8");
 const updaterScript = readFileSync("deploy/updater/update.sh", "utf8");
 const firmwareKconfig = readFileSync("firmware/main/Kconfig.projbuild", "utf8");
+const d1001Defaults = readFileSync("firmware/sdkconfig.defaults.p4", "utf8");
+const d1001Partitions = readFileSync("firmware/partitions.d1001.csv", "utf8");
 const failures = [];
 
 const expect = (condition, message) => {
@@ -71,6 +73,22 @@ const firmwareVersion = firmwareKconfig.match(
 expect(
   manifest.firmware === firmwareVersion,
   `firmware manifest version ${manifest.firmware} must match Kconfig ${firmwareVersion ?? "<missing>"}`
+);
+
+expect(
+  d1001Defaults.includes("CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y") &&
+    d1001Defaults.includes('CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.d1001.csv"'),
+  "D1001 builds must use the board's 32 MiB flash and dedicated partition table"
+);
+expect(
+  d1001Partitions.includes("ota_0,     app,  ota_0,   0x20000,   0x800000,") &&
+    d1001Partitions.includes("ota_1,     app,  ota_1,   0x820000,  0x800000,") &&
+    d1001Partitions.includes("storage,   data, fat,     0x1020000, 0xfe0000,"),
+  "D1001 partition table must retain two 8 MiB OTA slots and end at 32 MiB"
+);
+expect(
+  firmwareWorkflow.includes("PART=firmware/partitions.d1001.csv"),
+  "firmware CI must validate D1001 images against the D1001 partition budget"
 );
 
 expect(
