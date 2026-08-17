@@ -99,6 +99,9 @@ static const char *TAG = "panel_epaper";
 #if defined(CONFIG_VELLUM_PANEL_E1003)
 extern const lv_img_dsc_t vellum_logo_16grey_600px;
 #define LOGO_DSC (&vellum_logo_16grey_600px)
+#elif defined(CONFIG_VELLUM_PANEL_GDEP073E01)
+extern const lv_img_dsc_t vellum_logo_spectra_216px;
+#define LOGO_DSC (&vellum_logo_spectra_216px)
 #else
 extern const lv_img_dsc_t vellum_logo_mono_216px;
 #define LOGO_DSC (&vellum_logo_mono_216px)
@@ -292,6 +295,7 @@ static vellum_panel_t s_panel = {
     .model = PANEL_MODEL,
     .color_mode = PANEL_COLORS,
     .fast_refresh = PANEL_FAST_REFRESH,
+    .retains_image = true,
     .needs_tick_timer = true,
     .font_lg = FONT_LG,
     .font_md = FONT_MD,
@@ -305,7 +309,17 @@ const vellum_panel_t *vellum_panel(void)
     /* lv_color_t isn't a constant expression — set the (light) theme here. */
     s_panel.bg    = lv_color_white();
     s_panel.fg    = lv_color_black();
+#if defined(CONFIG_VELLUM_PANEL_GDEP073E01) || defined(CONFIG_VELLUM_PANEL_GDEY075T7)
+    /* These panels have no reproducible gray ink. RGB 0x808080 is marginally
+     * nearer to white than black in the palette converter and consequently made
+     * firmware identity and secondary status copy disappear on the white
+     * canvas. Keep semantic hierarchy through font size, but render every text
+     * role in guaranteed black. */
+    s_panel.muted = lv_color_black();
+    s_panel.dim   = lv_color_black();
+#else
     s_panel.muted = lv_color_hex(0x808080);
     s_panel.dim   = lv_color_hex(0xAAAAAA);
+#endif
     return &s_panel;
 }

@@ -21,6 +21,8 @@ void run_response_headers_tests(void);
 void run_status_layout_tests(void);
 void run_lcd_rotation_tests(void);
 void run_d1001_power_tests(void);
+void run_epaper_contrast_tests(void);
+void run_display_cache_tests(void);
 
 int main(void)
 {
@@ -38,5 +40,7 @@ int main(void)
     run_status_layout_tests();
     run_lcd_rotation_tests();
     run_d1001_power_tests();
+    run_epaper_contrast_tests();
+    run_display_cache_tests();
     return UNITY_END();
 }

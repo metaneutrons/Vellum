@@ -8,6 +8,7 @@
 #pragma once
 
 #include "esp_err.h"
+#include "response_headers.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -41,6 +42,9 @@ typedef struct {
     /** Raw X-Error-Backoff value ("60,300,900,3600"); empty when absent. Kept as
      *  text so parsing stays in render_backoff.c, where the host tests reach it. */
     char      error_backoff[64];
+    /** Candidate representation token. Persist only after the panel accepted
+     * the corresponding visible state. */
+    char      etag[VELLUM_ETAG_HEADER_LEN];
     char     *body;           /**< Text body (caller must free via http_client_free_response) */
     size_t    body_len;       /**< Length of text body */
     uint8_t  *binary_body;    /**< Binary body for render endpoint (caller must free) */
@@ -67,6 +71,10 @@ esp_err_t http_client_hello(vellum_http_response_t *resp);
 
 /** GET /api/v1/ink/render */
 esp_err_t http_client_render(vellum_http_response_t *resp);
+
+/** Commit a render token after the downloaded frame or local idle state is
+ * known to be visible. A failed draw must not poison the next conditional GET. */
+void http_client_commit_render_etag(const char *etag);
 
 /** POST /api/v1/ink/report */
 esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp);

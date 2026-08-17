@@ -15,6 +15,9 @@ import { log } from "@/lib/logger";
 import { resolveDisplayCaps } from "@/lib/display";
 import { getContentRenderer } from "@/lib/content";
 import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/theme";
+import { renderEntityTag } from "@/lib/render-etag";
+
+const IDLE_SCREEN_REVISION = "no-content-v1";
 
 /**
  * Resolve the refresh profile for a device: its own assignment, else the profile
@@ -132,9 +135,16 @@ export async function GET(request: NextRequest) {
       hasContent: false,
     });
     await recordExpectedInterval(validation.data.mac, device.expectedIntervalS, idle.durationS);
+    const model = request.headers.get("x-display-model")?.trim().toLowerCase() || "unknown";
+    const firmware = request.headers.get("x-firmware-ver")?.trim() || "unknown";
+    const etag = renderEntityTag("idle", `${IDLE_SCREEN_REVISION}:${model}:${firmware}`);
+    const headers = { ...sleepHeaders(idle.durationS, idle.mode, profile), ETag: etag };
+    if (request.headers.get("if-none-match") === etag) {
+      return new Response(null, { status: 304, headers });
+    }
     return new Response(null, {
       status: 204,
-      headers: sleepHeaders(idle.durationS, idle.mode, profile),
+      headers,
     });
   }
 
@@ -235,18 +245,17 @@ export async function GET(request: NextRequest) {
   await recordExpectedInterval(validation.data.mac, device.expectedIntervalS, sleepDuration);
 
   // Compute content hash for client-side caching (skip refresh if unchanged)
-  const { createHash } = await import("crypto");
-  const contentHash = createHash("sha256")
-    .update(new Uint8Array(pixelBuffer))
-    .digest("hex")
-    .slice(0, 16);
+  const contentHash = renderEntityTag("frame", new Uint8Array(pixelBuffer));
 
   // Check If-None-Match — device sends last hash, skip render if unchanged
   const ifNoneMatch = request.headers.get("if-none-match");
   if (ifNoneMatch === contentHash) {
     return new Response(null, {
       status: 304,
-      headers: sleepHeaders(sleepDuration, sleepMode, profile),
+      headers: {
+        ...sleepHeaders(sleepDuration, sleepMode, profile),
+        ETag: contentHash,
+      },
     });
   }
 

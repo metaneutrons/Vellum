@@ -44,10 +44,33 @@ image = Image.open(raw).convert("RGBA")
 image = image.crop(image.split()[-1].getbbox())
 width = round(height * image.size[0] / image.size[1])
 image = image.resize((width, height), Image.Resampling.LANCZOS)
+if mode == "spectra":
+    # E1002's six-colour Spectra panel cannot reproduce Vellum magenta or gray.
+    # Preserve the logo's hierarchy with the least-surprising hardware palette:
+    # both neutral inks become black and the brand accent becomes red. Recolour
+    # before alpha compositing so antialiased edges remain clean.
+    source_inks = ((54, 52, 52), (143, 142, 147), (233, 23, 123))
+    target_inks = ((0, 0, 0), (0, 0, 0), (255, 0, 0))
+    pixels = image.load()
+    for y in range(image.height):
+        for x in range(image.width):
+            red, green, blue, alpha = pixels[x, y]
+            nearest = min(
+                range(len(source_inks)),
+                key=lambda index: sum(
+                    (component - source_inks[index][channel]) ** 2
+                    for channel, component in enumerate((red, green, blue))
+                ),
+            )
+            pixels[x, y] = (*target_inks[nearest], alpha)
 flat = Image.new("RGB", (width, height), (255, 255, 255) if bg == "white" else (0, 0, 0))
 flat.paste(image, (0, 0), image)
 if mode == "mono":
     flat = flat.convert("L").point(lambda value: 255 if value > 140 else 0, mode="1")
+elif mode == "spectra":
+    palette = Image.new("P", (1, 1))
+    palette.putpalette([255, 255, 255, 0, 0, 0, 255, 0, 0] + [255, 255, 255] * 253)
+    flat = flat.quantize(palette=palette, dither=Image.Dither.NONE).convert("RGB")
 elif mode == "gray16":
     flat = flat.convert("L").point(lambda value: round(value / 17) * 17).convert("RGB")
 elif mode == "color":
@@ -58,14 +81,25 @@ PY
 }
 
 # Logo height is 45% of every panel. Each target keeps only the color depth its
-# hardware can display; all three derive from the same magenta master family.
-echo "E1001/E1002: 1-bit logo on white"
+# hardware can display; all four derive from the same magenta master family.
+echo "E1001: 1-bit logo on white"
 render_logo "${BRAND}/vellum-logo-on-light.svg" 216 white \
   "${WORK}/vellum_logo_mono_216px.png" mono
 publish_preview "${WORK}/vellum_logo_mono_216px.png"
 "$PNG2LVGL" "${WORK}/vellum_logo_mono_216px.png" -f indexed1 --overwrite \
   -o "${LOGOS}/vellum_logo_mono_216px.c"
 clean_generated "${LOGOS}/vellum_logo_mono_216px.c"
+
+echo "E1002: Spectra black/red logo on white"
+render_logo "${BRAND}/vellum-logo-on-light.svg" 216 white \
+  "${WORK}/vellum_logo_spectra_216px.png" spectra
+publish_preview "${WORK}/vellum_logo_spectra_216px.png"
+# png2lvgl's compact indexed modes generate a grayscale ramp rather than
+# preserving an arbitrary palette. Use RGB565 so LVGL carries exact red pixels
+# into the E1002 backend; the backend then emits the native Spectra red code.
+"$PNG2LVGL" "${WORK}/vellum_logo_spectra_216px.png" -f true-color --overwrite \
+  -o "${LOGOS}/vellum_logo_spectra_216px.c"
+clean_generated "${LOGOS}/vellum_logo_spectra_216px.c"
 
 echo "E1003: 16-gray logo on white"
 render_logo "${BRAND}/vellum-logo-on-light.svg" 636 white \

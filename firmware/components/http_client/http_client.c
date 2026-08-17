@@ -398,6 +398,11 @@ static void save_etag(const char *etag) {
     nvs_manager_set_str("etag", s_last_etag);
 }
 
+void http_client_commit_render_etag(const char *etag)
+{
+    if (etag && etag[0]) save_etag(etag);
+}
+
 esp_err_t http_client_render(vellum_http_response_t *resp)
 {
     memset(resp, 0, sizeof(*resp));
@@ -451,7 +456,9 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
             strlcpy(resp->error_backoff, rb.headers.error_backoff,
                     sizeof(resp->error_backoff));
         }
-        if (rb.headers.etag[0]) save_etag(rb.headers.etag);
+        if (rb.headers.etag[0]) {
+            strlcpy(resp->etag, rb.headers.etag, sizeof(resp->etag));
+        }
 
         if (resp->status_code == 200) {
             resp->binary_body = (uint8_t *)rb.buf;

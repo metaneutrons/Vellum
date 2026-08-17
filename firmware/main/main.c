@@ -441,6 +441,7 @@ static uint32_t perform_render(bool *render_ok)
                                             "could not draw");
             } else {
                 ok = true;           /* frame drawn successfully */
+                http_client_commit_render_etag(resp.etag);
                 if (render_ok) *render_ok = true;
             }
         } else {
@@ -454,6 +455,7 @@ static uint32_t perform_render(bool *render_ok)
     } else if (resp.status_code == 204) {
         ESP_LOGI(TAG, "No content assigned — showing idle screen");
         display_show_no_content();
+        http_client_commit_render_etag(resp.etag);
         ok = true; if (render_ok) *render_ok = true;   /* legitimate configured idle state */
     } else if (resp.status_code == 401) {
         /* Not a fault the operator can fix at the device: the stored token was

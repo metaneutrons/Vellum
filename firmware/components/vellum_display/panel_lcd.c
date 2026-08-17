@@ -256,6 +256,7 @@ static vellum_panel_t s_panel = {
     .model = "d1001",
     .color_mode = "fullcolor",
     .fast_refresh = true,
+    .retains_image = false,
     /* esp_lv_adapter owns the LVGL tick timer. */
     .needs_tick_timer = false,
     /* Fonts enabled in the P4 LVGL config (sdkconfig.defaults.p4). */
