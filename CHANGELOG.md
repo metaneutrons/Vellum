@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.1](https://github.com/metaneutrons/Vellum/compare/v1.13.0...v1.13.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* **updater:** tolerate transient release API failures ([ad0ee15](https://github.com/metaneutrons/Vellum/commit/ad0ee15303793d6c73c386962e743f6157aab1df))
+* **updater:** tolerate transient release API failures ([37fb071](https://github.com/metaneutrons/Vellum/commit/37fb0719372d382cc0b05e5b5b197688147ce0fb))
+
 ## [1.13.0](https://github.com/metaneutrons/Vellum/compare/v1.12.2...v1.13.0) (2026-08-17)
 
 
