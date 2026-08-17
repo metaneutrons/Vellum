@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.2](https://github.com/metaneutrons/Vellum/compare/v1.13.1...v1.13.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* **server:** remove GitHub from dashboard cold path ([f868dd5](https://github.com/metaneutrons/Vellum/commit/f868dd5bf77b994041b4f8ca4be9474f110140d5))
+* **server:** remove GitHub from dashboard cold path ([ebcefda](https://github.com/metaneutrons/Vellum/commit/ebcefdaf4174ea91501ba5b0cea490414ce89e3b))
+
 ## [1.13.1](https://github.com/metaneutrons/Vellum/compare/v1.13.0...v1.13.1) (2026-08-17)
 
 
