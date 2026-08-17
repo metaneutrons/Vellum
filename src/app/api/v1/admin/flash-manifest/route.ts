@@ -65,6 +65,12 @@ export async function GET(request: NextRequest) {
     name: `Vellum ${model.toUpperCase()}`,
     version: target.version,
     new_install_prompt_erase: true,
+    // ESP Web Tools uses this sentinel (rather than `improv: false`) to decide
+    // whether it should reconnect after flashing and open its generic
+    // "Connect to Wi-Fi" flow. Vellum has a richer, authenticated USB
+    // provisioning step of its own, so do not reopen the freshly booted serial
+    // port here.
+    new_install_improv_wait_time: 0,
     // ESP Web Tools defaults this to true and would offer its own Wi-Fi step
     // after flashing. Vellum provisions over the same cable with its own Improv
     // frames, which additionally carry the server URL, the device token, an NTP
