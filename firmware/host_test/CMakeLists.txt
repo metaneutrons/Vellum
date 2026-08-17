@@ -24,6 +24,8 @@ add_executable(host_tests
   test_ota_signature.c
   test_ota_model_guard.c
   test_secure_channel.c
+    test_usb_provisioning_auth.c
+    test_remote_configuration_auth.c
   test_key_revocation.c
   test_sy6974b_power.c
   test_transport_policy.c

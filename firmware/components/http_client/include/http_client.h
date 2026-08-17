@@ -23,7 +23,11 @@ typedef struct {
     const char *power_source;  /**< usb/battery/unknown */
     const char *battery_status; /**< charging/full/discharging/unknown */
     int         wifi_rssi;
+    const char *wifi_ssid_b64; /**< Base64 of associated SSID bytes */
+    const char *wifi_security; /**< Negotiated auth mode, e.g. wpa3-sae */
     const char *firmware_ver;
+    const char *security_profile; /**< development/testsecure/secureboot/production */
+    const char *nvs_integrity;    /**< disabled/valid/invalid */
 } vellum_telemetry_t;
 
 /** The safe, user-actionable category of a failed HTTP transport. Detailed
@@ -87,6 +91,14 @@ esp_err_t http_client_ota_report(const char *model, const char *from_version,
 
 /** GET /api/v1/ink/config */
 esp_err_t http_client_config(vellum_http_response_t *resp);
+
+/** Verify that a migration target is a reachable Vellum server which accepts
+ * this device and exposes the same pending command. No state is changed. */
+esp_err_t http_client_probe_server(const char *server_base_url, const char *command_id);
+
+/** POST the terminal outcome of a remote configuration command. */
+esp_err_t http_client_config_report(const char *command_id, const char *status,
+                                    const char *error_code);
 
 /** Free any allocated memory in a response. */
 void http_client_free_response(vellum_http_response_t *resp);

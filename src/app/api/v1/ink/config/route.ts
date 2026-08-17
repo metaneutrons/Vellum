@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, withDbRead, withDbWrite } from "@/db";
-import { devices } from "@/db/schema";
+import { deviceConfigurationCommands, devices } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
@@ -14,6 +14,14 @@ import { log } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { createOtaDownloadUrl } from "@/lib/firmware-download";
 import { completeDisplayCaps, displayCapsSchema } from "@/lib/display";
+import { decryptCredentials } from "@/lib/encryption";
+import {
+  encryptedWifiPayloadSchema,
+  serverMigrationPayloadSchema,
+  signRemoteConfiguration,
+  signRemoteWifiConfiguration,
+  wifiConfigurationInputSchema,
+} from "@/lib/provisioning/remote-configuration";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -101,6 +109,123 @@ export async function GET(request: NextRequest) {
       : ota.otaUrl;
   const { otaTag: _otaTag, ...publicOta } = ota;
 
+  const [activeCommand] = await withDbRead(
+    () =>
+      db
+        .select({
+          id: deviceConfigurationCommands.id,
+          kind: deviceConfigurationCommands.kind,
+          payload: deviceConfigurationCommands.payload,
+          status: deviceConfigurationCommands.status,
+        })
+        .from(deviceConfigurationCommands)
+        .where(
+          and(
+            eq(deviceConfigurationCommands.mac, validation.data.mac),
+            inArray(deviceConfigurationCommands.status, ["pending", "delivered", "applying"])
+          )
+        )
+        .limit(1),
+    "config-get-active-command"
+  );
+
+  let remoteConfiguration:
+    | { protocol: 1; id: string; kind: "server_url"; serverUrl: string; signature: string }
+    | {
+        protocol: 1;
+        id: string;
+        kind: "wifi";
+        ssid: string;
+        password: string;
+        signature: string;
+      }
+    | undefined;
+  if (activeCommand?.kind === "server_url" && device?.token) {
+    const parsed = serverMigrationPayloadSchema.safeParse(activeCommand.payload);
+    if (parsed.success) {
+      remoteConfiguration = {
+        protocol: 1,
+        id: activeCommand.id,
+        kind: "server_url",
+        serverUrl: parsed.data.serverUrl,
+        signature: signRemoteConfiguration({
+          deviceToken: device.token,
+          id: activeCommand.id,
+          serverUrl: parsed.data.serverUrl,
+        }),
+      };
+    } else {
+      log.error("Invalid persisted device configuration command", {
+        mac: validation.data.mac,
+        commandId: activeCommand.id,
+      });
+    }
+  }
+  if (activeCommand?.kind === "wifi" && device?.token) {
+    const payload = encryptedWifiPayloadSchema.safeParse(activeCommand.payload);
+    try {
+      if (!payload.success) throw new Error("invalid_encrypted_wifi_payload");
+      const secret = decryptCredentials<{ password: unknown }>(payload.data.encryptedPassword);
+      const parsed = wifiConfigurationInputSchema.parse({
+        ssid: payload.data.ssid,
+        password: secret.password,
+      });
+      remoteConfiguration = {
+        protocol: 1,
+        id: activeCommand.id,
+        kind: "wifi",
+        ssid: parsed.ssid,
+        password: parsed.password,
+        signature: signRemoteWifiConfiguration({
+          deviceToken: device.token,
+          id: activeCommand.id,
+          ssid: parsed.ssid,
+          password: parsed.password,
+        }),
+      };
+    } catch (error) {
+      log.error("Unable to decrypt persisted Wi-Fi configuration command", {
+        mac: validation.data.mac,
+        commandId: activeCommand.id,
+        errorType: error instanceof Error ? error.name : "unknown",
+      });
+      await withDbWrite(
+        () =>
+          db
+            .update(deviceConfigurationCommands)
+            .set({
+              status: "failed",
+              errorCode: "credential_decryption_failed",
+              completedAt: new Date(),
+            })
+            .where(eq(deviceConfigurationCommands.id, activeCommand.id)),
+        "config-fail-undecryptable-wifi-command"
+      );
+    }
+  }
+
+  if (remoteConfiguration && activeCommand?.status === "pending") {
+    await withDbWrite(
+      () =>
+        db
+          .update(deviceConfigurationCommands)
+          .set({ status: "delivered", deliveredAt: new Date() })
+          .where(
+            and(
+              eq(deviceConfigurationCommands.id, activeCommand.id),
+              eq(deviceConfigurationCommands.status, "pending")
+            )
+          ),
+      "config-mark-command-delivered"
+    ).catch((error) =>
+      log.warn("Failed to mark device configuration command delivered", {
+        mac: validation.data.mac,
+        commandId: activeCommand.id,
+        error: String(error),
+      })
+    );
+  }
+
   const t = extractTelemetry(request.headers);
   if (t)
     logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch((error) =>
@@ -115,6 +240,7 @@ export async function GET(request: NextRequest) {
       ...publicOta,
       otaUrl,
       rotation: 0,
+      remoteConfiguration,
     })
   );
 }

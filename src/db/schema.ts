@@ -14,6 +14,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -361,6 +362,41 @@ export const devices = pgTable(
 );
 
 /**
+ * Durable, device-pulled configuration desired state. Commands are retained as
+ * an operational history; at most one pending/delivered command may exist per
+ * device. The device authenticates the response again with its per-device
+ * secret before applying it and reports the terminal outcome.
+ */
+export const deviceConfigurationCommands = pgTable(
+  "device_configuration_commands",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    mac: text("mac")
+      .notNull()
+      .references(() => devices.mac, { onDelete: "cascade" }),
+    kind: text("kind").notNull(), // "server_url" | "wifi"
+    payload: jsonb("payload").notNull(),
+    status: text("status").notNull().default("pending"), // pending | delivered | applying | applied | failed | superseded | cancelled
+    errorCode: text("error_code"),
+    createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    deliveredAt: timestamp("delivered_at"),
+    completedAt: timestamp("completed_at"),
+  },
+  (t) => [
+    index("device_configuration_commands_mac_created_idx").on(t.mac, t.createdAt.desc()),
+    uniqueIndex("device_configuration_commands_one_active_idx")
+      .on(t.mac)
+      .where(sql`${t.status} IN ('pending', 'delivered', 'applying')`),
+    check("device_configuration_commands_kind_check", sql`${t.kind} IN ('server_url', 'wifi')`),
+    check(
+      "device_configuration_commands_status_check",
+      sql`${t.status} IN ('pending', 'delivered', 'applying', 'applied', 'failed', 'superseded', 'cancelled')`
+    ),
+  ]
+);
+
+/**
  * Pre-provisioning vouchers for zero-touch USB enrolment. An admin mints a
  * voucher (a device token) and pushes it into a device profile over USB; the
  * first device to present that token on an authenticated request claims the
@@ -465,7 +501,13 @@ export const telemetry = pgTable(
     powerSource: text("power_source").$type<"usb" | "battery" | "unknown">(),
     batteryStatus: text("battery_status").$type<"charging" | "full" | "discharging" | "unknown">(),
     wifiRssi: integer("wifi_rssi"),
+    wifiSsid: text("wifi_ssid"),
+    wifiSecurity: text("wifi_security"),
     firmwareVersion: text("firmware_version"),
+    securityProfile: text("security_profile").$type<
+      "development" | "testsecure" | "secureboot" | "production"
+    >(),
+    nvsIntegrity: text("nvs_integrity").$type<"disabled" | "valid" | "invalid">(),
     timestamp: timestamp("timestamp").defaultNow().notNull(),
   },
   (t) => [

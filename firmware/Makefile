@@ -32,12 +32,21 @@ DEV_DEFAULTS =
 #   testsecure — software signature verify, NO eFuse burn (fully reversible)
 #   secureboot — Secure Boot v2 on, Flash-Enc OFF (first eFuse burns; reflashable)
 #   prod       — + Flash Encryption RELEASE + anti-rollback (POINT OF NO RETURN)
-# Overlays set BUILD_SIGNED_BINARIES=n → no private key on the build host; sign
-# the image out-of-band with `espsecure.py sign_data --version 2 --hsm` (KMS).
+# `testsecure` is signed with a disposable, git-ignored local key so the complete
+# verification path is testable today. The irreversible profiles never use that
+# key: their release images must be signed out-of-band by the approved HSM.
 # SECURE_PROFILE defaults to the fully-reversible `testsecure` (no eFuse burn);
 # the eFuse-burning rungs must be selected explicitly (fail-safe default).
 SECURE ?= 0
 SECURE_PROFILE ?= testsecure
+# Any profile that can burn eFuses is inaccessible unless the operator supplies
+# this exact, intentionally awkward acknowledgement. Production adds four
+# independent evidence gates below. CI and local builds share this guard.
+IRREVERSIBLE_SECURITY_ENROLLMENT ?= disabled
+HSM_SIGNING_VERIFIED ?= 0
+TEST_DEVICES_VALIDATED ?= 0
+RECOVERY_RUNBOOK_APPROVED ?= 0
+MANUFACTURING_PROCESS_APPROVED ?= 0
 
 # Map model to target chip and panel Kconfig
 ifeq ($(MODEL),d1001)
@@ -82,10 +91,26 @@ build:
 	@printf '%s\n' "$(FIRMWARE_VERSION)" > version.txt
 ifeq ($(SECURE),1)
 	@echo "SECURE build ($(SECURE_PROFILE)) for $(MODEL) ($(TARGET_CHIP))..."
-	@if [ "$(TARGET_CHIP)" = "esp32p4" ]; then \
-		echo "ERROR: Secure Boot profiles are ESP32-S3 only for now (P4 key spec differs)."; exit 1; fi
+	@if [ "$(TARGET_CHIP)" = "esp32p4" ] && [ "$(SECURE_PROFILE)" != "testsecure" ]; then \
+		echo "ERROR: irreversible ESP32-P4 profiles are not qualified yet; use testsecure."; exit 1; fi
 	@if [ ! -f "sdkconfig.defaults.$(SECURE_PROFILE)" ]; then \
 		echo "ERROR: no overlay sdkconfig.defaults.$(SECURE_PROFILE) (use testsecure|secureboot|prod)"; exit 1; fi
+	@if [ "$(SECURE_PROFILE)" != "testsecure" ] && [ "$(IRREVERSIBLE_SECURITY_ENROLLMENT)" != "I_ACKNOWLEDGE_EFUSE_BURNS_ARE_IRREVERSIBLE" ]; then \
+		echo "ERROR: $(SECURE_PROFILE) can burn irreversible eFuses and is feature-locked."; \
+		echo "Complete the security evidence gates before enabling IRREVERSIBLE_SECURITY_ENROLLMENT."; exit 1; fi
+	@if [ "$(SECURE_PROFILE)" != "testsecure" ] && { \
+		[ "$(HSM_SIGNING_VERIFIED)" != "1" ] || \
+		[ "$(TEST_DEVICES_VALIDATED)" != "1" ] || \
+		[ "$(RECOVERY_RUNBOOK_APPROVED)" != "1" ] || \
+		[ "$(MANUFACTURING_PROCESS_APPROVED)" != "1" ]; }; then \
+		echo "ERROR: irreversible security enrollment requires verified HSM signing, test devices,"; \
+		echo "       an approved recovery runbook, and an approved manufacturing process."; exit 1; fi
+	@if [ "$(SECURE_PROFILE)" = "testsecure" ] && [ ! -f keys/testsecure_signing_key.pem ]; then \
+		echo "Generating local disposable testsecure RSA-3072 key (git-ignored)..."; \
+		mkdir -p keys; \
+		$(IDF_ACTIVATE) && $(IDF_ENV) && \
+		espsecure.py generate-signing-key --version 2 keys/testsecure_signing_key.pem && \
+		chmod 600 keys/testsecure_signing_key.pem; fi
 	@printf '%s\n' "$(PANEL_CONFIG)" > sdkconfig.panel
 	@rm -f sdkconfig   # force a fresh reconfigure so secure flags can't silently stay off
 	@$(IDF_ACTIVATE) && $(IDF_ENV) && \
@@ -95,7 +120,10 @@ ifeq ($(SECURE),1)
 		rc=$$?; rm -f sdkconfig.panel; [ $$rc -eq 0 ] || exit $$rc   # clean up even on failure
 	@grep -qE "^CONFIG_(SECURE_BOOT|SECURE_SIGNED_APPS)=y" sdkconfig || { \
 		echo "ERROR: secure flags absent from generated sdkconfig — overlay not applied"; exit 1; }
-	@echo "SECURE build OK — image is NOT yet signed; sign out-of-band before flashing (see runbook)."
+	@if [ "$(SECURE_PROFILE)" = "testsecure" ]; then \
+		echo "TESTSECURE build OK — locally test-signed, no eFuse burn, fully reversible."; \
+	else \
+		echo "SECURE build OK — image is NOT yet signed; sign with the approved HSM before flashing."; fi
 else
 	@echo "Building for $(MODEL) ($(TARGET_CHIP))..."
 	@rm -f sdkconfig sdkconfig.panel
@@ -111,8 +139,9 @@ flash: check-port
 # on the P4 USB-Serial-JTAG download path in this toolchain). Offsets MUST mirror
 # partitions.d1001.csv — bootloader 0x2000 (P4 boots at 0x2000, not 0x0),
 # partition table 0x8000, otadata 0x10000, app/ota_0 0x20000. NOTE: these are the
-# non-secure offsets; SECURE builds are blocked on P4 (see the build target
-# above), so the partitions.secure.csv layout intentionally isn't handled here.
+# offsets also used by the reversible testsecure profile. Irreversible P4
+# profiles remain blocked above, so partitions.secure.csv is intentionally not
+# handled here.
 ifeq ($(TARGET_CHIP),esp32p4)
 	@cd build && \
 		espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x2000 bootloader/bootloader.bin && \

@@ -28,14 +28,21 @@ updates over HTTPS; no browser engine or provider credential lives on a display.
 
 ## Why Vellum
 
-|                                  | Capability                                                                                                                               |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **One fleet**                    | Provision, approve, assign, monitor, and update every supported display from the Web UI.                                                 |
-| **Provider-independent content** | Use Microsoft 365, Google Calendar, anny, or iCalendar without coupling display firmware to a booking system.                            |
-| **Pixel-perfect output**         | Server-side rendering, model-aware color conversion, orientation support, themes, and live previews.                                     |
-| **Enterprise access**            | Local recovery accounts, Microsoft Entra ID OIDC, scoped roles, service accounts, and audit events.                                      |
-| **Secure device lifecycle**      | USB provisioning, encrypted enrollment, HTTPS, and Ed25519-signed OTA firmware delivered through Vellum—displays need no Internet route. |
-| **Safe operations**              | A production Compose stack with PostgreSQL, release discovery, scheduled or manual updates, backups, health checks, and rollback.        |
+|                                  | Capability                                                                                                                                                        |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **One fleet**                    | Provision, approve, assign, monitor, and update every supported display from the Web UI.                                                                          |
+| **Provider-independent content** | Use Microsoft 365, Google Calendar, anny, or iCalendar without coupling display firmware to a booking system.                                                     |
+| **Pixel-perfect output**         | Server-side rendering, model-aware color conversion, orientation support, themes, and live previews.                                                              |
+| **Enterprise access**            | Local recovery accounts, Microsoft Entra ID OIDC, scoped roles, service accounts, and audit events.                                                               |
+| **Secure device lifecycle**      | First-time USB enrollment, authorization-locked re-provisioning, HTTPS, and Ed25519-signed OTA firmware delivered through Vellum—displays need no Internet route. |
+| **Safe operations**              | A production Compose stack with PostgreSQL, release discovery, scheduled or manual updates, backups, health checks, and rollback.                                 |
+
+Approved displays can also be migrated to a new Vellum Server or moved to a new
+Wi-Fi network from their device detail page. Commands arrive on the next
+authenticated poll. Firmware validates the target or tests the new network
+end-to-end while retaining the old profile; failed and interrupted Wi-Fi
+changes roll back automatically. Wi-Fi passwords are encrypted at rest and are
+never included in audit metadata or configuration history.
 
 ## Install for production — Docker Compose
 
@@ -297,7 +304,9 @@ to adopt the larger OTA slots and storage partition.
   and device clock initialization
 - Voucher-backed zero-touch enrollment and version pinning across the
   flash-to-provision flow
-- Capability, orientation, battery, RSSI, firmware, and rollout telemetry
+- Capability, orientation, battery, RSSI, associated Wi-Fi network, negotiated
+  Wi-Fi security, firmware, and rollout telemetry. Wi-Fi passwords are never
+  included in telemetry.
 - Signed OTA releases with staged verification, retry grace periods, and
   model-specific firmware channels
 - Development-only device simulator for all four supported models
@@ -337,10 +346,14 @@ an HTTPS origin without a path, query, or fragment.
   channel; stored server-side credentials use AES-256-GCM.
 - OTA firmware is verified with Ed25519 and SHA-256 before the staged partition
   becomes bootable.
-- Encrypted NVS and Secure Boot v2 are available as an opt-in build profile
-  (`make build SECURE=1 SECURE_PROFILE=prod`, ESP32-S3 only) and are **not** part
-  of released images: everything the flash tool and OTA serve stores NVS
-  unencrypted. See [Secure Boot and KMS](docs/SECURE_BOOT_AND_KMS.md).
+- The reversible `testsecure` profile locally test-signs firmware, reports its
+  posture to Vellum, and HMAC-seals sensitive NVS state without burning eFuses.
+  It detects corruption in the trusted firmware path, but cannot resist
+  malicious replacement firmware or provide confidentiality against physical
+  flash access.
+  Encrypted NVS and Secure Boot v2 remain feature-locked irreversible profiles
+  (ESP32-S3 only) and are not part of normal released images. See
+  [Secure Boot and KMS](docs/SECURE_BOOT_AND_KMS.md).
 - Admin sessions use HTTP-only cookies, local passwords are scrypt-hashed, and
   authorization is enforced through scoped permissions.
 - Server container releases are keylessly signed and verified by the Compose

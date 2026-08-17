@@ -203,6 +203,15 @@ static const char PORTAL_INSECURE_URL_HTML[] =
     "Your Wi-Fi and server settings were not changed.<br><a href=\"/\">Try again</a></p>"
     "</div></body></html>";
 
+static const char PORTAL_LOCKED_HTML[] =
+    "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+    "<title>Vellum</title><style>"
+    "body{font-family:-apple-system,sans-serif;background:#0a0a0f;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}"
+    "h1{color:#f59e0b;font-size:22px;margin-bottom:10px}p{color:#94a3b8;font-size:15px;line-height:1.5}"
+    "</style></head><body><div><h1>Display protected</h1>"
+    "<p>This display is already enrolled. Reconfigure it over USB from an authorized Vellum Console, "
+    "or use the physical factory-reset procedure.</p></div></body></html>";
+
 static bool provisioning_url_allowed(const char *url)
 {
     bool allow_private_http = false;
@@ -297,6 +306,16 @@ static int parse_form_field(const char *body, const char *field,
 
 static esp_err_t portal_save_handler(httpd_req_t *req)
 {
+    /* A partially damaged configuration may retain the enrollment token while
+     * losing Wi-Fi credentials and fall back to SoftAP. Never let that edge case
+     * silently reopen an enrolled public device to unauthenticated writes. */
+    if (nvs_manager_is_provisioning_locked()) {
+        ESP_LOGW(TAG, "Portal: rejected configuration write on enrolled device");
+        httpd_resp_set_status(req, "403 Forbidden");
+        httpd_resp_set_type(req, "text/html");
+        return httpd_resp_send(req, PORTAL_LOCKED_HTML, HTTPD_RESP_USE_STRLEN);
+    }
+
     /* The form body (ssid + pass + server URL, each URL-encoded) can exceed the
      * old 256-byte buffer — a single truncating recv() silently corrupted the
      * saved server URL. Size for the worst case, READ THE WHOLE BODY in a loop,
@@ -477,6 +496,18 @@ cleanup:
     return n;
 }
 
+wifi_result_t wifi_manager_reconnect_station(void)
+{
+    wifi_manager_init();
+    xSemaphoreTake(s_wifi_mutex, portMAX_DELAY);
+    if (wifi_manager_is_connected()) {
+        esp_wifi_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
+    xSemaphoreGive(s_wifi_mutex);
+    return wifi_manager_connect_station();
+}
+
 static esp_err_t portal_scan_handler(httpd_req_t *req)
 {
     wifi_ap_info_t records[20] = {0};
@@ -572,6 +603,41 @@ int wifi_manager_get_rssi(void)
     return 0;
 }
 
+esp_err_t wifi_manager_get_current_ssid(char *buf, size_t buf_len)
+{
+    if (!buf || buf_len == 0) return ESP_ERR_INVALID_ARG;
+    wifi_ap_record_t info;
+    esp_err_t err = esp_wifi_sta_get_ap_info(&info);
+    if (err != ESP_OK) return err;
+    info.ssid[sizeof(info.ssid) - 1] = '\0';
+    size_t len = strnlen((const char *)info.ssid, sizeof(info.ssid));
+    if (len + 1 > buf_len) return ESP_ERR_INVALID_SIZE;
+    memcpy(buf, info.ssid, len);
+    buf[len] = '\0';
+    return ESP_OK;
+}
+
+const char *wifi_manager_get_current_security(void)
+{
+    wifi_ap_record_t info;
+    if (esp_wifi_sta_get_ap_info(&info) != ESP_OK) return "unknown";
+    switch (info.authmode) {
+    case WIFI_AUTH_OPEN: return "open";
+    case WIFI_AUTH_WEP: return "wep";
+    case WIFI_AUTH_WPA_PSK: return "wpa-psk";
+    case WIFI_AUTH_WPA2_PSK: return "wpa2-psk";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "wpa-wpa2-psk";
+    case WIFI_AUTH_WPA3_PSK: return "wpa3-sae";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "wpa2-wpa3-transition";
+    case WIFI_AUTH_OWE: return "owe";
+    case WIFI_AUTH_WPA3_ENT_192: return "wpa3-enterprise-192";
+    case WIFI_AUTH_WPA3_ENTERPRISE: return "wpa3-enterprise";
+    case WIFI_AUTH_WPA2_WPA3_ENTERPRISE: return "wpa2-wpa3-enterprise";
+    case WIFI_AUTH_WPA_ENTERPRISE: return "wpa-enterprise";
+    default: return "unknown";
+    }
+}
+
 bool wifi_manager_is_connected(void)
 {
     wifi_ap_record_t info;
@@ -665,6 +731,9 @@ wifi_result_t wifi_manager_connect_station(void)
     if (!s_wifi_started) {
         ESP_ERROR_CHECK(esp_wifi_start());
         s_wifi_started = true;
+    } else {
+        /* STA_START will not fire again for an already-running driver. */
+        ESP_ERROR_CHECK(esp_wifi_connect());
     }
 
     ESP_LOGI(TAG, "Connecting to '%s'...", ssid);

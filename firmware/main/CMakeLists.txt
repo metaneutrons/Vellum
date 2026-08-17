@@ -14,4 +14,5 @@ idf_component_register(
         ota_manager
         esp_driver_gpio
         esp_netif
+        mbedtls
 )

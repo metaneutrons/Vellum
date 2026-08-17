@@ -4,12 +4,14 @@ import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db, withDbRead } from "@/db";
-import { devices, telemetry, reports } from "@/db/schema";
+import { deviceConfigurationCommands, devices, telemetry, reports } from "@/db/schema";
 import { DeviceDetail } from "./detail";
 import { getAllThemes, getAllContentInstances, getAllRefreshProfiles } from "../../actions";
+import { getCurrentPrincipal, hasPermission } from "@/lib/access";
 
 export default async function DeviceDetailPage({ params }: { params: Promise<{ mac: string }> }) {
   const { mac } = await params;
+  const principal = await getCurrentPrincipal();
 
   const [device] = await withDbRead(
     () => db.select().from(devices).where(eq(devices.mac, mac)).limit(1),
@@ -17,31 +19,42 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
   );
   if (!device) notFound();
 
-  const [recentTelemetry, recentReports, themeList, contentList, profileList] = await Promise.all([
-    withDbRead(
-      () =>
-        db
-          .select()
-          .from(telemetry)
-          .where(eq(telemetry.mac, mac))
-          .orderBy(desc(telemetry.timestamp))
-          .limit(50),
-      "device-detail-telemetry"
-    ),
-    withDbRead(
-      () =>
-        db
-          .select()
-          .from(reports)
-          .where(eq(reports.mac, mac))
-          .orderBy(desc(reports.timestamp))
-          .limit(10),
-      "device-detail-reports"
-    ),
-    getAllThemes(),
-    getAllContentInstances(),
-    getAllRefreshProfiles(),
-  ]);
+  const [recentTelemetry, recentReports, themeList, contentList, profileList, configCommands] =
+    await Promise.all([
+      withDbRead(
+        () =>
+          db
+            .select()
+            .from(telemetry)
+            .where(eq(telemetry.mac, mac))
+            .orderBy(desc(telemetry.timestamp))
+            .limit(50),
+        "device-detail-telemetry"
+      ),
+      withDbRead(
+        () =>
+          db
+            .select()
+            .from(reports)
+            .where(eq(reports.mac, mac))
+            .orderBy(desc(reports.timestamp))
+            .limit(10),
+        "device-detail-reports"
+      ),
+      getAllThemes(),
+      getAllContentInstances(),
+      getAllRefreshProfiles(),
+      withDbRead(
+        () =>
+          db
+            .select()
+            .from(deviceConfigurationCommands)
+            .where(eq(deviceConfigurationCommands.mac, mac))
+            .orderBy(desc(deviceConfigurationCommands.createdAt))
+            .limit(5),
+        "device-detail-configuration-commands"
+      ),
+    ]);
 
   return (
     <div>
@@ -58,6 +71,14 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
         themes={themeList}
         contentInstances={contentList}
         refreshProfiles={profileList}
+        configurationCommands={configCommands.map((command) => ({
+          ...command,
+          payload:
+            command.kind === "wifi"
+              ? { ssid: (command.payload as { ssid?: string }).ssid }
+              : command.payload,
+        }))}
+        canProvision={hasPermission(principal, "devices.provision")}
       />
     </div>
   );

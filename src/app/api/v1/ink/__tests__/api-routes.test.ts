@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const dbState = vi.hoisted(() => ({
+  selectResults: [] as unknown[][],
+  updateResults: [] as unknown[][],
+}));
+
 // Mock auth module
 vi.mock("@/lib/auth", () => ({
   handleHello: vi.fn(),
@@ -36,13 +41,24 @@ vi.mock("@/lib/env", () => ({
   env: { VELLUM_PUBLIC_URL: "https://vellum.example.com" },
 }));
 
+vi.mock("@/lib/encryption", () => ({
+  decryptCredentials: vi.fn(() => ({ password: "correct horse battery staple" })),
+}));
+
 // Mock DB
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          limit: vi.fn(() => []),
+          limit: vi.fn(() => dbState.selectResults.shift() ?? []),
+        })),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(() => dbState.updateResults.shift() ?? []),
         })),
       })),
     })),
@@ -50,7 +66,8 @@ vi.mock("@/db", () => ({
       values: vi.fn(),
     })),
   },
-  withDbRead: vi.fn((fn: () => unknown) => fn()),
+  withDbRead: vi.fn(async (fn: () => unknown) => fn()),
+  withDbWrite: vi.fn(async (fn: () => unknown) => fn()),
 }));
 
 import { handleHello, validateToken } from "@/lib/auth";
@@ -58,6 +75,7 @@ import { resolveOta } from "@/lib/firmware";
 import { POST as helloHandler } from "../hello/route";
 import { GET as configHandler } from "../config/route";
 import { POST as reportHandler } from "../report/route";
+import { POST as configReportHandler } from "../config-report/route";
 
 const mockedHandleHello = vi.mocked(handleHello);
 const mockedValidateToken = vi.mocked(validateToken);
@@ -68,6 +86,8 @@ function makeRequest(url: string, init?: RequestInit): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dbState.selectResults = [];
+  dbState.updateResults = [];
 });
 
 describe("POST /api/v1/ink/hello", () => {
@@ -171,6 +191,65 @@ describe("GET /api/v1/ink/config", () => {
     expect(body.data).toHaveProperty("rotation");
   });
 
+  it("delivers a device-bound signed server migration", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    dbState.selectResults = [
+      [{ mac: "AABBCCDDEEFF", status: "approved", token: "01".repeat(32), displayCaps: null }],
+      [
+        {
+          id: "123e4567-e89b-12d3-a456-426614174000",
+          kind: "server_url",
+          payload: { serverUrl: "https://vellum.example.com" },
+          status: "pending",
+        },
+      ],
+    ];
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token" },
+    });
+    const res = await configHandler(req);
+    const body = await res.json();
+
+    expect(body.data.remoteConfiguration).toEqual({
+      protocol: 1,
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      kind: "server_url",
+      serverUrl: "https://vellum.example.com",
+      signature: "c5ce06dd38a44bf708316a97311137c6160827bcb1b3709cefcbe5c50c9c77cd",
+    });
+  });
+
+  it("decrypts and delivers a device-bound signed Wi-Fi change", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    dbState.selectResults = [
+      [{ mac: "AABBCCDDEEFF", status: "approved", token: "01".repeat(32), displayCaps: null }],
+      [
+        {
+          id: "123e4567-e89b-12d3-a456-426614174000",
+          kind: "wifi",
+          payload: { ssid: "Office WiFi", encryptedPassword: "encrypted-at-rest" },
+          status: "pending",
+        },
+      ],
+    ];
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token" },
+    });
+    const res = await configHandler(req);
+    const body = await res.json();
+
+    expect(body.data.remoteConfiguration).toEqual({
+      protocol: 1,
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      kind: "wifi",
+      ssid: "Office WiFi",
+      password: "correct horse battery staple",
+      signature: "274ac50bacf2434bd6471f9f05b81170f634703883b9e005a017c31d6cd0e3ac",
+    });
+  });
+
   it("returns a short-lived Vellum URL instead of the GitHub OTA URL", async () => {
     mockedValidateToken.mockResolvedValue(true);
     vi.mocked(resolveOta).mockResolvedValueOnce({
@@ -242,6 +321,38 @@ describe("POST /api/v1/ink/report", () => {
 
     expect(res.status).toBe(400);
     expect(body.status).toBe("error");
+  });
+});
+
+describe("POST /api/v1/ink/config-report", () => {
+  it("accepts an authenticated terminal outcome idempotently", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    dbState.updateResults = [[{ id: "123e4567-e89b-12d3-a456-426614174000" }]];
+    const req = makeRequest("http://localhost/api/v1/ink/config-report", {
+      method: "POST",
+      body: JSON.stringify({
+        mac: "AA:BB:CC:DD:EE:FF",
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        status: "applied",
+      }),
+      headers: { "Content-Type": "application/json", "x-device-token": "valid-token" },
+    });
+    expect((await configReportHandler(req)).status).toBe(200);
+  });
+
+  it("rejects unauthenticated outcomes", async () => {
+    mockedValidateToken.mockResolvedValue(false);
+    const req = makeRequest("http://localhost/api/v1/ink/config-report", {
+      method: "POST",
+      body: JSON.stringify({
+        mac: "AA:BB:CC:DD:EE:FF",
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        status: "failed",
+        errorCode: "target_validation_failed",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect((await configReportHandler(req)).status).toBe(401);
   });
 });
 

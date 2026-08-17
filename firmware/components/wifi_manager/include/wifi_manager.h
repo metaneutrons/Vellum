@@ -48,6 +48,9 @@ int wifi_manager_scan(wifi_ap_info_t *out, int max);
  */
 wifi_result_t wifi_manager_connect_station(void);
 
+/** Disconnect the active station and connect using the credentials now in NVS. */
+wifi_result_t wifi_manager_reconnect_station(void);
+
 /**
  * Start SoftAP mode with captive portal for provisioning.
  * Blocks until credentials are submitted, then restarts the device.
@@ -62,6 +65,10 @@ void wifi_manager_get_mac(char *buf, size_t buf_len);
 
 /** Get current Wi-Fi RSSI (only valid when connected). */
 int wifi_manager_get_rssi(void);
+
+/** Current associated SSID and negotiated link security (never credentials). */
+esp_err_t wifi_manager_get_current_ssid(char *buf, size_t buf_len);
+const char *wifi_manager_get_current_security(void);
 
 /** True only while the station has an active AP association. */
 bool wifi_manager_is_connected(void);

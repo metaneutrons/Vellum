@@ -15,12 +15,21 @@ import {
   firmwareRollouts,
   otaEvents,
   provisioningVouchers,
+  deviceConfigurationCommands,
 } from "@/db/schema";
 import { OTA_FAILED_PHASES, type RolloutState } from "@/lib/rollout";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { log } from "@/lib/logger";
 import { randomBytes } from "node:crypto";
 import { requirePermission, type Permission, withAuditedTransaction } from "@/lib/access";
+import {
+  normalizeProvisioningMac,
+  signUsbProvisioningAuthorization,
+} from "@/lib/provisioning/usb-authorization";
+import {
+  serverMigrationPayloadSchema,
+  wifiConfigurationInputSchema,
+} from "@/lib/provisioning/remote-configuration";
 
 /** Central RBAC guard for every server action. */
 async function requireAdmin(permission: Permission) {
@@ -102,6 +111,221 @@ export async function createProvisioningVoucher(
   );
   revalidatePath("/admin/devices");
   return token;
+}
+
+/**
+ * Authorize one exact USB configuration change on an already enrolled device.
+ * The device supplied challenge is single-use and expires in firmware after two
+ * minutes; the HMAC is additionally bound to the MAC and SHA-256 of the exact
+ * Improv WIFI_SETTINGS payload. No reusable device secret reaches the browser.
+ */
+export async function createUsbProvisioningAuthorization(input: {
+  mac: string;
+  challenge: string;
+  payloadDigest: string;
+}): Promise<string> {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(input.mac);
+
+  return withAuditedTransaction(
+    actor,
+    {
+      action: "device.usb_provision.authorize",
+      targetType: "device",
+      targetId: mac,
+      metadata: {
+        authorizationProtocol: "usb-provision-v1",
+      },
+    },
+    async (tx) => {
+      const rows = await tx
+        .select({ status: devices.status, token: devices.token })
+        .from(devices)
+        .where(eq(devices.mac, mac))
+        .limit(1);
+      const device = rows[0];
+      if (!device || device.status !== "approved" || !device.token) {
+        throw new Error("device_not_authorizable");
+      }
+      return signUsbProvisioningAuthorization({
+        deviceToken: device.token,
+        mac,
+        challenge: input.challenge,
+        payloadDigest: input.payloadDigest,
+      });
+    },
+    "authorize-usb-provisioning",
+    "repeatable read"
+  );
+}
+
+/**
+ * Queue a durable server migration. A newer command supersedes an older active
+ * command atomically; the device will validate the target Vellum endpoint over
+ * TLS with its own identity before committing the change.
+ */
+export async function queueDeviceServerMigration(macInput: string, serverUrlInput: string) {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(macInput);
+  const { serverUrl } = serverMigrationPayloadSchema.parse({ serverUrl: serverUrlInput });
+
+  const command = await withAuditedTransaction(
+    actor,
+    (created: { id: string }) => ({
+      action: "device.configuration.server_migration.queue",
+      targetType: "device",
+      targetId: mac,
+      metadata: { commandId: created.id, serverUrl },
+    }),
+    async (tx) => {
+      const existing = await tx
+        .select({ status: devices.status, token: devices.token })
+        .from(devices)
+        .where(eq(devices.mac, mac))
+        .limit(1);
+      if (existing[0]?.status !== "approved" || !existing[0].token) {
+        throw new Error("device_not_authorizable");
+      }
+
+      const applying = await tx
+        .select({ id: deviceConfigurationCommands.id })
+        .from(deviceConfigurationCommands)
+        .where(
+          and(
+            eq(deviceConfigurationCommands.mac, mac),
+            eq(deviceConfigurationCommands.status, "applying")
+          )
+        )
+        .limit(1);
+      if (applying.length > 0) throw new Error("configuration_command_applying");
+
+      await tx
+        .update(deviceConfigurationCommands)
+        .set({ status: "superseded", completedAt: new Date() })
+        .where(
+          and(
+            eq(deviceConfigurationCommands.mac, mac),
+            inArray(deviceConfigurationCommands.status, ["pending", "delivered"])
+          )
+        );
+      const rows = await tx
+        .insert(deviceConfigurationCommands)
+        .values({
+          mac,
+          kind: "server_url",
+          payload: { serverUrl },
+          createdBy: actor.type === "user" ? actor.id : null,
+        })
+        .returning({ id: deviceConfigurationCommands.id });
+      return rows[0];
+    },
+    "queue-device-server-migration",
+    "serializable"
+  );
+  revalidatePath(`/admin/devices/${mac}`);
+  return command;
+}
+
+/** Queue an authenticated Wi-Fi rotation without exposing its PSK to history or audit logs. */
+export async function queueDeviceWifiConfiguration(
+  macInput: string,
+  ssidInput: string,
+  passwordInput: string
+) {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(macInput);
+  const { ssid, password } = wifiConfigurationInputSchema.parse({
+    ssid: ssidInput,
+    password: passwordInput,
+  });
+  const encryptedPassword = encryptCredentials({ password });
+
+  const command = await withAuditedTransaction(
+    actor,
+    (created: { id: string }) => ({
+      action: "device.configuration.wifi.queue",
+      targetType: "device",
+      targetId: mac,
+      metadata: { commandId: created.id, ssid },
+    }),
+    async (tx) => {
+      const [device] = await tx
+        .select({ status: devices.status, token: devices.token })
+        .from(devices)
+        .where(eq(devices.mac, mac))
+        .limit(1);
+      if (device?.status !== "approved" || !device.token) {
+        throw new Error("device_not_authorizable");
+      }
+      const applying = await tx
+        .select({ id: deviceConfigurationCommands.id })
+        .from(deviceConfigurationCommands)
+        .where(
+          and(
+            eq(deviceConfigurationCommands.mac, mac),
+            eq(deviceConfigurationCommands.status, "applying")
+          )
+        )
+        .limit(1);
+      if (applying.length > 0) throw new Error("configuration_command_applying");
+
+      await tx
+        .update(deviceConfigurationCommands)
+        .set({ status: "superseded", completedAt: new Date() })
+        .where(
+          and(
+            eq(deviceConfigurationCommands.mac, mac),
+            inArray(deviceConfigurationCommands.status, ["pending", "delivered"])
+          )
+        );
+      const [created] = await tx
+        .insert(deviceConfigurationCommands)
+        .values({
+          mac,
+          kind: "wifi",
+          payload: { ssid, encryptedPassword },
+          createdBy: actor.type === "user" ? actor.id : null,
+        })
+        .returning({ id: deviceConfigurationCommands.id });
+      return created;
+    },
+    "queue-device-wifi-configuration",
+    "serializable"
+  );
+  revalidatePath(`/admin/devices/${mac}`);
+  return command;
+}
+
+export async function cancelDeviceConfigurationCommand(macInput: string, commandId: string) {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(macInput);
+  if (!/^[0-9a-f-]{36}$/i.test(commandId)) throw new Error("invalid_configuration_command_id");
+
+  await withAuditedTransaction(
+    actor,
+    {
+      action: "device.configuration.cancel",
+      targetType: "device",
+      targetId: mac,
+      metadata: { commandId },
+    },
+    async (tx) => {
+      const rows = await tx
+        .update(deviceConfigurationCommands)
+        .set({ status: "cancelled", completedAt: new Date() })
+        .where(
+          and(
+            eq(deviceConfigurationCommands.id, commandId),
+            eq(deviceConfigurationCommands.mac, mac),
+            inArray(deviceConfigurationCommands.status, ["pending", "delivered"])
+          )
+        )
+        .returning({ id: deviceConfigurationCommands.id });
+      if (rows.length === 0) throw new Error("configuration_command_not_active");
+    },
+    "cancel-device-configuration-command"
+  );
+  revalidatePath(`/admin/devices/${mac}`);
 }
 
 export async function updateDevice(

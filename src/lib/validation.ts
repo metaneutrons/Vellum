@@ -46,6 +46,30 @@ export const otaReportSchema = z.object({
   errorCode: z.string().max(64).optional(),
 });
 
+export const configurationReportSchema = z
+  .object({
+    mac: macSchema,
+    id: z.uuid(),
+    status: z.enum(["applying", "applied", "failed"]),
+    errorCode: z.string().max(64).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.status === "failed" && !value.errorCode) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "errorCode is required for failure",
+      });
+    }
+    if (value.status !== "failed" && value.errorCode) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "errorCode is invalid for success",
+      });
+    }
+  });
+
 export const renderQuerySchema = z.object({
   mac: macSchema,
 });

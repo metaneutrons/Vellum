@@ -18,6 +18,10 @@ const deploymentEnv = readFileSync("deploy/vellum.env.example", "utf8");
 const updaterControl = readFileSync("deploy/updater/control.mjs", "utf8");
 const updaterScript = readFileSync("deploy/updater/update.sh", "utf8");
 const firmwareKconfig = readFileSync("firmware/main/Kconfig.projbuild", "utf8");
+const firmwareMakefile = readFileSync("firmware/Makefile", "utf8");
+const testsecureDefaults = readFileSync("firmware/sdkconfig.defaults.testsecure", "utf8");
+const securebootDefaults = readFileSync("firmware/sdkconfig.defaults.secureboot", "utf8");
+const productionDefaults = readFileSync("firmware/sdkconfig.defaults.prod", "utf8");
 const d1001Defaults = readFileSync("firmware/sdkconfig.defaults.p4", "utf8");
 const d1001Partitions = readFileSync("firmware/partitions.d1001.csv", "utf8");
 const failures = [];
@@ -89,6 +93,48 @@ expect(
 expect(
   firmwareWorkflow.includes("PART=firmware/partitions.d1001.csv"),
   "firmware CI must validate D1001 images against the D1001 partition budget"
+);
+
+for (const invariant of [
+  'CONFIG_VELLUM_SECURITY_PROFILE="testsecure"',
+  "CONFIG_VELLUM_NVS_HMAC_INTEGRITY=y",
+  "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y",
+  "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y",
+  'CONFIG_SECURE_BOOT_SIGNING_KEY="keys/testsecure_signing_key.pem"',
+]) {
+  expect(testsecureDefaults.includes(invariant), `testsecure must retain ${invariant}`);
+}
+expect(
+  !testsecureDefaults.includes("CONFIG_SECURE_BOOT=y") &&
+    !testsecureDefaults.includes("CONFIG_SECURE_FLASH_ENC_ENABLED=y") &&
+    !testsecureDefaults.includes("CONFIG_NVS_ENCRYPTION=y"),
+  "testsecure must remain fully reversible and must not enable eFuse-backed security"
+);
+for (const [profile, contents] of [
+  ["secureboot", securebootDefaults],
+  ["production", productionDefaults],
+]) {
+  expect(
+    contents.includes("CONFIG_VELLUM_NVS_HMAC_INTEGRITY=y"),
+    `${profile} must retain HMAC-NVS integrity`
+  );
+}
+for (const gate of [
+  "IRREVERSIBLE_SECURITY_ENROLLMENT",
+  "HSM_SIGNING_VERIFIED",
+  "TEST_DEVICES_VALIDATED",
+  "RECOVERY_RUNBOOK_APPROVED",
+  "MANUFACTURING_PROCESS_APPROVED",
+]) {
+  expect(
+    firmwareMakefile.includes(gate) && firmwareWorkflow.includes(gate),
+    `${gate} must guard both local and CI irreversible firmware paths`
+  );
+}
+expect(
+  firmwareMakefile.includes("I_ACKNOWLEDGE_EFUSE_BURNS_ARE_IRREVERSIBLE") &&
+    firmwareWorkflow.includes("I_ACKNOWLEDGE_EFUSE_BURNS_ARE_IRREVERSIBLE"),
+  "irreversible firmware paths must require the exact acknowledgement token"
 );
 
 expect(

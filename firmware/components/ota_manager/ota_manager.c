@@ -40,12 +40,15 @@
 #include "esp_https_ota.h"
 #include "esp_crt_bundle.h"
 #include "mbedtls/base64.h"
+#include "mbedtls/platform_util.h"
+#include "psa/crypto.h"
 #include "sodium/crypto_sign.h"
 
 #include "http_client.h"
 #include "vellum_display.h"
 #include "board.h"
 #include "nvs_manager.h"
+#include "wifi_manager.h"
 #include "esp_attr.h"
 #include "esp_rom_crc.h"
 #include "sdkconfig.h"
@@ -60,6 +63,273 @@ static const char *TAG = "ota";
 #define OTA_RETRY_KEY "ota_retry"
 #define OTA_RETRY_GRACE_SEC (15 * 60)
 #define OTA_FAILURE_NOTICE_MS 5000
+#define REMOTE_CONFIG_CONTEXT "vellum-remote-config-v1\n"
+#define REMOTE_WIFI_CONTEXT "vellum-remote-wifi-v1\n"
+
+static bool constant_time_equal(const uint8_t *a, const uint8_t *b, size_t len)
+{
+    uint8_t difference = 0;
+    for (size_t i = 0; i < len; i++) difference |= a[i] ^ b[i];
+    return difference == 0;
+}
+
+static bool valid_command_uuid(const char *id)
+{
+    if (!id || strlen(id) != 36) return false;
+    for (size_t i = 0; i < 36; i++) {
+        if (i == 8 || i == 13 || i == 18 || i == 23) {
+            if (id[i] != '-') return false;
+        } else if (!((id[i] >= '0' && id[i] <= '9') ||
+                     (id[i] >= 'a' && id[i] <= 'f'))) return false;
+    }
+    return true;
+}
+
+static bool decode_hex_32(const char *hex, uint8_t output[32])
+{
+    if (!hex || strlen(hex) != 64) return false;
+    for (size_t i = 0; i < 32; i++) {
+        char pair[3] = { hex[i * 2], hex[i * 2 + 1], '\0' };
+        char *end = NULL;
+        unsigned long value = strtoul(pair, &end, 16);
+        if (!end || *end != '\0') return false;
+        output[i] = (uint8_t)value;
+    }
+    return true;
+}
+
+static bool verify_remote_config_signature(const char *id, const char *server_url,
+                                           const char *signature_hex)
+{
+    if (!valid_command_uuid(id) || !server_url || strncmp(server_url, "https://", 8) != 0 ||
+        strlen(server_url) >= NVS_MAX_URL_LEN) return false;
+    uint8_t provided[32], expected[32];
+    if (!decode_hex_32(signature_hex, provided)) return false;
+
+    char token[NVS_MAX_TOKEN_LEN] = {0};
+    if (nvs_manager_get_token(token, sizeof(token)) != ESP_OK || strlen(token) != 64) {
+        mbedtls_platform_zeroize(token, sizeof(token));
+        return false;
+    }
+    char message[sizeof(REMOTE_CONFIG_CONTEXT) + 36 + NVS_MAX_URL_LEN + 1];
+    int message_len = snprintf(message, sizeof(message), "%s%s\n%s",
+                               REMOTE_CONFIG_CONTEXT, id, server_url);
+    if (message_len < 0 || message_len >= (int)sizeof(message)) {
+        mbedtls_platform_zeroize(token, sizeof(token));
+        return false;
+    }
+
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+    psa_set_key_bits(&attributes, strlen(token) * 8);
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_key_id_t key = 0;
+    size_t output_len = 0;
+    psa_status_t status = psa_crypto_init();
+    if (status == PSA_SUCCESS) {
+        status = psa_import_key(&attributes, (const uint8_t *)token, strlen(token), &key);
+    }
+    psa_reset_key_attributes(&attributes);
+    if (status == PSA_SUCCESS) {
+        status = psa_mac_compute(key, PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                                 (const uint8_t *)message, (size_t)message_len,
+                                 expected, sizeof(expected), &output_len);
+    }
+    if (key != 0) psa_destroy_key(key);
+    bool valid = status == PSA_SUCCESS && output_len == sizeof(expected) &&
+                 constant_time_equal(expected, provided, sizeof(expected));
+    mbedtls_platform_zeroize(token, sizeof(token));
+    mbedtls_platform_zeroize(expected, sizeof(expected));
+    return valid;
+}
+
+static bool verify_remote_wifi_signature(const char *id, const char *ssid,
+                                         const char *password, const char *signature_hex)
+{
+    if (!valid_command_uuid(id) || !ssid || !password || strlen(ssid) == 0 ||
+        strlen(ssid) >= NVS_MAX_SSID_LEN || strlen(password) >= NVS_MAX_PASS_LEN) return false;
+    uint8_t provided[32], expected[32];
+    if (!decode_hex_32(signature_hex, provided)) return false;
+
+    unsigned char ssid_b64[48] = {0}, pass_b64[92] = {0};
+    size_t ssid_b64_len = 0, pass_b64_len = 0;
+    if (mbedtls_base64_encode(ssid_b64, sizeof(ssid_b64) - 1, &ssid_b64_len,
+                              (const unsigned char *)ssid, strlen(ssid)) != 0 ||
+        mbedtls_base64_encode(pass_b64, sizeof(pass_b64) - 1, &pass_b64_len,
+                              (const unsigned char *)password, strlen(password)) != 0) return false;
+    ssid_b64[ssid_b64_len] = '\0';
+    pass_b64[pass_b64_len] = '\0';
+
+    char token[NVS_MAX_TOKEN_LEN] = {0};
+    if (nvs_manager_get_token(token, sizeof(token)) != ESP_OK || strlen(token) != 64) {
+        mbedtls_platform_zeroize(token, sizeof(token));
+        return false;
+    }
+    char message[sizeof(REMOTE_WIFI_CONTEXT) + 36 + sizeof(ssid_b64) + sizeof(pass_b64) + 3];
+    int message_len = snprintf(message, sizeof(message), "%s%s\n%s\n%s",
+                               REMOTE_WIFI_CONTEXT, id, ssid_b64, pass_b64);
+    if (message_len < 0 || message_len >= (int)sizeof(message)) {
+        mbedtls_platform_zeroize(token, sizeof(token));
+        return false;
+    }
+
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+    psa_set_key_bits(&attributes, strlen(token) * 8);
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_key_id_t key = 0;
+    size_t output_len = 0;
+    psa_status_t status = psa_crypto_init();
+    if (status == PSA_SUCCESS) {
+        status = psa_import_key(&attributes, (const uint8_t *)token, strlen(token), &key);
+    }
+    psa_reset_key_attributes(&attributes);
+    if (status == PSA_SUCCESS) {
+        status = psa_mac_compute(key, PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                                 (const uint8_t *)message, (size_t)message_len,
+                                 expected, sizeof(expected), &output_len);
+    }
+    if (key != 0) psa_destroy_key(key);
+    bool valid = status == PSA_SUCCESS && output_len == sizeof(expected) &&
+                 constant_time_equal(expected, provided, sizeof(expected));
+    mbedtls_platform_zeroize(token, sizeof(token));
+    mbedtls_platform_zeroize(expected, sizeof(expected));
+    mbedtls_platform_zeroize(message, sizeof(message));
+    return valid;
+}
+
+static void rollback_remote_wifi(const char *command_id, const char *error_code)
+{
+    if (nvs_manager_rollback_remote_wifi(error_code) != ESP_OK) {
+        ESP_LOGE(TAG, "Could not restore the previous Wi-Fi profile");
+        http_client_config_report(command_id, "failed", "storage_failed");
+        vTaskDelay(pdMS_TO_TICKS(250));
+        esp_restart();
+        return;
+    }
+    if (wifi_manager_reconnect_station() == WIFI_RESULT_CONNECTED &&
+        http_client_config_report(command_id, "failed", error_code) == ESP_OK) {
+        nvs_manager_clear_deferred_config_report();
+    }
+    vTaskDelay(pdMS_TO_TICKS(250));
+    esp_restart();
+}
+
+void ota_manager_report_deferred_configuration(void)
+{
+    char command_id[NVS_REMOTE_COMMAND_ID_LEN] = {0};
+    char error_code[48] = {0};
+    if (nvs_manager_get_deferred_config_report(command_id, sizeof(command_id),
+                                               error_code, sizeof(error_code)) != ESP_OK) return;
+    ESP_LOGI(TAG, "Reporting recovered configuration command %s", command_id);
+    if (http_client_config_report(command_id, "failed", error_code) == ESP_OK) {
+        nvs_manager_clear_deferred_config_report();
+    }
+}
+
+static void apply_remote_configuration(cJSON *data)
+{
+    cJSON *remote = data ? cJSON_GetObjectItemCaseSensitive(data, "remoteConfiguration") : NULL;
+    if (!cJSON_IsObject(remote)) return;
+    cJSON *protocol = cJSON_GetObjectItemCaseSensitive(remote, "protocol");
+    cJSON *id = cJSON_GetObjectItemCaseSensitive(remote, "id");
+    cJSON *kind = cJSON_GetObjectItemCaseSensitive(remote, "kind");
+    cJSON *server_url = cJSON_GetObjectItemCaseSensitive(remote, "serverUrl");
+    cJSON *ssid = cJSON_GetObjectItemCaseSensitive(remote, "ssid");
+    cJSON *password = cJSON_GetObjectItemCaseSensitive(remote, "password");
+    cJSON *signature = cJSON_GetObjectItemCaseSensitive(remote, "signature");
+    bool server_command = cJSON_IsString(kind) && strcmp(kind->valuestring, "server_url") == 0;
+    bool wifi_command = cJSON_IsString(kind) && strcmp(kind->valuestring, "wifi") == 0;
+    bool signature_valid = cJSON_IsString(signature) && cJSON_IsString(id) &&
+        ((server_command && cJSON_IsString(server_url) &&
+          verify_remote_config_signature(id->valuestring, server_url->valuestring,
+                                         signature->valuestring)) ||
+         (wifi_command && cJSON_IsString(ssid) && cJSON_IsString(password) &&
+          verify_remote_wifi_signature(id->valuestring, ssid->valuestring,
+                                       password->valuestring, signature->valuestring)));
+    if (!cJSON_IsNumber(protocol) || protocol->valueint != 1 ||
+        !cJSON_IsString(id) || (!server_command && !wifi_command) || !signature_valid) {
+        ESP_LOGE(TAG, "Rejected invalid remote configuration command");
+        if (cJSON_IsString(id) && valid_command_uuid(id->valuestring)) {
+            http_client_config_report(id->valuestring, "failed", "invalid_signature");
+        }
+        return;
+    }
+
+    char applied_id[NVS_REMOTE_COMMAND_ID_LEN] = {0};
+    if (nvs_manager_get_remote_command_id(applied_id, sizeof(applied_id)) == ESP_OK &&
+        strcmp(applied_id, id->valuestring) == 0) {
+        ESP_LOGI(TAG, "Remote configuration %s already applied; acknowledging retry",
+                 id->valuestring);
+        http_client_config_report(id->valuestring, "applied", NULL);
+        return;
+    }
+
+    if (wifi_command) {
+        /* Claim while the known-good profile is still connected, then stage
+         * old+new credentials in one NVS commit. A reboot before finalization
+         * is detected during NVS init and rolls back automatically. */
+        if (http_client_config_report(id->valuestring, "applying", NULL) != ESP_OK) {
+            ESP_LOGW(TAG, "Remote Wi-Fi claim was not acknowledged; retrying later");
+            return;
+        }
+        if (nvs_manager_stage_remote_wifi(ssid->valuestring, password->valuestring,
+                                          id->valuestring) != ESP_OK) {
+            http_client_config_report(id->valuestring, "failed", "storage_failed");
+            return;
+        }
+        mbedtls_platform_zeroize(password->valuestring, strlen(password->valuestring));
+        if (wifi_manager_reconnect_station() != WIFI_RESULT_CONNECTED) {
+            ESP_LOGE(TAG, "Remote Wi-Fi connection failed; restoring previous profile");
+            rollback_remote_wifi(id->valuestring, "wifi_connection_failed");
+            return;
+        }
+        char current_server[NVS_MAX_URL_LEN] = {0};
+        if (nvs_manager_get_server_url(current_server, sizeof(current_server)) != ESP_OK ||
+            http_client_probe_server(current_server, id->valuestring) != ESP_OK) {
+            ESP_LOGE(TAG, "Vellum server unavailable through new Wi-Fi; rolling back");
+            rollback_remote_wifi(id->valuestring, "server_reconnect_failed");
+            return;
+        }
+        if (nvs_manager_finalize_remote_wifi(id->valuestring) != ESP_OK) {
+            rollback_remote_wifi(id->valuestring, "storage_failed");
+            return;
+        }
+        http_client_config_report(id->valuestring, "applied", NULL);
+        vTaskDelay(pdMS_TO_TICKS(250));
+        esp_restart();
+        return;
+    }
+
+    /* Anti-lockout gate: the target must complete authenticated TLS and expose
+     * this exact desired-state command before its URL can enter NVS. */
+    if (http_client_probe_server(server_url->valuestring, id->valuestring) != ESP_OK) {
+        ESP_LOGE(TAG, "Remote server migration target validation failed");
+        http_client_config_report(id->valuestring, "failed", "target_validation_failed");
+        return;
+    }
+    /* Claim the command before mutating NVS. Queue/cancel operations can still
+     * supersede a delivered command, but never one that the device has claimed
+     * for application. This closes the validation-to-commit race. */
+    if (http_client_config_report(id->valuestring, "applying", NULL) != ESP_OK) {
+        ESP_LOGW(TAG, "Remote server migration claim was not acknowledged; retrying later");
+        return;
+    }
+    if (nvs_manager_apply_remote_server_url(server_url->valuestring, id->valuestring) != ESP_OK) {
+        ESP_LOGE(TAG, "Remote server migration could not be persisted");
+        http_client_config_report(id->valuestring, "failed", "storage_failed");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Remote server migration applied; restarting");
+    /* Best effort before restart. If the response is lost, the target server
+     * re-delivers the same command and the idempotency marker re-acknowledges it. */
+    http_client_config_report(id->valuestring, "applied", NULL);
+    vTaskDelay(pdMS_TO_TICKS(250));
+    esp_restart();
+}
 
 static bool ota_retry_is_deferred(const char *version)
 {
@@ -339,18 +609,6 @@ static void ota_report_rollback_if_needed(void)
 
 ota_check_result_t ota_manager_check_and_apply(void)
 {
-    /* Power guard (anti-brick): an OTA is a large flash write followed by a
-     * reboot; a brownout mid-write can corrupt the staged slot. Require USB
-     * power, or a battery with enough headroom, before doing ANY network work. */
-    if (!board_is_usb_powered()) {
-        int battery = board_battery_level();
-        if (battery < CONFIG_VELLUM_OTA_MIN_BATTERY_PCT) {
-            ESP_LOGW(TAG, "Skipping OTA: battery %d%% < %d%% and not USB-powered",
-                     battery, CONFIG_VELLUM_OTA_MIN_BATTERY_PCT);
-            return OTA_CHECK_NO_RESTORE;
-        }
-    }
-
     ESP_LOGI(TAG, "Checking for OTA update via /config");
     vellum_http_response_t resp = {0};
     esp_err_t err = http_client_config(&resp);
@@ -364,6 +622,20 @@ ota_check_result_t ota_manager_check_and_apply(void)
     if (!root) { http_client_free_response(&resp); return OTA_CHECK_NO_RESTORE; }
 
     cJSON *data = cJSON_GetObjectItemCaseSensitive(root, "data");
+    apply_remote_configuration(data);
+
+    /* Power guard (anti-brick) applies to the large OTA flash write, not to the
+     * tiny authenticated desired-state poll above. */
+    if (!board_is_usb_powered()) {
+        int battery = board_battery_level();
+        if (battery < CONFIG_VELLUM_OTA_MIN_BATTERY_PCT) {
+            ESP_LOGW(TAG, "Skipping OTA: battery %d%% < %d%% and not USB-powered",
+                     battery, CONFIG_VELLUM_OTA_MIN_BATTERY_PCT);
+            cJSON_Delete(root);
+            http_client_free_response(&resp);
+            return OTA_CHECK_NO_RESTORE;
+        }
+    }
     cJSON *ota_url = data ? cJSON_GetObjectItemCaseSensitive(data, "otaUrl") : NULL;
     cJSON *ota_ver = data ? cJSON_GetObjectItemCaseSensitive(data, "otaVersion") : NULL;
     cJSON *ota_sha = data ? cJSON_GetObjectItemCaseSensitive(data, "otaSha256") : NULL;

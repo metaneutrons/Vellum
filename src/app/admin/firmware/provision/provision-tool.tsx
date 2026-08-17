@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { createProvisioningVoucher } from "../../actions";
+import { createProvisioningVoucher, createUsbProvisioningAuthorization } from "../../actions";
 import {
   isWebSerialSupported,
   SerialProvisioningSession,
@@ -54,6 +54,9 @@ export function ProvisionTool({
   const [connected, setConnected] = useState(false);
   const [networks, setNetworks] = useState<WifiNetwork[]>([]);
   const [zeroTouch, setZeroTouch] = useState(Boolean(firmware));
+  const [provisioningLocked, setProvisioningLocked] = useState(false);
+  const [securitySupported, setSecuritySupported] = useState<boolean | null>(null);
+  const [completedProtected, setCompletedProtected] = useState(false);
   const sessionRef = useRef<SerialProvisioningSession | null>(null);
 
   useEffect(() => {
@@ -89,6 +92,8 @@ export function ProvisionTool({
     setConnected(false);
     setPhase(null);
     setDetail("");
+    setProvisioningLocked(false);
+    setSecuritySupported(null);
     await session?.disconnect();
   }
 
@@ -129,6 +134,8 @@ export function ProvisionTool({
         () => {
           sessionRef.current = null;
           setConnected(false);
+          setProvisioningLocked(false);
+          setSecuritySupported(null);
           setScanning(false);
           setPhase("error");
           setResult({ ok: false, error: tx("connectionLost") });
@@ -138,8 +145,14 @@ export function ProvisionTool({
       setConnected(true);
       setConnecting(false);
       setPhase(null);
+      const security = await session.getProvisioningSecurity();
+      setSecuritySupported(security.supported);
+      setProvisioningLocked(security.locked);
+      if (security.locked) setZeroTouch(false);
       await scanSession(session);
     } catch (error) {
+      await sessionRef.current?.disconnect();
+      sessionRef.current = null;
       setResult({ ok: false, error: error instanceof Error ? error.message : tx("connectFailed") });
       setConnected(false);
       setPhase("error");
@@ -158,6 +171,7 @@ export function ProvisionTool({
     setResult(null);
     setPhase(null);
     setDetail("");
+    setCompletedProtected(false);
 
     let deviceToken: string | undefined;
     if (zeroTouch) {
@@ -186,13 +200,17 @@ export function ProvisionTool({
         ntpServer: ntpServer.trim(),
         provisionedAtUnix: Math.floor(Date.now() / 1000),
         deviceToken,
+        authorize: createUsbProvisioningAuthorization,
         onPhase: (p, d) => {
           setPhase(p);
           if (d) setDetail(d);
         },
       });
       setResult(r);
-      if (r.ok) await disconnect();
+      if (r.ok) {
+        setCompletedProtected(provisioningLocked);
+        await disconnect();
+      }
     } catch (e) {
       const connectionLost = !session.connected;
       setResult({
@@ -385,13 +403,26 @@ export function ProvisionTool({
             type="checkbox"
             checked={zeroTouch}
             onChange={(e) => setZeroTouch(e.target.checked)}
-            disabled={busy}
+            disabled={busy || provisioningLocked}
             className="mt-0.5 size-4 rounded accent-accent focus-ring"
           />
           <span>
             <span className="font-medium text-label">{t("zeroTouch")}</span> — {tx("zeroTouchDescription")}
           </span>
         </label>
+
+        {provisioningLocked && (
+          <div className="mt-3 rounded-lg border border-green/25 bg-green/10 p-3 text-[13px] text-label-secondary">
+            <p className="font-semibold text-label">{tx("protectedDeviceTitle")}</p>
+            <p className="mt-1">{tx("protectedDeviceDescription")}</p>
+          </div>
+        )}
+
+        {connected && securitySupported === false && (
+          <Notice tone="orange">
+            <strong>{tx("legacySecurityTitle")}</strong> {tx("legacySecurityDescription")}
+          </Notice>
+        )}
 
         {firmware && (
           <div className="mt-3 rounded-lg border border-accent/25 bg-accent/10 p-3 text-[13px] text-label-secondary">
@@ -419,7 +450,9 @@ export function ProvisionTool({
               result.ok ? (
                 <Notice tone="green">
                   <strong>{t("done")}</strong> {tx("successSummary")} {" "}
-                  {zeroTouch ? (
+                  {completedProtected ? (
+                    <>{tx("protectedSuccessSummary")}</>
+                  ) : zeroTouch ? (
                     <>{tx("preauthorizedSummary")}</>
                   ) : (
                     <>

@@ -35,6 +35,8 @@ CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
 # bootloader is signed once, offline, at factory provisioning; app images are
 # signed out-of-band in CI with `espsecure.py sign_data --version 2 --hsm`.
 CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n
+CONFIG_VELLUM_SECURITY_PROFILE="secureboot"
+CONFIG_VELLUM_NVS_HMAC_INTEGRITY=y
 # No JTAG once Secure Boot is on.
 CONFIG_SECURE_BOOT_ALLOW_JTAG=n
 

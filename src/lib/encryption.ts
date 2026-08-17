@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 /**
- * AES-256-GCM encryption for calendar provider credentials at rest.
+ * AES-256-GCM encryption for application secrets at rest.
  *
  * Uses ENCRYPTION_KEY from env as the master key.
  * Format: base64(nonce:ciphertext:authTag)

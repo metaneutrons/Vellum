@@ -10,6 +10,8 @@ debug in the field once an image is signed and shipped:
 | `test_ota_signature.c` | `ota_manager.c` `verify_one_key` | Ed25519 (PURE-EdDSA, RFC 8032) verify over the 32-byte image digest — valid accepts, tampered digest/sig and wrong key reject |
 | `test_ota_model_guard.c` | `ota_manager.c` staged-image guard | Correct board images can migrate older generic builds; wrong-model and generic target images remain blocked |
 | `test_secure_channel.c` | `secure_channel.c` `secure_channel_decrypt_token` | X25519 ECDH → HKDF-SHA256 (info `vellum-token-v1`) → AES-256-GCM (`ct‖tag`) token decrypt — valid recovers, tampered/wrong-key/wrong-nonce reject |
+| `test_usb_provisioning_auth.c` | `vellum_serial.c` protected Improv flow | HMAC-SHA256 contract binds one grant to context, MAC, random challenge, and exact profile digest; any changed field rejects |
+| `test_remote_configuration_auth.c` | `ota_manager.c` desired-state flow | HMAC-SHA256 contracts bind server and Wi-Fi changes to their command UUID and exact payload |
 | `test_key_revocation.c` | `ota_manager.c` `csv_contains_token` / `key_is_revoked` | OTA signing-key revocation CSV membership — exact-length match (no `key1`↔`key10` substring false-match), whitespace/empty/odd-separator handling |
 | `test_sy6974b_power.c` | E1002/E1003 charger status handling | External-power detection accepts charger input, rejects no-input/OTG states, and requires power-good |
 | `test_transport_policy.c` | `http_client.c` backend transport gate | HTTPS is always allowed; development HTTP requires explicit opt-in and a strict RFC1918 IPv4 literal |
