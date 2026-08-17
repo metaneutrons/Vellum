@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
   const headerModel = request.headers.get("x-display-model")?.trim() || null;
   const storedModel = (device?.displayCaps as { model?: string })?.model ?? null;
   const displayModel = headerModel ?? storedModel ?? "unknown";
+  const t = extractTelemetry(request.headers);
 
   // Voucher-enrolled devices can skip /hello entirely. Older self-healing only
   // persisted their model, leaving width/height/format absent forever. Complete
@@ -87,7 +88,8 @@ export async function GET(request: NextRequest) {
     displayModel,
     (device?.firmwareChannel as FirmwareChannel) ?? "stable",
     device?.firmwarePinVersion ?? null,
-    validation.data.mac
+    validation.data.mac,
+    t
   );
 
   // Existing firmware already accepts arbitrary validated HTTPS OTA URLs, so
@@ -226,7 +228,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const t = extractTelemetry(request.headers);
   if (t)
     logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch((error) =>
       log.warn("Config telemetry persistence failed", {

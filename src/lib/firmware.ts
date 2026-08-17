@@ -31,6 +31,7 @@ import {
   firmwareRequestTimeoutMs,
   githubRetryAtMs,
 } from "./firmware-catalog-policy";
+import { isOtaCompatible, type SecurityEvidence } from "./security-posture";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
 
@@ -65,6 +66,12 @@ export interface FirmwareBinary {
   /** Id of the key that produced otaSignature. A non-authoritative fast-path
    *  hint for the device's trust store; older manifests omit it. */
   otaKeyId?: string;
+  /** Runtime compatibility contract. Optional only for legacy manifests; the
+   * server then derives a reversible development layout from the model. */
+  partitionLayout?: "e-series-v1" | "e-series-secure-v1" | "d1001-v1";
+  securityProfile?: "development" | "testsecure" | "secureboot" | "production";
+  requiresSecureBoot?: boolean;
+  requiresFlashEncryption?: boolean;
 }
 
 export interface FirmwareManifest {
@@ -92,6 +99,10 @@ const firmwareBinarySchema = z.object({
   otaSignature: z.string(),
   otaSize: z.number().int().nonnegative(),
   otaKeyId: z.string().optional(),
+  partitionLayout: z.enum(["e-series-v1", "e-series-secure-v1", "d1001-v1"]).optional(),
+  securityProfile: z.enum(["development", "testsecure", "secureboot", "production"]).optional(),
+  requiresSecureBoot: z.boolean().optional(),
+  requiresFlashEncryption: z.boolean().optional(),
 });
 
 const firmwareManifestPayloadSchema = z.object({
@@ -532,7 +543,8 @@ export async function resolveOta(
   displayModel: string,
   channel: FirmwareChannel,
   pinVersion: string | null,
-  mac: string
+  mac: string,
+  securityEvidence: SecurityEvidence | null = null
 ): Promise<OtaInfo> {
   // Channel semantics: 'beta' is a SUPERSET of 'stable'. A device tracking the
   // beta channel — typically sitting at a pre-release — must still roll forward
@@ -558,6 +570,17 @@ export async function resolveOta(
   const binary = target.binaries[displayModel];
   if (!binary) {
     log.warn("No binary for model", { model: displayModel, version: target.version });
+    return NO_UPDATE;
+  }
+
+  const compatibility = isOtaCompatible(binary, displayModel, securityEvidence);
+  if (!compatibility.compatible) {
+    log.warn("Blocked incompatible OTA offer", {
+      mac,
+      model: displayModel,
+      version: target.version,
+      reason: compatibility.reason,
+    });
     return NO_UPDATE;
   }
 

@@ -94,6 +94,19 @@ expect(
   firmwareWorkflow.includes("PART=firmware/partitions.d1001.csv"),
   "firmware CI must validate D1001 images against the D1001 partition budget"
 );
+for (const contract of [
+  "partitionLayout",
+  "securityProfile: 'development'",
+  "requiresSecureBoot: false",
+  "requiresFlashEncryption: false",
+]) {
+  expect(firmwareWorkflow.includes(contract), `firmware manifests must carry ${contract}`);
+}
+expect(
+  firmwareWorkflow.includes("complete factory enrollment pipeline exists") &&
+    firmwareWorkflow.includes("exit 1"),
+  "incomplete CI Secure Boot publishing must fail closed"
+);
 
 for (const invariant of [
   'CONFIG_VELLUM_SECURITY_PROFILE="testsecure"',

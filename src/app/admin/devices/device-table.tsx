@@ -49,6 +49,12 @@ interface Device {
   wifi_security: string | null;
   security_profile: string | null;
   nvs_integrity: string | null;
+  chip_model: string | null;
+  flash_size_bytes: number | null;
+  partition_layout: string | null;
+  layout_verified: boolean | null;
+  secure_boot_enabled: boolean | null;
+  flash_encryption_enabled: boolean | null;
   firmware_version: string | null;
 }
 
@@ -326,6 +332,14 @@ export function DeviceTable({
                       <span title={t("security.nvsIntegrity")}>
                         {d.security_profile}
                         {d.nvs_integrity ? ` · NVS ${d.nvs_integrity}` : ""}
+                      </span>
+                    )}
+                    {d.partition_layout && (
+                      <span
+                        className={d.layout_verified ? "" : "text-orange font-medium"}
+                        title={t("security.partitionLayout")}
+                      >
+                        {d.partition_layout}
                       </span>
                     )}
                     {lastSeen && (

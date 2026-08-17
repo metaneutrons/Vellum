@@ -58,6 +58,16 @@ describe("Property 13: Telemetry headers are logged with correct MAC association
             "x-firmware-ver": fwVer,
             "x-security-profile": "testsecure",
             "x-nvs-integrity": "valid",
+            "x-chip-model": "esp32s3",
+            "x-chip-revision": "2",
+            "x-flash-size": "8388608",
+            "x-partition-layout": "e-series-v1",
+            "x-partition-fingerprint": "a".repeat(64),
+            "x-partition-table-offset": "32768",
+            "x-layout-verified": "1",
+            "x-secure-boot": "0",
+            "x-flash-encryption": "0",
+            "x-nvs-encryption": "0",
           });
 
           const extracted = extractTelemetry(headers);
@@ -83,6 +93,11 @@ describe("Property 13: Telemetry headers are logged with correct MAC association
           expect(entry.firmwareVersion).toBe(fwVer);
           expect(entry.securityProfile).toBe("testsecure");
           expect(entry.nvsIntegrity).toBe("valid");
+          expect(entry.chipModel).toBe("esp32s3");
+          expect(entry.flashSizeBytes).toBe(8 * 1024 * 1024);
+          expect(entry.partitionLayout).toBe("e-series-v1");
+          expect(entry.layoutVerified).toBe(true);
+          expect(entry.secureBootEnabled).toBe(false);
         }
       ),
       { numRuns: 100 }
@@ -105,10 +120,18 @@ describe("Property 13: Telemetry headers are logged with correct MAC association
       new Headers({
         "x-security-profile": "production-ish",
         "x-nvs-integrity": "probably-valid",
+        "x-chip-model": "esp32-s3-ish",
+        "x-partition-layout": "custom",
+        "x-layout-verified": "yes",
+        "x-partition-fingerprint": "not-a-hash",
       })
     );
     expect(extracted?.securityProfile).toBeNull();
     expect(extracted?.nvsIntegrity).toBeNull();
+    expect(extracted?.chipModel).toBeNull();
+    expect(extracted?.partitionLayout).toBeNull();
+    expect(extracted?.layoutVerified).toBeNull();
+    expect(extracted?.partitionFingerprint).toBeNull();
   });
 
   it("rejects unknown power-state wire values without rejecting other telemetry", () => {

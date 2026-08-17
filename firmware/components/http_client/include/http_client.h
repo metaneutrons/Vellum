@@ -9,6 +9,7 @@
 
 #include "esp_err.h"
 #include "response_headers.h"
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -28,6 +29,16 @@ typedef struct {
     const char *firmware_ver;
     const char *security_profile; /**< development/testsecure/secureboot/production */
     const char *nvs_integrity;    /**< disabled/valid/invalid */
+    const char *chip_model;       /**< esp32s3/esp32p4/unknown */
+    uint16_t    chip_revision;
+    uint32_t    flash_size_bytes;
+    const char *partition_layout; /**< Canonical layout id or unknown */
+    const char *partition_fingerprint; /**< SHA-256 over the parsed table */
+    uint32_t    partition_table_offset;
+    bool        layout_verified;
+    bool        secure_boot_enabled;
+    bool        flash_encryption_enabled;
+    bool        nvs_encryption_enabled;
 } vellum_telemetry_t;
 
 /** The safe, user-actionable category of a failed HTTP transport. Detailed

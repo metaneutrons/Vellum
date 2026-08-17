@@ -6,6 +6,7 @@ import { firmwareBinaryCache } from "@/lib/firmware-binary-cache";
 
 const mocks = vi.hoisted(() => ({
   device: { status: "approved", token: "approved-device-token" } as { status: string; token: string | null } | undefined,
+  evidence: undefined as Record<string, unknown> | undefined,
   safeFetch: vi.fn(),
   manifests: [{
     version: "1.4.3",
@@ -27,9 +28,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/db", () => ({
   db: {
-    select: vi.fn(() => ({
+    select: vi.fn((selection: Record<string, unknown>) => ({
       from: vi.fn(() => ({
-        where: vi.fn(() => ({ limit: vi.fn(() => mocks.device ? [mocks.device] : []) })),
+        where: vi.fn(() =>
+          "securityProfile" in selection
+            ? {
+                orderBy: vi.fn(() => ({
+                  limit: vi.fn(() => (mocks.evidence ? [mocks.evidence] : [])),
+                })),
+              }
+            : { limit: vi.fn(() => (mocks.device ? [mocks.device] : [])) }
+        ),
       })),
     })),
   },
@@ -57,6 +66,7 @@ function signedRequest(nowSeconds = Math.floor(Date.now() / 1000)): Request {
 beforeEach(() => {
   firmwareBinaryCache.clear();
   mocks.device = { status: "approved", token: "approved-device-token" };
+  mocks.evidence = undefined;
   mocks.safeFetch.mockReset();
   mocks.safeFetch.mockResolvedValue(new Response(new Uint8Array([1, 2, 3, 4]), { status: 200 }));
 });

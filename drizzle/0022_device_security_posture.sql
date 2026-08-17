@@ -1,0 +1,10 @@
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "chip_model" text;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "chip_revision" integer;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "flash_size_bytes" integer;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "partition_layout" text;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "partition_fingerprint" text;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "partition_table_offset" integer;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "layout_verified" boolean;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "secure_boot_enabled" boolean;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "flash_encryption_enabled" boolean;
+ALTER TABLE "telemetry" ADD COLUMN IF NOT EXISTS "nvs_encryption_enabled" boolean;

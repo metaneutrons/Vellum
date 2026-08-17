@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db, withDbRead } from "@/db";
-import { devices } from "@/db/schema";
+import { devices, telemetry } from "@/db/schema";
 import { getAllManifests } from "@/lib/firmware";
 import { verifyOtaDownloadGrant, type OtaDownloadGrant } from "@/lib/firmware-download";
 import { safeFetch } from "@/lib/safe-fetch";
 import { apiLimiter, applyRateLimit, getClientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { firmwareBinaryCache } from "@/lib/firmware-binary-cache";
+import { isOtaCompatible } from "@/lib/security-posture";
 
 /**
  * Device-facing OTA delivery endpoint.
@@ -47,6 +48,42 @@ export async function GET(request: Request) {
   const binary = manifest?.binaries[grant.model];
   if (!manifest || !binary) {
     return Response.json({ error: "Firmware is no longer available" }, { status: 404 });
+  }
+
+  const [evidence] = await withDbRead(
+    () =>
+      db
+        .select({
+          securityProfile: telemetry.securityProfile,
+          nvsIntegrity: telemetry.nvsIntegrity,
+          chipModel: telemetry.chipModel,
+          flashSizeBytes: telemetry.flashSizeBytes,
+          partitionLayout: telemetry.partitionLayout,
+          partitionFingerprint: telemetry.partitionFingerprint,
+          partitionTableOffset: telemetry.partitionTableOffset,
+          layoutVerified: telemetry.layoutVerified,
+          secureBootEnabled: telemetry.secureBootEnabled,
+          flashEncryptionEnabled: telemetry.flashEncryptionEnabled,
+          nvsEncryptionEnabled: telemetry.nvsEncryptionEnabled,
+        })
+        .from(telemetry)
+        .where(eq(telemetry.mac, grant.mac))
+        .orderBy(desc(telemetry.timestamp))
+        .limit(1),
+    "authorize-firmware-layout"
+  );
+  const compatibility = isOtaCompatible(binary, grant.model, evidence ?? null);
+  if (!compatibility.compatible) {
+    log.warn("Blocked incompatible firmware download", {
+      mac: grant.mac,
+      tag: grant.tag,
+      model: grant.model,
+      reason: compatibility.reason,
+    });
+    return Response.json(
+      { error: "Firmware is incompatible with device security layout" },
+      { status: 409 }
+    );
   }
 
   let payload: ArrayBuffer;

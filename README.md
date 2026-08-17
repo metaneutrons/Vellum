@@ -354,6 +354,12 @@ an HTTPS origin without a path, query, or fragment.
   Encrypted NVS and Secure Boot v2 remain feature-locked irreversible profiles
   (ESP32-S3 only) and are not part of normal released images. See
   [Secure Boot and KMS](docs/SECURE_BOOT_AND_KMS.md).
+- Devices report the partition table actually parsed from flash (canonical
+  layout plus SHA-256 fingerprint), chip/flash identity, and live Secure Boot /
+  Flash Encryption eFuse state. Vellum cross-checks this evidence with the model
+  and build profile and blocks incompatible OTA images even when a version is
+  pinned. Legacy firmware can only bootstrap to a reversible development image;
+  secure layout transitions always require an authenticated factory flash.
 - Admin sessions use HTTP-only cookies, local passwords are scrypt-hashed, and
   authorization is enforced through scoped permissions.
 - Server container releases are keylessly signed and verified by the Compose
