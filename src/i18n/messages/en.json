@@ -101,7 +101,8 @@
       "late": "Late",
       "offline": "Offline",
       "never": "Never seen"
-    }
+    },
+    "liveStatus": { "live": "Live", "reconnecting": "Reconnecting…" }
   },
   "content": {
     "removeProperty": "Remove property",

@@ -26,6 +26,7 @@ import {
   MonitorSmartphone,
   PlugZap,
 } from "lucide-react";
+import { useDeviceLiveUpdates, type LiveDeviceRow } from "./use-device-live-updates";
 
 interface Device {
   mac: string;
@@ -75,7 +76,8 @@ export function DeviceTable({
   providers,
   knownDisplays,
 }: Props) {
-  const devices = rawDevices as unknown as Device[];
+  const live = useDeviceLiveUpdates(rawDevices as LiveDeviceRow[]);
+  const devices = live.devices as unknown as Device[];
   const { toast } = useToast();
   const t = useTranslations("devices");
   /* Name what "default" actually resolves to. Leaving it bare meant an operator
@@ -145,6 +147,19 @@ export function DeviceTable({
             aria-label={t("search")}
           />
         </div>
+        <div
+          className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill-secondary px-2.5 text-xs text-label-secondary"
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            className={`size-1.5 rounded-full ${
+              live.state === "live" ? "bg-green" : "bg-orange animate-pulse"
+            }`}
+            aria-hidden="true"
+          />
+          {live.state === "live" ? t("liveStatus.live") : t("liveStatus.reconnecting")}
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -159,7 +174,7 @@ export function DeviceTable({
           const connState = deviceConnectivity(
             parseDeviceTs(d.last_seen),
             d.expected_interval_s,
-            Date.now()
+            live.now
           );
           const oWarn = connState === "offline";
           const connLabel =

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import * as schema from "./schema";
 import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
@@ -51,6 +51,13 @@ export async function checkDbHealth(): Promise<boolean> {
 export { dbResilience, DbUnavailableError };
 
 export const db = drizzle(pool, { schema });
+
+/** Reserve a physical PostgreSQL connection for LISTEN/NOTIFY consumers.
+ * Callers must release it. Keeping acquisition here prevents feature modules
+ * from creating competing pools with different resilience settings. */
+export async function acquireDbListener(): Promise<PoolClient> {
+  return pool.connect();
+}
 
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
