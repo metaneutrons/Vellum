@@ -13,13 +13,15 @@ export async function register() {
      * latency. */
     const { initializeFirmwareCatalog, syncAutoPoll } = await import("./lib/firmware");
     const { log } = await import("./lib/logger");
-    /* Guarded separately, because the database can legitimately be unreachable or
-     * unmigrated at boot: compose starts the app alongside Postgres, and the
-     * container's auto-migration is fail-open by design. An unguarded throw here
-     * escaped register() before syncAutoPoll ran, and auto-poll is otherwise only
-     * re-established when an operator re-saves the setting — so a transient boot
-     * error silently disabled firmware polling for the life of the process.
-     * Hydration itself needs no retry here; getAllManifests() re-attempts it. */
+    /* Guarded separately so one failure cannot skip the other. The container does
+     * migrate before serving and fails closed if that errors (see Dockerfile CMD),
+     * but a database reachable at that moment can still be briefly unavailable
+     * when register() runs, via a restart, a failover or a saturated pool, and
+     * `pnpm dev` does not migrate at all. An unguarded throw escaped register()
+     * before syncAutoPoll ran, and auto-poll is otherwise only re-established
+     * when an operator re-saves the setting, so a transient boot error silently
+     * disabled firmware polling for the life of the process. Hydration itself
+     * needs no retry here; getAllManifests() re-attempts it. */
     await initializeFirmwareCatalog().catch((err) =>
       log.warn("Firmware catalog hydration skipped", { error: String(err) })
     );
