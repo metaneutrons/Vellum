@@ -162,6 +162,13 @@
       "when": 1786997106000,
       "tag": "0022_device_security_posture",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787006757175,
+      "tag": "0023_normalize_constraint_names",
+      "breakpoints": true
     }
   ]
 }
