@@ -39,11 +39,11 @@ static adc_cali_handle_t s_adc_cali = NULL;
 static adc_channel_t s_battery_adc_channel = ADC_CHANNEL_0;
 
 #if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
-/* Every E-Series board routes USB-C VBUS through an SY6974B charger, and none of
- * them wire the S3's native USB to the connector — E1001/E1002 use a CH340C and
- * E1003 a CH340K on UART0 — so usb_serial_jtag_is_connected() can never observe
- * host power on any of them. REG08 exposes both BUS_STAT and power-good over
- * model-specific I2C pins (see the respective Seeed schematics). */
+/* Current E-Series revisions route USB-C VBUS through an SY6974B charger, and
+ * none wire the S3's native USB to the connector — E1001/E1002 use a CH340C and
+ * E1003 a CH340K on UART0. REG08 exposes BUS_STAT and power-good over the
+ * model-specific I2C pins. Early E1002 revision 1.0 instead uses a non-I2C
+ * ETA6003; the failed probe is retained as an unknown source in telemetry. */
 #define CHARGER_I2C_PORT       0
 #define CHARGER_I2C_ADDRESS    0x6B
 #define CHARGER_STATUS_REG     0x08
@@ -320,8 +320,9 @@ bool board_is_usb_powered(void)
     return d1001_is_usb_powered();
 #endif
 #if CONFIG_VELLUM_PANEL_GDEY075T7 || CONFIG_VELLUM_PANEL_GDEP073E01 || CONFIG_VELLUM_PANEL_E1003
-    /* All three E-Series boards: read the charger, because their USB-C data path
-     * is a CH34x bridge and the native-USB signal below is always false there. */
+    /* Read the charger because the CH34x USB data path cannot expose VBUS to the
+     * S3. An early E1002 with ETA6003 returns false here, while telemetry keeps
+     * that failed probe distinct from a confirmed battery source. */
     return charger_reports_usb_power();
 #else
     /* Native-USB models expose host presence directly through the

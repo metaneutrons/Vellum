@@ -191,13 +191,20 @@ static vellum_telemetry_t gather_telemetry(void)
     const int battery_level = board_battery_level();
     const bool usb_powered = board_is_usb_powered();
     const board_battery_status_t battery_status = board_battery_status();
+    /* E1002 hardware revision 1.0 uses an ETA6003 without an MCU-readable
+     * power-source signal; revision 1.2 replaced it with the I2C SY6974B.
+     * A failed charger read must therefore remain unknown, never be presented
+     * as positive evidence that the device is running on battery. */
+    const char *power_source = usb_powered
+        ? "usb"
+        : (battery_status == BOARD_BATTERY_STATUS_UNKNOWN ? "unknown" : "battery");
     const esp_app_desc_t *app = esp_app_get_description();
     const char *firmware_version =
         (app && app->version[0]) ? app->version : CONFIG_VELLUM_FIRMWARE_VERSION;
     vellum_telemetry_t t = {
         .battery_voltage = battery_voltage,
         .battery_level   = battery_level,
-        .power_source    = usb_powered ? "usb" : "battery",
+        .power_source    = power_source,
         .battery_status  = board_battery_status_name(battery_status),
         .wifi_rssi       = wifi_manager_get_rssi(),
         .firmware_ver    = firmware_version,

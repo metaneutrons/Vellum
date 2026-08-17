@@ -27,7 +27,7 @@ export interface TelemetryEntry {
   mac: string;
   batteryVoltage: number | null;
   batteryLevel: number | null;
-  powerSource: "usb" | "battery" | null;
+  powerSource: "usb" | "battery" | "unknown" | null;
   batteryStatus: "charging" | "full" | "discharging" | "unknown" | null;
   wifiRssi: number | null;
   firmwareVersion: string | null;

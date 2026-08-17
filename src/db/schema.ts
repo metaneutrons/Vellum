@@ -438,7 +438,7 @@ export const telemetry = pgTable(
       .references(() => devices.mac, { onDelete: "cascade" }),
     batteryVoltage: real("battery_voltage"),
     batteryLevel: integer("battery_level"),
-    powerSource: text("power_source").$type<"usb" | "battery">(),
+    powerSource: text("power_source").$type<"usb" | "battery" | "unknown">(),
     batteryStatus: text("battery_status").$type<"charging" | "full" | "discharging" | "unknown">(),
     wifiRssi: integer("wifi_rssi"),
     firmwareVersion: text("firmware_version"),
