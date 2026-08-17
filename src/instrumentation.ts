@@ -12,7 +12,19 @@ export async function register() {
      * not awaited: an external API may never extend server startup or first-page
      * latency. */
     const { initializeFirmwareCatalog, syncAutoPoll } = await import("./lib/firmware");
-    await initializeFirmwareCatalog();
-    await syncAutoPoll();
+    const { log } = await import("./lib/logger");
+    /* Guarded separately, because the database can legitimately be unreachable or
+     * unmigrated at boot: compose starts the app alongside Postgres, and the
+     * container's auto-migration is fail-open by design. An unguarded throw here
+     * escaped register() before syncAutoPoll ran, and auto-poll is otherwise only
+     * re-established when an operator re-saves the setting — so a transient boot
+     * error silently disabled firmware polling for the life of the process.
+     * Hydration itself needs no retry here; getAllManifests() re-attempts it. */
+    await initializeFirmwareCatalog().catch((err) =>
+      log.warn("Firmware catalog hydration skipped", { error: String(err) })
+    );
+    await syncAutoPoll().catch((err) =>
+      log.warn("Firmware auto-poll sync skipped", { error: String(err) })
+    );
   }
 }
