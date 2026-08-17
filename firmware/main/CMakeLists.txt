@@ -11,6 +11,7 @@ idf_component_register(
         vellum_serial
         board
         secure_channel
+        security_posture
         ota_manager
         esp_driver_gpio
         esp_netif

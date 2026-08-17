@@ -99,6 +99,22 @@
       "description": "Endurecimiento progresivo del dispositivo con un estado observable y seguro ante fallos.",
       "profile": "Perfil de seguridad",
       "nvsIntegrity": "Integridad de NVS",
+      "chip": "Chip en ejecución",
+      "flashSize": "Flash física",
+      "partitionLayout": "Diseño de particiones verificado",
+      "runtimeState": "Estado de ejecución verificado",
+      "secureBoot": "eFuse de Secure Boot",
+      "flashEncryption": "eFuse de cifrado flash",
+      "enabled": "Activado",
+      "disabled": "Desactivado",
+      "states": {
+        "unattested": "Evidencia no disponible",
+        "incompatible": "Incoherente — bloqueado",
+        "development": "Desarrollo verificado",
+        "testsecure": "Testsecure verificado",
+        "secureboot": "Secure Boot verificado",
+        "production": "Producción verificada"
+      },
       "profiles": {
         "development": "Desarrollo",
         "testsecure": "Testsecure (reversible)",

@@ -44,6 +44,7 @@
 #include "mdns.h"
 #include "board.h"
 #include "secure_channel.h"
+#include "security_posture.h"
 #include "ota_manager.h"
 #if defined(CONFIG_VELLUM_PANEL_D1001)
 #include "d1001_board.h"
@@ -187,6 +188,17 @@ static void display_transport_error(vellum_http_failure_t failure)
 static vellum_telemetry_t gather_telemetry(void)
 {
     static char wifi_ssid_b64[48];
+    static vellum_security_posture_t security_posture;
+    static bool security_posture_collected;
+    if (!security_posture_collected) {
+        security_posture_collected = true;
+        const esp_err_t posture_err = security_posture_collect(&security_posture);
+        if (posture_err != ESP_OK) {
+            ESP_LOGE(TAG, "Security posture collection failed: %s", esp_err_to_name(posture_err));
+            security_posture.chip_model = "unknown";
+            security_posture.partition_layout = "unknown";
+        }
+    }
     /* Read the cell first: on D1001 this also applies the charger's safe
      * hysteresis, so the state reported below describes the resulting state. */
     const float battery_voltage = board_battery_voltage();
@@ -223,6 +235,17 @@ static vellum_telemetry_t gather_telemetry(void)
         .firmware_ver    = firmware_version,
         .security_profile = CONFIG_VELLUM_SECURITY_PROFILE,
         .nvs_integrity   = nvs_manager_integrity_status_name(),
+        .chip_model = security_posture.chip_model,
+        .chip_revision = security_posture.chip_revision,
+        .flash_size_bytes = security_posture.flash_size_bytes,
+        .partition_layout = security_posture.partition_layout,
+        .partition_fingerprint = security_posture.partition_fingerprint[0]
+            ? security_posture.partition_fingerprint : NULL,
+        .partition_table_offset = security_posture.partition_table_offset,
+        .layout_verified = security_posture.layout_verified,
+        .secure_boot_enabled = security_posture.secure_boot_enabled,
+        .flash_encryption_enabled = security_posture.flash_encryption_enabled,
+        .nvs_encryption_enabled = security_posture.nvs_encryption_enabled,
     };
     return t;
 }

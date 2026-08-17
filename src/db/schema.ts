@@ -508,6 +508,18 @@ export const telemetry = pgTable(
       "development" | "testsecure" | "secureboot" | "production"
     >(),
     nvsIntegrity: text("nvs_integrity").$type<"disabled" | "valid" | "invalid">(),
+    chipModel: text("chip_model").$type<"esp32s3" | "esp32p4" | "unknown">(),
+    chipRevision: integer("chip_revision"),
+    flashSizeBytes: integer("flash_size_bytes"),
+    partitionLayout: text("partition_layout").$type<
+      "e-series-v1" | "e-series-secure-v1" | "d1001-v1" | "unknown"
+    >(),
+    partitionFingerprint: text("partition_fingerprint"),
+    partitionTableOffset: integer("partition_table_offset"),
+    layoutVerified: boolean("layout_verified"),
+    secureBootEnabled: boolean("secure_boot_enabled"),
+    flashEncryptionEnabled: boolean("flash_encryption_enabled"),
+    nvsEncryptionEnabled: boolean("nvs_encryption_enabled"),
     timestamp: timestamp("timestamp").defaultNow().notNull(),
   },
   (t) => [

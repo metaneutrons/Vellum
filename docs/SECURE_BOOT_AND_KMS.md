@@ -27,8 +27,12 @@ Do not conflate them — they use different algorithms, keys, and verifiers.
 | Failure mode | a bad key ⇒ fleet rejects updates (recoverable via the trust store) | a bad key ⇒ **bricked**, no recovery             |
 | Status today | **live** (Ed25519 required, fail-closed)                            | **off** until you provision                      |
 
-Chain ① is already enforced. Chain ② is opt-in and gated behind `SECURE=1`
-builds; the default `make build` is unchanged (unsigned, reflashable). The
+Chain ① is already enforced. Chain ② is opt-in and gated behind local `SECURE=1`
+builds; the default `make build` is unchanged (unsigned, reflashable). CI
+**deliberately refuses** `OTA_SECURE_BOOT=1`: appending a signature to an ordinary
+OTA app is not a complete factory enrollment pipeline. That lock may only be
+removed when CI produces and verifies the signed bootloader, partition table,
+factory image, and eFuse ceremony as one traceable artifact set. The
 `testsecure` rung uses a local disposable RSA-3072 key (generated once under
 `firmware/keys/` and ignored by Git), burns no eFuse, and must never establish
 production trust.
@@ -87,6 +91,25 @@ overlays therefore switch to `partitions.secure.csv` (table at `0x10000`; `ota_0
 **Changing partition offsets is factory-flash-only — it cannot be delivered by
 OTA.** Re-measure with `idf.py bootloader` for your IDF/key and raise the offset
 further if it still overflows. Fix this before provisioning any secure unit.
+
+### Runtime layout and eFuse evidence
+
+Firmware reports the chip model/revision, physical flash size, configured table
+offset, a SHA-256 fingerprint over the partition entries parsed from flash, the
+canonical layout id, and the live Secure Boot/Flash Encryption eFuse state. The
+server validates these independently of the claimed build profile. Contradictory
+or partial evidence is classified as incompatible and blocks OTA. A pin cannot
+bypass this gate. Firmware predating this protocol may receive exactly one kind
+of bootstrap update: a reversible development image for its model's normal
+layout. It can never bootstrap directly into a secure layout or eFuse-requiring
+profile.
+
+This is authenticated device telemetry, not hardware-rooted remote attestation
+while Secure Boot is off: modified development firmware can lie. Once Secure
+Boot is active, the report inherits that verified boot chain. Factory enrollment
+must additionally record an independent `espefuse.py summary` and partition-table
+read-back against the device serial number; server telemetry does not replace
+that manufacturing evidence.
 
 ---
 
@@ -266,12 +289,12 @@ SECURE_PROFILE=testsecure` (`d1001`, `e1001`, `e1002`, or `e1003`). The Makefile
    (`esptool image-info`), read from the end of the app image (before the SB block,
    at the dynamic `image_len − 32` offset), so the
    Ed25519/otaSha256 contract holds whether the block is appended before or after
-   signing — no ordering dependency. When `OTA_SECURE_BOOT=1` (opt-in; **OFF in
-   dev**), `firmware.yml` performs this RSA-PSS append itself (gated on
-   `firmware/hsm_config.ini`) and the partition-fit guard switches to
-   `partitions.secure.csv`; otherwise CI publishes the app-only image and never
-   RSA-signs. This CI leg is unexercised while SB is off — validate it on a
-   `secureboot` board (Phase B.5) before enabling it for a fleet.
+   signing — no ordering dependency. The production CI path is nevertheless
+   intentionally locked: setting `OTA_SECURE_BOOT=1` fails the workflow even
+   when all evidence variables are present. Do not weaken this guard by merely
+   appending RSA-PSS to a normal development OTA app; first implement the complete
+   signed factory-image and eFuse-enrollment pipeline, then validate it on a
+   `secureboot` board (Phase B.5).
 6. **Bootloader fit:** `idf.py bootloader` with the `secureboot` overlay — confirm
    it is below the `partitions.secure.csv` table offset (0x10000). If it overflows,
    raise `CONFIG_PARTITION_TABLE_OFFSET` **now** (factory-flash-only later).

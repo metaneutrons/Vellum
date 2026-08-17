@@ -99,6 +99,22 @@
       "description": "Progressive device hardening with observable, fail-closed state.",
       "profile": "Security profile",
       "nvsIntegrity": "NVS integrity",
+      "chip": "Runtime chip",
+      "flashSize": "Physical flash",
+      "partitionLayout": "Verified partition layout",
+      "runtimeState": "Verified runtime state",
+      "secureBoot": "Secure Boot eFuse",
+      "flashEncryption": "Flash encryption eFuse",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "states": {
+        "unattested": "Evidence unavailable",
+        "incompatible": "Inconsistent — blocked",
+        "development": "Development verified",
+        "testsecure": "Testsecure verified",
+        "secureboot": "Secure Boot verified",
+        "production": "Production verified"
+      },
       "profiles": {
         "development": "Development",
         "testsecure": "Testsecure (reversible)",

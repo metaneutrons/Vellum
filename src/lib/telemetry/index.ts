@@ -39,6 +39,10 @@ function parseEnum<T extends string>(value: string | null, allowed: readonly T[]
   return value && allowed.includes(value as T) ? (value as T) : null;
 }
 
+function parseBooleanEvidence(value: string | null): boolean | null {
+  return value === "1" ? true : value === "0" ? false : null;
+}
+
 /**
  * Extract and validate bounded telemetry data from incoming request headers.
  * Returns a partial TelemetryEntry (without mac/timestamp) or null if no telemetry headers are present.
@@ -56,6 +60,16 @@ export function extractTelemetry(
   const firmwareVersion = headers.get("x-firmware-ver");
   const securityProfile = headers.get("x-security-profile");
   const nvsIntegrity = headers.get("x-nvs-integrity");
+  const chipModel = headers.get("x-chip-model");
+  const chipRevision = headers.get("x-chip-revision");
+  const flashSizeBytes = headers.get("x-flash-size");
+  const partitionLayout = headers.get("x-partition-layout");
+  const partitionFingerprint = headers.get("x-partition-fingerprint");
+  const partitionTableOffset = headers.get("x-partition-table-offset");
+  const layoutVerified = headers.get("x-layout-verified");
+  const secureBootEnabled = headers.get("x-secure-boot");
+  const flashEncryptionEnabled = headers.get("x-flash-encryption");
+  const nvsEncryptionEnabled = headers.get("x-nvs-encryption");
 
   if (
     !batteryVoltage &&
@@ -67,7 +81,17 @@ export function extractTelemetry(
     !wifiSecurity &&
     !firmwareVersion &&
     !securityProfile &&
-    !nvsIntegrity
+    !nvsIntegrity &&
+    !chipModel &&
+    !chipRevision &&
+    !flashSizeBytes &&
+    !partitionLayout &&
+    !partitionFingerprint &&
+    !partitionTableOffset &&
+    !layoutVerified &&
+    !secureBootEnabled &&
+    !flashEncryptionEnabled &&
+    !nvsEncryptionEnabled
   ) {
     return null;
   }
@@ -100,6 +124,24 @@ export function extractTelemetry(
       "production",
     ] as const),
     nvsIntegrity: parseEnum(nvsIntegrity, ["disabled", "valid", "invalid"] as const),
+    chipModel: parseEnum(chipModel, ["esp32s3", "esp32p4", "unknown"] as const),
+    chipRevision: parseBoundedInteger(chipRevision, 0, 65535),
+    flashSizeBytes: parseBoundedInteger(flashSizeBytes, 1_048_576, 67_108_864),
+    partitionLayout: parseEnum(partitionLayout, [
+      "e-series-v1",
+      "e-series-secure-v1",
+      "d1001-v1",
+      "unknown",
+    ] as const),
+    partitionFingerprint:
+      partitionFingerprint && /^[a-fA-F0-9]{64}$/.test(partitionFingerprint)
+        ? partitionFingerprint.toLowerCase()
+        : null,
+    partitionTableOffset: parseBoundedInteger(partitionTableOffset, 0x8000, 0x10000),
+    layoutVerified: parseBooleanEvidence(layoutVerified),
+    secureBootEnabled: parseBooleanEvidence(secureBootEnabled),
+    flashEncryptionEnabled: parseBooleanEvidence(flashEncryptionEnabled),
+    nvsEncryptionEnabled: parseBooleanEvidence(nvsEncryptionEnabled),
   };
 }
 
@@ -122,6 +164,16 @@ export async function logTelemetry(entry: TelemetryEntry): Promise<void> {
           firmwareVersion: entry.firmwareVersion,
           securityProfile: entry.securityProfile,
           nvsIntegrity: entry.nvsIntegrity,
+          chipModel: entry.chipModel,
+          chipRevision: entry.chipRevision,
+          flashSizeBytes: entry.flashSizeBytes,
+          partitionLayout: entry.partitionLayout,
+          partitionFingerprint: entry.partitionFingerprint,
+          partitionTableOffset: entry.partitionTableOffset,
+          layoutVerified: entry.layoutVerified,
+          secureBootEnabled: entry.secureBootEnabled,
+          flashEncryptionEnabled: entry.flashEncryptionEnabled,
+          nvsEncryptionEnabled: entry.nvsEncryptionEnabled,
           timestamp: entry.timestamp,
         });
         await tx

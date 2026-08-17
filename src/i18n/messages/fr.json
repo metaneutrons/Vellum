@@ -99,6 +99,22 @@
       "description": "Durcissement progressif avec un état observable et sûr en cas d’échec.",
       "profile": "Profil de sécurité",
       "nvsIntegrity": "Intégrité NVS",
+      "chip": "Puce à l’exécution",
+      "flashSize": "Mémoire flash physique",
+      "partitionLayout": "Partitionnement vérifié",
+      "runtimeState": "État d’exécution vérifié",
+      "secureBoot": "eFuse Secure Boot",
+      "flashEncryption": "eFuse de chiffrement flash",
+      "enabled": "Activé",
+      "disabled": "Désactivé",
+      "states": {
+        "unattested": "Preuve indisponible",
+        "incompatible": "Incohérent — bloqué",
+        "development": "Développement vérifié",
+        "testsecure": "Testsecure vérifié",
+        "secureboot": "Secure Boot vérifié",
+        "production": "Production vérifiée"
+      },
       "profiles": {
         "development": "Développement",
         "testsecure": "Testsecure (réversible)",

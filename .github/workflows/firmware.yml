@@ -160,6 +160,12 @@ jobs:
               echo "::error::$gate must carry verified evidence before the irreversible path is enabled"; exit 1;
             }
           done
+          # A signed OTA app alone is not a secure factory image: the bootloader,
+          # partition table and eFuse enrollment ceremony must be produced and
+          # verified as one atomic pipeline. Fail closed until that pipeline is
+          # implemented; the local guarded profile remains available for labs.
+          echo "::error::OTA_SECURE_BOOT release publishing is locked until the complete factory enrollment pipeline exists"
+          exit 1
 
       - name: Inject version and configure
         run: |
@@ -430,6 +436,7 @@ jobs:
             if (!m) continue;
             const model = m[1];
             const factory = 'vellum-' + model + '-v' + SAFE + '-factory.bin';
+            const partitionLayout = model === 'd1001' ? 'd1001-v1' : 'e-series-v1';
             manifest.binaries[model] = {
               url: base + '/' + factory,                                   // web flasher (0x0)
               size: fs.existsSync(factory) ? fs.statSync(factory).size : 0,
@@ -438,6 +445,10 @@ jobs:
               otaSignature: fs.existsSync(f + '.sig.b64') ? fs.readFileSync(f + '.sig.b64', 'utf8').trim() : '',
               otaKeyId: MKID || '',                                        // signer id → device fast-path hint
               otaSize: fs.statSync(f).size,
+              partitionLayout,
+              securityProfile: 'development',
+              requiresSecureBoot: false,
+              requiresFlashEncryption: false,
             };
           }
           fs.writeFileSync('firmware-manifest.json', JSON.stringify(manifest, null, 2));
@@ -464,6 +475,11 @@ jobs:
             if (!b) { errors.push(model + ': missing from manifest'); continue; }
             if (!b.otaSha256) errors.push(model + ': empty otaSha256');
             if (!(b.otaSize > 0)) errors.push(model + ': otaSize not > 0');
+            const expectedLayout = model === 'd1001' ? 'd1001-v1' : 'e-series-v1';
+            if (b.partitionLayout !== expectedLayout) errors.push(model + ': wrong partitionLayout');
+            if (b.securityProfile !== 'development') errors.push(model + ': wrong securityProfile');
+            if (b.requiresSecureBoot !== false) errors.push(model + ': requiresSecureBoot must be false');
+            if (b.requiresFlashEncryption !== false) errors.push(model + ': requiresFlashEncryption must be false');
             if (requireSig && !b.otaSignature) errors.push(model + ': empty otaSignature (required for release)');
           }
           const extra = Object.keys(bins).filter(k => !EXPECTED.includes(k));

@@ -14,6 +14,7 @@ import {
 } from "../../actions";
 import { useToast } from "@/components/toast";
 import { deviceConnectivity } from "@/lib/connectivity";
+import { assessSecurityPosture } from "@/lib/security-posture";
 
 interface Device {
   mac: string;
@@ -40,6 +41,16 @@ interface TelemetryEntry {
   firmwareVersion: string | null;
   securityProfile: "development" | "testsecure" | "secureboot" | "production" | null;
   nvsIntegrity: "disabled" | "valid" | "invalid" | null;
+  chipModel: "esp32s3" | "esp32p4" | "unknown" | null;
+  chipRevision: number | null;
+  flashSizeBytes: number | null;
+  partitionLayout: "e-series-v1" | "e-series-secure-v1" | "d1001-v1" | "unknown" | null;
+  partitionFingerprint: string | null;
+  partitionTableOffset: number | null;
+  layoutVerified: boolean | null;
+  secureBootEnabled: boolean | null;
+  flashEncryptionEnabled: boolean | null;
+  nvsEncryptionEnabled: boolean | null;
   timestamp: Date;
 }
 
@@ -120,6 +131,9 @@ export function DeviceDetail({
     quantize?: string;
   } | null;
   const latest = telemetryHistory[0];
+  const securityAssessment = latest
+    ? assessSecurityPosture(latest, typeof reportedModel === "string" ? reportedModel : "unknown")
+    : null;
   const activeConfiguration = configurationCommands.find((command) =>
     ["pending", "delivered", "applying"].includes(command.status)
   );
@@ -305,6 +319,41 @@ export function DeviceDetail({
                 value={latest.nvsIntegrity ? t(`security.integrity.${latest.nvsIntegrity}`) : "—"}
                 warn={latest.nvsIntegrity === "invalid"}
               />
+              <Stat label={t("security.chip")} value={latest.chipModel ?? "—"} />
+              <Stat
+                label={t("security.flashSize")}
+                value={
+                  latest.flashSizeBytes
+                    ? `${Math.round(latest.flashSizeBytes / 1024 / 1024)} MiB`
+                    : "—"
+                }
+              />
+              <Stat
+                label={t("security.partitionLayout")}
+                value={latest.partitionLayout ?? "—"}
+                warn={latest.layoutVerified === false || latest.partitionLayout === "unknown"}
+              />
+              <Stat
+                label={t("security.runtimeState")}
+                value={securityAssessment ? t(`security.states.${securityAssessment.state}`) : "—"}
+                warn={securityAssessment?.verified === false}
+              />
+              <Stat
+                label={t("security.secureBoot")}
+                value={
+                  latest.secureBootEnabled === null
+                    ? "—"
+                    : t(latest.secureBootEnabled ? "security.enabled" : "security.disabled")
+                }
+              />
+              <Stat
+                label={t("security.flashEncryption")}
+                value={
+                  latest.flashEncryptionEnabled === null
+                    ? "—"
+                    : t(latest.flashEncryptionEnabled ? "security.enabled" : "security.disabled")
+                }
+              />
             </div>
           ) : (
             <p className="text-sm text-gray-400">{t("noTelemetry")}</p>
@@ -358,11 +407,11 @@ export function DeviceDetail({
                 label: t("security.steps.enrolled"),
               },
               {
-                done: latest?.securityProfile === "testsecure",
+                done: securityAssessment?.state === "testsecure" && securityAssessment.verified,
                 label: t("security.steps.testsecure"),
               },
               {
-                done: latest?.nvsIntegrity === "valid",
+                done: securityAssessment?.verified === true && latest?.nvsIntegrity === "valid",
                 label: t("security.steps.hmacNvs"),
               },
             ].map((step) => (
@@ -377,7 +426,7 @@ export function DeviceDetail({
               </div>
             ))}
           </div>
-          {latest?.securityProfile === "testsecure" && latest.nvsIntegrity === "valid" ? (
+          {securityAssessment?.state === "testsecure" && securityAssessment.verified ? (
             <p className="mt-4 text-sm text-green-700">{t("security.reversibleComplete")}</p>
           ) : (
             <div className="mt-4 space-y-3">

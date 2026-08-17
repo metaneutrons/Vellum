@@ -99,6 +99,22 @@
       "description": "Hardening progressivo del dispositivo con stato osservabile e fail-closed.",
       "profile": "Profilo di sicurezza",
       "nvsIntegrity": "Integrità NVS",
+      "chip": "Chip in esecuzione",
+      "flashSize": "Flash fisica",
+      "partitionLayout": "Layout partizioni verificato",
+      "runtimeState": "Stato runtime verificato",
+      "secureBoot": "eFuse Secure Boot",
+      "flashEncryption": "eFuse crittografia flash",
+      "enabled": "Abilitato",
+      "disabled": "Disabilitato",
+      "states": {
+        "unattested": "Prova non disponibile",
+        "incompatible": "Incoerente — bloccato",
+        "development": "Sviluppo verificato",
+        "testsecure": "Testsecure verificato",
+        "secureboot": "Secure Boot verificato",
+        "production": "Produzione verificata"
+      },
       "profiles": {
         "development": "Sviluppo",
         "testsecure": "Testsecure (reversibile)",

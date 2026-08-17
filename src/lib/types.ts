@@ -35,5 +35,15 @@ export interface TelemetryEntry {
   firmwareVersion: string | null;
   securityProfile: "development" | "testsecure" | "secureboot" | "production" | null;
   nvsIntegrity: "disabled" | "valid" | "invalid" | null;
+  chipModel: "esp32s3" | "esp32p4" | "unknown" | null;
+  chipRevision: number | null;
+  flashSizeBytes: number | null;
+  partitionLayout: "e-series-v1" | "e-series-secure-v1" | "d1001-v1" | "unknown" | null;
+  partitionFingerprint: string | null;
+  partitionTableOffset: number | null;
+  layoutVerified: boolean | null;
+  secureBootEnabled: boolean | null;
+  flashEncryptionEnabled: boolean | null;
+  nvsEncryptionEnabled: boolean | null;
   timestamp: Date;
 }

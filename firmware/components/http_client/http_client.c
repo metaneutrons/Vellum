@@ -129,6 +129,30 @@ static void set_telemetry_headers(esp_http_client_handle_t client)
     if (s_telemetry.nvs_integrity) {
         esp_http_client_set_header(client, "X-NVS-Integrity", s_telemetry.nvs_integrity);
     }
+    if (s_telemetry.chip_model) {
+        esp_http_client_set_header(client, "X-Chip-Model", s_telemetry.chip_model);
+    }
+    snprintf(buf, sizeof(buf), "%u", (unsigned)s_telemetry.chip_revision);
+    esp_http_client_set_header(client, "X-Chip-Revision", buf);
+    snprintf(buf, sizeof(buf), "%lu", (unsigned long)s_telemetry.flash_size_bytes);
+    esp_http_client_set_header(client, "X-Flash-Size", buf);
+    if (s_telemetry.partition_layout) {
+        esp_http_client_set_header(client, "X-Partition-Layout", s_telemetry.partition_layout);
+    }
+    if (s_telemetry.partition_fingerprint) {
+        esp_http_client_set_header(client, "X-Partition-Fingerprint",
+                                   s_telemetry.partition_fingerprint);
+    }
+    snprintf(buf, sizeof(buf), "%lu", (unsigned long)s_telemetry.partition_table_offset);
+    esp_http_client_set_header(client, "X-Partition-Table-Offset", buf);
+    esp_http_client_set_header(client, "X-Layout-Verified",
+                               s_telemetry.layout_verified ? "1" : "0");
+    esp_http_client_set_header(client, "X-Secure-Boot",
+                               s_telemetry.secure_boot_enabled ? "1" : "0");
+    esp_http_client_set_header(client, "X-Flash-Encryption",
+                               s_telemetry.flash_encryption_enabled ? "1" : "0");
+    esp_http_client_set_header(client, "X-NVS-Encryption",
+                               s_telemetry.nvs_encryption_enabled ? "1" : "0");
 
     esp_http_client_set_header(client, "X-Display-Model", CONFIG_VELLUM_DISPLAY_MODEL);
 }

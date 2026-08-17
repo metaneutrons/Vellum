@@ -99,6 +99,22 @@
       "description": "Schrittweise Gerätehärtung mit sichtbarem, ausfallsicherem Status.",
       "profile": "Sicherheitsprofil",
       "nvsIntegrity": "NVS-Integrität",
+      "chip": "Chip zur Laufzeit",
+      "flashSize": "Physischer Flash",
+      "partitionLayout": "Verifiziertes Partitionslayout",
+      "runtimeState": "Verifizierter Laufzeitstatus",
+      "secureBoot": "Secure-Boot-eFuse",
+      "flashEncryption": "Flash-Encryption-eFuse",
+      "enabled": "Aktiviert",
+      "disabled": "Deaktiviert",
+      "states": {
+        "unattested": "Nachweis nicht verfügbar",
+        "incompatible": "Widersprüchlich — gesperrt",
+        "development": "Entwicklung verifiziert",
+        "testsecure": "Testsecure verifiziert",
+        "secureboot": "Secure Boot verifiziert",
+        "production": "Produktion verifiziert"
+      },
       "profiles": {
         "development": "Entwicklung",
         "testsecure": "Testsecure (reversibel)",
