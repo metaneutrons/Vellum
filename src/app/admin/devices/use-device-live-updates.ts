@@ -45,7 +45,17 @@ export function useDeviceLiveUpdates(initialDevices: LiveDeviceRow[]) {
    * Merged rather than assigned, so adopting authoritative data does not reorder
    * cards that are already on screen — the same reason refresh() merges. */
   useEffect(() => {
-    setDevices((current) => mergeDeviceRows(current, initialDevices, null));
+    setDevices((current) => {
+      const merged = mergeDeviceRows(current, initialDevices, null);
+      /* Return the identical reference when nothing actually changed, so React
+       * skips the re-render. That is not just an optimisation: this effect keys on
+       * the prop's identity, so a caller building the array inline would hand it a
+       * fresh identity on every render and, without this bail-out, each pass would
+       * set state, trigger another render and re-run forever. Compared by content
+       * because the rows are freshly deserialised objects every time, which makes
+       * reference comparison useless here. */
+      return JSON.stringify(merged) === JSON.stringify(current) ? current : merged;
+    });
   }, [initialDevices]);
   const [now, setNow] = useState(() => Date.now());
   const [state, setState] = useState<DeviceLiveState>("connecting");
