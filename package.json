@@ -26,7 +26,7 @@
     "test:watch": "vitest",
     "i18n:check": "node scripts/check-i18n.mjs",
     "release:check": "node scripts/check-release-config.mjs && node scripts/check-security-layouts.mjs",
-    "db:check": "node scripts/check-schema-migrations.mjs && node scripts/check-db-access.mjs",
+    "db:check": "node scripts/check-schema-migrations.mjs && node scripts/check-schema-snapshot.mjs && node scripts/check-db-access.mjs",
     "prepare": "node scripts/setup-git-hooks.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",

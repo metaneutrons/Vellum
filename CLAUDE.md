@@ -72,13 +72,43 @@ them in `__vellum_migrations`. Consequences:
   only type-checks the model, and the test suite runs without Postgres. This
   actually shipped broken — `devices.orientation_override` had no migration for
   ~3 months, taking out `/api/v1/ink/render` on fresh databases.
-- **Do NOT trust `pnpm db:generate`.** `drizzle/meta/` snapshots stop at `0005`
-  while migrations run past `0022`, and those snapshots already list columns the
-  SQL never creates — so drizzle-kit believes they exist and will never emit
-  them. Migrations here are hand-written by convention; keep them idempotent
-  (`ADD COLUMN IF NOT EXISTS`) and forward-only (there are no down migrations).
-- `pnpm db:check` (`scripts/check-schema-migrations.mjs`, CI "Schema Guard")
-  asserts every `schema.ts` column is created by some `drizzle/*.sql`.
+- **`pnpm db:generate` is usable again, and is now the normal route.** It was not
+  until 2026-08-17: `drizzle/meta/` stopped at `0005` while migrations ran to
+  `0022`, and `0000_snapshot.json` already claimed `devices.orientation_override`,
+  which only `0008` creates — so drizzle believed columns existed and would never
+  emit them. `_journal.json` now carries all 23 entries with monotonic `when`
+  values, and `0022_snapshot.json` describes the real schema, verified by building
+  a database from the model and diffing it against a `0022`-migrated one.
+  Generated files start at `0023`, so they cannot collide with the hand-written
+  history. Keep migrations idempotent (`ADD COLUMN IF NOT EXISTS`) and
+  forward-only (there are no down migrations).
+- **For anything drizzle cannot express, use
+  `pnpm exec drizzle-kit generate --custom --name <desc>`** and write the SQL by
+  hand. That still records a journal entry and snapshot, which plain hand-authoring
+  does not, and is how the journal fell behind in the first place. The snapshot
+  format has no representation for triggers or plpgsql functions (the schema has 4
+  and 3), nor for DML or drop/recreate transitions.
+- **`drizzle-kit migrate` is NOT the applier and must not be used.** It decides
+  what is pending from a single `created_at` high-water mark compared strictly
+  against `journal.when`, never reading the `hash` it stores — so it enforces no
+  checksum, takes no advisory lock, and permanently skips any migration merged
+  later with an earlier `when`. `scripts/migrate.mjs` does all three correctly and
+  additionally self-baselines onto databases created by `drizzle-kit push`.
+- `pnpm db:check` runs three guards: `check-schema-migrations.mjs` (CI "Schema
+  Guard") asserts every `schema.ts` column is created by some `drizzle/*.sql` and
+  **fails on any column builder it does not recognise** rather than skipping it
+  (`assets.data`, declared via a `customType`, was silently unchecked until
+  2026-08-17); `check-schema-snapshot.mjs` asserts the model is fully captured by
+  `drizzle/meta/`, printing the migration drizzle-kit would emit; and
+  `check-db-access.mjs` enforces the read/write/transaction wrappers.
+- **Foreign-key and primary-key names are pinned explicitly** where `0006`,
+  `0007`, `0013` and `0018` wrote them by hand. Inline `.references()` cannot pin
+  a name and implies drizzle's longer one, which no database has, so a generated
+  migration could `DROP CONSTRAINT` a name that was never created. Renaming
+  databases to drizzle's convention is not an option: one such name exceeds
+  PostgreSQL's 63-character limit and is silently truncated. Three indexes differ
+  cosmetically (`DESC` vs `DESC NULLS LAST`) on `NOT NULL` columns, where the
+  ordering is unobservable; that is deliberate, not drift to fix.
 - **`pnpm dev` refuses to start against a database behind `drizzle/`**
   (`scripts/check-pending-migrations.mjs`) and prints the pending list. Only the
   container migrates itself at boot, so a local database otherwise stays at
