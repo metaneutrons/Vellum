@@ -14,6 +14,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  foreignKey,
   check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -153,7 +154,10 @@ export const adminUsers = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("admin_users_email_ci_idx").on(sql`lower(${t.email})`)]
+  (t) => [
+    uniqueIndex("admin_users_email_ci_idx").on(sql`lower(${t.email})`),
+    check("admin_users_status_check", sql`${t.status} IN ('active', 'invited', 'suspended')`),
+  ]
 );
 
 /** System roles are seeded in code; custom roles use the same permission rows. */
@@ -196,6 +200,13 @@ export const userRoleAssignments = pgTable(
   (t) => [
     index("user_role_assignments_user_idx").on(t.userId),
     index("user_role_assignments_role_idx").on(t.roleId),
+    /* A workspace-scoped assignment carries no scope id; every narrower scope
+     * must name its target. Enforced in the database so a future scope type
+     * cannot be introduced with a half-populated row. */
+    check(
+      "user_role_assignments_scope_check",
+      sql`(${t.scopeType} = 'workspace' AND ${t.scopeId} IS NULL) OR (${t.scopeType} <> 'workspace' AND ${t.scopeId} IS NOT NULL)`
+    ),
   ]
 );
 
@@ -284,6 +295,7 @@ export const serviceAccounts = pgTable(
   (t) => [
     uniqueIndex("service_accounts_token_hash_idx").on(t.tokenHash),
     index("service_accounts_created_by_idx").on(t.createdBy),
+    check("service_accounts_status_check", sql`${t.status} IN ('active', 'revoked')`),
   ]
 );
 
@@ -455,18 +467,32 @@ export const assets = pgTable("assets", {
  * whenever content config changes, making dangling provider/asset references
  * impossible even for writes that bypass the Console.
  */
+/* The primary key and both foreign keys are named explicitly because 0013 wrote
+ * them by hand. Inline `.references()` and an unnamed `primaryKey()` cannot pin a
+ * name, so the model would imply drizzle's longer generated names, which exist in
+ * no database. A migration generated from that model could then emit a DROP
+ * CONSTRAINT for a name that was never created. Same for content_asset_dependencies. */
 export const contentProviderDependencies = pgTable(
   "content_provider_dependencies",
   {
-    contentInstanceId: uuid("content_instance_id")
-      .notNull()
-      .references(() => contentInstances.id, { onDelete: "cascade" }),
-    providerId: uuid("provider_id")
-      .notNull()
-      .references(() => dataProviders.id, { onDelete: "restrict" }),
+    contentInstanceId: uuid("content_instance_id").notNull(),
+    providerId: uuid("provider_id").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.contentInstanceId, t.providerId] }),
+    primaryKey({
+      name: "content_provider_dependencies_pkey",
+      columns: [t.contentInstanceId, t.providerId],
+    }),
+    foreignKey({
+      name: "content_provider_dependencies_content_instance_id_fk",
+      columns: [t.contentInstanceId],
+      foreignColumns: [contentInstances.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "content_provider_dependencies_provider_id_fk",
+      columns: [t.providerId],
+      foreignColumns: [dataProviders.id],
+    }).onDelete("restrict"),
     index("content_provider_dependencies_provider_idx").on(t.providerId),
   ]
 );
@@ -474,15 +500,24 @@ export const contentProviderDependencies = pgTable(
 export const contentAssetDependencies = pgTable(
   "content_asset_dependencies",
   {
-    contentInstanceId: uuid("content_instance_id")
-      .notNull()
-      .references(() => contentInstances.id, { onDelete: "cascade" }),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id, { onDelete: "restrict" }),
+    contentInstanceId: uuid("content_instance_id").notNull(),
+    assetId: uuid("asset_id").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.contentInstanceId, t.assetId] }),
+    primaryKey({
+      name: "content_asset_dependencies_pkey",
+      columns: [t.contentInstanceId, t.assetId],
+    }),
+    foreignKey({
+      name: "content_asset_dependencies_content_instance_id_fk",
+      columns: [t.contentInstanceId],
+      foreignColumns: [contentInstances.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "content_asset_dependencies_asset_id_fk",
+      columns: [t.assetId],
+      foreignColumns: [assets.id],
+    }).onDelete("restrict"),
     index("content_asset_dependencies_asset_idx").on(t.assetId),
   ]
 );

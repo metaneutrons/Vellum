@@ -112,13 +112,25 @@ const schemaCode = schemaSrc
   .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
   .replace(/^([ \t]*)\/\/.*$/gm, "$1");
 
-const columnRe = new RegExp(
-  String.raw`\b(?:${COLUMN_BUILDERS.join("|")})\(\s*["']([A-Za-z0-9_]+)["']`,
-  "g"
+/* Builders defined in this file rather than imported, i.e.
+ * `const bytea = customType<…>({…})`. They must be discovered, not listed: with
+ * only the imported names above, `assets.data` was silently skipped because
+ * `bytea` was unrecognised, so the one column holding uploaded image bytes was
+ * exempt from the very check this script exists to perform. */
+const customTypes = [...schemaCode.matchAll(/\bconst\s+(\w+)\s*=\s*customType\b/g)].map(
+  (m) => m[1]
 );
+const knownBuilders = new Set([...COLUMN_BUILDERS, ...customTypes]);
+
+/* Match any `property: builder("sql_name")` and classify afterwards. Matching
+ * generically is deliberate: a regex built only from known builder names cannot
+ * distinguish "no column here" from "a column I do not recognise", so it skips
+ * the latter in silence. Anything unrecognised now fails the guard instead. */
+const columnRe = /(\w+)\s*:\s*(\w+)\(\s*["']([A-Za-z0-9_]+)["']/g;
 
 /** table -> Map(column -> line number in schema.ts) */
 const declared = new Map();
+const unknownBuilders = [];
 const tableRe = /pgTable\(\s*["']([A-Za-z0-9_]+)["']\s*,\s*\{/g;
 for (const match of schemaCode.matchAll(tableRe)) {
   const table = match[1];
@@ -132,12 +144,32 @@ for (const match of schemaCode.matchAll(tableRe)) {
   }
   const columns = declared.get(table) ?? new Map();
   for (const col of block.matchAll(columnRe)) {
-    const name = col[1];
+    const [, , builder, name] = col;
+    const line = schemaCode.slice(0, open + col.index).split("\n").length;
+    if (!knownBuilders.has(builder)) {
+      unknownBuilders.push({ table, builder, name, line });
+      continue;
+    }
     if (columns.has(name)) continue;
-    const absolute = open + col.index;
-    columns.set(name, schemaCode.slice(0, absolute).split("\n").length);
+    columns.set(name, line);
   }
   declared.set(table, columns);
+}
+
+if (unknownBuilders.length > 0) {
+  console.error(
+    "✖ schema guard: unrecognised column builder(s) in src/db/schema.ts.\n" +
+      "  These columns were NOT checked for migration coverage:\n"
+  );
+  for (const { table, builder, name, line } of unknownBuilders) {
+    console.error(`    ${table}.${name} via ${builder}()  (src/db/schema.ts:${line})`);
+  }
+  console.error(
+    "\n  Add the builder to COLUMN_BUILDERS in this script, or define it with\n" +
+      "  customType() so it is detected automatically. Failing rather than\n" +
+      "  skipping: an unchecked column is how a missing migration ships.\n"
+  );
+  process.exit(1);
 }
 
 const pairCount = [...declared.values()].reduce((n, cols) => n + cols.size, 0);
