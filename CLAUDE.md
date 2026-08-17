@@ -55,9 +55,13 @@ socket`" does NOT apply to Vellum.
   avoids JSX (`renderHook` does) or the pattern has to change. When rendering a
   hook that opens an `EventSource` or calls `fetch`, stub both: jsdom provides
   neither usefully.
-- Coverage is a **ratchet gate** (`vitest.config.ts`): statements 55 / branches
-  44 / functions 44 / lines 56, enforced by the required CI "Test" job. Raise,
-  never lower.
+- Coverage is a **ratchet gate** (`vitest.config.ts`): statements 70 / branches
+  63 / functions 68 / lines 70, enforced by the required CI "Test" job. Raise,
+  never lower. Only modules the suite imports are measured, so `scripts/` is out
+  of scope and adding an untested script cannot move the number. Statements has
+  ~0.2pp headroom, so a few uncovered statements will trip it: that is the point.
+  Branches and functions are below the 70 baseline and pinned just under their
+  real values; lift them with tests before raising.
 - Runtime env (`.env.example` + `deploy/vellum.env.example` are the source of
   truth): `DATABASE_URL`, `ENCRYPTION_KEY`, `SESSION_SECRET`, `ADMIN_API_KEY`
   (all **min 32 chars**), `ADMIN_USER`, `ADMIN_PASS` (min 8), `NODE_ENV`,
