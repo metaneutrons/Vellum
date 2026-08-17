@@ -73,12 +73,19 @@ them in `__vellum_migrations`. Consequences:
   actually shipped broken — `devices.orientation_override` had no migration for
   ~3 months, taking out `/api/v1/ink/render` on fresh databases.
 - **Do NOT trust `pnpm db:generate`.** `drizzle/meta/` snapshots stop at `0005`
-  while migrations run past `0010`, and those snapshots already list columns the
+  while migrations run past `0022`, and those snapshots already list columns the
   SQL never creates — so drizzle-kit believes they exist and will never emit
   them. Migrations here are hand-written by convention; keep them idempotent
   (`ADD COLUMN IF NOT EXISTS`) and forward-only (there are no down migrations).
 - `pnpm db:check` (`scripts/check-schema-migrations.mjs`, CI "Schema Guard")
   asserts every `schema.ts` column is created by some `drizzle/*.sql`.
+- **`pnpm dev` refuses to start against a database behind `drizzle/`**
+  (`scripts/check-pending-migrations.mjs`) and prints the pending list. Only the
+  container migrates itself at boot, so a local database otherwise stays at
+  whatever revision the last `pnpm db:migrate` reached, and the resulting missing
+  relation surfaces far from its cause. An unset `DATABASE_URL` or an unreachable
+  database exits 0 (database-less dev keeps working);
+  `VELLUM_SKIP_MIGRATION_CHECK=1` overrides it.
 - Migration numbering has a historical gap; use the next free number, and expect
   server-rendered pages to guard optional columns with a fallback query.
 
