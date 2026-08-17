@@ -101,7 +101,8 @@
       "late": "En retard",
       "offline": "Hors ligne",
       "never": "Jamais vu"
-    }
+    },
+    "liveStatus": { "live": "En direct", "reconnecting": "Reconnexion…" }
   },
   "content": {
     "removeProperty": "Supprimer la propriété",

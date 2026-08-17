@@ -1,4 +1,5 @@
 #include "epaper_lvgl.h"
+#include "epaper_contrast.h"
 #include "epaper_panel.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
@@ -91,16 +92,16 @@ static uint8_t find_nearest_color_idx(int r, int g, int b, epd_color_mode_t mode
 {
     uint32_t min_dist = UINT32_MAX;
     uint8_t best = 0;
+    const bool allow_blank = epaper_rgb_is_intentionally_blank(r, g, b);
     
     if (mode == EPD_COLOR_BW) {
-        // BW mode: simple threshold
-        int gray = (r * 299 + g * 587 + b * 114) / 1000;
-        return (gray < 128) ? 0 : 1;  // 0=black, 1=white
+        return allow_blank ? 1 : 0;  // 0=ink, 1=blank paper
     }
     
     if (mode == EPD_COLOR_4COLOR) {
         // 4-color BWRY mode
         for (int i = 0; i < BWRY_PALETTE_SIZE; i++) {
+            if (!allow_blank && bwry_palette[i].epaper_color == EPD_PIXEL_WHITE) continue;
             int dr = r - bwry_palette[i].r;
             int dg = g - bwry_palette[i].g;
             int db = b - bwry_palette[i].b;
@@ -116,6 +117,7 @@ static uint8_t find_nearest_color_idx(int r, int g, int b, epd_color_mode_t mode
     
     // Multi-color mode (6-color, 7-color)
     for (int i = 0; i < PALETTE_SIZE; i++) {
+        if (!allow_blank && color_palette[i].epaper_color == EPD_PIXEL_WHITE) continue;
         int dr = r - color_palette[i].r;
         int dg = g - color_palette[i].g;
         int db = b - color_palette[i].b;
@@ -133,8 +135,9 @@ static uint8_t find_nearest_color_idx(int r, int g, int b, epd_color_mode_t mode
 uint8_t epd_rgb_to_epaper_color(uint8_t r, uint8_t g, uint8_t b, epd_color_mode_t mode)
 {
     if (mode == EPD_COLOR_BW) {
-        int gray = (r * 299 + g * 587 + b * 114) / 1000;
-        return (gray < 128) ? EPD_PIXEL_BLACK : EPD_PIXEL_WHITE;
+        return epaper_rgb_is_intentionally_blank(r, g, b)
+                   ? EPD_PIXEL_WHITE
+                   : EPD_PIXEL_BLACK;
     }
     
     if (mode == EPD_COLOR_4COLOR) {
@@ -392,8 +395,10 @@ static void epd_lvgl_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t
                     uint8_t threshold = BAYER_4X4[y % 4][x % 4];
                     
                     if (ctx->color_mode == EPD_COLOR_BW) {
-                        int gray = (r * 299 + g * 587 + b * 114) / 1000;
-                        epaper_color = (gray > threshold) ? EPD_PIXEL_WHITE : EPD_PIXEL_BLACK;
+                        /* Status/UI conversion is contrast-safe: ordered
+                         * dithering must not erase a thin glyph by selecting
+                         * blank paper for all of its antialiased pixels. */
+                        epaper_color = epd_rgb_to_epaper_color(r, g, b, ctx->color_mode);
                     } else if (ctx->color_mode == EPD_COLOR_4COLOR) {
                         // Ordered dithering for 4-color BWRY
                         // Adjust RGB values with dither threshold for better color selection

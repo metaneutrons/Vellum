@@ -45,6 +45,7 @@ typedef struct {
     const char     *model;
     const char     *color_mode;
     bool            fast_refresh;     /**< false => slow e-paper hides transient screens */
+    bool            retains_image;    /**< pixels survive MCU reset/deep sleep without redraw */
     bool            needs_tick_timer; /**< true => shared layer drives the LVGL tick */
 
     /* ── Theme (set by init(); lv_color_t is not a constant expr) ─ */

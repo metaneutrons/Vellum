@@ -13,6 +13,7 @@
 #include "vellum_display.h"
 #include "vellum_panel.h"
 #include "status_layout.h"
+#include "display_cache.h"
 
 #include <string.h>
 #include "lvgl.h"
@@ -26,7 +27,7 @@
 static const char *TAG = "display";
 
 static lv_display_t *s_lvgl_disp = NULL;
-static char s_last_screen[64] = {0};
+static char s_last_screen[128] = {0};
 static lv_obj_t *s_ota_title = NULL;
 static lv_obj_t *s_ota_bar = NULL;
 static lv_obj_t *s_ota_percent = NULL;
@@ -37,9 +38,13 @@ static void lvgl_tick_cb(void *arg) { (void)arg; lv_tick_inc(5); }
 /** Check if the screen already shows this content — skip refresh if so. */
 static bool screen_unchanged(const char *screen_id)
 {
-    char stored[64] = {0};
+    char stored[sizeof(s_last_screen)] = {0};
     nvs_manager_get_str("last_scr", stored, sizeof(stored));
-    if (strcmp(stored, screen_id) == 0 && strcmp(s_last_screen, screen_id) == 0) {
+    /* E-paper is its own durable bitmap cache: deep sleep resets normal RAM but
+     * not the pigments. LCDs lose their pixels and may only skip a duplicate
+     * draw during the same awake session. */
+    if (display_cache_matches(vellum_panel()->retains_image,
+                              stored, s_last_screen, screen_id)) {
         ESP_LOGI(TAG, "Screen unchanged (%s) — skipping refresh", screen_id);
         return true;
     }
@@ -520,8 +525,9 @@ void display_show_status_message(vellum_display_icon_t icon, const char *title,
     const vellum_panel_t *p = vellum_panel();
 
     char screen_id[128];
-    snprintf(screen_id, sizeof(screen_id), "status:%d:%s:%s",
-             (int)icon, title, detail ? detail : "");
+    const esp_app_desc_t *app = esp_app_get_description();
+    snprintf(screen_id, sizeof(screen_id), "status:%s:%s:%d:%s:%s",
+             app->version, p->model, (int)icon, title, detail ? detail : "");
     if (screen_unchanged(screen_id)) return;
 
     lv_obj_t *scr = lv_screen_active();

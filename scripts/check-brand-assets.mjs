@@ -11,6 +11,7 @@ const masters = [
 ];
 const generated = [
   "firmware/components/vellum_display/logos/vellum_logo_mono_216px.c",
+  "firmware/components/vellum_display/logos/vellum_logo_spectra_216px.c",
   "firmware/components/vellum_display/logos/vellum_logo_16grey_600px.c",
   "firmware/components/vellum_display/logos/vellum_logo_color_360px.c",
   "src/app/apple-icon.png",
@@ -38,6 +39,14 @@ const d1001Logo = readFileSync(
 );
 if (!d1001Logo.includes(".header.cf = LV_COLOR_FORMAT_RGB565")) {
   failures.push("D1001 logo must be generated as native LV_COLOR_FORMAT_RGB565");
+}
+
+const e1002Logo = readFileSync(
+  "firmware/components/vellum_display/logos/vellum_logo_spectra_216px.c",
+  "utf8"
+);
+if (!e1002Logo.includes(".header.cf = LV_COLOR_FORMAT_RGB565")) {
+  failures.push("E1002 logo must preserve its exact Spectra palette as RGB565");
 }
 
 const textExtensions = new Set([".c", ".css", ".html", ".md", ".mjs", ".sh", ".svg", ".tsx"]);

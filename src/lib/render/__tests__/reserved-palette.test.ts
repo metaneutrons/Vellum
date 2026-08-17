@@ -13,7 +13,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { nearestPaletteIndex, floydSteinbergDither, type ColorPalette } from "../dither";
-import { resolveDisplayCaps, DISPLAY_REGISTRY } from "@/lib/display";
+import { completeDisplayCaps, resolveDisplayCaps, DISPLAY_REGISTRY } from "@/lib/display";
 
 /** The wire order, straight from firmware/components/http_client/http_client.c. */
 const E1002_PALETTE: ColorPalette = [
@@ -122,5 +122,24 @@ describe("static registry", () => {
     // is a different panel family, so every preview disagreed with the hardware.
     expect(DISPLAY_REGISTRY.e1002.palette).toEqual(E1002_PALETTE);
     expect(DISPLAY_REGISTRY.e1002.reservedPaletteIndices).toEqual(E1002_RESERVED);
+  });
+
+  it.each([
+    ["e1002", 800, 480, "raw", "indexed"],
+    ["d1001", 800, 1280, "jpeg", "fullcolor"],
+  ] as const)("completes model-only %s capabilities", (model, width, height, format, colorMode) => {
+    expect(completeDisplayCaps({ model }, model)).toEqual(
+      expect.objectContaining({ model, width, height, format, colorMode })
+    );
+  });
+
+  it("keeps valid device-reported geometry while filling missing fields", () => {
+    expect(completeDisplayCaps({ model: "d1001", width: 1280, height: 800 }, "d1001")).toEqual(
+      expect.objectContaining({ width: 1280, height: 800, format: "jpeg" })
+    );
+  });
+
+  it("does not guess capabilities for an unknown model", () => {
+    expect(completeDisplayCaps({ model: "future" }, "future")).toBeNull();
   });
 });

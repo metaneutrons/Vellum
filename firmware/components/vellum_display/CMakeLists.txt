@@ -7,7 +7,7 @@
 # registry) drivers.
 # status_layout.c is deliberately LVGL-free so firmware/host_test compiles this
 # exact file (see test_status_layout.c) rather than a mirrored copy.
-set(SRCS "vellum_display.c" "status_layout.c")
+set(SRCS "vellum_display.c" "status_layout.c" "display_cache.c")
 
 if("${IDF_TARGET}" STREQUAL "esp32p4")
     list(APPEND SRCS "panel_lcd.c" "logos/vellum_logo_color_360px.c")
@@ -22,6 +22,8 @@ else()
         list(APPEND SRCS "logos/vellum_logo_16grey_600px.c"
                          "fonts/vellum_font_montserrat_64.c"
                          "fonts/vellum_font_montserrat_96.c")
+    elseif(CONFIG_VELLUM_PANEL_GDEP073E01)
+        list(APPEND SRCS "logos/vellum_logo_spectra_216px.c")
     else()
         list(APPEND SRCS "logos/vellum_logo_mono_216px.c")
     endif()

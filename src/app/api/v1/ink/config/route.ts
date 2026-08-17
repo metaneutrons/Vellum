@@ -13,6 +13,7 @@ import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { log } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { createOtaDownloadUrl } from "@/lib/firmware-download";
+import { completeDisplayCaps, displayCapsSchema } from "@/lib/display";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -51,18 +52,22 @@ export async function GET(request: NextRequest) {
   const storedModel = (device?.displayCaps as { model?: string })?.model ?? null;
   const displayModel = headerModel ?? storedModel ?? "unknown";
 
-  // Backfill the stored capabilities when the device reports a model we do not
-  // have on record. Rendering resolves dimensions and pixel format from these
-  // same stored caps (`resolveDisplayCaps`), so a caps-less device would also be
-  // served the default 800x480 mono raw frame instead of its real format.
-  if (device && headerModel && storedModel !== headerModel) {
-    const caps = { ...((device.displayCaps as Record<string, unknown>) ?? {}), model: headerModel };
+  // Voucher-enrolled devices can skip /hello entirely. Older self-healing only
+  // persisted their model, leaving width/height/format absent forever. Complete
+  // any missing/partial record from the central registry on the next ordinary
+  // authenticated poll; no re-provisioning or one-off migration is required.
+  const storedCapsValid = displayCapsSchema.safeParse(device?.displayCaps).success;
+  const completedCaps = headerModel ? completeDisplayCaps(device?.displayCaps, headerModel) : null;
+  if (device && completedCaps && (!storedCapsValid || storedModel !== headerModel)) {
     await withDbWrite(
       () =>
-        db.update(devices).set({ displayCaps: caps }).where(eq(devices.mac, validation.data.mac)),
-      "config-backfill-display-model"
+        db
+          .update(devices)
+          .set({ displayCaps: completedCaps })
+          .where(eq(devices.mac, validation.data.mac)),
+      "config-backfill-display-caps"
     ).catch((error) =>
-      log.warn("Failed to persist display model backfill", {
+      log.warn("Failed to persist display capability backfill", {
         mac: validation.data.mac,
         error: String(error),
       })

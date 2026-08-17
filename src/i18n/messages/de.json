@@ -101,7 +101,8 @@
       "late": "Verspätet",
       "offline": "Offline",
       "never": "Nie gesehen"
-    }
+    },
+    "liveStatus": { "live": "Live", "reconnecting": "Verbindung wird hergestellt…" }
   },
   "content": {
     "removeProperty": "Eigenschaft entfernen",

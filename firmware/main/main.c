@@ -441,6 +441,7 @@ static uint32_t perform_render(bool *render_ok)
                                             "could not draw");
             } else {
                 ok = true;           /* frame drawn successfully */
+                http_client_commit_render_etag(resp.etag);
                 if (render_ok) *render_ok = true;
             }
         } else {
@@ -454,6 +455,7 @@ static uint32_t perform_render(bool *render_ok)
     } else if (resp.status_code == 204) {
         ESP_LOGI(TAG, "No content assigned — showing idle screen");
         display_show_no_content();
+        http_client_commit_render_etag(resp.etag);
         ok = true; if (render_ok) *render_ok = true;   /* legitimate configured idle state */
     } else if (resp.status_code == 401) {
         /* Not a fault the operator can fix at the device: the stored token was
@@ -646,10 +648,12 @@ void app_main(void)
     sleep_manager_init();
     wake_reason_t wake = sleep_manager_get_wake_reason();
 
-    /* Only show boot screen on first power-on */
+    /* Only show the boot screen on first power-on. Autonomous wake cycles must
+     * stay silent: some boards may be power-cycled between polls and report
+     * those starts as POWER_ON rather than a timer wake. Audible feedback is
+     * reserved for deliberate button actions and important OTA events. */
     if (wake == WAKE_REASON_POWER_ON) {
         display_show_boot(firmware_version);
-        board_buzzer_beep(1000, 100);
     }
     board_led_on();
 #if !defined(CONFIG_VELLUM_PANEL_D1001)

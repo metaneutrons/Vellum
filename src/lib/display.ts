@@ -163,6 +163,30 @@ export const DISPLAY_REGISTRY: Record<
   },
 };
 
+/** Complete a model-only or legacy partial capability record from the canonical
+ * registry. Device-reported fields win when present; the registry supplies only
+ * what is missing. Unknown models remain untouched rather than being guessed. */
+export function completeDisplayCaps(raw: unknown, model: string): DisplayCaps | null {
+  const canonical = DISPLAY_REGISTRY[model.toLowerCase()];
+  if (!canonical) return null;
+  const reported =
+    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const result = displayCapsSchema.safeParse({
+    width: canonical.width,
+    height: canonical.height,
+    palette: canonical.palette,
+    reservedPaletteIndices: canonical.reservedPaletteIndices ?? [],
+    format: canonical.format,
+    colorMode: canonical.colorMode,
+    orientations: canonical.orientations,
+    ...reported,
+    // The authenticated config request's compile-time model header is the
+    // authoritative identity for this repair.
+    model: model.toLowerCase(),
+  });
+  return result.success ? result.data : null;
+}
+
 /** Migrate legacy quantize field to format + colorMode */
 function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: ColorMode } {
   if (caps.format && caps.colorMode) {
