@@ -58,10 +58,11 @@ socket`" does NOT apply to Vellum.
 - Coverage is a **ratchet gate** (`vitest.config.ts`): statements 70 / branches
   63 / functions 68 / lines 70, enforced by the required CI "Test" job. Raise,
   never lower. Only modules the suite imports are measured, so `scripts/` is out
-  of scope and adding an untested script cannot move the number. Statements has
-  ~0.2pp headroom, so a few uncovered statements will trip it: that is the point.
-  Branches and functions are below the 70 baseline and pinned just under their
-  real values; lift them with tests before raising.
+  of scope and adding an untested script cannot move the number. Headroom is
+  deliberately thin — statements ~0.2pp, functions ~0.3pp — so a handful of
+  uncovered statements or one untested function will trip it. Branches and
+  functions are below the 70 baseline and pinned just under their real values;
+  lift them with tests before raising.
 - Runtime env (`.env.example` + `deploy/vellum.env.example` are the source of
   truth): `DATABASE_URL`, `ENCRYPTION_KEY`, `SESSION_SECRET`, `ADMIN_API_KEY`
   (all **min 32 chars**), `ADMIN_USER`, `ADMIN_PASS` (min 8), `NODE_ENV`,

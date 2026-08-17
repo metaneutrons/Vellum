@@ -15,8 +15,8 @@ export default defineConfig({
       // (node_modules, tests and config files are excluded) is kept, and only
       // modules the suite imports are measured, so `scripts/` is out of scope.
       //
-      // Measured 2026-08-18: statements 70.18, branches 63.92, functions 68.88,
-      // lines 73.16. Statements and lines are held at the intended 70 baseline.
+      // Measured 2026-08-18: statements 70.24, branches 64.1, functions 68.27,
+      // lines 73.25. Statements and lines are held at the intended 70 baseline.
       // Branches and functions sit below 70 and are pinned just under their
       // actual values instead — raising them to 70 would fail the gate rather
       // than describe the suite. Lift those two with tests, then raise here.
