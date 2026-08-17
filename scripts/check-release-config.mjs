@@ -247,14 +247,22 @@ for (const [name, contents] of [
   ["update script", updaterScript],
 ]) {
   expect(
-    contents.includes("/releases?per_page=100"),
-    `updater ${name} must search the release collection by component`
+    contents.includes("api.github.com/repos/metaneutrons/Vellum/releases/latest"),
+    `updater ${name} must use the bounded authoritative latest-release endpoint`
   );
   expect(
-    !contents.includes("api.github.com/repos/metaneutrons/Vellum/releases/latest"),
-    `updater ${name} must not let a firmware release mask the latest server release`
+    !contents.includes("/releases?per_page=100"),
+    `updater ${name} must not download the unbounded release collection`
   );
 }
+expect(
+  firmwareWorkflow.includes("--latest=false") && firmwareWorkflow.includes("make_latest: false"),
+  "firmware releases must never take GitHub's Latest badge"
+);
+expect(
+  dockerWorkflow.includes('-F "make_latest=true"'),
+  "server releases must own GitHub's Latest badge"
+);
 for (const variable of ["VELLUM_DATA_DIR", "VELLUM_COMPOSE_FILE", "VELLUM_ENV_FILE"]) {
   expect(
     !deploymentEnv.includes(`${variable}=`),

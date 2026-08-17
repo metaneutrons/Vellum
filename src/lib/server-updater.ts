@@ -23,8 +23,19 @@ export type ServerUpdateStatus = {
   maintenanceTime: string;
   timezone: string;
   lastCheckedAt: string | null;
+  lastCheckAttemptAt: string | null;
   lastUpdatedAt: string | null;
   lastError: string | null;
+  releaseCheckStatus: "ok" | "degraded";
+  releaseCheckError:
+    | "upstream-timeout"
+    | "upstream-unavailable"
+    | "rate-limited"
+    | "invalid-response"
+    | "network-error"
+    | "request-rejected"
+    | null;
+  releaseCheckRetryAt: string | null;
   /** The updater sidecar's own image version, or null when it does not report
    * one — which itself means it predates version reporting and is outdated. The
    * capability fields distinguish a legacy updater needing a one-time bootstrap
@@ -60,8 +71,12 @@ function unavailable(
     maintenanceTime: "02:00",
     timezone: "UTC",
     lastCheckedAt: null,
+    lastCheckAttemptAt: null,
     lastUpdatedAt: null,
     lastError: null,
+    releaseCheckStatus: "ok",
+    releaseCheckError: null,
+    releaseCheckRetryAt: null,
     updaterVersion: null,
     updaterUpdateAvailable: false,
     updaterSelfUpdateCapable: false,
@@ -88,8 +103,22 @@ const statusSchema = z.object({
   maintenanceTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   timezone: z.string().min(1).max(100),
   lastCheckedAt: z.string().datetime().nullable(),
+  lastCheckAttemptAt: z.string().datetime().nullable().optional(),
   lastUpdatedAt: z.string().datetime().nullable(),
   lastError: z.string().max(500).nullable(),
+  releaseCheckStatus: z.enum(["ok", "degraded"]).optional(),
+  releaseCheckError: z
+    .enum([
+      "upstream-timeout",
+      "upstream-unavailable",
+      "rate-limited",
+      "invalid-response",
+      "network-error",
+      "request-rejected",
+    ])
+    .nullable()
+    .optional(),
+  releaseCheckRetryAt: z.string().datetime().nullable().optional(),
   /* Optional on purpose: the currently deployed updater predates these fields,
    * and a strict schema would reject its whole payload and report the update
    * system as unavailable. */
@@ -162,6 +191,10 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
       supported: true,
       availabilityReason: "ready",
       updaterVersion: parsed.data.updaterVersion ?? null,
+      lastCheckAttemptAt: parsed.data.lastCheckAttemptAt ?? parsed.data.lastCheckedAt,
+      releaseCheckStatus: parsed.data.releaseCheckStatus ?? "ok",
+      releaseCheckError: parsed.data.releaseCheckError ?? null,
+      releaseCheckRetryAt: parsed.data.releaseCheckRetryAt ?? null,
       updaterUpdateAvailable: parsed.data.updaterUpdateAvailable ?? false,
       updaterSelfUpdateCapable: parsed.data.updaterSelfUpdateCapable ?? false,
       updaterSelfUpdateEnabled: parsed.data.updaterSelfUpdateEnabled ?? false,

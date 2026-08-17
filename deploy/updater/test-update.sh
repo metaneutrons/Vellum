@@ -31,6 +31,10 @@ assert grep -Fq -- "--project-directory $test_directory" "$COMPOSE_PROBE"
 assert grep -Fq -- "env=$VELLUM_ENV_FILE" "$COMPOSE_PROBE"
 unset -f docker
 
+# Server releases deliberately own GitHub's Latest badge. Keep both the control
+# API and the actual deployment path on the bounded single-release endpoint.
+assert test "$RELEASE_API" = "https://api.github.com/repos/metaneutrons/Vellum/releases/latest"
+
 # Docker materializes a missing bind source as a directory. Reject it during
 # preflight, before a backup or deployment attempt.
 # Variables expand in the inner shell.
@@ -52,6 +56,10 @@ if version_is_newer v2.0.0 v1.9.9; then exit 1; fi
 # shellcheck disable=SC2317,SC2329
 github_curl() { printf '%s' '[{"tag_name":"firmware-v1.3.2","draft":false,"prerelease":false},{"tag_name":"v1.8.1","draft":false,"prerelease":false},{"tag_name":"v1.8.2","draft":false,"prerelease":false}]'; }
 assert test "$(latest_server_tag)" = "v1.8.2"
+
+# Once the control API has selected a release, deployment must use that exact
+# validated target without depending on GitHub Releases a second time.
+assert grep -Fq 'TARGET_VERSION: targetVersion' "$(dirname "${BASH_SOURCE[0]}")/control.mjs"
 
 # shellcheck disable=SC2317,SC2329
 github_curl() { printf '%s' '[{"tag_name":"firmware-v1.3.2","draft":false,"prerelease":false}]'; }

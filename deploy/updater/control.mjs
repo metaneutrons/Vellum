@@ -9,13 +9,11 @@ const token = process.env.UPDATER_TOKEN ?? "";
 const intervalSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 900);
 const operationTimeoutMs = Number(process.env.UPDATE_TIMEOUT_SECONDS ?? 900) * 1000;
 const port = Number(process.env.CONTROL_PORT ?? 8080);
-// This repository publishes independent server and firmware releases. GitHub's
-// /releases/latest endpoint is repository-wide, so a newer firmware-v* release
-// can hide the newest server release. Fetch the release collection and select by
-// component instead.
+// Server releases explicitly own GitHub's Latest badge; firmware workflows set
+// make_latest=false. The single-release endpoint is therefore authoritative and
+// avoids downloading the repository's increasingly large release collection.
 const releaseApi =
-  process.env.RELEASE_API ??
-  "https://api.github.com/repos/metaneutrons/Vellum/releases?per_page=100";
+  process.env.RELEASE_API ?? "https://api.github.com/repos/metaneutrons/Vellum/releases/latest";
 const serverImageRepository = process.env.IMAGE_REPOSITORY ?? "ghcr.io/metaneutrons/vellum";
 const updaterImageRepository =
   process.env.UPDATER_IMAGE_REPOSITORY ?? "ghcr.io/metaneutrons/vellum-updater";
@@ -124,8 +122,12 @@ const status = {
   availableVersion: null,
   updateAvailable: false,
   lastCheckedAt: null,
+  lastCheckAttemptAt: null,
   lastUpdatedAt: null,
   lastError: null,
+  releaseCheckStatus: "ok",
+  releaseCheckError: null,
+  releaseCheckRetryAt: null,
   updaterVersion,
   updaterUpdateAvailable: false,
   updaterSelfUpdateCapable,
@@ -320,14 +322,98 @@ async function currentVersion() {
     image,
   ]);
 }
-async function releaseVersion() {
+const RELEASE_CHECK_ATTEMPTS = 3;
+const RELEASE_CHECK_DELAYS_MS = [500, 1_500];
+const INLINE_RATE_LIMIT_WAIT_MS = 5_000;
+
+class ReleaseCheckError extends Error {
+  constructor(code, message, retryAt = null) {
+    super(message);
+    this.name = "ReleaseCheckError";
+    this.code = code;
+    this.retryAt = retryAt;
+  }
+}
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function retryAtFromHeaders(headers, now = Date.now()) {
+  const retryAfter = Number(headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter >= 0)
+    return new Date(now + retryAfter * 1_000).toISOString();
+  const reset = Number(headers.get("x-ratelimit-reset"));
+  if (Number.isFinite(reset) && reset > 0) return new Date(reset * 1_000).toISOString();
+  return null;
+}
+
+function releaseCheckError(error) {
+  if (error instanceof ReleaseCheckError) return error;
+  const timeout = error?.name === "TimeoutError" || error?.name === "AbortError";
+  return new ReleaseCheckError(
+    timeout ? "upstream-timeout" : "network-error",
+    timeout ? "GitHub Releases request timed out" : "GitHub Releases request failed"
+  );
+}
+
+async function fetchReleaseVersion(
+  api = releaseApi,
+  fetchImpl = fetch,
+  sleepImpl = sleep,
+  now = () => Date.now()
+) {
   const headers = { Accept: "application/vnd.github+json", "User-Agent": "vellum-updater" };
   if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  const response = await fetch(releaseApi, { headers, signal: AbortSignal.timeout(30_000) });
-  if (!response.ok) throw new Error(`GitHub Releases returned HTTP ${response.status}`);
-  const tag = stableServerReleaseTag(await response.json());
-  if (!tag) throw new Error("GitHub Releases contains no stable Vellum server release");
-  return tag;
+  let lastError = null;
+  for (let attempt = 0; attempt < RELEASE_CHECK_ATTEMPTS; attempt += 1) {
+    let retryDelay = RELEASE_CHECK_DELAYS_MS[attempt] ?? 0;
+    try {
+      const response = await fetchImpl(api, {
+        headers,
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (response.ok) {
+        const payload = await response.json().catch(() => null);
+        const tag = stableServerReleaseTag(payload);
+        if (tag) return tag;
+        lastError = new ReleaseCheckError(
+          "invalid-response",
+          "GitHub Releases returned no stable Vellum server release"
+        );
+      } else if (
+        response.status === 429 ||
+        (response.status === 403 &&
+          (response.headers.get("x-ratelimit-remaining") === "0" ||
+            response.headers.has("retry-after")))
+      ) {
+        const retryAt = retryAtFromHeaders(response.headers, now());
+        lastError = new ReleaseCheckError(
+          "rate-limited",
+          `GitHub Releases rate limit returned HTTP ${response.status}`,
+          retryAt
+        );
+        const wait = retryAt ? new Date(retryAt).getTime() - now() : Infinity;
+        if (wait > INLINE_RATE_LIMIT_WAIT_MS) throw lastError;
+        retryDelay = Math.max(retryDelay, wait);
+      } else if (response.status === 408 || response.status === 425 || response.status >= 500) {
+        lastError = new ReleaseCheckError(
+          "upstream-unavailable",
+          `GitHub Releases temporarily returned HTTP ${response.status}`
+        );
+      } else {
+        throw new ReleaseCheckError(
+          "request-rejected",
+          `GitHub Releases returned HTTP ${response.status}`
+        );
+      }
+    } catch (error) {
+      lastError = releaseCheckError(error);
+      if (["rate-limited", "request-rejected"].includes(lastError.code)) throw lastError;
+    }
+    if (attempt < RELEASE_CHECK_ATTEMPTS - 1) await sleepImpl(retryDelay);
+  }
+  throw lastError ?? new ReleaseCheckError("network-error", "GitHub Releases request failed");
 }
 async function signedImageReady(repository, tag, identity) {
   try {
@@ -356,6 +442,8 @@ async function releaseArtifactsReady(tag) {
 }
 let readinessRetryTimer = null;
 let readinessRetryAttempt = 0;
+let releaseCheckRetryTimer = null;
+let releaseCheckRetryAttempt = 0;
 function clearReadinessRetry() {
   if (readinessRetryTimer) clearTimeout(readinessRetryTimer);
   readinessRetryTimer = null;
@@ -371,16 +459,42 @@ function scheduleReadinessRetry() {
   }, delaySeconds * 1000);
   readinessRetryTimer.unref();
 }
+function clearReleaseCheckRetry() {
+  if (releaseCheckRetryTimer) clearTimeout(releaseCheckRetryTimer);
+  releaseCheckRetryTimer = null;
+  releaseCheckRetryAttempt = 0;
+  status.releaseCheckRetryAt = null;
+}
+function scheduleReleaseCheckRetry(requestedRetryAt = null) {
+  if (releaseCheckRetryTimer) clearTimeout(releaseCheckRetryTimer);
+  const fallbackDelay = Math.min(30 * 2 ** releaseCheckRetryAttempt, 300) * 1_000;
+  const requestedDelay = requestedRetryAt
+    ? Math.max(new Date(requestedRetryAt).getTime() - Date.now(), 0)
+    : 0;
+  const delay = Math.max(fallbackDelay, requestedDelay);
+  releaseCheckRetryAttempt += 1;
+  status.releaseCheckRetryAt = new Date(Date.now() + delay).toISOString();
+  releaseCheckRetryTimer = setTimeout(() => {
+    releaseCheckRetryTimer = null;
+    void check();
+  }, delay);
+  releaseCheckRetryTimer.unref();
+}
 async function check() {
   if (active) return;
   active = true;
+  const previousState = status.state;
   status.state = "checking";
-  status.lastError = null;
+  status.lastCheckAttemptAt = new Date().toISOString();
   try {
-    const [current, available] = await Promise.all([currentVersion(), releaseVersion()]);
+    const [current, available] = await Promise.all([currentVersion(), fetchReleaseVersion()]);
+    status.lastError = null;
     status.currentVersion = current || null;
     status.availableVersion = available;
     status.lastCheckedAt = new Date().toISOString();
+    status.releaseCheckStatus = "ok";
+    status.releaseCheckError = null;
+    clearReleaseCheckRetry();
     const releaseIsNewer = newer(current, available);
     const artifactsReady = !releaseIsNewer || (await releaseArtifactsReady(available));
     const decision = releaseDecision(current, available, artifactsReady);
@@ -402,8 +516,19 @@ async function check() {
     else clearReadinessRetry();
   } catch (error) {
     clearReadinessRetry();
-    status.state = "failed";
-    status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
+    if (error instanceof ReleaseCheckError) {
+      status.state = ["available", "preparing", "current", "failed"].includes(previousState)
+        ? previousState
+        : "current";
+      status.releaseCheckStatus = "degraded";
+      status.releaseCheckError = error.code;
+      scheduleReleaseCheckRetry(error.retryAt);
+      console.error(`vellum-updater: release check degraded: ${error.message}`);
+    } else {
+      clearReleaseCheckRetry();
+      status.state = "failed";
+      status.lastError = String(error instanceof Error ? error.message : error).slice(0, 500);
+    }
   } finally {
     active = false;
   }
@@ -418,7 +543,10 @@ async function apply() {
     const targetVersion = status.availableVersion;
     startProgressJournal(targetVersion);
     await command("/usr/local/bin/vellum-update", [], {
-      env: { ...process.env, UPDATE_ONCE: "true" },
+      // The control plane already resolved and validated this exact release.
+      // Hand it to the deployment worker so an unrelated GitHub API outage
+      // cannot break an update after the administrator has started it.
+      env: { ...process.env, UPDATE_ONCE: "true", TARGET_VERSION: targetVersion },
     });
     const runningVersion = await currentVersion();
     if (!reached(runningVersion, targetVersion)) {
@@ -531,8 +659,10 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
 
 export {
   equalToken,
+  fetchReleaseVersion,
   newer,
   reached,
+  retryAtFromHeaders,
   releaseDecision,
   stableServerReleaseTag,
   validateConfig,

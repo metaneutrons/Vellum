@@ -167,6 +167,15 @@ export function ServerUpdatePanel({
     }
   }
 
+  const releaseCheckDegraded =
+    status.supported && status.releaseCheckStatus === "degraded" && status.state !== "failed";
+  const releaseCheckMessage =
+    status.releaseCheckError === "rate-limited"
+      ? t("serverReleaseCheckRateLimited")
+      : status.releaseCheckError === "invalid-response"
+        ? t("serverReleaseCheckInvalid")
+        : t("serverReleaseCheckUnavailable");
+
   return (
     <>
       <h2 className="text-lg font-semibold text-label mb-3">{t("serverUpdateTitle")}</h2>
@@ -183,14 +192,16 @@ export function ServerUpdatePanel({
                     ? "neutral"
                     : status.state === "failed"
                       ? "red"
-                      : status.state === "preparing" || status.updateAvailable
+                      : releaseCheckDegraded ||
+                          status.state === "preparing" ||
+                          status.updateAvailable
                         ? "orange"
                         : status.state === "current"
                           ? "green"
                           : "neutral"
                 }
               >
-                {t(stateKeys[status.state])}
+                {releaseCheckDegraded ? t("serverStateCheckDelayed") : t(stateKeys[status.state])}
               </StatusPill>
             </div>
             <p className="text-sm text-label-secondary mt-1">
@@ -202,16 +213,18 @@ export function ServerUpdatePanel({
                     : t("serverUpdaterReconnecting")
                 : status.state === "failed"
                   ? t("serverUpdateFailedGeneric")
-                  : status.state === "preparing"
-                    ? t("serverReleasePreparing", { version: status.availableVersion ?? "" })
-                    : status.updateAvailable
-                      ? t("serverUpdateAvailable", { version: status.availableVersion ?? "" })
-                      : status.updateMode === "automatic"
-                        ? t("serverAutomaticSchedule", {
-                            time: status.maintenanceTime,
-                            timezone: status.timezone,
-                          })
-                        : t("serverManualSchedule")}
+                  : releaseCheckDegraded
+                    ? t("serverReleaseCheckPreserved")
+                    : status.state === "preparing"
+                      ? t("serverReleasePreparing", { version: status.availableVersion ?? "" })
+                      : status.updateAvailable
+                        ? t("serverUpdateAvailable", { version: status.availableVersion ?? "" })
+                        : status.updateMode === "automatic"
+                          ? t("serverAutomaticSchedule", {
+                              time: status.maintenanceTime,
+                              timezone: status.timezone,
+                            })
+                          : t("serverManualSchedule")}
             </p>
           </div>
           {status.supported && status.state === "failed" && (
@@ -223,6 +236,17 @@ export function ServerUpdatePanel({
               {status.lastError && (
                 <p className="text-sm text-label-secondary mt-1">{status.lastError}</p>
               )}
+            </div>
+          )}
+          {releaseCheckDegraded && (
+            <div
+              role="status"
+              className="w-full order-last rounded-lg bg-orange/10 border border-orange/30 p-3"
+            >
+              <p className="text-sm font-semibold text-label">
+                {t("serverReleaseCheckDelayedTitle")}
+              </p>
+              <p className="text-sm text-label-secondary mt-1">{releaseCheckMessage}</p>
             </div>
           )}
           {!status.supported && status.availabilityReason === "not-configured" && (
