@@ -648,10 +648,12 @@ void app_main(void)
     sleep_manager_init();
     wake_reason_t wake = sleep_manager_get_wake_reason();
 
-    /* Only show boot screen on first power-on */
+    /* Only show the boot screen on first power-on. Autonomous wake cycles must
+     * stay silent: some boards may be power-cycled between polls and report
+     * those starts as POWER_ON rather than a timer wake. Audible feedback is
+     * reserved for deliberate button actions and important OTA events. */
     if (wake == WAKE_REASON_POWER_ON) {
         display_show_boot(firmware_version);
-        board_buzzer_beep(1000, 100);
     }
     board_led_on();
 #if !defined(CONFIG_VELLUM_PANEL_D1001)
