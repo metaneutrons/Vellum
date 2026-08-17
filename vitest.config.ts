@@ -12,12 +12,19 @@ export default defineConfig({
       // Ratchet gate: thresholds sit just below current coverage of the code
       // the suite exercises, so it can only hold or improve — never silently
       // regress. Raise these as coverage grows. Default v8 include/exclude
-      // (node_modules, tests and config files are excluded) is kept.
+      // (node_modules, tests and config files are excluded) is kept, and only
+      // modules the suite imports are measured, so `scripts/` is out of scope.
+      //
+      // Measured 2026-08-18: statements 70.24, branches 64.1, functions 68.27,
+      // lines 73.25. Statements and lines are held at the intended 70 baseline.
+      // Branches and functions sit below 70 and are pinned just under their
+      // actual values instead — raising them to 70 would fail the gate rather
+      // than describe the suite. Lift those two with tests, then raise here.
       thresholds: {
-        statements: 55,
-        branches: 44,
-        functions: 44,
-        lines: 56,
+        statements: 70,
+        branches: 63,
+        functions: 68,
+        lines: 70,
       },
     },
   },

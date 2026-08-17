@@ -31,4 +31,27 @@ describe("mergeDeviceRows", () => {
 
     expect(merged).toEqual([row("B", 2)]);
   });
+
+  /* The path the hook takes when it adopts server-rendered props: a full list,
+   * no requested subset. Assigning those props directly would be simpler but
+   * would reorder the cards; this asserts the reassignment lands and the order
+   * survives. Reported as: changing a device's content applied it in the database
+   * but the dropdown snapped back until the page was reloaded. */
+  it("adopts a reassignment from a full server-rendered list without reordering", () => {
+    const assigned = (mac: string, contentInstanceId: string | null): LiveDeviceRow => ({
+      mac,
+      content_instance_id: contentInstanceId,
+    });
+    const current = [assigned("A", "old"), assigned("B", null), assigned("C", "keep")];
+
+    const merged = mergeDeviceRows(
+      current,
+      [assigned("A", "new"), assigned("B", null), assigned("C", "keep")],
+      null
+    );
+
+    expect(merged.map((device) => device.mac)).toEqual(["A", "B", "C"]);
+    expect(merged[0].content_instance_id).toBe("new");
+    expect(merged[2].content_instance_id).toBe("keep");
+  });
 });

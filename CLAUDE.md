@@ -47,9 +47,22 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   environment, fully self-contained — **NO Postgres / testcontainers / docker**.
   The workspace-wide snapdog note "tier-2 tests need `DOCKER_HOST=colima
 socket`" does NOT apply to Vellum.
-- Coverage is a **ratchet gate** (`vitest.config.ts`): statements 55 / branches
-  44 / functions 44 / lines 56, enforced by the required CI "Test" job. Raise,
-  never lower.
+- **`environment: "node"` is the project default and stays that way.** One suite,
+  `use-device-live-updates.hook.test.ts`, needs a DOM and opts in per file with a
+  `// @vitest-environment jsdom` docblock (`jsdom` + `@testing-library/react` are
+  devDependencies). Prefer that docblock over switching the global environment.
+  Note `include` covers `*.test.ts` only, not `.tsx`, so a component test either
+  avoids JSX (`renderHook` does) or the pattern has to change. When rendering a
+  hook that opens an `EventSource` or calls `fetch`, stub both: jsdom provides
+  neither usefully.
+- Coverage is a **ratchet gate** (`vitest.config.ts`): statements 70 / branches
+  63 / functions 68 / lines 70, enforced by the required CI "Test" job. Raise,
+  never lower. Only modules the suite imports are measured, so `scripts/` is out
+  of scope and adding an untested script cannot move the number. Headroom is
+  deliberately thin — statements ~0.2pp, functions ~0.3pp — so a handful of
+  uncovered statements or one untested function will trip it. Branches and
+  functions are below the 70 baseline and pinned just under their real values;
+  lift them with tests before raising.
 - Runtime env (`.env.example` + `deploy/vellum.env.example` are the source of
   truth): `DATABASE_URL`, `ENCRYPTION_KEY`, `SESSION_SECRET`, `ADMIN_API_KEY`
   (all **min 32 chars**), `ADMIN_USER`, `ADMIN_PASS` (min 8), `NODE_ENV`,

@@ -27,6 +27,36 @@ export function mergeDeviceRows(
 
 export function useDeviceLiveUpdates(initialDevices: LiveDeviceRow[]) {
   const [devices, setDevices] = useState(initialDevices);
+
+  /* Adopt server-rendered rows on every re-render, not just on mount.
+   *
+   * useState seeds once and ignores later props, so a server action's
+   * revalidatePath() never reached this table: the page re-rendered with the new
+   * row, the hook kept the old one, and a controlled <select value={row…}> snapped
+   * straight back to the pre-action value even though the write had succeeded.
+   * The value only looked right after a full reload, which mounts the hook afresh.
+   *
+   * The live channel does eventually repair it — the devices trigger notifies,
+   * the SSE stream sends `changed`, and refresh() fetches the row about 250 ms
+   * later — but that is a visible flash of stale state, and it becomes a lasting
+   * wrong value whenever the stream cannot connect, leaving the 60 s fallback poll
+   * as the only cure.
+   *
+   * Merged rather than assigned, so adopting authoritative data does not reorder
+   * cards that are already on screen — the same reason refresh() merges. */
+  useEffect(() => {
+    setDevices((current) => {
+      const merged = mergeDeviceRows(current, initialDevices, null);
+      /* Return the identical reference when nothing actually changed, so React
+       * skips the re-render. That is not just an optimisation: this effect keys on
+       * the prop's identity, so a caller building the array inline would hand it a
+       * fresh identity on every render and, without this bail-out, each pass would
+       * set state, trigger another render and re-run forever. Compared by content
+       * because the rows are freshly deserialised objects every time, which makes
+       * reference comparison useless here. */
+      return JSON.stringify(merged) === JSON.stringify(current) ? current : merged;
+    });
+  }, [initialDevices]);
   const [now, setNow] = useState(() => Date.now());
   const [state, setState] = useState<DeviceLiveState>("connecting");
   const queue = useRef<Promise<void>>(Promise.resolve());
