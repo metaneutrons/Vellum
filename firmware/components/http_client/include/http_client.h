@@ -20,7 +20,7 @@ extern "C" {
 typedef struct {
     float       battery_voltage;
     int         battery_level;
-    const char *power_source;  /**< "usb" or "battery" */
+    const char *power_source;  /**< usb/battery/unknown */
     const char *battery_status; /**< charging/full/discharging/unknown */
     int         wifi_rssi;
     const char *firmware_ver;

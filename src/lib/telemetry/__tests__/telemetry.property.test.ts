@@ -9,7 +9,7 @@ const arbMac = fc.stringMatching(/^[0-9A-F]{12}$/).map((s) => s.match(/.{2}/g)!.
 
 const arbBatteryVoltage = fc.float({ min: 2.5, max: 4.5, noNaN: true });
 const arbBatteryLevel = fc.integer({ min: 0, max: 100 });
-const arbPowerSource = fc.constantFrom("usb" as const, "battery" as const);
+const arbPowerSource = fc.constantFrom("usb" as const, "battery" as const, "unknown" as const);
 const arbBatteryStatus = fc.constantFrom(
   "charging" as const,
   "full" as const,

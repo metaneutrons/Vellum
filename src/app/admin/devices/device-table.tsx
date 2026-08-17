@@ -42,7 +42,7 @@ interface Device {
   expected_interval_s: number | null;
   battery_level: number | null;
   battery_voltage: number | null;
-  power_source: "usb" | "battery" | null;
+  power_source: "usb" | "battery" | "unknown" | null;
   battery_status: "charging" | "full" | "discharging" | "unknown" | null;
   wifi_rssi: number | null;
   firmware_version: string | null;
@@ -290,6 +290,8 @@ export function DeviceTable({
                       <span className="inline-flex items-center gap-1">
                         {d.power_source === "usb" ? (
                           <PlugZap size={15} aria-hidden="true" />
+                        ) : d.power_source === "unknown" ? (
+                          <AlertTriangle size={15} aria-hidden="true" />
                         ) : (
                           <Battery size={15} aria-hidden="true" />
                         )}

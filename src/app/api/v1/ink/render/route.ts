@@ -117,8 +117,9 @@ export async function GET(request: NextRequest) {
   /* Battery voltage is the cell voltage (max ~4.2 V), never USB VBUS. The old
    * >4.5 V heuristic therefore classified every real display as battery-powered.
    * New firmware reports the hardware-detected source explicitly; legacy
-   * firmware falls back conservatively to battery behavior. */
-  const powerSource = telemetryData?.powerSource ?? "battery";
+   * firmware and hardware that cannot determine the source fall back
+   * conservatively to battery behavior for refresh scheduling. */
+  const powerSource = telemetryData?.powerSource === "usb" ? "usb" : "battery";
   const profile = await resolveRefreshProfile(device.refreshProfileId);
 
   if (!device.contentInstanceId) {

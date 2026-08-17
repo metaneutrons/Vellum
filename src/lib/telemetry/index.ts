@@ -42,7 +42,10 @@ export function extractTelemetry(
     return null;
   }
 
-  const parsedPowerSource = powerSource === "usb" || powerSource === "battery" ? powerSource : null;
+  const parsedPowerSource =
+    powerSource === "usb" || powerSource === "battery" || powerSource === "unknown"
+      ? powerSource
+      : null;
   const parsedBatteryStatus =
     batteryStatus === "charging" ||
     batteryStatus === "full" ||
