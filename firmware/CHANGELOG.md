@@ -2,6 +2,21 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.5.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.4.10...firmware-v1.5.0) (2026-08-17)
+
+
+### Features
+
+* make device updates live and e-paper refreshes cache-aware ([b261e52](https://github.com/metaneutrons/Vellum/commit/b261e52d386d8555bb003f675cb6d38d87f84005))
+
+
+### Bug Fixes
+
+* **firmware:** cache retained e-paper frames ([56c47c7](https://github.com/metaneutrons/Vellum/commit/56c47c75c23cdfcee166e6ef99cd9de4af0269a3))
+* **firmware:** report indeterminate E1002 power source ([6635a04](https://github.com/metaneutrons/Vellum/commit/6635a04d8262509ba5732a2aa46abfdb9d98e9ca))
+* **firmware:** report indeterminate E1002 power source ([c6d52fe](https://github.com/metaneutrons/Vellum/commit/c6d52fe8e064a6fe987bd64bd7eb231bc3f98aa6))
+* **firmware:** silence autonomous wake cycles ([7aa7693](https://github.com/metaneutrons/Vellum/commit/7aa7693bdbfd05a463839b3cde0eb11dc752c537))
+
 ## [1.4.10](https://github.com/metaneutrons/Vellum/compare/firmware-v1.4.9...firmware-v1.4.10) (2026-08-17)
 
 
