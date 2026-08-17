@@ -107,6 +107,30 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/* ── Persistent firmware catalog ─────────────────────────────── */
+
+/**
+ * Last-known-good firmware discovery state.
+ *
+ * GitHub is an upstream catalog, not part of the request path: admin pages and
+ * device polls read this durable snapshot immediately while one process refreshes
+ * it in the background.  The lease makes that guarantee hold for horizontally
+ * scaled servers too; a crashed refresher is recoverable after lease expiry.
+ */
+export const firmwareCatalogState = pgTable("firmware_catalog_state", {
+  source: text("source").primaryKey(),
+  manifests: jsonb("manifests").notNull().default([]),
+  etag: text("etag"),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  lastSuccessAt: timestamp("last_success_at"),
+  nextRefreshAt: timestamp("next_refresh_at"),
+  failureCount: integer("failure_count").notNull().default(0),
+  lastError: text("last_error"),
+  leaseOwner: text("lease_owner"),
+  leaseUntil: timestamp("lease_until"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 /* ── Enterprise identity & access ─────────────────────────────── */
 
 /**

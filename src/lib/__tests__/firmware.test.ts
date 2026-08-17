@@ -5,7 +5,12 @@ import { describe, it, expect } from "vitest";
 // mirror used split(/[-.]/) and got prerelease ordering wrong, so it "passed"
 // while the shipped comparator could have regressed unnoticed (it drives every
 // OTA roll-forward/rollback decision).
-import { compareSemver, reconcileFirmwareManifestCache, type FirmwareManifest } from "../firmware";
+import {
+  compareSemver,
+  parseFirmwareManifest,
+  reconcileFirmwareManifestCache,
+  type FirmwareManifest,
+} from "../firmware";
 
 describe("compareSemver (the real exported comparator)", () => {
   it("orders major.minor.patch", () => {
@@ -58,5 +63,44 @@ describe("firmware release cache reconciliation", () => {
 
     expect(reconcileFirmwareManifestCache(cache, new Set(["firmware-v1.4.3"]))).toBe(1);
     expect([...cache.keys()]).toEqual(["firmware-v1.4.3"]);
+  });
+});
+
+describe("firmware manifest trust boundary", () => {
+  const payload = {
+    version: "1.4.12-beta.1",
+    channel: "untrusted-upstream-value",
+    date: "2026-08-17T00:00:00Z",
+    binaries: {
+      e1002: {
+        url: "https://github.com/example/factory.bin",
+        size: 123,
+        otaUrl: "https://github.com/example/ota.bin",
+        otaSha256: "a".repeat(64),
+        otaSignature: "",
+        otaKeyId: "",
+        otaSize: 100,
+      },
+    },
+  };
+
+  it("accepts the release workflow's unsigned beta shape and owns tag/channel", () => {
+    const manifest = parseFirmwareManifest(payload, "firmware-v1.4.12-beta.1", true);
+    expect(manifest.tag).toBe("firmware-v1.4.12-beta.1");
+    expect(manifest.channel).toBe("beta");
+    expect(manifest.binaries.e1002.otaSignature).toBe("");
+  });
+
+  it("rejects malformed hashes before they can become OTA offers", () => {
+    expect(() =>
+      parseFirmwareManifest(
+        {
+          ...payload,
+          binaries: { e1002: { ...payload.binaries.e1002, otaSha256: "not-a-digest" } },
+        },
+        "firmware-v1.4.12",
+        false
+      )
+    ).toThrow();
   });
 });

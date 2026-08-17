@@ -11,6 +11,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
+import { cache } from "react";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { db, withDbRead, withDbTransaction, withDbWrite, type DbTransaction } from "@/db";
@@ -278,10 +279,13 @@ async function principalFromSessionToken(
   return { type: "user", id: row.id, displayName: row.displayName, permissions };
 }
 
-export async function getCurrentPrincipal(): Promise<Principal | null> {
+/** React's server cache is request-scoped. Layouts, pages, and their parallel
+ * data loaders therefore share one session/permission lookup without ever
+ * carrying an authorization decision into a later request. */
+export const getCurrentPrincipal = cache(async (): Promise<Principal | null> => {
   const cookieStore = await cookies();
   return principalFromSessionToken(cookieStore.get(SESSION_COOKIE)?.value);
-}
+});
 
 export async function requirePermission(
   permission: Permission,
