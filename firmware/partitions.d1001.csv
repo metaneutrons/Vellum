@@ -1,0 +1,17 @@
+# Vellum partition table — D1001 (32 MiB QSPI flash)
+#
+# The D1001 carries a Winbond W25Q256 (256 Mbit / 32 MiB) external flash. Keep
+# the small system partitions and ota_0 start aligned with the E-Series layout,
+# then use the additional capacity for two 8 MiB OTA slots and persistent FAT
+# storage. Existing devices keep working with their previously flashed table;
+# adopting these larger partitions requires a one-time factory/USB flash because
+# an app-only OTA never rewrites the partition table.
+#
+# Name,    Type, SubType, Offset,    Size,      Flags
+nvs,       data, nvs,     0x9000,    0x6000,
+nvs_key,   data, nvs_keys,0xf000,    0x1000,
+otadata,   data, ota,     0x10000,   0x2000,
+phy_init,  data, phy,     0x12000,   0x1000,
+ota_0,     app,  ota_0,   0x20000,   0x800000,
+ota_1,     app,  ota_1,   0x820000,  0x800000,
+storage,   data, fat,     0x1020000, 0xfe0000,

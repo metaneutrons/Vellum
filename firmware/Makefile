@@ -109,10 +109,10 @@ flash: check-port
 	@echo "Flashing $(MODEL) to $(PORT)..."
 # ESP32-P4: flash each image explicitly with espflash (idf.py flash is unreliable
 # on the P4 USB-Serial-JTAG download path in this toolchain). Offsets MUST mirror
-# partitions.csv — bootloader 0x2000 (P4 boots at 0x2000, not 0x0), partition
-# table 0x8000, otadata 0x10000, app/ota_0 0x20000. NOTE: these are the non-secure
-# offsets; SECURE builds are blocked on P4 (see the build target above), so the
-# partitions.secure.csv layout intentionally isn't handled here.
+# partitions.d1001.csv — bootloader 0x2000 (P4 boots at 0x2000, not 0x0),
+# partition table 0x8000, otadata 0x10000, app/ota_0 0x20000. NOTE: these are the
+# non-secure offsets; SECURE builds are blocked on P4 (see the build target
+# above), so the partitions.secure.csv layout intentionally isn't handled here.
 ifeq ($(TARGET_CHIP),esp32p4)
 	@cd build && \
 		espflash write-bin --chip $(TARGET_CHIP) --port $(PORT) --baud $(BAUD) 0x2000 bootloader/bootloader.bin && \

@@ -274,7 +274,11 @@ fleet, content, and policy model without sharing an incompatible firmware image.
 
 Support includes board-specific display drivers, battery and USB-power handling,
 buttons, telemetry, provisioning, and OTA behavior. D1001 additionally integrates
-its RTC and uses the ESP32-C6 as the wireless coprocessor for the ESP32-P4.
+its RTC and uses the ESP32-C6 as the wireless coprocessor for the ESP32-P4. Its
+factory image targets the board's 32 MiB QSPI flash and 32 MiB PSRAM, with two
+8 MiB OTA slots. A D1001 flashed with an older Vellum partition table continues
+to receive compatible app-only OTA updates, but requires one USB factory flash
+to adopt the larger OTA slots and storage partition.
 
 ## Product capabilities
 

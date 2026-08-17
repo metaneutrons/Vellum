@@ -237,25 +237,29 @@ jobs:
 
       - name: Guard app image fits the OTA partition (fail before signing/publishing)
         run: |
-          # ota_0/ota_1 hold the OTA app image; parse ota_0's size from the
-          # partition table so this stays correct if the layout ever changes.
-          # Secure Boot builds relocate partitions; parse the table matching the build.
-          PART=firmware/partitions.csv
-          [ "${{ vars.OTA_SECURE_BOOT }}" = "1" ] && PART=firmware/partitions.secure.csv
-          OTA_MAX=$(awk -F',' '$1 ~ /^ota_0/ {gsub(/[[:space:]]/,"",$5); print $5}' "$PART")
-          OTA_MAX=$((OTA_MAX))                 # 0x300000 -> decimal
-          HEADROOM=$((64 * 1024))              # keep a little slack under the limit
-          LIMIT=$((OTA_MAX - HEADROOM))
-          echo "ota_0 size=${OTA_MAX} bytes; app-image limit (with headroom)=${LIMIT} bytes"
+          # ota_0/ota_1 hold the OTA app image. D1001 has its own 32 MiB layout;
+          # E-Series builds use the common 8 MiB layout (or its secure variant).
+          # Resolve the table per artifact so CI enforces each model's real budget.
           FAIL=0
           for f in binaries/vellum-*-v*.bin; do
             case "$f" in *-factory.bin) continue;; esac   # factory = full-flash, not OTA
+            case "$f" in
+              *-d1001-*) PART=firmware/partitions.d1001.csv ;;
+              *)
+                PART=firmware/partitions.csv
+                [ "${{ vars.OTA_SECURE_BOOT }}" = "1" ] && PART=firmware/partitions.secure.csv
+                ;;
+            esac
+            OTA_MAX=$(awk -F',' '$1 ~ /^ota_0/ {gsub(/[[:space:]]/,"",$5); print $5}' "$PART")
+            OTA_MAX=$((OTA_MAX))                 # hexadecimal CSV value -> decimal
+            HEADROOM=$((64 * 1024))              # keep a little slack under the limit
+            LIMIT=$((OTA_MAX - HEADROOM))
             SZ=$(stat -c%s "$f")
             if [ "$SZ" -ge "$LIMIT" ]; then
-              echo "::error::${f} is ${SZ} bytes, >= OTA app limit ${LIMIT} (ota_0=${OTA_MAX}). Would not fit / no headroom."
+              echo "::error::${f} is ${SZ} bytes, >= OTA app limit ${LIMIT} from ${PART} (ota_0=${OTA_MAX}). Would not fit / no headroom."
               FAIL=1
             else
-              echo "OK: ${f} ${SZ} bytes < ${LIMIT}"
+              echo "OK: ${f} ${SZ} bytes < ${LIMIT} (${PART})"
             fi
           done
           [ "$FAIL" -eq 0 ]
