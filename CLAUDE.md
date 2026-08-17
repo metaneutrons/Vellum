@@ -281,6 +281,26 @@ with a page-1 ETag fast-path + permanent per-release manifest cache. Do NOT
 refactor this to tag/`latest` logic — it would break OTA and re-surface the
 anchor tag to the fleet.
 
+- **The walk itself is unchanged, but it is no longer a direct synchronous
+  call.** `getAllManifests()` now reads a persistent Postgres snapshot
+  (`firmware_catalog_state`), hydrated at boot by `initializeFirmwareCatalog()` /
+  `syncAutoPoll()` (`src/instrumentation.ts`) and refreshed asynchronously with
+  lease coordination across replicas — this replaced an earlier design where an
+  expired poll interval made the _next_ request block on GitHub, including the
+  admin dashboard's cold path.
+- **The server now proxies the firmware binary itself, not just its
+  discovery.** `/api/v1/ink/firmware` (`src/lib/firmware-download.ts` +
+  `firmware-binary-cache.ts`, a bounded 128 MiB in-memory LRU with
+  request-coalescing) serves the binary behind an HMAC-signed, device-bound
+  download grant (mac/tag/model/expiry, signed with the device token, 10-minute
+  TTL). `/api/v1/ink/config` hands the device a Vellum URL built by
+  `createOtaDownloadUrl()` **only when `VELLUM_PUBLIC_URL` is set and HTTPS**
+  (`otaOrigin.startsWith("https://")` in `config/route.ts`); otherwise it falls
+  back to the raw GitHub URL, which is a **local-HTTP-dev accommodation, not a
+  security fallback** — production firmware refuses plaintext OTA transport
+  either way. Devices still verify model, SHA-256 and the Ed25519 signature
+  before boot regardless of which origin served the bytes.
+
 ## Renderer sort-invariant
 
 Room-booking timeline: calendar providers do NOT guarantee event ordering, and
