@@ -205,6 +205,18 @@ static vellum_telemetry_t gather_telemetry(void)
     return t;
 }
 
+static void refresh_telemetry(void)
+{
+    /* D1001 stays awake and reuses the HTTP client for its entire polling
+     * lifetime. Refresh the snapshot for every cycle so unplugging USB, charge
+     * state changes and battery discharge are not reported with boot-time
+     * values forever. The board driver caches ADC samples for 250 ms, keeping
+     * the several requests within one cycle consistent without stale data
+     * leaking into the next cycle. */
+    vellum_telemetry_t telemetry = gather_telemetry();
+    http_client_set_telemetry(&telemetry);
+}
+
 /* -----------------------------------------------------------------------
  * TOFU hello handshake
  * ----------------------------------------------------------------------- */
@@ -377,6 +389,7 @@ static uint32_t perform_render(bool *render_ok)
 {
     bool ok = false;
     if (render_ok) *render_ok = false;
+    refresh_telemetry();
     ESP_LOGI(TAG, "Requesting render");
 
     vellum_http_response_t resp = {0};
@@ -815,8 +828,7 @@ void app_main(void)
         http_client_set_public_key(pubkey_b64);
     }
 
-    vellum_telemetry_t telemetry = gather_telemetry();
-    http_client_set_telemetry(&telemetry);
+    refresh_telemetry();
 
     /* 5. Handle button-triggered actions */
     if (wake == WAKE_REASON_BUTTON) {
