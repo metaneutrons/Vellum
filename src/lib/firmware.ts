@@ -8,14 +8,29 @@
  * - beta = prerelease releases with firmware-manifest.json
  *
  * Caching strategy:
- * - Individual manifests are cached while their immutable release exists
- * - Release list uses ETag conditional requests (no rate limit cost)
- * - Only new releases trigger manifest downloads
+ * - PostgreSQL holds the last-known-good catalog and ETag across restarts
+ * - request paths return that snapshot immediately (stale-while-revalidate)
+ * - a leased background refresh coordinates multiple server replicas
+ * - failures preserve good data and persist bounded/rate-limit-aware backoff
+ * - only newly discovered immutable releases trigger manifest downloads
  */
 
 import { log } from "./logger";
 import { getSetting } from "./settings";
 import { deviceFailedTarget, isDeviceInRollout } from "./rollout";
+import { db, withDbRead, withDbWrite } from "@/db";
+import { firmwareCatalogState } from "@/db/schema";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import {
+  FIRMWARE_REFRESH_DEADLINE_MS,
+  FIRMWARE_REFRESH_LEASE_MS,
+  firmwareNextRetryAt,
+  firmwareRefreshDue,
+  firmwareRequestTimeoutMs,
+  githubRetryAtMs,
+} from "./firmware-catalog-policy";
 
 const GITHUB_REPO = process.env.GITHUB_REPO ?? "metaneutrons/Vellum";
 
@@ -67,16 +82,56 @@ interface GitHubRelease {
   assets: { name: string; browser_download_url: string }[];
 }
 
+const firmwareBinarySchema = z.object({
+  url: z.string().url(),
+  size: z.number().int().nonnegative(),
+  otaUrl: z.string().url(),
+  otaSha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  // Beta builds may intentionally be unsigned for fail-open development
+  // devices; stable-release CI separately enforces a non-empty signature.
+  otaSignature: z.string(),
+  otaSize: z.number().int().nonnegative(),
+  otaKeyId: z.string().optional(),
+});
+
+const firmwareManifestPayloadSchema = z.object({
+  version: z.string().min(1),
+  channel: z.string().min(1),
+  date: z.string().min(1),
+  binaries: z.record(z.string(), firmwareBinarySchema),
+});
+
+const persistedManifestsSchema: z.ZodType<FirmwareManifest[]> = z.array(
+  firmwareManifestPayloadSchema.extend({ tag: z.string().min(1) })
+);
+
+/** Validate an untrusted release asset and bind server-owned release metadata. */
+export function parseFirmwareManifest(
+  value: unknown,
+  tag: string,
+  prerelease: boolean
+): FirmwareManifest {
+  const payload = firmwareManifestPayloadSchema.parse(value);
+  return {
+    ...payload,
+    tag,
+    channel: prerelease ? "beta" : "stable",
+  };
+}
+
 /* ── Cache ────────────────────────────────────────────────────── */
 
-/** Manifest cache: tag → manifest (immutable; evicted if its release is removed) */
+/** Process-local read-through copy of the durable last-known-good snapshot. */
 const manifestCache = new Map<string, FirmwareManifest>();
 
-/** ETag from last releases list fetch */
+/** ETag from the last successful first-page fetch, persisted across restarts. */
 let releasesEtag = "";
+let nextRefreshAt: Date | null = null;
+let catalogHydration: Promise<void> | null = null;
+let refreshInFlight: Promise<void> | null = null;
 
-/** Last time we polled the releases list */
-let lastPollAt = 0;
+const CATALOG_SOURCE = "github-releases";
+const refreshOwner = `${process.pid}-${randomUUID()}`;
 
 async function getPollIntervalMs(): Promise<number> {
   const s = await getSetting("firmware.pollIntervalS");
@@ -85,6 +140,289 @@ async function getPollIntervalMs(): Promise<number> {
 
 /** Sorted result cache (rebuilt when new releases are found) */
 let sortedManifests: FirmwareManifest[] = [];
+
+class FirmwareCatalogUpstreamError extends Error {
+  constructor(
+    message: string,
+    readonly retryAtMs: number | null = null
+  ) {
+    super(message);
+    this.name = "FirmwareCatalogUpstreamError";
+  }
+}
+
+function setMemorySnapshot(manifests: FirmwareManifest[], etag: string | null): void {
+  manifestCache.clear();
+  for (const manifest of manifests) manifestCache.set(manifest.tag, manifest);
+  sortedManifests = [...manifestCache.values()].sort((a, b) => compareSemver(b.version, a.version));
+  releasesEtag = etag ?? "";
+}
+
+async function reloadFirmwareCatalogState(): Promise<void> {
+  const [row] = await withDbRead(
+    () =>
+      db
+        .select()
+        .from(firmwareCatalogState)
+        .where(eq(firmwareCatalogState.source, CATALOG_SOURCE))
+        .limit(1),
+    "firmware-catalog-hydrate"
+  );
+  if (!row) return;
+
+  const parsed = persistedManifestsSchema.safeParse(row.manifests);
+  if (parsed.success) {
+    setMemorySnapshot(parsed.data, row.etag);
+  } else {
+    // Fail closed: a malformed operational cache may never become an OTA
+    // offer. The next background refresh replaces it atomically.
+    log.error("Persistent firmware catalog is invalid", {
+      error: parsed.error.issues[0]?.message ?? "invalid snapshot",
+    });
+    // Discard the ETag too: sending it with an empty/invalid snapshot could
+    // yield 304 forever and make the corrupt cache self-perpetuating.
+    setMemorySnapshot([], null);
+  }
+  // A peer may currently own the refresh. Avoid a write attempt on every
+  // request while its lease is live, then re-read when it can have completed.
+  const boundaries = [row.nextRefreshAt, row.leaseUntil].filter(
+    (value): value is Date => value instanceof Date
+  );
+  nextRefreshAt = boundaries.length
+    ? new Date(Math.max(...boundaries.map((value) => value.getTime())))
+    : null;
+}
+
+async function hydrateFirmwareCatalog(): Promise<void> {
+  if (catalogHydration) return catalogHydration;
+  catalogHydration = (async () => {
+    await withDbWrite(
+      () =>
+        db.insert(firmwareCatalogState).values({ source: CATALOG_SOURCE }).onConflictDoNothing(),
+      "firmware-catalog-initialize"
+    );
+    await reloadFirmwareCatalogState();
+  })().catch((err) => {
+    // Permit a later request to retry hydration after a transient DB outage.
+    catalogHydration = null;
+    throw err;
+  });
+  return catalogHydration;
+}
+
+async function claimRefreshLease(now: Date) {
+  const leaseUntil = new Date(now.getTime() + FIRMWARE_REFRESH_LEASE_MS);
+  const [claimed] = await withDbWrite(
+    () =>
+      db
+        .update(firmwareCatalogState)
+        .set({
+          leaseOwner: refreshOwner,
+          leaseUntil,
+          lastAttemptAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(firmwareCatalogState.source, CATALOG_SOURCE),
+            or(isNull(firmwareCatalogState.leaseUntil), lte(firmwareCatalogState.leaseUntil, now)),
+            or(
+              isNull(firmwareCatalogState.nextRefreshAt),
+              lte(firmwareCatalogState.nextRefreshAt, now)
+            )
+          )
+        )
+        .returning({ failureCount: firmwareCatalogState.failureCount }),
+    "firmware-catalog-claim-refresh"
+  );
+  return claimed ?? null;
+}
+
+function requestSignal(deadlineMs: number): AbortSignal {
+  const timeout = firmwareRequestTimeoutMs(deadlineMs, Date.now());
+  if (timeout <= 0) throw new FirmwareCatalogUpstreamError("firmware refresh deadline exceeded");
+  return AbortSignal.timeout(timeout);
+}
+
+async function fetchGithub(url: string, deadlineMs: number, conditionalEtag?: string) {
+  const headers = githubHeaders();
+  if (conditionalEtag) headers["If-None-Match"] = conditionalEtag;
+  let response: Response;
+  try {
+    response = await fetch(url, { headers, signal: requestSignal(deadlineMs) });
+  } catch (err) {
+    throw new FirmwareCatalogUpstreamError(`GitHub request failed: ${String(err)}`);
+  }
+  if (response.ok || response.status === 304) return response;
+
+  const limited =
+    response.status === 429 ||
+    (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0");
+  const retryAt = limited ? githubRetryAtMs(response.headers, Date.now()) : null;
+  throw new FirmwareCatalogUpstreamError(
+    `GitHub Releases returned HTTP ${response.status}`,
+    retryAt
+  );
+}
+
+async function discoverFirmwareCatalog(deadlineMs: number): Promise<{
+  manifests: FirmwareManifest[];
+  etag: string;
+  unchanged: boolean;
+}> {
+  const discovered = new Map(manifestCache);
+  const visibleManifestTags = new Set<string>();
+  let firstPageEtag = releasesEtag;
+  let snapshotComplete = false;
+
+  for (let page = 1; page <= MAX_RELEASE_PAGES; page++) {
+    const response = await fetchGithub(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=${RELEASES_PER_PAGE}&page=${page}`,
+      deadlineMs,
+      page === 1 ? releasesEtag : undefined
+    );
+    if (page === 1 && response.status === 304) {
+      return { manifests: sortedManifests, etag: releasesEtag, unchanged: true };
+    }
+    if (page === 1) firstPageEtag = response.headers.get("etag") ?? releasesEtag;
+
+    const releases = z
+      .array(
+        z.object({
+          tag_name: z.string(),
+          prerelease: z.boolean(),
+          published_at: z.string(),
+          assets: z.array(z.object({ name: z.string(), browser_download_url: z.string().url() })),
+        })
+      )
+      .parse(await response.json()) as GitHubRelease[];
+
+    for (const release of releases) {
+      const manifestAsset = release.assets.find((asset) => asset.name === "firmware-manifest.json");
+      if (!manifestAsset) continue;
+      visibleManifestTags.add(release.tag_name);
+      if (discovered.has(release.tag_name)) continue;
+
+      const manifestResponse = await fetchGithub(manifestAsset.browser_download_url, deadlineMs);
+      const manifest = parseFirmwareManifest(
+        await manifestResponse.json(),
+        release.tag_name,
+        release.prerelease
+      );
+      discovered.set(release.tag_name, manifest);
+    }
+
+    if (releases.length < RELEASES_PER_PAGE) {
+      snapshotComplete = true;
+      break;
+    }
+  }
+
+  if (!snapshotComplete) {
+    throw new FirmwareCatalogUpstreamError(
+      `GitHub release discovery exceeded ${MAX_RELEASE_PAGES} pages`
+    );
+  }
+
+  reconcileFirmwareManifestCache(discovered, visibleManifestTags);
+  return {
+    manifests: [...discovered.values()].sort((a, b) => compareSemver(b.version, a.version)),
+    etag: firstPageEtag,
+    unchanged: false,
+  };
+}
+
+async function refreshFirmwareCatalog(): Promise<void> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const now = new Date();
+    const claimed = await claimRefreshLease(now);
+    if (!claimed) {
+      await reloadFirmwareCatalogState();
+      return;
+    }
+
+    try {
+      const result = await discoverFirmwareCatalog(Date.now() + FIRMWARE_REFRESH_DEADLINE_MS);
+      const intervalMs = await getPollIntervalMs();
+      const completedAt = new Date();
+      const next = new Date(completedAt.getTime() + intervalMs);
+      await withDbWrite(
+        () =>
+          db
+            .update(firmwareCatalogState)
+            .set({
+              manifests: result.manifests,
+              etag: result.etag || null,
+              lastSuccessAt: completedAt,
+              nextRefreshAt: next,
+              failureCount: 0,
+              lastError: null,
+              leaseOwner: null,
+              leaseUntil: null,
+              updatedAt: completedAt,
+            })
+            .where(
+              and(
+                eq(firmwareCatalogState.source, CATALOG_SOURCE),
+                eq(firmwareCatalogState.leaseOwner, refreshOwner)
+              )
+            ),
+        "firmware-catalog-persist-success"
+      );
+      setMemorySnapshot(result.manifests, result.etag);
+      nextRefreshAt = next;
+      log.info("Firmware catalog refresh complete", {
+        manifests: result.manifests.length,
+        unchanged: result.unchanged,
+      });
+    } catch (err) {
+      const failureCount = claimed.failureCount + 1;
+      const retryAt = firmwareNextRetryAt(
+        Date.now(),
+        failureCount,
+        err instanceof FirmwareCatalogUpstreamError ? err.retryAtMs : null
+      );
+      const message = String(err instanceof Error ? err.message : err).slice(0, 500);
+      await withDbWrite(
+        () =>
+          db
+            .update(firmwareCatalogState)
+            .set({
+              nextRefreshAt: retryAt,
+              failureCount,
+              lastError: message,
+              leaseOwner: null,
+              leaseUntil: null,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(firmwareCatalogState.source, CATALOG_SOURCE),
+                eq(firmwareCatalogState.leaseOwner, refreshOwner)
+              )
+            ),
+        "firmware-catalog-persist-failure"
+      );
+      nextRefreshAt = retryAt;
+      log.warn("Firmware catalog refresh deferred", {
+        error: message,
+        retryAt: retryAt.toISOString(),
+        cachedManifests: sortedManifests.length,
+      });
+    }
+  })().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+function scheduleFirmwareRefresh(): void {
+  if (refreshInFlight || !firmwareRefreshDue(nextRefreshAt, Date.now())) return;
+  void refreshFirmwareCatalog().catch((err) =>
+    log.warn("Firmware catalog background refresh failed", { error: String(err) })
+  );
+}
 
 /** Drop manifests whose GitHub releases disappeared from a complete discovery
  * snapshot. This matters for deliberate release retirement: the process-local
@@ -115,136 +453,19 @@ function githubHeaders(): Record<string, string> {
   return h;
 }
 
-/**
- * Fetch all firmware manifests from GitHub Releases.
- * Uses ETag conditional requests — 304 Not Modified costs no rate limit.
- * Individual manifests are cached permanently (immutable).
- */
+/** Read the durable firmware catalog and schedule a refresh if it is due. */
 export async function getAllManifests(): Promise<FirmwareManifest[]> {
-  const pollInterval = await getPollIntervalMs();
-  if (Date.now() - lastPollAt < pollInterval && sortedManifests.length > 0) {
-    return sortedManifests;
-  }
+  await hydrateFirmwareCatalog();
+  scheduleFirmwareRefresh();
+  // Critical invariant: no caller waits for GitHub. Admin SSR and device polls
+  // always receive the durable last-known-good snapshot immediately.
+  return sortedManifests;
+}
 
-  try {
-    let newCount = 0;
-    let removedCount = 0;
-    const visibleManifestTags = new Set<string>();
-    let snapshotComplete = false;
-    // Releases are returned newest-first. Walk the complete collection because
-    // operators can pin any retained firmware, including an intentional signed
-    // downgrade. The first-page ETag keeps unchanged steady-state polls cheap.
-
-    for (let page = 1; page <= MAX_RELEASE_PAGES; page++) {
-      const headers = githubHeaders();
-      // The ETag conditional request is only meaningful on the FIRST page (it
-      // identifies the newest-releases page). Keeping it there preserves the
-      // common 304 fast-path — an unchanged release list costs no rate limit.
-      // Deeper pages are only fetched when page 1 has already changed, so they
-      // would never 304 anyway.
-      if (page === 1 && releasesEtag) {
-        headers["If-None-Match"] = releasesEtag;
-      }
-
-      const res = await fetch(
-        `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=${RELEASES_PER_PAGE}&page=${page}`,
-        { headers, signal: AbortSignal.timeout(15_000) }
-      );
-
-      if (page === 1) {
-        lastPollAt = Date.now();
-
-        // 304 Not Modified — newest page unchanged, nothing new to discover.
-        if (res.status === 304) {
-          return sortedManifests;
-        }
-      }
-
-      if (!res.ok) {
-        // Any HTTP error: fall back to the last-good cache. On page 1 this is a
-        // hard failure; on later pages we keep whatever earlier pages yielded.
-        if (page === 1) {
-          log.warn("GitHub Releases API failed", { status: res.status });
-          return sortedManifests;
-        }
-        log.warn("GitHub Releases pagination stopped early", {
-          status: res.status,
-          page,
-        });
-        break;
-      }
-
-      // Store ETag from the first page only, for the next conditional request.
-      if (page === 1) {
-        const etag = res.headers.get("etag");
-        if (etag) releasesEtag = etag;
-      }
-
-      const releases = (await res.json()) as GitHubRelease[];
-      if (releases.length === 0) {
-        snapshotComplete = true;
-        break; // walked past the last page
-      }
-
-      for (const release of releases) {
-        const manifestAsset = release.assets.find((a) => a.name === "firmware-manifest.json");
-        if (!manifestAsset) continue;
-        visibleManifestTags.add(release.tag_name);
-
-        // Already cached permanently — skip the download (releases are immutable).
-        if (manifestCache.has(release.tag_name)) continue;
-
-        // Fetch and cache the manifest (will never change).
-        try {
-          const mRes = await fetch(manifestAsset.browser_download_url, {
-            headers: { "User-Agent": "Vellum-Server" },
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (!mRes.ok) continue;
-
-          const manifest = (await mRes.json()) as FirmwareManifest;
-          manifest.tag = release.tag_name;
-          manifest.channel = release.prerelease ? "beta" : "stable";
-          manifestCache.set(release.tag_name, manifest);
-          newCount++;
-        } catch {
-          log.warn("Failed to fetch manifest", { tag: release.tag_name });
-        }
-      }
-
-      // A short page is a complete snapshot. The hard page cap above remains a
-      // safety bound; reaching it deliberately skips destructive reconciliation.
-      if (releases.length < RELEASES_PER_PAGE) {
-        snapshotComplete = true;
-        break;
-      }
-    }
-
-    /* Only reconcile after reaching the end of the collection. A partial
-     * snapshot caused by a later-page API failure or the safety cap must not
-     * evict still-valid last-good entries. */
-    if (snapshotComplete) {
-      removedCount = reconcileFirmwareManifestCache(manifestCache, visibleManifestTags);
-    }
-
-    // Rebuild sorted list
-    sortedManifests = [...manifestCache.values()].sort((a, b) =>
-      compareSemver(b.version, a.version)
-    );
-
-    if (newCount > 0 || removedCount > 0) {
-      log.info("Firmware manifests updated", {
-        new: newCount,
-        removed: removedCount,
-        total: sortedManifests.length,
-      });
-    }
-
-    return sortedManifests;
-  } catch (err) {
-    log.warn("GitHub Releases fetch error", { error: String(err) });
-    return sortedManifests;
-  }
+/** Hydrate the durable snapshot during server boot and refresh asynchronously. */
+export async function initializeFirmwareCatalog(): Promise<void> {
+  await hydrateFirmwareCatalog();
+  scheduleFirmwareRefresh();
 }
 
 /**
