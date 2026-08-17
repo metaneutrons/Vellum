@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.14.0](https://github.com/metaneutrons/Vellum/compare/v1.13.2...v1.14.0) (2026-08-17)
+
+
+### Features
+
+* **db:** make drizzle-kit generate trustworthy again ([36c4886](https://github.com/metaneutrons/Vellum/commit/36c48867c0e3e7771b6da9d79903e906ee438742))
+* **dev:** refuse to start the dev server against a stale database ([cb408a2](https://github.com/metaneutrons/Vellum/commit/cb408a2e96c17707eee737a368ad3d2aa6fac051))
+* **security:** add reversible device enrollment ([3d8b65b](https://github.com/metaneutrons/Vellum/commit/3d8b65b0908dfad8341e26319a4d51964ebef318))
+* **security:** add reversible device enrollment ([0dd72e9](https://github.com/metaneutrons/Vellum/commit/0dd72e90920f03bf3f6941829145e13701c25a57))
+* **security:** attest device flash layouts ([d03f41b](https://github.com/metaneutrons/Vellum/commit/d03f41b174953b16b23a4ce3875140241f8e9456))
+* **security:** attest device flash layouts ([8da7978](https://github.com/metaneutrons/Vellum/commit/8da7978f45a4572bdf110098dce97337b6259455))
+
+
+### Bug Fixes
+
+* **admin:** adopt server-rendered device rows after an assignment change ([1944995](https://github.com/metaneutrons/Vellum/commit/1944995ff256063eef72a5e7b21b1c9a71fc9361))
+* **admin:** device assignment dropdown reverts until reload ([e7e19b1](https://github.com/metaneutrons/Vellum/commit/e7e19b18efe6313bda0a8f00859fd7e53b192253))
+* **db:** close model/SQL drift and an unchecked column in the guard ([b2a0cb9](https://github.com/metaneutrons/Vellum/commit/b2a0cb953d8c2110f3a3bd644a1ffe0744e6be9d))
+* **db:** normalize constraint names on self-baselined databases ([edfb2aa](https://github.com/metaneutrons/Vellum/commit/edfb2aaaf429fd2248eb0ed7218f169c16378240))
+* **db:** normalize constraint names on self-baselined databases ([a45903b](https://github.com/metaneutrons/Vellum/commit/a45903b4499601f4747ca8206e1ca9f952cf398c))
+* **db:** stop silent migration drift and make db:generate trustworthy ([34c985c](https://github.com/metaneutrons/Vellum/commit/34c985c796511021c50afaf1e72c3e773a350abf))
+* **server:** survive an unreachable or unmigrated database at boot ([f3b5fb9](https://github.com/metaneutrons/Vellum/commit/f3b5fb9cb551cef1c786738bac5948538949a113))
+* **test:** give the coverage gate margin above its own noise floor ([62bb951](https://github.com/metaneutrons/Vellum/commit/62bb951fcf8fe588322f08311ff0916d08e4331b))
+* **test:** give the coverage gate margin above its own noise floor ([2cb005c](https://github.com/metaneutrons/Vellum/commit/2cb005c9e5feeb99d0055c530535cf1de682e233))
+
 ## [1.13.2](https://github.com/metaneutrons/Vellum/compare/v1.13.1...v1.13.2) (2026-08-17)
 
 
