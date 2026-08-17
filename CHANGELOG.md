@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.2](https://github.com/metaneutrons/Vellum/compare/v1.12.1...v1.12.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* **firmware:** use full D1001 flash capacity ([#253](https://github.com/metaneutrons/Vellum/issues/253)) ([ac57565](https://github.com/metaneutrons/Vellum/commit/ac575659c697b104dbf21272df00081dcbdf2fb6))
+
 ## [1.12.1](https://github.com/metaneutrons/Vellum/compare/v1.12.0...v1.12.1) (2026-08-16)
 
 
