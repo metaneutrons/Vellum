@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.13.0](https://github.com/metaneutrons/Vellum/compare/v1.12.2...v1.13.0) (2026-08-17)
+
+
+### Features
+
+* **devices:** stream live fleet updates ([d3bfd8a](https://github.com/metaneutrons/Vellum/commit/d3bfd8a5af4480985ce524bf295d3eebec98705b))
+* make device updates live and e-paper refreshes cache-aware ([b261e52](https://github.com/metaneutrons/Vellum/commit/b261e52d386d8555bb003f675cb6d38d87f84005))
+
+
+### Bug Fixes
+
+* **firmware:** cache retained e-paper frames ([56c47c7](https://github.com/metaneutrons/Vellum/commit/56c47c75c23cdfcee166e6ef99cd9de4af0269a3))
+* **firmware:** report indeterminate E1002 power source ([6635a04](https://github.com/metaneutrons/Vellum/commit/6635a04d8262509ba5732a2aa46abfdb9d98e9ca))
+* **firmware:** report indeterminate E1002 power source ([c6d52fe](https://github.com/metaneutrons/Vellum/commit/c6d52fe8e064a6fe987bd64bd7eb231bc3f98aa6))
+* **flash:** streamline post-flash provisioning ([bedf6a0](https://github.com/metaneutrons/Vellum/commit/bedf6a0d9e0206983edc2618ba14fd75d42de1e0))
+
 ## [1.12.2](https://github.com/metaneutrons/Vellum/compare/v1.12.1...v1.12.2) (2026-08-17)
 
 
