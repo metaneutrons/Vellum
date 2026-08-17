@@ -43,6 +43,125 @@
       "when": 1784141053256,
       "tag": "0005_minor_phantom_reporter",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786313685000,
+      "tag": "0006_enterprise_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786313686000,
+      "tag": "0007_oidc_identities",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786561919000,
+      "tag": "0008_add_device_orientation_override",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786561920000,
+      "tag": "0009_add_voucher_firmware_pin",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786561921000,
+      "tag": "0010_system_read_permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786635416000,
+      "tag": "0011_refresh_profile_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786746084000,
+      "tag": "0012_device_delete_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786746085000,
+      "tag": "0013_content_dependencies",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786746086000,
+      "tag": "0014_foreign_key_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1786863145000,
+      "tag": "0015_power_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786964483000,
+      "tag": "0016_device_live_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786985092000,
+      "tag": "0017_firmware_catalog_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786995414000,
+      "tag": "0018_device_configuration_commands",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786995415000,
+      "tag": "0019_remote_wifi_configuration",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786995416000,
+      "tag": "0020_wifi_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786995417000,
+      "tag": "0021_device_security_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786997106000,
+      "tag": "0022_device_security_posture",
+      "breakpoints": true
     }
   ]
 }
