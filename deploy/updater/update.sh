@@ -4,7 +4,8 @@
 
 set -Eeuo pipefail
 
-readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/Vellum/releases?per_page=100}"
+readonly RELEASE_API="${RELEASE_API:-https://api.github.com/repos/metaneutrons/Vellum/releases/latest}"
+readonly TARGET_VERSION="${TARGET_VERSION:-}"
 readonly IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-ghcr.io/metaneutrons/vellum}"
 readonly COMPOSE_FILE="${COMPOSE_FILE:-/stack/docker-compose.yml}"
 readonly VELLUM_ENV_FILE="${VELLUM_ENV_FILE:-/run/vellum/vellum.env}"
@@ -124,7 +125,9 @@ github_curl() {
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     headers+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
   fi
-  curl --fail --silent --show-error --location --max-time 30 "${headers[@]}" "$@"
+  curl --fail --silent --show-error --location --max-time 30 \
+    --retry 3 --retry-all-errors --retry-delay 1 --retry-max-time 25 \
+    "${headers[@]}" "$@"
 }
 
 latest_server_tag() {
@@ -485,9 +488,17 @@ schedule_updater_swap() {
 
 update_once() {
   local tag candidate current
-  if ! tag="$(latest_server_tag)"; then
-    die "could not determine latest server release"
-    return 1
+  if [[ -n "$TARGET_VERSION" ]]; then
+    if [[ ! "$TARGET_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      die "target server version is invalid"
+      return 1
+    fi
+    tag="$TARGET_VERSION"
+  else
+    if ! tag="$(latest_server_tag)"; then
+      die "could not determine latest server release"
+      return 1
+    fi
   fi
   candidate="${IMAGE_REPOSITORY}:${tag}"
   current="$(current_version 2>/dev/null || true)"
