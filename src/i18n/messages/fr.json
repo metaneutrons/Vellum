@@ -92,6 +92,34 @@
     },
     "rssi": "RSSI",
     "wifiRssi": "RSSI Wi‑Fi",
+    "wifiNetwork": "Réseau Wi-Fi",
+    "wifiSecurity": "Sécurité Wi-Fi",
+    "security": {
+      "title": "Enrôlement de sécurité",
+      "description": "Durcissement progressif avec un état observable et sûr en cas d’échec.",
+      "profile": "Profil de sécurité",
+      "nvsIntegrity": "Intégrité NVS",
+      "profiles": {
+        "development": "Développement",
+        "testsecure": "Testsecure (réversible)",
+        "secureboot": "Secure Boot",
+        "production": "Production renforcée"
+      },
+      "integrity": {
+        "disabled": "Non scellé",
+        "valid": "HMAC vérifié",
+        "invalid": "Échec d’intégrité"
+      },
+      "steps": {
+        "enrolled": "Enrôlement authentifié",
+        "testsecure": "Firmware testsecure actif",
+        "hmacNvs": "HMAC-NVS scellé et vérifié"
+      },
+      "flashTestsecure": "Ouvrir le guide testsecure",
+      "testsecureHint": "Flashez ensuite par USB l’image testsecure générée localement. Elle ne brûle aucun eFuse et scelle automatiquement NVS après l’enrôlement.",
+      "reversibleComplete": "L’enrôlement de sécurité réversible est terminé. Aucun eFuse irréversible n’a été brûlé.",
+      "productionLocked": "L’enrôlement de production reste verrouillé jusqu’à validation du HSM, des appareils de test, du guide de récupération et du processus de fabrication."
+    },
     "model": "Modèle",
     "resolution": "Résolution",
     "quantize": "Quantification",
@@ -102,7 +130,47 @@
       "offline": "Hors ligne",
       "never": "Jamais vu"
     },
-    "liveStatus": { "live": "En direct", "reconnecting": "Reconnexion…" }
+    "liveStatus": { "live": "En direct", "reconnecting": "Reconnexion…" },
+    "remoteConfig": {
+      "title": "Configuration à distance",
+      "description": "Modifier en toute sécurité le serveur et le Wi-Fi de cet écran via son canal authentifié.",
+      "serverUrl": "Nouvelle URL du serveur Vellum",
+      "migrate": "Planifier la migration",
+      "safety": "L’écran ne change rien avant la validation TLS, de l’identité de l’appareil et de l’état souhaité sur la cible.",
+      "confirm": "Migrer cet écran vers {url} ? La cible doit utiliser la même identité d’appareil Vellum.",
+      "queued": "Migration du serveur planifiée",
+      "queueFailed": "Impossible de planifier la migration",
+      "wifiTitle": "Changer de Wi-Fi",
+      "wifiSsid": "Nouveau SSID Wi-Fi",
+      "wifiPassword": "Mot de passe Wi-Fi (vide pour un réseau ouvert)",
+      "wifiChange": "Planifier le changement Wi-Fi",
+      "wifiSafety": "L’écran teste le nouveau Wi-Fi et le serveur Vellum. L’ancien profil reste disponible pour un retour automatique jusqu’à confirmation du succès.",
+      "wifiConfirm": "Connecter cet écran au Wi-Fi « {ssid} » ? L’ancien Wi-Fi sera restauré automatiquement en cas d’échec.",
+      "wifiQueued": "Changement Wi-Fi planifié",
+      "wifiQueueFailed": "Le changement Wi-Fi n’a pas pu être planifié",
+      "wifiHistory": "Wi-Fi : {ssid}",
+      "cancel": "Annuler",
+      "cancelled": "Migration annulée",
+      "cancelFailed": "Impossible d’annuler la migration",
+      "status": {
+        "pending": "En attente",
+        "delivered": "Transmise",
+        "applying": "En cours d’application",
+        "applied": "Appliquée",
+        "failed": "Échouée",
+        "superseded": "Remplacée",
+        "cancelled": "Annulée"
+      },
+      "error": {
+        "invalid_signature": "Autorisation rejetée",
+        "target_validation_failed": "Échec de la validation du serveur cible",
+        "storage_failed": "L’écran n’a pas pu enregistrer la modification",
+        "wifi_connection_failed": "Connexion au nouveau Wi-Fi impossible",
+        "server_reconnect_failed": "Le serveur Vellum n’était pas accessible via le nouveau Wi-Fi",
+        "interrupted": "Le changement Wi-Fi a été interrompu et annulé automatiquement",
+        "credential_decryption_failed": "Les identifiants Wi-Fi enregistrés n’ont pas pu être déchiffrés"
+      }
+    }
   },
   "content": {
     "removeProperty": "Supprimer la propriété",
@@ -681,7 +749,12 @@
     "open": "ouvert",
     "firmwarePinTitle": "Conserver le firmware v{version}",
     "firmwarePinDescription": "Cette inscription Zero-Touch épinglera v{version} sur le canal {channel} à l’appareil qui réclame ce voucher.",
-    "firmwarePinUnavailable": "La version sélectionnée n’est plus disponible. Retournez à Flash Firmware et choisissez une autre version."
+    "firmwarePinUnavailable": "La version sélectionnée n’est plus disponible. Retournez à Flash Firmware et choisissez une autre version.",
+    "protectedDeviceTitle": "Écran protégé",
+    "protectedDeviceDescription": "Cet écran enregistré exige une autorisation administrateur de courte durée. Vellum l’obtient automatiquement lors du provisionnement.",
+    "protectedSuccessSummary": "Son enregistrement existant a été conservé ; la modification a été autorisée et journalisée.",
+    "legacySecurityTitle": "Mise à jour du micrologiciel recommandée.",
+    "legacySecurityDescription": "Ce micrologiciel est antérieur au provisionnement USB protégé. Mettez-le à jour avant de déployer l’écran dans un lieu public."
   },
   "access": {
     "title": "Accès",

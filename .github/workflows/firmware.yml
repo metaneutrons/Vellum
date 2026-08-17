@@ -143,6 +143,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Guard irreversible firmware security
+        if: ${{ vars.OTA_SECURE_BOOT == '1' }}
+        env:
+          IRREVERSIBLE_SECURITY_ENROLLMENT: ${{ vars.IRREVERSIBLE_SECURITY_ENROLLMENT }}
+          HSM_SIGNING_VERIFIED: ${{ vars.HSM_SIGNING_VERIFIED }}
+          TEST_DEVICES_VALIDATED: ${{ vars.TEST_DEVICES_VALIDATED }}
+          RECOVERY_RUNBOOK_APPROVED: ${{ vars.RECOVERY_RUNBOOK_APPROVED }}
+          MANUFACTURING_PROCESS_APPROVED: ${{ vars.MANUFACTURING_PROCESS_APPROVED }}
+        run: |
+          [ "$IRREVERSIBLE_SECURITY_ENROLLMENT" = "I_ACKNOWLEDGE_EFUSE_BURNS_ARE_IRREVERSIBLE" ] || {
+            echo "::error::Secure Boot release path is feature-locked"; exit 1;
+          }
+          for gate in HSM_SIGNING_VERIFIED TEST_DEVICES_VALIDATED RECOVERY_RUNBOOK_APPROVED MANUFACTURING_PROCESS_APPROVED; do
+            [ "$(printenv "$gate")" = "1" ] || {
+              echo "::error::$gate must carry verified evidence before the irreversible path is enabled"; exit 1;
+            }
+          done
+
       - name: Inject version and configure
         run: |
           . "$IDF_PATH/export.sh"

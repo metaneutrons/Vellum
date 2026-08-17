@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { afterEach, describe, it, expect, vi } from "vitest";
+import { createHash } from "node:crypto";
 import {
+  encodeAuthorizeProvisioning,
+  encodeGetProvisioningSecurity,
   encodeWifiSettings,
   encodeScanWifi,
   encodeGetState,
@@ -10,6 +13,7 @@ import {
   ImprovParser,
   decodeRpcResult,
   wifiSettingsPayloadLength,
+  wifiSettingsPayload,
   MAX_WIFI_SETTINGS_PAYLOAD,
   MAX_PROVISIONING_UNIX_TIME,
   IMPROV_HEADER,
@@ -23,6 +27,7 @@ import {
   scanNetworksOverSerial,
   provisionOverSerial,
   describeSerialError,
+  type UsbProvisioningAuthorizationRequest,
 } from "../improv-serial";
 
 afterEach(() => {
@@ -228,6 +233,19 @@ describe("Improv harmless readiness probe", () => {
     expect(frame[7]).toBe(ImprovType.RPC_COMMAND);
     expect(Array.from(frame.slice(9, 11))).toEqual([ImprovCmd.GET_STATE, 0]);
   });
+
+  it("encodes the Vellum security challenge and authorization RPCs", () => {
+    expect(Array.from(encodeGetProvisioningSecurity().slice(9, 11))).toEqual([
+      ImprovCmd.GET_PROVISIONING_SECURITY,
+      0,
+    ]);
+    const digest = Uint8Array.from({ length: 32 }, (_, index) => index);
+    const auth = encodeAuthorizeProvisioning(digest, "aa".repeat(32));
+    expect(auth[9]).toBe(ImprovCmd.AUTHORIZE_PROVISIONING);
+    expect(auth[10]).toBe(64);
+    expect(Array.from(auth.slice(11, 43))).toEqual(Array.from(digest));
+    expect(Array.from(auth.slice(43, 75))).toEqual(Array(32).fill(0xaa));
+  });
 });
 
 describe("WIFI_SETTINGS payload-size guard", () => {
@@ -338,6 +356,85 @@ describe("ImprovParser (device → browser)", () => {
 });
 
 describe("Web Serial scan lifecycle", () => {
+  it("authorizes one exact payload before reprovisioning an enrolled display", async () => {
+    let controller: ReadableStreamDefaultController<Uint8Array>;
+    const commands: number[] = [];
+    const challenge = "00112233445566778899aabbccddeeff";
+    const rpcResult = (cmd: number, strings: string[]) => {
+      const encoded = strings.flatMap((value) => {
+        const bytes = Array.from(new TextEncoder().encode(value));
+        return [bytes.length, ...bytes];
+      });
+      return encodeFrame(ImprovType.RPC_RESULT, [cmd, encoded.length, ...encoded]);
+    };
+    const readable = new ReadableStream<Uint8Array>({
+      start(nextController) {
+        controller = nextController;
+      },
+    });
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) {
+        const cmd = chunk[9];
+        commands.push(cmd);
+        if (cmd === ImprovCmd.GET_STATE) {
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.READY]));
+        } else if (cmd === ImprovCmd.GET_PROVISIONING_SECURITY) {
+          controller.enqueue(
+            rpcResult(ImprovCmd.GET_PROVISIONING_SECURITY, [
+              "1",
+              "A1B2C3D4E5F6",
+              challenge,
+              "locked",
+            ])
+          );
+        } else if (cmd === ImprovCmd.AUTHORIZE_PROVISIONING) {
+          controller.enqueue(rpcResult(ImprovCmd.AUTHORIZE_PROVISIONING, ["authorized"]));
+        } else if (cmd === ImprovCmd.WIFI_SETTINGS) {
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.PROVISIONED]));
+          controller.enqueue(rpcResult(ImprovCmd.WIFI_SETTINGS, ["https://vellum.test"]));
+        }
+      },
+    });
+    const port = { readable, writable, async open() {}, async close() {} };
+    vi.stubGlobal("navigator", { serial: { requestPort: async () => port } });
+
+    const session = await SerialProvisioningSession.connect();
+    const provisionedAtUnix = 1_786_291_200;
+    const authorize = vi.fn(async (request: UsbProvisioningAuthorizationRequest) => {
+      const payload = wifiSettingsPayload(
+        "Office",
+        "secret",
+        "https://vellum.test",
+        undefined,
+        "",
+        provisionedAtUnix
+      );
+      expect(request).toEqual({
+        mac: "A1B2C3D4E5F6",
+        challenge,
+        payloadDigest: createHash("sha256").update(payload).digest("hex"),
+      });
+      return "aa".repeat(32);
+    });
+
+    await expect(
+      session.provision({
+        ssid: "Office",
+        password: "secret",
+        serverUrl: "https://vellum.test",
+        ntpServer: "",
+        provisionedAtUnix,
+        authorize,
+        timeoutMs: 500,
+      })
+    ).resolves.toEqual({ ok: true, redirectUrl: "https://vellum.test" });
+    expect(authorize).toHaveBeenCalledOnce();
+    expect(commands.indexOf(ImprovCmd.AUTHORIZE_PROVISIONING)).toBeLessThan(
+      commands.indexOf(ImprovCmd.WIFI_SETTINGS)
+    );
+    await session.disconnect();
+  });
+
   it("reuses one open port for repeated scans and provisioning", async () => {
     let controller: ReadableStreamDefaultController<Uint8Array>;
     let openCount = 0;

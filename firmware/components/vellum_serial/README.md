@@ -10,9 +10,10 @@ This is the component behind Vellum's **primary onboarding path** (shipped in
 WebUI over a USB cable — no SoftAP or captive portal required. SoftAP still
 exists as the no-credentials fallback (see [below](#relationship-to-softap)).
 
-`vellum_serial_init()` spawns the `serial` task on **every boot**
-(`firmware/main/main.c` calls it unconditionally, right after `display_init()`),
-so provisioning over USB is always available regardless of Wi-Fi state.
+`vellum_serial_init()` spawns the `serial` task on **every boot**. Read-only
+discovery and Wi-Fi scanning therefore stay available regardless of Wi-Fi state,
+while configuration writes are permanently locked for the current NVS lifecycle
+as soon as the first non-empty device token is stored.
 
 ## Public API
 
@@ -62,10 +63,14 @@ dispatched by `improv_handle_rpc()`:
 | `GET_STATE`       | `0x02` | Reply with the current `CURRENT_STATE`. |
 | `GET_DEVICE_INFO` | `0x03` | `RPC_RESULT` = `["Vellum", firmware-version, IDF-target, display-model]`. |
 | `SCAN_WIFI`       | `0x04` | One `RPC_RESULT` per AP (`[ssid, rssi, secured]`, where the 3rd field is `"YES"` for secured / `"NO"` for open), then a final empty `RPC_RESULT` terminating the list. |
+| `GET_PROVISIONING_SECURITY` | `0x05` | Return protocol version, MAC, fresh challenge, and `locked`/`unlocked`. |
+| `AUTHORIZE_PROVISIONING` | `0x06` | Verify `payload-sha256(32) \| hmac-sha256(32)` and arm one exact write. |
 
 Reported states: `READY` (`0x02`), `PROVISIONING` (`0x03`), `PROVISIONED`
 (`0x04`). Errors: `NONE` (`0x00`), `INVALID_RPC` (`0x01`), `UNKNOWN_CMD`
-(`0x02`), `UNABLE_CONNECT` (`0x03`).
+(`0x02`), `UNABLE_CONNECT` (`0x03`), `INSECURE_URL` (`0x04`),
+`AUTH_REQUIRED` (`0x05`), `AUTH_FAILED` (`0x06`), and `AUTH_EXPIRED`
+(`0x07`).
 
 ### WIFI_SETTINGS payload
 
@@ -139,18 +144,52 @@ against the `vellum>` prompt. `help` is also registered
 | `nvs-erase` | `nvs-erase` | Factory reset — erase all NVS, then reboot. |
 | `reboot`    | `reboot` | Restart the device. |
 
-These are the developer/power-user equivalents of the Improv RPCs; the WebUI
-flow does not need them.
+On a fresh device these are developer equivalents of the Improv RPCs. Once the
+device is enrolled, `wifi`, write-mode `server`, `token`, and `nvs-erase` fail
+closed. An administrator reconfigures it through the WebUI; a deliberate
+physical long-press factory-reset remains the recovery path.
 
-## Security note (physical-trust model)
+## Protected re-provisioning
+
+Fresh devices have no enrollment marker and accept their first profile without
+a key. Storing the first device token creates an independent, persistent lock;
+temporarily clearing or rotating that token cannot reopen provisioning. Once
+enrolled, the firmware protects every later `WIFI_SETTINGS` mutation:
+
+1. `GET_PROVISIONING_SECURITY (0x05)` returns the MAC and a fresh random
+   128-bit challenge. It expires after two minutes.
+2. The browser hashes the exact `WIFI_SETTINGS` payload with SHA-256 and asks
+   the authenticated Vellum server for authorization.
+3. The server requires `devices.provision`, loads the existing per-device token,
+   and returns `HMAC-SHA256(token, context || MAC || challenge || payload_hash)`.
+   The token itself never enters the browser.
+4. `AUTHORIZE_PROVISIONING (0x06)` verifies the HMAC in constant time. The next
+   payload must match the authorized hash exactly. Both challenge and grant are
+   single-use; changing one byte or replaying it after restart fails.
+
+Successful authorization issuance is written to the server security audit log.
+Legacy firmware reports `UNKNOWN_CMD` (or remains silent); the WebUI remains
+compatible but clearly recommends updating before public deployment.
+
+Server URL and Wi-Fi changes can alternatively be scheduled through the
+authenticated device `/config` channel. Both flows are separately HMAC-bound.
+Server migration validates the new Vellum endpoint before an atomic commit. A
+remote Wi-Fi change keeps the old profile in the same NVS transaction, connects
+with the new profile, and verifies authenticated access to the current Vellum
+Server before finalizing. Any failure, restart, or power loss restores the old
+profile. The server stores the Wi-Fi password encrypted at rest; neither the
+password nor the device token appears in audit metadata or command history.
+
+## Security note (first-enrolment trust model)
 
 Wi-Fi credentials **and** the pre-provisioning token cross the USB cable in
 **cleartext** inside the Improv `WIFI_SETTINGS` frame — the Improv Serial spec
 carries plain length-prefixed strings, and there is no on-device key exchange
-before the token is delivered. The exposure is a **local USB cable held by the
-operator during a provisioning window**, not the network, which is the accepted
-trust model for this flow. Encrypting the token in transit (via an on-device
-key exchange) is a tracked, deliberately-deferred item — see
+before the token is delivered. This applies only to first enrollment: protected
+re-provisioning neither sends nor replaces the device token. The initial
+exposure is a **local USB cable held by the operator during a provisioning
+window**, not the network. Encrypting the first token in transit remains tracked
+under
 [`ROADMAP.md`](../../../ROADMAP.md) under *USB provisioning (zero-touch
 enrolment)*, "Encrypt the device token in transit over USB (review #14)", along
 with the related voucher-binding and revocation trade-offs.

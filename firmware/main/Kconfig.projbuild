@@ -1,5 +1,24 @@
 menu "Vellum Configuration"
 
+    config VELLUM_SECURITY_PROFILE
+        string "Firmware security profile identity"
+        default "development"
+        help
+            Machine-readable security posture reported to Vellum Server.
+            Build overlays set this to testsecure, secureboot, or production.
+            Do not change it manually: it is evidence, not a policy request.
+
+    config VELLUM_NVS_HMAC_INTEGRITY
+        bool "Enroll configuration in reversible HMAC-NVS integrity"
+        default n
+        help
+            On an enrolled device, create and verify a domain-separated HMAC
+            over security-sensitive NVS values. The software key remains in NVS,
+            so this detects corruption and unexpected writes through trusted
+            firmware but does not provide confidentiality or resist malicious
+            replacement firmware or a physical flash attacker.
+            It burns no eFuse and is fully reversible by factory reset.
+
     config VELLUM_FIRMWARE_VERSION
         string "Firmware version"
         default "1.5.0" # x-release-please-version

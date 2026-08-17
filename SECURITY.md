@@ -47,14 +47,15 @@ from the TLS-terminating proxy
 fields are length-validated before use, and private key material is zeroized from
 the stack after use.
 
-**The voucher / USB provisioning path is different — the token is NOT encrypted
-there.** It is the same device bearer token (`src/db/schema.ts`; `validateToken`
-in `src/lib/auth/index.ts`), but it crosses the **USB cable in cleartext**: as
-the 4th length-prefixed string in the Improv `WIFI_SETTINGS` frame
-(`src/lib/provisioning/improv-serial.ts`), and via the plaintext `token <value>`
-serial-console command (`firmware/components/vellum_serial/vellum_serial.c`).
-This path relies on **physical trust of the provisioning window**, not
-cryptography (see §4).
+**During first USB enrollment**, the zero-touch token crosses the controlled USB
+cable in cleartext as the fourth Improv `WIFI_SETTINGS` string. Once that token
+is first stored, firmware persists a separate enrollment lock and locks all USB
+configuration writes. Token rotation or temporary removal after a 401 cannot
+clear the lock; only physical factory reset can. Re-provisioning requires a
+single-use HMAC authorization bound to the device MAC, a random 128-bit challenge
+and the SHA-256 digest of the exact new profile; the token never returns to the
+browser. Initial enrollment therefore still relies on physical trust, while an
+already enrolled public device does not (see §4).
 
 ---
 
@@ -92,6 +93,20 @@ in NVS (`firmware/components/nvs_manager/`).
 - **Development builds do NOT encrypt NVS or flash** — these secrets are readable
   by anyone who can dump the flash. Do not deploy dev builds to untrusted
   locations.
+- **`testsecure` adds reversible HMAC-NVS integrity.** After authenticated
+  enrollment, firmware creates a random per-device software key and seals the
+  credentials, device identity, enrollment lock, and remote-configuration state.
+  Every protected mutation writes a new seal before returning success; every
+  boot verifies it before networking. ESP-IDF NVS has no multi-key transaction,
+  so power loss during a protected batch is intentionally detected as an
+  integrity mismatch instead of accepting a partial configuration. A mismatch
+  fails closed and requires a physical factory reset. This burns no eFuse and is
+  fully reversible. Because the HMAC
+  key is itself stored in plaintext NVS, it protects against accidental
+  corruption and unexpected writes through the trusted firmware path—not a
+  malicious replacement firmware or a physical attacker who can dump and
+  rewrite flash. It is intentionally an intermediate control, never described
+  as NVS encryption or a hardware-rooted integrity guarantee.
 - **Production builds** enable NVS encryption rooted in an eFuse-protected key
   (via Flash Encryption), giving real at-rest confidentiality. See §5.
 
@@ -107,10 +122,33 @@ in NVS (`firmware/components/nvs_manager/`).
 - **SoftAP captive portal** is an OPEN AP during first-time setup only. Treat the
   setup window as trusted-physical: anyone in RF range can submit credentials. The
   device restarts out of AP mode immediately after credentials are stored. The
-  captive DNS responder is bounds-checked against oversized queries.
-- **Improv-serial / USB console** requires physical USB access (which already
-  grants full control). RPC length fields are validated against the bytes actually
-  received before use.
+  captive DNS responder is bounds-checked against oversized queries. If a
+  partially damaged NVS retains an enrollment token but loses Wi-Fi settings,
+  the portal fails closed with HTTP 403 instead of reopening configuration.
+- **Improv-serial / USB console.** Fresh devices accept an initial profile.
+  Enrolled devices expose read-only state and Wi-Fi scan, but reject every
+  configuration mutation unless the Console supplies a two-minute, single-use
+  HMAC authorization for that exact payload. Issuance requires
+  `devices.provision` and is audited. Interactive `wifi`, write-mode `server`,
+  `token`, and `nvs-erase` commands fail closed after enrollment. A deliberate
+  physical long-press reset remains available for recovery.
+- **Remote server and Wi-Fi changes.** An administrator with
+  `devices.provision` may queue either change through the authenticated
+  `/config` poll. Desired state is durable and audited; every command is HMAC
+  bound to its UUID and exact payload. A server migration must pass validated
+  TLS, device authentication, and desired-state validation at the target before
+  an atomic commit. A Wi-Fi password is AES-256-GCM encrypted in PostgreSQL,
+  excluded from audit metadata and UI history, and decrypted only while
+  constructing the authenticated device response. Firmware atomically retains
+  the old and new profiles, claims the command, reconnects, and proves that the
+  existing Vellum Server is reachable through the new network before committing.
+  Connection failure, server failure, restart, or power loss restores the old
+  profile; the terminal outcome is durably reported after connectivity returns.
+- **Wi-Fi telemetry** contains the associated SSID and the authentication mode
+  actually negotiated with the access point (for example `wpa3-sae`), not the
+  requested configuration. The SSID is base64-encoded on the HTTP wire so all
+  valid SSID byte sequences remain header-safe. Passwords and key material are
+  never included in telemetry.
 - **Zero-touch voucher enrolment** (optional). An admin mints a single-use
   provisioning voucher (`provisioning_vouchers` table, `src/db/schema.ts`) whose
   `token` **is** the device bearer token, and pushes it over USB with the Wi-Fi
@@ -134,6 +172,23 @@ NULL` never expires, so this expiry mitigation is opt-in.** Enrolment is
 The profile in `firmware/sdkconfig.defaults.prod` enables Secure Boot v2, Flash
 Encryption (Release), NVS encryption and anti-rollback. **First boot burns eFuses
 — there is no undo.** Prove the full image + OTA flow on dev boards first.
+
+Both local builds and release CI fail closed unless the irreversible feature
+flag carries the exact acknowledgement and all four evidence gates are set:
+verified HSM signing, validated test devices, an approved recovery runbook, and
+an approved manufacturing process. `testsecure` needs none of these because it
+cannot burn eFuses.
+
+The only accepted local invocation for an irreversible S3 profile is therefore
+explicit and auditable (the P4 path remains disabled until separately
+qualified):
+
+```bash
+make build MODEL=e1002 SECURE=1 SECURE_PROFILE=secureboot \
+  IRREVERSIBLE_SECURITY_ENROLLMENT=I_ACKNOWLEDGE_EFUSE_BURNS_ARE_IRREVERSIBLE \
+  HSM_SIGNING_VERIFIED=1 TEST_DEVICES_VALIDATED=1 \
+  RECOVERY_RUNBOOK_APPROVED=1 MANUFACTURING_PROCESS_APPROVED=1
+```
 
 ```bash
 cd firmware
@@ -171,15 +226,15 @@ firmware/keys/
 
 ## 6. Residual / accepted risks
 
-| Risk                                                                  | Status                                                                                                                                  |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Dev builds: secrets in plaintext flash, board freely reflashable      | **Accepted for dev only.** Use the production profile for field units.                                                                  |
-| Open SoftAP during first-time provisioning                            | Accepted; setup window is treated as physical-trust and is brief.                                                                       |
-| Physical USB console/Improv grants device control                     | Accepted; equivalent to physical possession. Locked out by Secure Boot + disabled ROM-DL in prod.                                       |
-| Render content spoofing if the operator uses a non-public-CA endpoint | Mitigated by enforced HTTPS + CA validation; operator must use a valid public cert.                                                     |
-| OTA downgrade to an older _signed_ image                              | Mitigated in prod by anti-rollback; in dev only the version-gate applies.                                                               |
-| `X-Forwarded-For` is trusted for rate-limit keying                    | Accepted **behind a trusted proxy** that overwrites XFF; a directly-exposed instance lets a client spoof it and bypass limits (see §7). |
-| CSP is a non-breaking subset (no `script-src` lockdown)               | Accepted; clickjacking / `<base>` / plugin / form-hijack are covered. Full nonce-based CSP tracked in ROADMAP.                          |
+| Risk                                                                  | Status                                                                                                                                        |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dev builds: secrets in plaintext flash, board freely reflashable      | **Accepted for dev only.** Use the production profile for field units.                                                                        |
+| Open SoftAP during first-time provisioning                            | Accepted; setup window is treated as physical-trust and is brief.                                                                             |
+| Physical USB access to an enrolled device                             | Mitigated at application level by challenge/HMAC authorization. Until Secure Boot is enabled, a physical attacker can still replace firmware. |
+| Render content spoofing if the operator uses a non-public-CA endpoint | Mitigated by enforced HTTPS + CA validation; operator must use a valid public cert.                                                           |
+| OTA downgrade to an older _signed_ image                              | Mitigated in prod by anti-rollback; in dev only the version-gate applies.                                                                     |
+| `X-Forwarded-For` is trusted for rate-limit keying                    | Accepted **behind a trusted proxy** that overwrites XFF; a directly-exposed instance lets a client spoof it and bypass limits (see §7).       |
+| CSP is a non-breaking subset (no `script-src` lockdown)               | Accepted; clickjacking / `<base>` / plugin / form-hijack are covered. Full nonce-based CSP tracked in ROADMAP.                                |
 
 ---
 

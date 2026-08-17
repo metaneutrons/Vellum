@@ -14,8 +14,11 @@ Vellum has **two independent signing trust chains**. Do not conflate them.
   these — a KMS key deletion with no exported public backup makes already-deployed
   images unverifiable/unrotatable forever.
 - **NEVER committed** (private): `*.pem` / `*.der` private keys, `hsm_config.ini`,
-  `kmsp11.yaml`. These are `.gitignore`d. Private key material lives in KMS; a
-  local PEM should never touch this directory or CI.
+  `kmsp11.yaml`. These are `.gitignore`d. Production private key material lives
+  in KMS and must never touch this directory or CI. The sole development
+  exception is `testsecure_signing_key.pem`: the Makefile generates this local,
+  disposable, git-ignored key only for the fully reversible `testsecure` rung.
+  It has no production trust value and must never be imported into an HSM.
 
 > **Status — Secure Boot v2 not yet provisioned:** `secureboot.pub` and
 > `secureboot_digest*.bin` (the row-2 material above) do **not** exist here yet.
@@ -24,7 +27,7 @@ Vellum has **two independent signing trust chains**. Do not conflate them.
 > public key that *does* exist today is the OTA Ed25519 key at repo root,
 > `vellum-firmware-signing.pub` (row 1) — not in this directory.
 
-## Why KMS, not a local PEM
+## Why production uses KMS, not a local PEM
 
 Phase 3 moved both keys to a cloud KMS/HSM signed via GitHub OIDC (keyless) —
 there is no long-lived signing key on any build host or in any repo secret. See

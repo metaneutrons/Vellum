@@ -28,7 +28,10 @@ Do not conflate them — they use different algorithms, keys, and verifiers.
 | Status today | **live** (Ed25519 required, fail-closed)                            | **off** until you provision                      |
 
 Chain ① is already enforced. Chain ② is opt-in and gated behind `SECURE=1`
-builds; the default `make build` is unchanged (unsigned, reflashable).
+builds; the default `make build` is unchanged (unsigned, reflashable). The
+`testsecure` rung uses a local disposable RSA-3072 key (generated once under
+`firmware/keys/` and ignored by Git), burns no eFuse, and must never establish
+production trust.
 
 ---
 
@@ -67,11 +70,11 @@ provisioning; they change the commands below.
 Three overlays chain on top of the per-model base, climbing a ladder. **Prove
 each rung on a spare board before the next.** The default build is untouched.
 
-| Profile      | `make` invocation                                           | What it enables                                                                      | Reversible?                                   |
-| ------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------- |
-| `testsecure` | `make build MODEL=e1002 SECURE=1 SECURE_PROFILE=testsecure` | Software signature verification (`SECURE_SIGNED_APPS_NO_SECURE_BOOT`). **No eFuse.** | ✅ fully                                      |
-| `secureboot` | `… SECURE_PROFILE=secureboot`                               | Secure Boot v2 (RSA-3072). Flash-Enc OFF, ROM-DL open.                               | ⚠️ first eFuse burns; board stays reflashable |
-| `prod`       | `… SECURE_PROFILE=prod`                                     | + Flash Encryption RELEASE + anti-rollback + NVS-enc.                                | ⚠️ **point of no return**                     |
+| Profile      | `make` invocation                                             | What it enables                                                                      | Reversible?                                   |
+| ------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `testsecure` | `make build MODEL=<model> SECURE=1 SECURE_PROFILE=testsecure` | Software signature verification (`SECURE_SIGNED_APPS_NO_SECURE_BOOT`). **No eFuse.** | ✅ fully                                      |
+| `secureboot` | `… SECURE_PROFILE=secureboot`                                 | Secure Boot v2 (RSA-3072). Flash-Enc OFF, ROM-DL open.                               | ⚠️ first eFuse burns; board stays reflashable |
+| `prod`       | `… SECURE_PROFILE=prod`                                       | + Flash Encryption RELEASE + anti-rollback + NVS-enc.                                | ⚠️ **point of no return**                     |
 
 All overlays set `CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n` — **no private key
 on the build host**; images are signed out-of-band by KMS. A `SECURE=1` build
@@ -242,19 +245,22 @@ with **no hard cutover**.
 
 ### Phase A — Prove the chain with ZERO burns (spare board, reversible)
 
-1. Create the Secure Boot RSA-3072 key in KMS (no local PEM):
-   `gcloud kms keys create secureboot-rsa3072 --keyring fw --location global
---purpose asymmetric-signing --default-algorithm rsa-sign-pss-3072-sha256
---protection-level hsm`. Export the public key to `firmware/keys/secureboot.pub`.
-2. Build the software-verify profile: `make build MODEL=e1002 SECURE=1
-SECURE_PROFILE=testsecure` (no eFuse).
-3. Sign remotely and verify:
-   `espsecure.py sign_data --version 2 --hsm --hsm-config hsm_config.ini
---output app.signed.bin build/vellum-e1002.bin` then `espsecure.py
-verify_signature --version 2 --keyfile firmware/keys/secureboot.pub
-app.signed.bin`. Flash the spare; confirm it boots and rejects a deliberately
-   corrupted signature.
-4. **Invariant check:** confirm the OTA Ed25519 path still works after the RSA-PSS
+1. Build the software-verify profile: `make build MODEL=<model> SECURE=1
+SECURE_PROFILE=testsecure` (`d1001`, `e1001`, `e1002`, or `e1003`). The Makefile creates a persistent, local,
+   git-ignored `keys/testsecure_signing_key.pem` when absent and ESP-IDF signs
+   the bootloader/app automatically. No eFuse is written.
+2. Flash the complete factory image over USB. In the device detail view, verify
+   the three observed gates: authenticated enrollment, `testsecure` firmware,
+   and `HMAC verified`. Existing enrolled NVS is sealed on first testsecure boot;
+   fresh devices are sealed as part of persisting their enrollment lock. A power
+   loss during a multi-key update fails closed because ESP-IDF NVS does not offer
+   multi-key transactions.
+3. Confirm a deliberate protected-NVS mutation blocks networking with
+   `Configuration protected`, then factory-reset and re-enroll. Confirm a normal
+   full USB flash/factory reset returns the board to the development profile.
+4. Separately create and validate the production Secure Boot RSA-3072 key in the
+   HSM. Never reuse or import the disposable testsecure key.
+5. **Invariant check:** confirm the OTA Ed25519 path still works after the RSA-PSS
    block is appended — do a full OTA and confirm the device `otaSha256` still equals
    the CI digest. CI derives that digest from the appended app "Validation hash"
    (`esptool image-info`), read from the end of the app image (before the SB block,
@@ -266,7 +272,7 @@ app.signed.bin`. Flash the spare; confirm it boots and rejects a deliberately
    `partitions.secure.csv`; otherwise CI publishes the app-only image and never
    RSA-signs. This CI leg is unexercised while SB is off — validate it on a
    `secureboot` board (Phase B.5) before enabling it for a fleet.
-5. **Bootloader fit:** `idf.py bootloader` with the `secureboot` overlay — confirm
+6. **Bootloader fit:** `idf.py bootloader` with the `secureboot` overlay — confirm
    it is below the `partitions.secure.csv` table offset (0x10000). If it overflows,
    raise `CONFIG_PARTITION_TABLE_OFFSET` **now** (factory-flash-only later).
 

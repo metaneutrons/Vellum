@@ -23,6 +23,13 @@
 #define NVS_MAX_URL_LEN     256
 #define NVS_MAX_NTP_SERVER_LEN 256 /* DNS name or IP literal + null */
 #define NVS_MAX_KEY_LEN     45   /* 44 base64 chars + null (32 bytes X25519) */
+#define NVS_REMOTE_COMMAND_ID_LEN 37 /* UUID + null */
+
+typedef enum {
+    NVS_INTEGRITY_DISABLED = 0,
+    NVS_INTEGRITY_VALID,
+    NVS_INTEGRITY_INVALID,
+} nvs_integrity_status_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,11 +38,21 @@ extern "C" {
 /** Initialize NVS flash. Must be called once at boot. */
 esp_err_t nvs_manager_init(void);
 
+/** Runtime status of the reversible HMAC seal over sensitive configuration. */
+nvs_integrity_status_t nvs_manager_integrity_status(void);
+const char *nvs_manager_integrity_status_name(void);
+
 /** Check if Wi-Fi credentials are stored. */
 bool nvs_manager_has_wifi_credentials(void);
 
 /** Check if a device token is stored. */
 bool nvs_manager_has_device_token(void);
+
+/**
+ * Whether this NVS lifecycle has ever enrolled. The lock survives token
+ * rotation and is cleared only by a full physical factory reset.
+ */
+bool nvs_manager_is_provisioning_locked(void);
 
 /** Read Wi-Fi SSID. Returns ESP_OK on success. */
 esp_err_t nvs_manager_get_wifi_ssid(char *buf, size_t buf_len);
@@ -60,6 +77,27 @@ esp_err_t nvs_manager_store_token(const char *token);
 
 /** Store backend server URL. */
 esp_err_t nvs_manager_store_server_url(const char *url);
+
+/** Last successfully applied remote-configuration command UUID. */
+esp_err_t nvs_manager_get_remote_command_id(char *buf, size_t buf_len);
+
+/** Atomically store a validated server migration and its idempotency marker. */
+esp_err_t nvs_manager_apply_remote_server_url(const char *url, const char *command_id);
+
+/** Atomically stage new Wi-Fi credentials while retaining a rollback profile. */
+esp_err_t nvs_manager_stage_remote_wifi(const char *ssid, const char *pass,
+                                        const char *command_id);
+
+/** Commit a staged Wi-Fi change and its idempotency marker. */
+esp_err_t nvs_manager_finalize_remote_wifi(const char *command_id);
+
+/** Restore the previous Wi-Fi profile and persist a deferred failure report. */
+esp_err_t nvs_manager_rollback_remote_wifi(const char *error_code);
+
+/** Read/clear a configuration outcome that must be reported after reconnect. */
+esp_err_t nvs_manager_get_deferred_config_report(char *command_id, size_t command_id_len,
+                                                 char *error_code, size_t error_code_len);
+esp_err_t nvs_manager_clear_deferred_config_report(void);
 
 /** Store or clear the administrator-provisioned NTP server. */
 esp_err_t nvs_manager_store_ntp_server(const char *server);

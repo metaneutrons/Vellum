@@ -12,6 +12,8 @@ void run_version_compare_tests(void);
 void run_ota_signature_tests(void);
 void run_ota_model_guard_tests(void);
 void run_secure_channel_tests(void);
+void run_usb_provisioning_auth_tests(void);
+void run_remote_configuration_auth_tests(void);
 void run_key_revocation_tests(void);
 void run_sy6974b_power_tests(void);
 void run_transport_policy_tests(void);
@@ -31,6 +33,8 @@ int main(void)
     run_ota_signature_tests();
     run_ota_model_guard_tests();
     run_secure_channel_tests();
+    run_usb_provisioning_auth_tests();
+    run_remote_configuration_auth_tests();
     run_key_revocation_tests();
     run_sy6974b_power_tests();
     run_transport_policy_tests();

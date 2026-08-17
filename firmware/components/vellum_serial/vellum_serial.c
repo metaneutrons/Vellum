@@ -34,6 +34,9 @@
 #include "linenoise/linenoise.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_random.h"
+#include "psa/crypto.h"
+#include "mbedtls/platform_util.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "serial";
@@ -54,6 +57,8 @@ static const char *TAG = "serial";
 #define IMPROV_CMD_GET_STATE      0x02
 #define IMPROV_CMD_GET_DEVICE_INFO 0x03
 #define IMPROV_CMD_SCAN_WIFI      0x04
+#define IMPROV_CMD_GET_PROVISIONING_SECURITY 0x05
+#define IMPROV_CMD_AUTHORIZE_PROVISIONING    0x06
 
 /* States */
 #define IMPROV_STATE_READY        0x02
@@ -67,8 +72,107 @@ static const char *TAG = "serial";
 #define IMPROV_ERROR_UNABLE_CONNECT 0x03
 /* Vellum protocol extension: the firmware build policy rejected server URL. */
 #define IMPROV_ERROR_INSECURE_URL   0x04
+#define IMPROV_ERROR_AUTH_REQUIRED  0x05
+#define IMPROV_ERROR_AUTH_FAILED    0x06
+#define IMPROV_ERROR_AUTH_EXPIRED   0x07
+
+#define USB_AUTH_CONTEXT "vellum-usb-provision-v1\n"
+#define USB_AUTH_CHALLENGE_BYTES 16
+#define USB_AUTH_DIGEST_BYTES 32
+#define USB_AUTH_TTL_MS 120000
+
+static uint8_t s_auth_challenge[USB_AUTH_CHALLENGE_BYTES];
+static TickType_t s_auth_challenge_issued;
+static bool s_auth_challenge_valid;
+static uint8_t s_authorized_digest[USB_AUTH_DIGEST_BYTES];
+static TickType_t s_authorized_at;
+static bool s_authorized_digest_valid;
 
 static uint8_t s_improv_state = IMPROV_STATE_READY;
+
+static bool elapsed_within(TickType_t started, uint32_t limit_ms)
+{
+    return (TickType_t)(xTaskGetTickCount() - started) <= pdMS_TO_TICKS(limit_ms);
+}
+
+static bool constant_time_equal(const uint8_t *a, const uint8_t *b, size_t len)
+{
+    uint8_t difference = 0;
+    for (size_t i = 0; i < len; i++) difference |= a[i] ^ b[i];
+    return difference == 0;
+}
+
+static void bytes_to_hex(const uint8_t *input, size_t len, char *output)
+{
+    static const char hex[] = "0123456789abcdef";
+    for (size_t i = 0; i < len; i++) {
+        output[i * 2] = hex[input[i] >> 4];
+        output[i * 2 + 1] = hex[input[i] & 0x0f];
+    }
+    output[len * 2] = '\0';
+}
+
+static bool usb_provisioning_locked(void)
+{
+    return nvs_manager_is_provisioning_locked();
+}
+
+static bool compute_auth_hmac(const char *token, const char *mac,
+                              const uint8_t challenge[USB_AUTH_CHALLENGE_BYTES],
+                              const uint8_t digest[USB_AUTH_DIGEST_BYTES],
+                              uint8_t output[USB_AUTH_DIGEST_BYTES])
+{
+    uint8_t message[(sizeof(USB_AUTH_CONTEXT) - 1) + 12 +
+                    USB_AUTH_CHALLENGE_BYTES + USB_AUTH_DIGEST_BYTES];
+    size_t pos = 0;
+    memcpy(message + pos, USB_AUTH_CONTEXT, sizeof(USB_AUTH_CONTEXT) - 1);
+    pos += sizeof(USB_AUTH_CONTEXT) - 1;
+    memcpy(message + pos, mac, 12);
+    pos += 12;
+    memcpy(message + pos, challenge, USB_AUTH_CHALLENGE_BYTES);
+    pos += USB_AUTH_CHALLENGE_BYTES;
+    memcpy(message + pos, digest, USB_AUTH_DIGEST_BYTES);
+    pos += USB_AUTH_DIGEST_BYTES;
+
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+    psa_set_key_bits(&attributes, strlen(token) * 8);
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_key_id_t key = 0;
+    size_t output_len = 0;
+    psa_status_t status = psa_crypto_init();
+    if (status == PSA_SUCCESS) {
+        status = psa_import_key(&attributes, (const uint8_t *)token, strlen(token), &key);
+    }
+    psa_reset_key_attributes(&attributes);
+    if (status == PSA_SUCCESS) {
+        status = psa_mac_compute(key, PSA_ALG_HMAC(PSA_ALG_SHA_256), message, pos,
+                                 output, USB_AUTH_DIGEST_BYTES, &output_len);
+    }
+    if (key != 0) psa_destroy_key(key);
+    return status == PSA_SUCCESS && output_len == USB_AUTH_DIGEST_BYTES;
+}
+
+static bool consume_provisioning_authorization(const uint8_t *payload, size_t len)
+{
+    if (!usb_provisioning_locked()) return true;
+    if (!s_authorized_digest_valid || !elapsed_within(s_authorized_at, USB_AUTH_TTL_MS)) {
+        s_authorized_digest_valid = false;
+        return false;
+    }
+
+    uint8_t digest[USB_AUTH_DIGEST_BYTES];
+    size_t digest_len = 0;
+    if (psa_crypto_init() != PSA_SUCCESS ||
+        psa_hash_compute(PSA_ALG_SHA_256, payload, len, digest, sizeof(digest),
+                         &digest_len) != PSA_SUCCESS ||
+        digest_len != sizeof(digest)) return false;
+    bool authorized = constant_time_equal(digest, s_authorized_digest, sizeof(digest));
+    /* One authorization always buys exactly one mutation attempt. */
+    s_authorized_digest_valid = false;
+    return authorized;
+}
 
 static bool provisioning_url_allowed(const char *url)
 {
@@ -137,6 +241,12 @@ static void improv_send_rpc_result(uint8_t cmd, const char **strings, int count)
 
 static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
 {
+    bool was_locked = usb_provisioning_locked();
+    if (!consume_provisioning_authorization(data, len)) {
+        ESP_LOGW(TAG, "Improv: rejected unauthorized configuration change");
+        improv_send_error(IMPROV_ERROR_AUTH_REQUIRED);
+        return;
+    }
     if (len < 2) { improv_send_error(IMPROV_ERROR_INVALID_RPC); return; }
 
     uint8_t ssid_len = data[0];
@@ -228,6 +338,16 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
         return;
     }
 
+    /* Enrollment identity is never rotated through a configuration profile.
+     * An authorized admin may change Wi-Fi/server/NTP transparently, but token
+     * rotation needs its own server-coordinated protocol so the database and
+     * device can never diverge. Empty positional placeholders remain valid. */
+    if (was_locked && token_supplied && supplied_token[0]) {
+        ESP_LOGW(TAG, "Improv: refused device-token replacement on enrolled device");
+        improv_send_error(IMPROV_ERROR_AUTH_FAILED);
+        return;
+    }
+
     ESP_LOGI(TAG, "Improv: WiFi credentials received — SSID: %s", ssid);
 
     s_improv_state = IMPROV_STATE_PROVISIONING;
@@ -285,6 +405,64 @@ static void improv_handle_wifi_settings(const uint8_t *data, uint8_t len)
     }
 }
 
+static void improv_handle_provisioning_security(void)
+{
+    char mac[13] = {0};
+    char challenge_hex[USB_AUTH_CHALLENGE_BYTES * 2 + 1] = {0};
+    bool locked = usb_provisioning_locked();
+    wifi_manager_get_mac(mac, sizeof(mac));
+    if (locked) {
+        esp_fill_random(s_auth_challenge, sizeof(s_auth_challenge));
+        s_auth_challenge_issued = xTaskGetTickCount();
+        s_auth_challenge_valid = true;
+        s_authorized_digest_valid = false;
+        bytes_to_hex(s_auth_challenge, sizeof(s_auth_challenge), challenge_hex);
+    }
+    const char *result[] = { "1", mac, challenge_hex, locked ? "locked" : "unlocked" };
+    improv_send_rpc_result(IMPROV_CMD_GET_PROVISIONING_SECURITY, result, 4);
+}
+
+static void improv_handle_authorize_provisioning(const uint8_t *data, uint8_t len)
+{
+    if (!usb_provisioning_locked()) {
+        const char *result[] = { "authorized" };
+        improv_send_rpc_result(IMPROV_CMD_AUTHORIZE_PROVISIONING, result, 1);
+        return;
+    }
+    if (len != USB_AUTH_DIGEST_BYTES * 2) {
+        improv_send_error(IMPROV_ERROR_INVALID_RPC);
+        return;
+    }
+    if (!s_auth_challenge_valid || !elapsed_within(s_auth_challenge_issued, USB_AUTH_TTL_MS)) {
+        s_auth_challenge_valid = false;
+        improv_send_error(IMPROV_ERROR_AUTH_EXPIRED);
+        return;
+    }
+
+    char token[NVS_MAX_TOKEN_LEN] = {0};
+    char mac[13] = {0};
+    uint8_t expected[USB_AUTH_DIGEST_BYTES];
+    wifi_manager_get_mac(mac, sizeof(mac));
+    bool valid = nvs_manager_get_token(token, sizeof(token)) == ESP_OK &&
+                 compute_auth_hmac(token, mac, s_auth_challenge, data, expected) &&
+                 constant_time_equal(expected, data + USB_AUTH_DIGEST_BYTES,
+                                     USB_AUTH_DIGEST_BYTES);
+    mbedtls_platform_zeroize(token, sizeof(token));
+    mbedtls_platform_zeroize(expected, sizeof(expected));
+    s_auth_challenge_valid = false;
+    if (!valid) {
+        ESP_LOGW(TAG, "Improv: invalid USB provisioning authorization");
+        improv_send_error(IMPROV_ERROR_AUTH_FAILED);
+        return;
+    }
+
+    memcpy(s_authorized_digest, data, USB_AUTH_DIGEST_BYTES);
+    s_authorized_at = xTaskGetTickCount();
+    s_authorized_digest_valid = true;
+    const char *result[] = { "authorized" };
+    improv_send_rpc_result(IMPROV_CMD_AUTHORIZE_PROVISIONING, result, 1);
+}
+
 static void improv_handle_device_info(void)
 {
     const char *info[] = {
@@ -335,6 +513,12 @@ static void improv_handle_rpc(const uint8_t *data, uint8_t len)
         case IMPROV_CMD_SCAN_WIFI:
             improv_handle_scan_wifi();
             break;
+        case IMPROV_CMD_GET_PROVISIONING_SECURITY:
+            improv_handle_provisioning_security();
+            break;
+        case IMPROV_CMD_AUTHORIZE_PROVISIONING:
+            improv_handle_authorize_provisioning(&data[2], cmd_len);
+            break;
         default:
             improv_send_error(IMPROV_ERROR_UNKNOWN_CMD);
             break;
@@ -367,6 +551,10 @@ static bool improv_try_parse(const uint8_t *buf, int len)
 
 static int cmd_wifi(int argc, char **argv)
 {
+    if (usb_provisioning_locked()) {
+        printf("Denied: enrolled devices must be provisioned through an authorized Vellum Console session.\n");
+        return 1;
+    }
     if (argc < 3) {
         printf("Usage: wifi <ssid> <password> [server-url]\n");
         return 1;
@@ -396,6 +584,10 @@ static int cmd_server(int argc, char **argv)
         }
         return 0;
     }
+    if (usb_provisioning_locked()) {
+        printf("Denied: enrolled devices must be provisioned through an authorized Vellum Console session.\n");
+        return 1;
+    }
     if (!provisioning_url_allowed(argv[1])) {
         printf("Error: this firmware requires an https:// server URL. No settings were changed.\n");
         return 1;
@@ -407,6 +599,10 @@ static int cmd_server(int argc, char **argv)
 
 static int cmd_token(int argc, char **argv)
 {
+    if (usb_provisioning_locked()) {
+        printf("Denied: the device token cannot be replaced from the interactive console.\n");
+        return 1;
+    }
     if (argc < 2) {
         printf("Usage: token <value>\n");
         return 1;
@@ -431,6 +627,10 @@ static int cmd_info(int argc, char **argv)
 static int cmd_nvs_erase(int argc, char **argv)
 {
     (void)argc; (void)argv;
+    if (usb_provisioning_locked()) {
+        printf("Denied: factory reset requires the physical reset procedure.\n");
+        return 1;
+    }
     printf("Erasing NVS... ");
     nvs_manager_clear_all();
     printf("done. Rebooting.\n");

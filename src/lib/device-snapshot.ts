@@ -23,11 +23,13 @@ export async function getDeviceSnapshots(macs?: readonly string[]): Promise<Devi
           d.display_caps, d.orientation_override, d.last_seen,
           d.expected_interval_s, d.approved_at, d.created_at,
           t.battery_level, t.battery_voltage, t.power_source, t.battery_status,
-          t.wifi_rssi, t.firmware_version
+          t.wifi_rssi, t.wifi_ssid, t.wifi_security, t.firmware_version,
+          t.security_profile, t.nvs_integrity
         FROM devices d
         LEFT JOIN LATERAL (
           SELECT battery_level, battery_voltage, power_source, battery_status,
-                 wifi_rssi, firmware_version
+                 wifi_rssi, wifi_ssid, wifi_security, firmware_version,
+                 security_profile, nvs_integrity
           FROM telemetry WHERE mac = d.mac ORDER BY timestamp DESC LIMIT 1
         ) t ON true
         ${filter}

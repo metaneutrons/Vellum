@@ -31,6 +31,7 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "cJSON.h"
+#include "mbedtls/base64.h"
 
 #include "nvs_manager.h"
 #include "wifi_manager.h"
@@ -185,6 +186,7 @@ static void display_transport_error(vellum_http_failure_t failure)
 
 static vellum_telemetry_t gather_telemetry(void)
 {
+    static char wifi_ssid_b64[48];
     /* Read the cell first: on D1001 this also applies the charger's safe
      * hysteresis, so the state reported below describes the resulting state. */
     const float battery_voltage = board_battery_voltage();
@@ -201,13 +203,26 @@ static vellum_telemetry_t gather_telemetry(void)
     const esp_app_desc_t *app = esp_app_get_description();
     const char *firmware_version =
         (app && app->version[0]) ? app->version : CONFIG_VELLUM_FIRMWARE_VERSION;
+    char wifi_ssid[NVS_MAX_SSID_LEN] = {0};
+    size_t wifi_ssid_b64_len = 0;
+    wifi_ssid_b64[0] = '\0';
+    if (wifi_manager_get_current_ssid(wifi_ssid, sizeof(wifi_ssid)) == ESP_OK &&
+        mbedtls_base64_encode((unsigned char *)wifi_ssid_b64, sizeof(wifi_ssid_b64) - 1,
+                              &wifi_ssid_b64_len, (const unsigned char *)wifi_ssid,
+                              strlen(wifi_ssid)) == 0) {
+        wifi_ssid_b64[wifi_ssid_b64_len] = '\0';
+    }
     vellum_telemetry_t t = {
         .battery_voltage = battery_voltage,
         .battery_level   = battery_level,
         .power_source    = power_source,
         .battery_status  = board_battery_status_name(battery_status),
         .wifi_rssi       = wifi_manager_get_rssi(),
+        .wifi_ssid_b64   = wifi_ssid_b64[0] ? wifi_ssid_b64 : NULL,
+        .wifi_security   = wifi_manager_get_current_security(),
         .firmware_ver    = firmware_version,
+        .security_profile = CONFIG_VELLUM_SECURITY_PROFILE,
+        .nvs_integrity   = nvs_manager_integrity_status_name(),
     };
     return t;
 }
@@ -535,7 +550,9 @@ static bool handle_button_action(button_action_t action)
     case BUTTON_ACTION_FACTORY_RESET:
         ESP_LOGW(TAG, "Factory reset — erasing NVS");
         board_buzzer_beep(500, 500);
-        nvs_manager_clear_all();
+        /* This recovery path must work even when the NVS namespace cannot be
+         * opened (format/version error or failed integrity initialization). */
+        nvs_flash_erase();
         esp_restart();
         return true;
 
@@ -617,7 +634,9 @@ void app_main(void)
     ESP_LOGI(TAG, "===== Vellum Firmware v%s =====", firmware_version);
 
     /* 1. Initialize core subsystems */
-    ESP_ERROR_CHECK(nvs_manager_init());
+    esp_err_t nvs_init_err = nvs_manager_init();
+    bool nvs_integrity_failed = nvs_init_err == ESP_ERR_INVALID_CRC;
+    bool nvs_unavailable = nvs_init_err != ESP_OK;
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001: board init first (power rails, I2C, IO-expander) */
     ESP_ERROR_CHECK(d1001_board_init());
@@ -698,6 +717,19 @@ void app_main(void)
         /* Released before 3s: normal boot */
     }
 #endif
+
+    if (nvs_unavailable) {
+        ESP_LOGE(TAG, "Configuration unavailable (%s); networking is blocked",
+                 esp_err_to_name(nvs_init_err));
+        display_show_status_message(
+            VD_ICON_WARNING, "Configuration protected",
+            nvs_integrity_failed
+                ? "Integrity check failed\nFactory reset and re-enroll"
+                : "Storage recovery required\nFactory reset and re-enroll");
+        while (true) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
 
     ESP_LOGI(TAG, "Wake reason: %s",
              wake == WAKE_REASON_TIMER  ? "TIMER" :
@@ -885,6 +917,10 @@ void app_main(void)
             /* On D1001 this returns after delay; on E-Paper it does not return */
         }
     }
+
+    /* A power loss during an authenticated Wi-Fi rotation rolls back in NVS
+     * before networking. Report that durable outcome once the token is ready. */
+    ota_manager_report_deferred_configuration();
 
     /* 7. Request render and draw to display */
     bool render_ok = false;

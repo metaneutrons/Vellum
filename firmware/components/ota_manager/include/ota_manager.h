@@ -28,3 +28,6 @@ ota_check_result_t ota_manager_check_and_apply(void);
  * rolls back to the previous image on the next boot.
  */
 void ota_manager_mark_valid(void);
+
+/** Report a rollback recovered during boot once device authentication is ready. */
+void ota_manager_report_deferred_configuration(void);

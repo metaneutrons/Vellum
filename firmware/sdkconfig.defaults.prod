@@ -32,6 +32,8 @@ CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
 # `espsecure.py sign_data --version 2 --hsm`. (Was BUILD_SIGNED_BINARIES=y with a
 # local keys/secure_boot_signing_key.pem — replaced by KMS custody in Phase 3.)
 CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n
+CONFIG_VELLUM_SECURITY_PROFILE="production"
+CONFIG_VELLUM_NVS_HMAC_INTEGRITY=y
 # Do not allow JTAG once secure boot is on.
 CONFIG_SECURE_BOOT_ALLOW_JTAG=n
 

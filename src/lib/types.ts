@@ -30,6 +30,10 @@ export interface TelemetryEntry {
   powerSource: "usb" | "battery" | "unknown" | null;
   batteryStatus: "charging" | "full" | "discharging" | "unknown" | null;
   wifiRssi: number | null;
+  wifiSsid: string | null;
+  wifiSecurity: string | null;
   firmwareVersion: string | null;
+  securityProfile: "development" | "testsecure" | "secureboot" | "production" | null;
+  nvsIntegrity: "disabled" | "valid" | "invalid" | null;
   timestamp: Date;
 }

@@ -33,6 +33,8 @@ export const ImprovCmd = {
   GET_STATE: 0x02,
   GET_DEVICE_INFO: 0x03,
   SCAN_WIFI: 0x04,
+  GET_PROVISIONING_SECURITY: 0x05,
+  AUTHORIZE_PROVISIONING: 0x06,
 } as const;
 
 export const ImprovState = {
@@ -47,6 +49,9 @@ export const ImprovError = {
   UNKNOWN_CMD: 0x02,
   UNABLE_CONNECT: 0x03,
   INSECURE_URL: 0x04,
+  AUTH_REQUIRED: 0x05,
+  AUTH_FAILED: 0x06,
+  AUTH_EXPIRED: 0x07,
 } as const;
 
 // Firmware buffer limits (vellum_serial.c improv_handle_wifi_settings).
@@ -107,7 +112,7 @@ export function encodeGetState(): Uint8Array {
   return encodeRpcCommand(ImprovCmd.GET_STATE, []);
 }
 
-export function encodeWifiSettings(
+export function wifiSettingsPayload(
   ssid: string,
   password: string,
   serverUrl?: string,
@@ -133,7 +138,47 @@ export function encodeWifiSettings(
       `Improv profile too large (${payload.length} > ${MAX_WIFI_SETTINGS_PAYLOAD} bytes) — shorten the server URL.`
     );
   }
-  return encodeRpcCommand(ImprovCmd.WIFI_SETTINGS, payload);
+  return new Uint8Array(payload);
+}
+
+export function encodeWifiSettings(
+  ssid: string,
+  password: string,
+  serverUrl?: string,
+  deviceToken?: string,
+  ntpServer?: string,
+  provisionedAtUnix?: number
+): Uint8Array {
+  return encodeRpcCommand(
+    ImprovCmd.WIFI_SETTINGS,
+    Array.from(
+      wifiSettingsPayload(ssid, password, serverUrl, deviceToken, ntpServer, provisionedAtUnix)
+    )
+  );
+}
+
+export function encodeGetProvisioningSecurity(): Uint8Array {
+  return encodeRpcCommand(ImprovCmd.GET_PROVISIONING_SECURITY, []);
+}
+
+function decodeHex(value: string, bytes: number): Uint8Array {
+  if (!new RegExp(`^[0-9a-f]{${bytes * 2}}$`, "i").test(value)) {
+    throw new Error("The server returned an invalid USB authorization.");
+  }
+  return Uint8Array.from({ length: bytes }, (_, index) =>
+    Number.parseInt(value.slice(index * 2, index * 2 + 2), 16)
+  );
+}
+
+export function encodeAuthorizeProvisioning(
+  payloadDigest: Uint8Array,
+  signature: string
+): Uint8Array {
+  if (payloadDigest.length !== 32) throw new Error("Invalid provisioning payload digest.");
+  return encodeRpcCommand(ImprovCmd.AUTHORIZE_PROVISIONING, [
+    ...payloadDigest,
+    ...decodeHex(signature, 32),
+  ]);
 }
 
 /**
@@ -289,6 +334,21 @@ export interface ProvisionOptions {
   onPhase?: (phase: ProvisionPhase, detail?: string) => void;
   /** Overall timeout for the device to report PROVISIONED/error (ms). */
   timeoutMs?: number;
+  /** Server-side admin authorization used only when the attached device is enrolled. */
+  authorize?: (request: UsbProvisioningAuthorizationRequest) => Promise<string>;
+}
+
+export interface UsbProvisioningAuthorizationRequest {
+  mac: string;
+  challenge: string;
+  payloadDigest: string;
+}
+
+export interface ProvisioningSecurity {
+  supported: boolean;
+  locked: boolean;
+  mac?: string;
+  challenge?: string;
 }
 
 const SERIAL_BAUD_RATE = 115_200;
@@ -384,6 +444,10 @@ const ERROR_TEXT: Record<number, string> = {
   [ImprovError.UNABLE_CONNECT]: "Device could not join the Wi-Fi network (check SSID/password).",
   [ImprovError.INSECURE_URL]:
     "This production firmware requires an https:// server URL. No settings were changed.",
+  [ImprovError.AUTH_REQUIRED]:
+    "This display is already enrolled. Sign in with provisioning rights to change its configuration.",
+  [ImprovError.AUTH_FAILED]: "The display rejected the USB provisioning authorization.",
+  [ImprovError.AUTH_EXPIRED]: "The USB provisioning authorization expired. Try again.",
 };
 
 /** Convert a device-side Improv error code into a user-facing explanation. */
@@ -509,10 +573,39 @@ export class SerialProvisioningSession {
     return this.exclusive(async () => {
       this.assertConnected();
       const onPhase = opts.onPhase ?? (() => {});
-      const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
       let legacyTimeFallbackAttempted = false;
       let provisionedAt: number | undefined;
       let redirectUrl: string | undefined;
+
+      const provisionedAtUnix = opts.provisionedAtUnix ?? Math.floor(Date.now() / 1000);
+      const protectedPayload = wifiSettingsPayload(
+        opts.ssid,
+        opts.password,
+        opts.serverUrl,
+        opts.deviceToken,
+        opts.ntpServer,
+        provisionedAtUnix
+      );
+      const security = await this.getProvisioningSecurityInternal(750);
+      if (security.supported && security.locked) {
+        if (!security.mac || !security.challenge || !opts.authorize) {
+          const message = ERROR_TEXT[ImprovError.AUTH_REQUIRED];
+          onPhase("error", message);
+          return { ok: false, error: message };
+        }
+        const digestInput = Uint8Array.from(protectedPayload);
+        const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", digestInput));
+        const payloadDigest = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(
+          ""
+        );
+        const signature = await opts.authorize({
+          mac: security.mac,
+          challenge: security.challenge,
+          payloadDigest,
+        });
+        await this.authorizeProvisioningInternal(digest, signature, 2_000);
+      }
+      const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
 
       const send = async (withTime: boolean) => {
         onPhase("sending");
@@ -523,7 +616,7 @@ export class SerialProvisioningSession {
             opts.serverUrl,
             opts.deviceToken,
             opts.ntpServer,
-            withTime ? (opts.provisionedAtUnix ?? Math.floor(Date.now() / 1000)) : undefined
+            withTime ? provisionedAtUnix : undefined
           )
         );
       };
@@ -576,6 +669,11 @@ export class SerialProvisioningSession {
     });
   }
 
+  /** Read lock state and a fresh, two-minute device challenge. Legacy firmware is reported safely. */
+  async getProvisioningSecurity(): Promise<ProvisioningSecurity> {
+    return this.exclusive(() => this.getProvisioningSecurityInternal(2_000));
+  }
+
   async disconnect(): Promise<void> {
     if (this.cleanedUp) return;
     this.closed = true;
@@ -586,6 +684,60 @@ export class SerialProvisioningSession {
 
   private assertConnected(): void {
     if (this.closed) throw new Error("The USB session is disconnected.");
+  }
+
+  private async getProvisioningSecurityInternal(timeoutMs: number): Promise<ProvisioningSecurity> {
+    await this.writer.write(encodeGetProvisioningSecurity());
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const frames = await this.readFrames(deadline - Date.now());
+      if (!frames) break;
+      for (const frame of frames) {
+        if (frame.type === ImprovType.ERROR_STATE && frame.payload[0] === ImprovError.UNKNOWN_CMD) {
+          return { supported: false, locked: false };
+        }
+        if (frame.type !== ImprovType.RPC_RESULT) continue;
+        const { cmd, strings } = decodeRpcResult(frame.payload);
+        if (cmd !== ImprovCmd.GET_PROVISIONING_SECURITY) continue;
+        if (strings[0] !== "1" || !strings[1] || !/^[0-9A-F]{12}$/.test(strings[1])) {
+          throw new Error("Display returned an invalid provisioning security response.");
+        }
+        const locked = strings[3] === "locked";
+        if (locked && !/^[0-9a-f]{32}$/.test(strings[2] ?? "")) {
+          throw new Error("Display returned an invalid provisioning challenge.");
+        }
+        return {
+          supported: true,
+          locked,
+          mac: strings[1],
+          challenge: locked ? strings[2] : undefined,
+        };
+      }
+    }
+    // Pre-feature firmware can be silent instead of returning UNKNOWN_CMD.
+    return { supported: false, locked: false };
+  }
+
+  private async authorizeProvisioningInternal(
+    digest: Uint8Array,
+    signature: string,
+    timeoutMs: number
+  ): Promise<void> {
+    await this.writer.write(encodeAuthorizeProvisioning(digest, signature));
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const frames = await this.readFrames(deadline - Date.now());
+      if (!frames) break;
+      for (const frame of frames) {
+        if (frame.type === ImprovType.ERROR_STATE && frame.payload[0] !== ImprovError.NONE) {
+          throw new Error(improvErrorMessage(frame.payload[0]));
+        }
+        if (frame.type !== ImprovType.RPC_RESULT) continue;
+        const { cmd, strings } = decodeRpcResult(frame.payload);
+        if (cmd === ImprovCmd.AUTHORIZE_PROVISIONING && strings[0] === "authorized") return;
+      }
+    }
+    throw new Error("Timed out waiting for USB provisioning authorization.");
   }
 
   private async readFrames(timeoutMs: number): Promise<ImprovFrame[] | null> {

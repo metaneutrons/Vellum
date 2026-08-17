@@ -113,9 +113,21 @@ static void set_telemetry_headers(esp_http_client_handle_t client)
 
     snprintf(buf, sizeof(buf), "%d", s_telemetry.wifi_rssi);
     esp_http_client_set_header(client, "X-WiFi-RSSI", buf);
+    if (s_telemetry.wifi_ssid_b64) {
+        esp_http_client_set_header(client, "X-WiFi-SSID-B64", s_telemetry.wifi_ssid_b64);
+    }
+    if (s_telemetry.wifi_security) {
+        esp_http_client_set_header(client, "X-WiFi-Security", s_telemetry.wifi_security);
+    }
 
     if (s_telemetry.firmware_ver) {
         esp_http_client_set_header(client, "X-Firmware-Ver", s_telemetry.firmware_ver);
+    }
+    if (s_telemetry.security_profile) {
+        esp_http_client_set_header(client, "X-Security-Profile", s_telemetry.security_profile);
+    }
+    if (s_telemetry.nvs_integrity) {
+        esp_http_client_set_header(client, "X-NVS-Integrity", s_telemetry.nvs_integrity);
     }
 
     esp_http_client_set_header(client, "X-Display-Model", CONFIG_VELLUM_DISPLAY_MODEL);
@@ -646,6 +658,96 @@ esp_err_t http_client_config(vellum_http_response_t *resp)
 
     esp_http_client_cleanup(client);
     return err;
+}
+
+esp_err_t http_client_probe_server(const char *server_base_url, const char *command_id)
+{
+    if (!server_base_url || !command_id || strlen(server_base_url) >= NVS_MAX_URL_LEN) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    bool allow_private_http = false;
+#ifdef CONFIG_VELLUM_ALLOW_INSECURE_PRIVATE_HTTP
+    allow_private_http = true;
+#endif
+    if (!vellum_transport_url_allowed(server_base_url, allow_private_http)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    char url[512];
+    int written = snprintf(url, sizeof(url), "%s/api/v1/ink/config?mac=%s",
+                           server_base_url, s_mac);
+    if (written < 0 || written >= (int)sizeof(url)) return ESP_ERR_INVALID_SIZE;
+    resp_buf_t rb = {0};
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_GET,
+        .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .event_handler = http_event_handler,
+        .user_data = &rb,
+        .disable_auto_redirect = true,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) return ESP_FAIL;
+    set_telemetry_headers(client);
+    set_auth_header(client);
+    esp_err_t err = esp_http_client_perform(client);
+    int status = err == ESP_OK ? esp_http_client_get_status_code(client) : -1;
+    esp_http_client_cleanup(client);
+    if (err != ESP_OK || status != 200 || !rb.buf) {
+        free(rb.buf);
+        return err == ESP_OK ? ESP_ERR_INVALID_RESPONSE : err;
+    }
+
+    cJSON *root = cJSON_ParseWithLength(rb.buf, rb.len);
+    cJSON *data = root ? cJSON_GetObjectItemCaseSensitive(root, "data") : NULL;
+    cJSON *remote = data ? cJSON_GetObjectItemCaseSensitive(data, "remoteConfiguration") : NULL;
+    cJSON *id = remote ? cJSON_GetObjectItemCaseSensitive(remote, "id") : NULL;
+    bool matches = cJSON_IsString(id) && id->valuestring &&
+                   strcmp(id->valuestring, command_id) == 0;
+    cJSON_Delete(root);
+    free(rb.buf);
+    return matches ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
+}
+
+esp_err_t http_client_config_report(const char *command_id, const char *status,
+                                    const char *error_code)
+{
+    if (!command_id || !status || !s_base_url_transport_allowed) return ESP_ERR_INVALID_ARG;
+    char url[512];
+    int written = snprintf(url, sizeof(url), "%s/api/v1/ink/config-report", s_base_url);
+    if (written < 0 || written >= (int)sizeof(url)) return ESP_ERR_INVALID_SIZE;
+    resp_buf_t rb = {0};
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_POST,
+        .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .event_handler = http_event_handler,
+        .user_data = &rb,
+        .disable_auto_redirect = true,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) return ESP_FAIL;
+    set_auth_header(client);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    cJSON *json = cJSON_CreateObject();
+    if (!json) { esp_http_client_cleanup(client); return ESP_ERR_NO_MEM; }
+    cJSON_AddStringToObject(json, "mac", s_mac);
+    cJSON_AddStringToObject(json, "id", command_id);
+    cJSON_AddStringToObject(json, "status", status);
+    if (error_code && error_code[0]) cJSON_AddStringToObject(json, "errorCode", error_code);
+    char *body = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+    if (!body) { esp_http_client_cleanup(client); return ESP_ERR_NO_MEM; }
+    esp_http_client_set_post_field(client, body, strlen(body));
+    esp_err_t err = esp_http_client_perform(client);
+    int response_status = err == ESP_OK ? esp_http_client_get_status_code(client) : -1;
+    cJSON_free(body);
+    free(rb.buf);
+    esp_http_client_cleanup(client);
+    if (err != ESP_OK) return err;
+    return response_status >= 200 && response_status < 300 ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
 }
 
 void http_client_free_response(vellum_http_response_t *resp)

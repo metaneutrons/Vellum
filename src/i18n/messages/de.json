@@ -92,6 +92,34 @@
     },
     "rssi": "RSSI",
     "wifiRssi": "WLAN-RSSI",
+    "wifiNetwork": "WLAN-Netz",
+    "wifiSecurity": "WLAN-Sicherheit",
+    "security": {
+      "title": "Security-Enrollment",
+      "description": "Schrittweise Gerätehärtung mit sichtbarem, ausfallsicherem Status.",
+      "profile": "Sicherheitsprofil",
+      "nvsIntegrity": "NVS-Integrität",
+      "profiles": {
+        "development": "Entwicklung",
+        "testsecure": "Testsecure (reversibel)",
+        "secureboot": "Secure Boot",
+        "production": "Produktiv gehärtet"
+      },
+      "integrity": {
+        "disabled": "Nicht versiegelt",
+        "valid": "HMAC verifiziert",
+        "invalid": "Integritätsfehler"
+      },
+      "steps": {
+        "enrolled": "Authentifiziertes Geräte-Enrollment",
+        "testsecure": "Testsecure-Firmware aktiv",
+        "hmacNvs": "HMAC-NVS versiegelt und geprüft"
+      },
+      "flashTestsecure": "Testsecure-Runbook öffnen",
+      "testsecureHint": "Das lokal erzeugte Testsecure-Image anschließend per USB flashen. Es brennt keine eFuse und versiegelt NVS nach dem Enrollment automatisch.",
+      "reversibleComplete": "Das reversible Security-Enrollment ist abgeschlossen. Es wurde keine irreversible eFuse gebrannt.",
+      "productionLocked": "Das Produktions-Enrollment bleibt gesperrt, bis HSM-Signing, Testgeräte, Recovery-Runbook und Fertigungsprozess nachweislich validiert sind."
+    },
     "model": "Modell",
     "resolution": "Auflösung",
     "quantize": "Quantisierung",
@@ -102,7 +130,47 @@
       "offline": "Offline",
       "never": "Nie gesehen"
     },
-    "liveStatus": { "live": "Live", "reconnecting": "Verbindung wird hergestellt…" }
+    "liveStatus": { "live": "Live", "reconnecting": "Verbindung wird hergestellt…" },
+    "remoteConfig": {
+      "title": "Remote-Konfiguration",
+      "description": "Server- und WLAN-Einstellungen dieses Displays sicher über seinen authentifizierten Gerätekanal ändern.",
+      "serverUrl": "Neue Vellum-Server-URL",
+      "migrate": "Migration einplanen",
+      "safety": "Das Display ändert nichts, bevor das Ziel TLS, Geräteauthentifizierung und Desired-State-Prüfung bestanden hat.",
+      "confirm": "Dieses Display auf {url} umziehen? Das Ziel muss dieselbe Vellum-Geräteidentität verwenden.",
+      "queued": "Servermigration eingeplant",
+      "queueFailed": "Servermigration konnte nicht eingeplant werden",
+      "wifiTitle": "WLAN ändern",
+      "wifiSsid": "Neue WLAN-SSID",
+      "wifiPassword": "WLAN-Passwort (leer bei offenem WLAN)",
+      "wifiChange": "WLAN-Wechsel einplanen",
+      "wifiSafety": "Das Display testet das neue WLAN und den Vellum Server. Bis zum bestätigten Erfolg bleibt das bisherige Profil als automatischer Rückfall erhalten.",
+      "wifiConfirm": "Dieses Display mit dem WLAN „{ssid}“ verbinden? Bei einem Fehler wird automatisch das bisherige WLAN wiederhergestellt.",
+      "wifiQueued": "WLAN-Wechsel eingeplant",
+      "wifiQueueFailed": "WLAN-Wechsel konnte nicht eingeplant werden",
+      "wifiHistory": "WLAN: {ssid}",
+      "cancel": "Abbrechen",
+      "cancelled": "Migration abgebrochen",
+      "cancelFailed": "Migration konnte nicht abgebrochen werden",
+      "status": {
+        "pending": "Ausstehend",
+        "delivered": "Zugestellt",
+        "applying": "Wird angewendet",
+        "applied": "Angewendet",
+        "failed": "Fehlgeschlagen",
+        "superseded": "Ersetzt",
+        "cancelled": "Abgebrochen"
+      },
+      "error": {
+        "invalid_signature": "Autorisierung abgelehnt",
+        "target_validation_failed": "Prüfung des Zielservers fehlgeschlagen",
+        "storage_failed": "Display konnte die Änderung nicht speichern",
+        "wifi_connection_failed": "Verbindung mit dem neuen WLAN fehlgeschlagen",
+        "server_reconnect_failed": "Der Vellum Server war über das neue WLAN nicht erreichbar",
+        "interrupted": "Der WLAN-Wechsel wurde unterbrochen und automatisch zurückgerollt",
+        "credential_decryption_failed": "Die gespeicherten WLAN-Zugangsdaten konnten nicht entschlüsselt werden"
+      }
+    }
   },
   "content": {
     "removeProperty": "Eigenschaft entfernen",
@@ -681,7 +749,12 @@
     "open": "offen",
     "firmwarePinTitle": "Firmware v{version} beibehalten",
     "firmwarePinDescription": "Diese Zero-Touch-Einrichtung heftet v{version} im Kanal {channel} an genau das Gerät, das diesen Voucher einlöst.",
-    "firmwarePinUnavailable": "Die gewählte Firmware-Version ist nicht mehr verfügbar. Zurück zu Firmware flashen und eine andere Version auswählen."
+    "firmwarePinUnavailable": "Die gewählte Firmware-Version ist nicht mehr verfügbar. Zurück zu Firmware flashen und eine andere Version auswählen.",
+    "protectedDeviceTitle": "Geschütztes Display",
+    "protectedDeviceDescription": "Dieses registrierte Display verlangt eine kurzlebige Admin-Autorisierung. Vellum holt sie beim Provisionieren automatisch ein.",
+    "protectedSuccessSummary": "Die bestehende Registrierung blieb erhalten; die Änderung wurde autorisiert und protokolliert.",
+    "legacySecurityTitle": "Firmware-Update empfohlen.",
+    "legacySecurityDescription": "Diese Firmware unterstützt die geschützte USB-Provisionierung noch nicht. Vor dem Einsatz im öffentlichen Raum aktualisieren."
   },
   "access": {
     "title": "Zugriff",

@@ -45,6 +45,10 @@ interface Device {
   power_source: "usb" | "battery" | "unknown" | null;
   battery_status: "charging" | "full" | "discharging" | "unknown" | null;
   wifi_rssi: number | null;
+  wifi_ssid: string | null;
+  wifi_security: string | null;
+  security_profile: string | null;
+  nvs_integrity: string | null;
   firmware_version: string | null;
 }
 
@@ -308,7 +312,22 @@ export function DeviceTable({
                         {d.wifi_rssi}dBm
                       </span>
                     )}
+                    {d.wifi_ssid && (
+                      <span className="inline-flex items-center gap-1" title={t("wifiSecurity")}>
+                        <Wifi size={15} aria-hidden="true" />
+                        {d.wifi_ssid}
+                        {d.wifi_security && (
+                          <span className="text-label-tertiary">· {d.wifi_security}</span>
+                        )}
+                      </span>
+                    )}
                     {d.firmware_version && <span>v{d.firmware_version}</span>}
+                    {d.security_profile && (
+                      <span title={t("security.nvsIntegrity")}>
+                        {d.security_profile}
+                        {d.nvs_integrity ? ` · NVS ${d.nvs_integrity}` : ""}
+                      </span>
+                    )}
                     {lastSeen && (
                       <span className={oWarn ? "text-orange" : ""}>
                         {lastSeen.toLocaleString(undefined, {

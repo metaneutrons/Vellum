@@ -30,7 +30,8 @@ const arbFirmwareVer = fc
  * Validates: Requirements 7.2
  *
  * For any request containing telemetry headers (X-Battery-Voltage,
- * X-Battery-Level, X-WiFi-RSSI, X-Firmware-Ver) from a device with
+ * X-Battery-Level, X-WiFi-RSSI, X-WiFi-SSID-B64, X-WiFi-Security,
+ * X-Firmware-Ver) from a device with
  * a known MAC, the server should create a telemetry entry with
  * matching MAC and header values.
  */
@@ -52,7 +53,11 @@ describe("Property 13: Telemetry headers are logged with correct MAC association
             "x-power-source": powerSource,
             "x-battery-status": batteryStatus,
             "x-wifi-rssi": rssi.toString(),
+            "x-wifi-ssid-b64": Buffer.from("Office WiFi").toString("base64"),
+            "x-wifi-security": "wpa3-sae",
             "x-firmware-ver": fwVer,
+            "x-security-profile": "testsecure",
+            "x-nvs-integrity": "valid",
           });
 
           const extracted = extractTelemetry(headers);
@@ -73,11 +78,37 @@ describe("Property 13: Telemetry headers are logged with correct MAC association
           expect(entry.powerSource).toBe(powerSource);
           expect(entry.batteryStatus).toBe(batteryStatus);
           expect(entry.wifiRssi).toBe(rssi);
+          expect(entry.wifiSsid).toBe("Office WiFi");
+          expect(entry.wifiSecurity).toBe("wpa3-sae");
           expect(entry.firmwareVersion).toBe(fwVer);
+          expect(entry.securityProfile).toBe("testsecure");
+          expect(entry.nvsIntegrity).toBe("valid");
         }
       ),
       { numRuns: 100 }
     );
+  });
+
+  it("rejects malformed or oversized Wi-Fi identity headers", () => {
+    const extracted = extractTelemetry(
+      new Headers({
+        "x-wifi-ssid-b64": "not base64!",
+        "x-wifi-security": "WPA3 SAE!",
+      })
+    );
+    expect(extracted?.wifiSsid).toBeNull();
+    expect(extracted?.wifiSecurity).toBeNull();
+  });
+
+  it("rejects invented security attestation values", () => {
+    const extracted = extractTelemetry(
+      new Headers({
+        "x-security-profile": "production-ish",
+        "x-nvs-integrity": "probably-valid",
+      })
+    );
+    expect(extracted?.securityProfile).toBeNull();
+    expect(extracted?.nvsIntegrity).toBeNull();
   });
 
   it("rejects unknown power-state wire values without rejecting other telemetry", () => {

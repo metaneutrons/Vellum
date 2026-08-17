@@ -92,6 +92,34 @@
     },
     "rssi": "RSSI",
     "wifiRssi": "Wi-Fi RSSI",
+    "wifiNetwork": "Wi-Fi network",
+    "wifiSecurity": "Wi-Fi security",
+    "security": {
+      "title": "Security enrollment",
+      "description": "Progressive device hardening with observable, fail-closed state.",
+      "profile": "Security profile",
+      "nvsIntegrity": "NVS integrity",
+      "profiles": {
+        "development": "Development",
+        "testsecure": "Testsecure (reversible)",
+        "secureboot": "Secure Boot",
+        "production": "Production hardened"
+      },
+      "integrity": {
+        "disabled": "Not sealed",
+        "valid": "HMAC verified",
+        "invalid": "Integrity failure"
+      },
+      "steps": {
+        "enrolled": "Authenticated device enrollment",
+        "testsecure": "Testsecure firmware running",
+        "hmacNvs": "HMAC-NVS sealed and verified"
+      },
+      "flashTestsecure": "Open testsecure runbook",
+      "testsecureHint": "Then flash the locally generated testsecure image over USB. It burns no eFuse and seals NVS automatically after enrollment.",
+      "reversibleComplete": "Reversible security enrollment is complete. No irreversible eFuse has been burned.",
+      "productionLocked": "Production enrollment remains locked until HSM signing, test devices, the recovery runbook, and the manufacturing process have verified evidence."
+    },
     "model": "Model",
     "resolution": "Resolution",
     "quantize": "Quantize",
@@ -102,7 +130,47 @@
       "offline": "Offline",
       "never": "Never seen"
     },
-    "liveStatus": { "live": "Live", "reconnecting": "Reconnecting…" }
+    "liveStatus": { "live": "Live", "reconnecting": "Reconnecting…" },
+    "remoteConfig": {
+      "title": "Remote configuration",
+      "description": "Securely change this display’s server and Wi-Fi settings through its authenticated device channel.",
+      "serverUrl": "New Vellum Server URL",
+      "migrate": "Schedule migration",
+      "safety": "The display changes nothing until the target passes TLS, device authentication, and desired-state validation.",
+      "confirm": "Move this display to {url}? The target must use the same Vellum device identity.",
+      "queued": "Server migration scheduled",
+      "queueFailed": "Server migration could not be scheduled",
+      "wifiTitle": "Change Wi-Fi",
+      "wifiSsid": "New Wi-Fi SSID",
+      "wifiPassword": "Wi-Fi password (empty for an open network)",
+      "wifiChange": "Schedule Wi-Fi change",
+      "wifiSafety": "The display tests the new Wi-Fi and Vellum Server. The previous profile remains available for automatic rollback until success is confirmed.",
+      "wifiConfirm": "Connect this display to Wi-Fi “{ssid}”? The previous Wi-Fi will be restored automatically if validation fails.",
+      "wifiQueued": "Wi-Fi change scheduled",
+      "wifiQueueFailed": "Wi-Fi change could not be scheduled",
+      "wifiHistory": "Wi-Fi: {ssid}",
+      "cancel": "Cancel",
+      "cancelled": "Migration cancelled",
+      "cancelFailed": "Migration could not be cancelled",
+      "status": {
+        "pending": "Waiting",
+        "delivered": "Delivered",
+        "applying": "Applying",
+        "applied": "Applied",
+        "failed": "Failed",
+        "superseded": "Superseded",
+        "cancelled": "Cancelled"
+      },
+      "error": {
+        "invalid_signature": "Authorization rejected",
+        "target_validation_failed": "Target server validation failed",
+        "storage_failed": "Display could not persist the change",
+        "wifi_connection_failed": "Could not connect to the new Wi-Fi",
+        "server_reconnect_failed": "The Vellum Server was not reachable through the new Wi-Fi",
+        "interrupted": "The Wi-Fi change was interrupted and rolled back automatically",
+        "credential_decryption_failed": "The stored Wi-Fi credentials could not be decrypted"
+      }
+    }
   },
   "content": {
     "removeProperty": "Remove property",
@@ -681,7 +749,12 @@
     "open": "open",
     "firmwarePinTitle": "Keep firmware v{version}",
     "firmwarePinDescription": "This zero-touch enrollment will pin v{version} on the {channel} channel to the device that claims this voucher.",
-    "firmwarePinUnavailable": "The selected firmware version is no longer available. Return to Flash Firmware and select another version."
+    "firmwarePinUnavailable": "The selected firmware version is no longer available. Return to Flash Firmware and select another version.",
+    "protectedDeviceTitle": "Protected display",
+    "protectedDeviceDescription": "This enrolled display requires a short-lived admin authorization. Vellum obtains it automatically when you provision.",
+    "protectedSuccessSummary": "Its existing enrollment was retained and the change was authorized and recorded.",
+    "legacySecurityTitle": "Firmware update recommended.",
+    "legacySecurityDescription": "This firmware predates protected USB provisioning. Update it before deploying the display in a public location."
   },
   "access": {
     "title": "Access",

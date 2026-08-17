@@ -6,6 +6,7 @@ idf_component_register(
         vellum_display
         board
         nvs_manager
+        wifi_manager
         mbedtls
         esp_https_ota
         app_update
