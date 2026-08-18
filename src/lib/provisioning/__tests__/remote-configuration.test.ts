@@ -11,6 +11,9 @@ import {
   signRemoteConfiguration,
   signRemoteWifiConfiguration,
   wifiConfigurationInputSchema,
+  remoteOrientationMessage,
+  signRemoteOrientation,
+  REMOTE_ORIENTATION_CONTEXT,
 } from "../remote-configuration";
 
 describe("remote configuration authorization", () => {
@@ -77,6 +80,42 @@ describe("remote configuration authorization", () => {
     ).toThrow();
     expect(() =>
       serverMigrationPayloadSchema.parse({ serverUrl: "https://user:pass@vellum.test" })
+    ).toThrow();
+  });
+});
+
+describe("remote orientation command", () => {
+  const token = "a".repeat(64);
+  const id = "3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
+
+  it("binds the signature to its own context, not the server-url one", () => {
+    const message = remoteOrientationMessage(id, "portrait");
+    expect(message.startsWith(REMOTE_ORIENTATION_CONTEXT)).toBe(true);
+    /* A signature valid across kinds would let one authorised change be replayed
+     * as another. */
+    expect(message).not.toContain("vellum-remote-config-v1");
+    expect(message).not.toContain("vellum-remote-wifi-v1");
+  });
+
+  it("signs portrait and landscape differently", () => {
+    const a = signRemoteOrientation({ deviceToken: token, id, orientation: "portrait" });
+    const b = signRemoteOrientation({ deviceToken: token, id, orientation: "landscape" });
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(a).not.toBe(b);
+  });
+
+  it("binds the signature to the command id", () => {
+    const other = "4f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
+    expect(signRemoteOrientation({ deviceToken: token, id, orientation: "portrait" })).not.toBe(
+      signRemoteOrientation({ deviceToken: token, id: other, orientation: "portrait" })
+    );
+  });
+
+  it("rejects anything outside the closed set, and a bad id or token", () => {
+    expect(() => remoteOrientationMessage(id, "sideways")).toThrow();
+    expect(() => remoteOrientationMessage("not-a-uuid", "portrait")).toThrow();
+    expect(() =>
+      signRemoteOrientation({ deviceToken: "short", id, orientation: "portrait" })
     ).toThrow();
   });
 });

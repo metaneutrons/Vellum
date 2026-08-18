@@ -1,3 +1,4 @@
+import { signRemoteOrientation } from "@/lib/provisioning/remote-configuration";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
@@ -218,6 +219,64 @@ describe("GET /api/v1/ink/config", () => {
       serverUrl: "https://vellum.example.com",
       signature: "c5ce06dd38a44bf708316a97311137c6160827bcb1b3709cefcbe5c50c9c77cd",
     });
+  });
+
+  it("delivers a device-bound signed mounting change", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    dbState.selectResults = [
+      [{ mac: "AABBCCDDEEFF", status: "approved", token: "01".repeat(32), displayCaps: null }],
+      [
+        {
+          id: "123e4567-e89b-12d3-a456-426614174000",
+          kind: "orientation",
+          payload: { orientation: "landscape" },
+          status: "pending",
+        },
+      ],
+    ];
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token" },
+    });
+    const res = await configHandler(req);
+    const body = await res.json();
+
+    expect(body.data.remoteConfiguration).toMatchObject({
+      protocol: 1,
+      id: "123e4567-e89b-12d3-a456-426614174000",
+      kind: "orientation",
+      orientation: "landscape",
+    });
+    /* Signed under its own context, so the signature cannot be replayed as a
+     * server migration or a Wi-Fi rotation carrying the same command id. */
+    expect(body.data.remoteConfiguration.signature).toBe(
+      signRemoteOrientation({
+        deviceToken: "01".repeat(32),
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        orientation: "landscape",
+      })
+    );
+  });
+
+  it("refuses to emit a command whose stored mounting is not a valid one", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    dbState.selectResults = [
+      [{ mac: "AABBCCDDEEFF", status: "approved", token: "01".repeat(32), displayCaps: null }],
+      [
+        {
+          id: "123e4567-e89b-12d3-a456-426614174000",
+          kind: "orientation",
+          payload: { orientation: "upside-down" },
+          status: "pending",
+        },
+      ],
+    ];
+
+    const req = makeRequest("http://localhost/api/v1/ink/config?mac=AA:BB:CC:DD:EE:FF", {
+      headers: { "x-device-token": "valid-token" },
+    });
+    const body = await (await configHandler(req)).json();
+    expect(body.data.remoteConfiguration).toBeUndefined();
   });
 
   it("decrypts and delivers a device-bound signed Wi-Fi change", async () => {

@@ -28,6 +28,7 @@ import {
 } from "@/lib/provisioning/usb-authorization";
 import {
   serverMigrationPayloadSchema,
+  orientationInputSchema,
   wifiConfigurationInputSchema,
 } from "@/lib/provisioning/remote-configuration";
 
@@ -223,6 +224,92 @@ export async function queueDeviceServerMigration(macInput: string, serverUrlInpu
     "serializable"
   );
   revalidatePath(`/admin/devices/${mac}`);
+  return command;
+}
+
+/**
+ * Queue a mounting change, and record it as the operator's decision.
+ *
+ * Orientation describes how the panel hangs on the wall, so it has to reach the
+ * device: previously it lived only in devices.orientation_override, the server
+ * swapped the rendered geometry, and the firmware's surface stayed as built. A
+ * portrait D1001 therefore lost 480px off the bottom of every frame.
+ *
+ * orientation_override is still written, because it is what the renderer reads
+ * until the device confirms and re-reports its surface. The device applies the
+ * change at its next boot, since the display adapter's rotation is fixed at init.
+ */
+export async function queueDeviceOrientation(macInput: string, orientationInput: string) {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(macInput);
+  const orientation = orientationInputSchema.parse(orientationInput);
+
+  const command = await withAuditedTransaction(
+    actor,
+    (created: { id: string }) => ({
+      action: "device.configuration.orientation.queue",
+      targetType: "device",
+      targetId: mac,
+      metadata: { commandId: created.id, orientation },
+    }),
+    async (tx) => {
+      const existing = await tx
+        .select({ status: devices.status, token: devices.token, caps: devices.displayCaps })
+        .from(devices)
+        .where(eq(devices.mac, mac))
+        .limit(1);
+      if (existing[0]?.status !== "approved" || !existing[0].token) {
+        throw new Error("device_not_authorizable");
+      }
+      /* Refuse a mounting the panel says it cannot deliver, rather than queueing a
+       * command the device will reject. Firmware predating the capability report
+       * lists nothing, and is trusted to know its own panel. */
+      const supported = (existing[0].caps as { orientations?: string[] } | null)?.orientations;
+      if (supported?.length && !supported.includes(orientation)) {
+        throw new Error("orientation_not_supported");
+      }
+
+      const applying = await tx
+        .select({ id: deviceConfigurationCommands.id })
+        .from(deviceConfigurationCommands)
+        .where(
+          and(
+            eq(deviceConfigurationCommands.mac, mac),
+            eq(deviceConfigurationCommands.status, "applying")
+          )
+        )
+        .limit(1);
+      if (applying.length > 0) throw new Error("configuration_command_applying");
+
+      await tx
+        .update(deviceConfigurationCommands)
+        .set({ status: "superseded", completedAt: new Date() })
+        .where(
+          and(
+            eq(deviceConfigurationCommands.mac, mac),
+            inArray(deviceConfigurationCommands.status, ["pending", "delivered"])
+          )
+        );
+      await tx
+        .update(devices)
+        .set({ orientationOverride: orientation })
+        .where(eq(devices.mac, mac));
+      const rows = await tx
+        .insert(deviceConfigurationCommands)
+        .values({
+          mac,
+          kind: "orientation",
+          payload: { orientation },
+          createdBy: actor.type === "user" ? actor.id : null,
+        })
+        .returning({ id: deviceConfigurationCommands.id });
+      return rows[0];
+    },
+    "queue-device-orientation",
+    "serializable"
+  );
+  revalidatePath(`/admin/devices/${mac}`);
+  revalidatePath("/admin/devices");
   return command;
 }
 

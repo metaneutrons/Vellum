@@ -227,11 +227,24 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
     this is unexploited capability, not a hardware limit — switching would change
     the payload from 48 KB to 96 KB per refresh.
 - Server-side `src/lib/display.ts` is a **static registry** used by the flash UI,
-  simulator and preview; the E-Series firmware actually reports
-  `orientations: []` (fixed). Runtime rendering resolves device-reported caps via
-  `resolveDisplayCaps()`, so the registry's `["portrait","landscape"]` for e1003
-  is intent, not an enforced capability — there is no rotation path in the
-  e-paper display component.
+  simulator and preview. Runtime rendering resolves device-reported caps via
+  `resolveDisplayCaps()`, and since 1.15.0 the firmware reports a real capability
+  list over `X-Display-Caps` (geometry, current mounting, mountings it can
+  deliver). The e-paper panels report **`["landscape"]` only**: no e-paper driver
+  rotates — UC8179 declares a `rotation` field no `.c` file reads, and IT8951
+  hardwires `rotate=0` into its `LD_IMG_AREA` argument. The registry's
+  `["portrait","landscape"]` for e1003 is intent, not capability.
+- **Orientation describes how the device is mounted**, not a server-side render
+  preference — that distinction is the whole bug class. `devices.orientation_override`
+  is the operator's choice and what the renderer uses until the device re-reports its
+  surface; picking it in the devices list queues a signed `orientation` command
+  (a third `device_configuration_commands.kind` beside `server_url` and `wifi`),
+  and the device applies it by committing NVS and restarting, because
+  `esp_lv_adapter` fixes its rotation at init and sizes its framebuffers from it.
+  Both ends refuse a mounting the panel does not list, so the e-paper models
+  currently accept `landscape` only. Before this existed the server silently swapped
+  the rendered geometry while the panel's surface stayed as built, which cost a
+  portrait D1001 480px off the bottom of every frame.
 - Display backend is a **3-way split**, not one esp_epaper: `panel_epaper.c`
   (S3 e-paper: custom `epaper_uc8179` for e1001/e1002, `epaper_it8951` for e1003)
   - `panel_lcd.c` (P4 d1001 LCD). `components-epaper/epaper_uc8179` is a

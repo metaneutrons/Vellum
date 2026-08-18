@@ -5,6 +5,9 @@ import { z } from "zod";
 
 export const REMOTE_CONFIGURATION_CONTEXT = "vellum-remote-config-v1\n";
 export const REMOTE_WIFI_CONTEXT = "vellum-remote-wifi-v1\n";
+/* Its own context string, not a reuse of the config one: a signature must never
+ * be valid for a different kind of command than it was issued for. */
+export const REMOTE_ORIENTATION_CONTEXT = "vellum-remote-orientation-v1\n";
 
 export const serverMigrationPayloadSchema = z.object({
   serverUrl: z
@@ -85,5 +88,35 @@ export function signRemoteWifiConfiguration(input: {
   return crypto
     .createHmac("sha256", input.deviceToken)
     .update(remoteWifiConfigurationMessage(input.id, input.ssid, input.password), "utf8")
+    .digest("hex");
+}
+
+/**
+ * Canonical mounting command contract shared with firmware.
+ *
+ * Orientation describes how the panel is physically mounted, so this is a
+ * deliberate operator decision and is signed like every other remote change. The
+ * value is a closed set, which makes the message unambiguous without encoding.
+ */
+export const orientationInputSchema = z.enum(["portrait", "landscape"]);
+
+/** Shape of a persisted orientation command payload. */
+export const orientationPayloadSchema = z.object({ orientation: orientationInputSchema });
+
+export function remoteOrientationMessage(id: string, orientation: string): string {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("invalid_configuration_command_id");
+  const parsed = orientationInputSchema.parse(orientation);
+  return `${REMOTE_ORIENTATION_CONTEXT}${id.toLowerCase()}\n${parsed}`;
+}
+
+export function signRemoteOrientation(input: {
+  deviceToken: string;
+  id: string;
+  orientation: string;
+}): string {
+  if (!/^[0-9a-f]{64}$/i.test(input.deviceToken)) throw new Error("invalid_device_token");
+  return crypto
+    .createHmac("sha256", input.deviceToken)
+    .update(remoteOrientationMessage(input.id, input.orientation), "utf8")
     .digest("hex");
 }
