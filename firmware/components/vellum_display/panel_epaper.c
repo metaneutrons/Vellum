@@ -77,22 +77,30 @@ static const char *TAG = "panel_epaper";
    * with no distinction left between LG, MD and SM for the status screens to step
    * through.
    *
-   * LVGL's bundled Montserrat stops at 48, so the top two rungs are pre-generated
-   * assets (fonts/, assets/render-fonts.sh) compiled only into this model. They
-   * carry ASCII plus the six LV_SYMBOL_* glyphs vellum_display_icon_t can show —
-   * a symbol outside that set renders as a missing glyph. */
+   * All four rungs are pre-generated assets (fonts/, assets/render-fonts.sh):
+   * the top two because LVGL's bundled Montserrat stops at 48, the lower two
+   * because its glyph range is ASCII-only and cannot be widened. They carry
+   * Latin-1, Latin Extended-A, the dash family, European quotes and the six
+   * LV_SYMBOL_* glyphs vellum_display_icon_t can show — a symbol outside that set
+   * renders as a missing glyph. */
   extern const lv_font_t vellum_font_montserrat_96;
   extern const lv_font_t vellum_font_montserrat_64;
   #define FONT_LG   (&vellum_font_montserrat_96)
   #define FONT_MD   (&vellum_font_montserrat_64)
-  #define FONT_SM   (&lv_font_montserrat_48)
-  #define FONT_XS   (&lv_font_montserrat_24)
+  extern const lv_font_t vellum_font_montserrat_48;
+  extern const lv_font_t vellum_font_montserrat_24;
+  #define FONT_SM   (&vellum_font_montserrat_48)
+  #define FONT_XS   (&vellum_font_montserrat_24)
 #else
   /* Standard (E1001/E1002: 480px short side) */
-  #define FONT_LG   (&lv_font_montserrat_48)
-  #define FONT_MD   (&lv_font_montserrat_24)
-  #define FONT_SM   (&lv_font_montserrat_18)
-  #define FONT_XS   (&lv_font_montserrat_14)
+  extern const lv_font_t vellum_font_montserrat_48;
+  extern const lv_font_t vellum_font_montserrat_24;
+  extern const lv_font_t vellum_font_montserrat_18;
+  extern const lv_font_t vellum_font_montserrat_14;
+  #define FONT_LG   (&vellum_font_montserrat_48)
+  #define FONT_MD   (&vellum_font_montserrat_24)
+  #define FONT_SM   (&vellum_font_montserrat_18)
+  #define FONT_XS   (&vellum_font_montserrat_14)
 #endif
 
 /* ── Logo (selected at compile time) ──────────────────────────── */

@@ -2,13 +2,21 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 #
-# Regenerate the two large LVGL fonts used by the E1003 status screens.
+# Regenerate every LVGL font the status screens use, for all models.
 #
 #   ./assets/render-fonts.sh
 #
 # ── Why these exist at all ────────────────────────────────────────────
 #
-# LVGL's bundled Montserrat family stops at 48px — there is no
+# Two independent reasons, and the second now applies to every model.
+#
+# GLYPH RANGE. LVGL's bundled Montserrat carries ASCII and nothing else, and that
+# range is fixed: there is no Kconfig to widen it. A single em dash in a status
+# message therefore drew as an empty box on a D1001, and any European accent would
+# have done the same, which makes localising device text impossible. Generating
+# the fonts ourselves is the only way to choose the range.
+#
+# SIZE. LVGL's bundled Montserrat family also stops at 48px — there is no
 # CONFIG_LV_FONT_MONTSERRAT_64 or _96 to switch on. E1003's panel is 1872x1404 at
 # ~226 DPI, roughly 1.8x the pixel density of the 800x480 E-Series panels, so the
 # 48px ceiling rendered status text at about a third of the intended optical size
@@ -66,15 +74,46 @@ OUT="${FW}/components/vellum_display/fonts"
 # vellum_display_icon_t.
 SYMBOLS="61468,61473,61550,61553,61931,62020"
 
+# ── Text range ────────────────────────────────────────────────────────
+#
+# Was 0x20-0x7F,0xB0,0x2022 — ASCII plus degree and bullet. Anything outside it
+# draws as an empty box, which is how a single em dash in a refusal message on the
+# D1001 turned into a visible defect. Fixing that string was not enough: the next
+# person hits the same wall, and any localisation of device text hits it
+# immediately, because German alone needs four glyphs this range never had.
+#
+#   0x20-0x7F    ASCII
+#   0xA0-0xFF    Latin-1: umlauts, sharp s, accents, cedilla, guillemets,
+#                degree (0xB0) and the middle dot (0xB7)
+#   0x100-0x17F  Latin Extended-A: Polish, Czech, Slovak, Hungarian, Turkish,
+#                Baltic, Maltese
+#   0x218-0x21B  Romanian s/t with comma below, which Extended-A lacks
+#   0x2010-0x2015 the dash family: hyphen (Viertelgeviert), non-breaking hyphen,
+#                figure dash, en dash (Halbgeviert), em dash (Geviert),
+#                horizontal bar
+#   0x2018-0x201E single and double quotes, including the German low-9 forms
+#   0x2022,0x2026 bullet and ellipsis
+#   0x20AC       euro
+#
+# Deliberately NOT included: Greek and Cyrillic. They would roughly double the
+# glyph count again, and the product ships no such locale. Widen this line, do not
+# work around it, if that changes.
+TEXT_RANGE='0x20-0x7F,0xA0-0xFF,0x100-0x17F,0x218-0x21B,0x2010-0x2015,0x2018-0x201E,0x2022,0x2026,0x20AC'
+
+# Every size a status screen can choose. panel_lcd.c uses 48/32/24/16 and
+# panel_epaper.c 48/24/18/14, so those are generated too rather than borrowing
+# LVGL's built-ins, whose glyph range is fixed and cannot be extended.
+SIZES="14 16 18 24 32 48 64 96"
+
 mkdir -p "$OUT"
 cd "$GEN"   # the TTF/WOFF paths below are relative, and so is -o, which keeps
             # the "Opts:" header comment in the generated file reproducible
 
-for size in 64 96; do
+for size in $SIZES; do
   npx --yes lv_font_conv@1.5.2 \
     --no-compress --no-prefilter \
     --bpp 4 --size "$size" \
-    --font Montserrat-Medium.ttf -r '0x20-0x7F,0xB0,0x2022' \
+    --font Montserrat-Medium.ttf -r "$TEXT_RANGE" \
     --font FontAwesome5-Solid+Brands+Regular.woff -r "$SYMBOLS" \
     --format lvgl -o "vellum_font_montserrat_${size}.c" \
     --force-fast-kern-format

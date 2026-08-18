@@ -10,22 +10,39 @@
 set(SRCS "vellum_display.c" "status_layout.c" "display_cache.c")
 
 if("${IDF_TARGET}" STREQUAL "esp32p4")
-    list(APPEND SRCS "panel_lcd.c" "logos/vellum_logo_color_360px.c")
+    list(APPEND SRCS "panel_lcd.c" "logos/vellum_logo_color_360px.c"
+                     "fonts/vellum_font_montserrat_16.c"
+                     "fonts/vellum_font_montserrat_24.c"
+                     "fonts/vellum_font_montserrat_32.c"
+                     "fonts/vellum_font_montserrat_48.c")
     set(BACKEND_REQUIRES d1001_board lcd_jd9365 esp_lcd esp_mm
         espressif__esp_jpeg espressif__esp_lvgl_adapter)
 else()
     list(APPEND SRCS "panel_epaper.c")
     if(CONFIG_VELLUM_PANEL_E1003)
-        # Only this model gets the large fonts: 1404px short side needs glyphs
-        # past LVGL's bundled 48px ceiling. ~244 KB, which the 480px panels would
-        # otherwise pay for sizes they never select. See assets/render-fonts.sh.
+        # Every model compiles only the four sizes its own ladder selects, so no
+        # panel pays for grades it never draws. This one needs the two large
+        # grades because its 1404px short side runs past LVGL's 48px ceiling, and
+        # they dominate its budget: measured +92 KB of flash for the whole change
+        # here, leaving 9% of the app partition free — the tightest of the three.
+        # See assets/render-fonts.sh for the glyph range.
         list(APPEND SRCS "logos/vellum_logo_16grey_600px.c"
+                         "fonts/vellum_font_montserrat_24.c"
+                         "fonts/vellum_font_montserrat_48.c"
                          "fonts/vellum_font_montserrat_64.c"
                          "fonts/vellum_font_montserrat_96.c")
     elseif(CONFIG_VELLUM_PANEL_GDEP073E01)
-        list(APPEND SRCS "logos/vellum_logo_spectra_216px.c")
+        list(APPEND SRCS "logos/vellum_logo_spectra_216px.c"
+                         "fonts/vellum_font_montserrat_14.c"
+                         "fonts/vellum_font_montserrat_18.c"
+                         "fonts/vellum_font_montserrat_24.c"
+                         "fonts/vellum_font_montserrat_48.c")
     else()
-        list(APPEND SRCS "logos/vellum_logo_mono_216px.c")
+        list(APPEND SRCS "logos/vellum_logo_mono_216px.c"
+                         "fonts/vellum_font_montserrat_14.c"
+                         "fonts/vellum_font_montserrat_18.c"
+                         "fonts/vellum_font_montserrat_24.c"
+                         "fonts/vellum_font_montserrat_48.c")
     endif()
     set(BACKEND_REQUIRES epaper_uc8179 epaper_it8951 tuanpmt__esp_epaper)
 endif()

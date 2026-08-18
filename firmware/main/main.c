@@ -584,7 +584,7 @@ static bool factory_reset_permitted(const char **reason)
     return false;
 #else
     if (nvs_manager_is_provisioning_locked()) {
-        *reason = "Enrolled display — authorize in Vellum";
+        *reason = "Enrolled display \u2014 authorize in Vellum";
         return false;
     }
     return true;
@@ -882,7 +882,11 @@ void app_main(void)
     wifi_manager_init();
     vellum_serial_init();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    xTaskCreate(d1001_button_task, "d1001_btn", 4096, NULL, 5, NULL);
+    /* 8 KiB, not 4: this task draws. Showing the factory-reset prompt or a
+     * refusal calls into the display and LVGL, which overflowed a 4 KiB stack and
+     * panicked with "Stack protection fault" — read from the outside as the
+     * display simply rebooting after a long press. */
+    xTaskCreate(d1001_button_task, "d1001_btn", 8192, NULL, 5, NULL);
 #endif
 
     sleep_manager_init();
