@@ -117,6 +117,26 @@ menu "Vellum Configuration"
             range 5000 60000
     endmenu
 
+    config VELLUM_BUTTON_FACTORY_RESET
+        bool "Allow a factory reset to be triggered from the buttons"
+        default y
+        help
+            A button-held factory reset erases NVS: Wi-Fi credentials, the device
+            token and the keypair. Convenient on a desk, wrong in a public room,
+            where anyone who can reach the panel can wipe an enrolled display.
+
+            Production builds set this to n. Re-provisioning an enrolled display
+            over USB already requires a server-signed admin authorization, so
+            leaving the buttons able to erase everything unauthenticated made the
+            physical path the weakest one.
+
+            Two carve-outs remain regardless of this setting, because otherwise a
+            broken display could not be recovered without a laptop: the reset is
+            still permitted when NVS cannot be opened or fails its integrity
+            check. In that state there is nothing readable left to protect, and it
+            is the state whose own error screen instructs the operator to factory
+            reset and re-enroll.
+
     config VELLUM_STALL_TIMEOUT_S
         int "Reboot if the poll loop makes no progress for this long (0 = never)"
         default 600

@@ -61,6 +61,12 @@
 
 static const char *TAG = "vellum_main";
 
+/* Boot-time NVS verdict, kept so the button paths can consult it. A display whose
+ * storage is broken must stay recoverable by hand even where a factory reset is
+ * otherwise refused. */
+static bool s_nvs_unavailable;
+static bool s_nvs_integrity_failed;
+
 /* Certificates cannot be validated safely until the RTC has a real date.
  * A provisioned NTP server is an explicit administrator override. Otherwise,
  * DHCP option 42 is preferred and PTB's UTC(PTB) servers are fallbacks. */
@@ -550,6 +556,48 @@ static uint32_t perform_render(bool *render_ok)
     return pace_retry(sleep_sec, ok);
 }
 
+/**
+ * May a button erase this display's configuration?
+ *
+ * Re-provisioning an enrolled display over USB already demands a server-signed
+ * admin authorization (see vellum_serial's challenge/HMAC exchange). A button
+ * held for a few seconds needed nothing at all, which made the physical path the
+ * weakest one and let anybody who could reach a panel in a public room wipe its
+ * Wi-Fi credentials, device token and keypair. The lock's own comment conceded
+ * as much: it holds "until a physical factory reset erases the namespace".
+ *
+ * Broken storage is the deliberate exception, and it is not a loophole. When NVS
+ * cannot be opened or fails its integrity check there is nothing readable left to
+ * protect, the enrollment lock reports locked because it fails closed, and the
+ * firmware already puts "Storage recovery required — Factory reset and re-enroll"
+ * on the screen. Refusing here would make that instruction impossible to follow
+ * and turn every corrupted display into a workshop case.
+ *
+ * Returns false and sets *reason to a short line for the panel when refused.
+ */
+static bool factory_reset_permitted(const char **reason)
+{
+    if (s_nvs_unavailable || s_nvs_integrity_failed) return true; /* recovery */
+
+#if !CONFIG_VELLUM_BUTTON_FACTORY_RESET
+    *reason = "Disabled on this firmware";
+    return false;
+#else
+    if (nvs_manager_is_provisioning_locked()) {
+        *reason = "Enrolled display — authorize in Vellum";
+        return false;
+    }
+    return true;
+#endif
+}
+
+/** Refuse visibly: a dead button teaches nothing. */
+static void factory_reset_refused(const char *reason)
+{
+    ESP_LOGW(TAG, "Factory reset refused: %s", reason);
+    display_show_status_message(VD_ICON_SERVER, "Factory reset not allowed", reason);
+}
+
 /* -----------------------------------------------------------------------
  * Button action handler
  * ----------------------------------------------------------------------- */
@@ -570,7 +618,12 @@ static bool handle_button_action(button_action_t action)
         return true;
     }
 
-    case BUTTON_ACTION_FACTORY_RESET:
+    case BUTTON_ACTION_FACTORY_RESET: {
+        const char *reason = NULL;
+        if (!factory_reset_permitted(&reason)) {
+            factory_reset_refused(reason);
+            return true;
+        }
         ESP_LOGW(TAG, "Factory reset — erasing NVS");
         board_buzzer_beep(500, 500);
         /* This recovery path must work even when the NVS namespace cannot be
@@ -578,6 +631,7 @@ static bool handle_button_action(button_action_t action)
         nvs_flash_erase();
         esp_restart();
         return true;
+    }
 
     case BUTTON_ACTION_NONE:
     default:
@@ -695,6 +749,20 @@ static void stall_supervisor_start(void)
 }
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
+/* D1001 has a single wired key (KEY0), so it cannot copy the E-Series two-key
+ * factory-reset grip. Its scale used to be refresh under 5 s, reboot from 5 to
+ * 10 s and erase at 10 s: one continuous press, with the destructive step one
+ * second past a routine one. Holding a fraction too long wiped the display, and
+ * that is how one lost its Wi-Fi credentials during this investigation.
+ *
+ * The ranges no longer touch, and the erase is no longer part of the same
+ * gesture. A long hold only ASKS; releasing does nothing. Confirming needs a
+ * second, separate press inside a short window, which an accidental grip does
+ * not produce. */
+#define D1001_REBOOT_HOLD_MS   2000
+#define D1001_RESET_ASK_MS     5000
+#define D1001_CONFIRM_WINDOW_MS 5000
+
 static void d1001_button_task(void *arg)
 {
     (void)arg;
@@ -703,43 +771,67 @@ static void d1001_button_task(void *arg)
     while (gpio_get_level(btn) == PRESSED_LEVEL) vTaskDelay(pdMS_TO_TICKS(50));
     vTaskDelay(pdMS_TO_TICKS(500));
 
+    /* Set by a hold that reached the ask; cleared when the window closes. */
+    int64_t confirm_until_us = 0;
+
     while (1) {
         if (gpio_get_level(btn) == PRESSED_LEVEL) {
-            int64_t start = esp_timer_get_time();
-            int last_cd = -1;
+            int64_t start_us = esp_timer_get_time();
+            bool asked = false;
             while (gpio_get_level(btn) == PRESSED_LEVEL) {
-                int64_t held = (esp_timer_get_time() - start) / 1000;
-                if (held >= 5000) {
-                    int rem = (int)((10000 - held) / 1000);
-                    if (rem < 0) rem = 0;
-                    if (rem != last_cd) {
-                        char msg[48];
-                        snprintf(msg, sizeof(msg), "Factory reset in %d", rem);
-                        display_show_status_message(VD_ICON_REFRESH, msg,
-                                                    "Release the button to cancel");
-                        last_cd = rem;
+                int64_t held_ms = (esp_timer_get_time() - start_us) / 1000;
+                if (!asked && held_ms >= D1001_RESET_ASK_MS) {
+                    asked = true;
+                    const char *reason = NULL;
+                    if (factory_reset_permitted(&reason)) {
+                        display_show_status_message(
+                            VD_ICON_REFRESH, "Factory reset?",
+                            "Release, then press again to confirm");
+                    } else {
+                        /* Say no while the finger is still down, rather than
+                         * letting the operator complete a gesture that cannot
+                         * work. */
+                        factory_reset_refused(reason);
                     }
                 }
-                if (held >= 10000) {
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+            int64_t held_ms = (esp_timer_get_time() - start_us) / 1000;
+
+            if (held_ms >= D1001_RESET_ASK_MS) {
+                const char *reason = NULL;
+                /* Arm the window only if it could actually be honoured. */
+                confirm_until_us = factory_reset_permitted(&reason)
+                                       ? esp_timer_get_time() +
+                                             (int64_t)D1001_CONFIRM_WINDOW_MS * 1000
+                                       : 0;
+            } else if (confirm_until_us && esp_timer_get_time() < confirm_until_us) {
+                /* The second press. Length does not matter here: reaching the ask
+                 * was the deliberate part, this is the confirmation. */
+                confirm_until_us = 0;
+                const char *reason = NULL;
+                if (factory_reset_permitted(&reason)) {
                     display_show_status_message(VD_ICON_REFRESH, "Factory reset",
                                                 "Erasing configuration");
                     vTaskDelay(pdMS_TO_TICKS(500));
                     nvs_flash_erase();
                     esp_restart();
+                } else {
+                    factory_reset_refused(reason);
                 }
-                vTaskDelay(pdMS_TO_TICKS(50));
-            }
-            int64_t held = (esp_timer_get_time() - start) / 1000;
-            if (held >= 5000) {
-                /* Released between 5-10s: reboot */
+            } else if (held_ms >= D1001_REBOOT_HOLD_MS) {
                 esp_restart();
+            } else {
+                /* Short press: refresh. D1001 has an ES8311 speaker instead of the
+                 * E-Series PWM buzzer, so board_buzzer_beep() maps to its
+                 * confirmation chime; acknowledge before the render work begins. */
+                board_buzzer_beep(1000, 100);
+                s_button_pressed = true;
             }
-            /* Short press (<5s): trigger immediate refresh/retry */
-            /* D1001 has an ES8311 speaker instead of the E-Series PWM buzzer.
-             * board_buzzer_beep() maps to its confirmation chime, so acknowledge
-             * the press before the network/render work begins. */
-            board_buzzer_beep(1000, 100);
-            s_button_pressed = true;
+        }
+        if (confirm_until_us && esp_timer_get_time() >= confirm_until_us) {
+            confirm_until_us = 0;
+            ESP_LOGI(TAG, "Factory reset not confirmed — window closed");
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -757,6 +849,8 @@ void app_main(void)
     esp_err_t nvs_init_err = nvs_manager_init();
     bool nvs_integrity_failed = nvs_init_err == ESP_ERR_INVALID_CRC;
     bool nvs_unavailable = nvs_init_err != ESP_OK;
+    s_nvs_integrity_failed = nvs_integrity_failed;
+    s_nvs_unavailable = nvs_unavailable;
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001: board init first (power rails, I2C, IO-expander) */
     ESP_ERROR_CHECK(d1001_board_init());
@@ -825,6 +919,15 @@ void app_main(void)
             held_ms += 200;
         }
         if (held_ms >= 10000) {
+            /* Same policy as the runtime paths. Held at power-on this gesture is
+             * already deliberate, so it needs no second press, but an enrolled or
+             * production display must still refuse it. */
+            const char *reason = NULL;
+            if (!factory_reset_permitted(&reason)) {
+                factory_reset_refused(reason);
+                vTaskDelay(pdMS_TO_TICKS(3000));
+                esp_restart();
+            }
             display_show_status_message(VD_ICON_REFRESH, "Factory reset",
                                         "Erasing configuration");
             vTaskDelay(pdMS_TO_TICKS(500));
