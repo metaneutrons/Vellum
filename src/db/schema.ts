@@ -14,6 +14,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  foreignKey,
   check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -153,7 +154,10 @@ export const adminUsers = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("admin_users_email_ci_idx").on(sql`lower(${t.email})`)]
+  (t) => [
+    uniqueIndex("admin_users_email_ci_idx").on(sql`lower(${t.email})`),
+    check("admin_users_status_check", sql`${t.status} IN ('active', 'invited', 'suspended')`),
+  ]
 );
 
 /** System roles are seeded in code; custom roles use the same permission rows. */
@@ -166,16 +170,39 @@ export const accessRoles = pgTable("access_roles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/* ── A note on foreign-key names ──────────────────────────────────────
+ *
+ * 0006, 0007 and 0018 declared their foreign keys inline in CREATE TABLE
+ * without naming them, so PostgreSQL derived `<table>_<column>_fkey`. Drizzle's
+ * inline `.references()` cannot pin a name and instead implies its own
+ * `<table>_<column>_<reftable>_<refcol>_fk`, a name no Vellum database has. A
+ * migration generated from that model would emit DROP CONSTRAINT for a name
+ * that was never created.
+ *
+ * So every such key is declared at table level with its real name. Converging
+ * the other way, renaming the databases to drizzle's convention, is not an
+ * option: `service_account_permissions_service_account_id_service_accounts_id_fk`
+ * exceeds PostgreSQL's 63-character identifier limit and is silently truncated,
+ * so the model could never match the result.
+ *
+ * Keys created by 0012 are left inline: it named them explicitly, and those
+ * names already coincide with what drizzle generates.
+ * ─────────────────────────────────────────────────────────────────── */
 export const rolePermissions = pgTable(
   "role_permissions",
   {
     id: serial("id").primaryKey(),
-    roleId: text("role_id")
-      .notNull()
-      .references(() => accessRoles.id, { onDelete: "cascade" }),
+    roleId: text("role_id").notNull(),
     permission: text("permission").notNull(),
   },
-  (t) => [uniqueIndex("role_permissions_role_permission_idx").on(t.roleId, t.permission)]
+  (t) => [
+    uniqueIndex("role_permissions_role_permission_idx").on(t.roleId, t.permission),
+    foreignKey({
+      name: "role_permissions_role_id_fkey",
+      columns: [t.roleId],
+      foreignColumns: [accessRoles.id],
+    }).onDelete("cascade"),
+  ]
 );
 
 /** A role can be global (workspace) or restricted to a future site/fleet/device scope. */
@@ -183,12 +210,8 @@ export const userRoleAssignments = pgTable(
   "user_role_assignments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => adminUsers.id, { onDelete: "cascade" }),
-    roleId: text("role_id")
-      .notNull()
-      .references(() => accessRoles.id, { onDelete: "restrict" }),
+    userId: uuid("user_id").notNull(),
+    roleId: text("role_id").notNull(),
     scopeType: text("scope_type").notNull().default("workspace"),
     scopeId: text("scope_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -196,6 +219,23 @@ export const userRoleAssignments = pgTable(
   (t) => [
     index("user_role_assignments_user_idx").on(t.userId),
     index("user_role_assignments_role_idx").on(t.roleId),
+    foreignKey({
+      name: "user_role_assignments_user_id_fkey",
+      columns: [t.userId],
+      foreignColumns: [adminUsers.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "user_role_assignments_role_id_fkey",
+      columns: [t.roleId],
+      foreignColumns: [accessRoles.id],
+    }).onDelete("restrict"),
+    /* A workspace-scoped assignment carries no scope id; every narrower scope
+     * must name its target. Enforced in the database so a future scope type
+     * cannot be introduced with a half-populated row. */
+    check(
+      "user_role_assignments_scope_check",
+      sql`(${t.scopeType} = 'workspace' AND ${t.scopeId} IS NULL) OR (${t.scopeType} <> 'workspace' AND ${t.scopeId} IS NOT NULL)`
+    ),
   ]
 );
 
@@ -204,9 +244,7 @@ export const adminSessions = pgTable(
   "admin_sessions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => adminUsers.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
     tokenHash: text("token_hash").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     revokedAt: timestamp("revoked_at"),
@@ -218,6 +256,11 @@ export const adminSessions = pgTable(
   (t) => [
     uniqueIndex("admin_sessions_token_hash_idx").on(t.tokenHash),
     index("admin_sessions_user_idx").on(t.userId),
+    foreignKey({
+      name: "admin_sessions_user_id_fkey",
+      columns: [t.userId],
+      foreignColumns: [adminUsers.id],
+    }).onDelete("cascade"),
   ]
 );
 
@@ -228,14 +271,12 @@ export const adminInvitations = pgTable(
     email: text("email").notNull(),
     displayName: text("display_name").notNull(),
     tokenHash: text("token_hash").notNull(),
-    roleId: text("role_id")
-      .notNull()
-      .references(() => accessRoles.id, { onDelete: "restrict" }),
+    roleId: text("role_id").notNull(),
     scopeType: text("scope_type").notNull().default("workspace"),
     scopeId: text("scope_id"),
     expiresAt: timestamp("expires_at").notNull(),
     acceptedAt: timestamp("accepted_at"),
-    createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
+    createdBy: uuid("created_by"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -243,6 +284,16 @@ export const adminInvitations = pgTable(
     index("admin_invitations_email_idx").on(t.email),
     index("admin_invitations_role_idx").on(t.roleId),
     index("admin_invitations_created_by_idx").on(t.createdBy),
+    foreignKey({
+      name: "admin_invitations_role_id_fkey",
+      columns: [t.roleId],
+      foreignColumns: [accessRoles.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "admin_invitations_created_by_fkey",
+      columns: [t.createdBy],
+      foreignColumns: [adminUsers.id],
+    }).onDelete("set null"),
   ]
 );
 
@@ -251,9 +302,7 @@ export const oidcIdentities = pgTable(
   "oidc_identities",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => adminUsers.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
     issuer: text("issuer").notNull(),
     subject: text("subject").notNull(),
     tenantId: text("tenant_id").notNull(),
@@ -264,6 +313,11 @@ export const oidcIdentities = pgTable(
   (t) => [
     uniqueIndex("oidc_identities_issuer_subject_idx").on(t.issuer, t.subject),
     index("oidc_identities_user_idx").on(t.userId),
+    foreignKey({
+      name: "oidc_identities_user_id_fkey",
+      columns: [t.userId],
+      foreignColumns: [adminUsers.id],
+    }).onDelete("cascade"),
   ]
 );
 
@@ -278,12 +332,18 @@ export const serviceAccounts = pgTable(
     status: text("status").notNull().default("active"),
     expiresAt: timestamp("expires_at"),
     lastUsedAt: timestamp("last_used_at"),
-    createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
+    createdBy: uuid("created_by"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     uniqueIndex("service_accounts_token_hash_idx").on(t.tokenHash),
     index("service_accounts_created_by_idx").on(t.createdBy),
+    check("service_accounts_status_check", sql`${t.status} IN ('active', 'revoked')`),
+    foreignKey({
+      name: "service_accounts_created_by_fkey",
+      columns: [t.createdBy],
+      foreignColumns: [adminUsers.id],
+    }).onDelete("set null"),
   ]
 );
 
@@ -291,14 +351,19 @@ export const serviceAccountPermissions = pgTable(
   "service_account_permissions",
   {
     id: serial("id").primaryKey(),
-    serviceAccountId: uuid("service_account_id")
-      .notNull()
-      .references(() => serviceAccounts.id, { onDelete: "cascade" }),
+    serviceAccountId: uuid("service_account_id").notNull(),
     permission: text("permission").notNull(),
     scopeType: text("scope_type").notNull().default("workspace"),
     scopeId: text("scope_id"),
   },
-  (t) => [index("service_account_permissions_account_idx").on(t.serviceAccountId)]
+  (t) => [
+    index("service_account_permissions_account_idx").on(t.serviceAccountId),
+    foreignKey({
+      name: "service_account_permissions_service_account_id_fkey",
+      columns: [t.serviceAccountId],
+      foreignColumns: [serviceAccounts.id],
+    }).onDelete("cascade"),
+  ]
 );
 
 /** Append-only security record. Secret material is intentionally never stored here. */
@@ -371,14 +436,12 @@ export const deviceConfigurationCommands = pgTable(
   "device_configuration_commands",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    mac: text("mac")
-      .notNull()
-      .references(() => devices.mac, { onDelete: "cascade" }),
+    mac: text("mac").notNull(),
     kind: text("kind").notNull(), // "server_url" | "wifi"
     payload: jsonb("payload").notNull(),
     status: text("status").notNull().default("pending"), // pending | delivered | applying | applied | failed | superseded | cancelled
     errorCode: text("error_code"),
-    createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
+    createdBy: uuid("created_by"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     deliveredAt: timestamp("delivered_at"),
     completedAt: timestamp("completed_at"),
@@ -393,6 +456,16 @@ export const deviceConfigurationCommands = pgTable(
       "device_configuration_commands_status_check",
       sql`${t.status} IN ('pending', 'delivered', 'applying', 'applied', 'failed', 'superseded', 'cancelled')`
     ),
+    foreignKey({
+      name: "device_configuration_commands_mac_fkey",
+      columns: [t.mac],
+      foreignColumns: [devices.mac],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "device_configuration_commands_created_by_fkey",
+      columns: [t.createdBy],
+      foreignColumns: [adminUsers.id],
+    }).onDelete("set null"),
   ]
 );
 
@@ -455,18 +528,32 @@ export const assets = pgTable("assets", {
  * whenever content config changes, making dangling provider/asset references
  * impossible even for writes that bypass the Console.
  */
+/* The primary key and both foreign keys are named explicitly because 0013 wrote
+ * them by hand. Inline `.references()` and an unnamed `primaryKey()` cannot pin a
+ * name, so the model would imply drizzle's longer generated names, which exist in
+ * no database. A migration generated from that model could then emit a DROP
+ * CONSTRAINT for a name that was never created. Same for content_asset_dependencies. */
 export const contentProviderDependencies = pgTable(
   "content_provider_dependencies",
   {
-    contentInstanceId: uuid("content_instance_id")
-      .notNull()
-      .references(() => contentInstances.id, { onDelete: "cascade" }),
-    providerId: uuid("provider_id")
-      .notNull()
-      .references(() => dataProviders.id, { onDelete: "restrict" }),
+    contentInstanceId: uuid("content_instance_id").notNull(),
+    providerId: uuid("provider_id").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.contentInstanceId, t.providerId] }),
+    primaryKey({
+      name: "content_provider_dependencies_pkey",
+      columns: [t.contentInstanceId, t.providerId],
+    }),
+    foreignKey({
+      name: "content_provider_dependencies_content_instance_id_fk",
+      columns: [t.contentInstanceId],
+      foreignColumns: [contentInstances.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "content_provider_dependencies_provider_id_fk",
+      columns: [t.providerId],
+      foreignColumns: [dataProviders.id],
+    }).onDelete("restrict"),
     index("content_provider_dependencies_provider_idx").on(t.providerId),
   ]
 );
@@ -474,15 +561,24 @@ export const contentProviderDependencies = pgTable(
 export const contentAssetDependencies = pgTable(
   "content_asset_dependencies",
   {
-    contentInstanceId: uuid("content_instance_id")
-      .notNull()
-      .references(() => contentInstances.id, { onDelete: "cascade" }),
-    assetId: uuid("asset_id")
-      .notNull()
-      .references(() => assets.id, { onDelete: "restrict" }),
+    contentInstanceId: uuid("content_instance_id").notNull(),
+    assetId: uuid("asset_id").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.contentInstanceId, t.assetId] }),
+    primaryKey({
+      name: "content_asset_dependencies_pkey",
+      columns: [t.contentInstanceId, t.assetId],
+    }),
+    foreignKey({
+      name: "content_asset_dependencies_content_instance_id_fk",
+      columns: [t.contentInstanceId],
+      foreignColumns: [contentInstances.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "content_asset_dependencies_asset_id_fk",
+      columns: [t.assetId],
+      foreignColumns: [assets.id],
+    }).onDelete("restrict"),
     index("content_asset_dependencies_asset_idx").on(t.assetId),
   ]
 );

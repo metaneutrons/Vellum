@@ -47,9 +47,26 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   environment, fully self-contained — **NO Postgres / testcontainers / docker**.
   The workspace-wide snapdog note "tier-2 tests need `DOCKER_HOST=colima
 socket`" does NOT apply to Vellum.
-- Coverage is a **ratchet gate** (`vitest.config.ts`): statements 55 / branches
-  44 / functions 44 / lines 56, enforced by the required CI "Test" job. Raise,
-  never lower.
+- **`environment: "node"` is the project default and stays that way.** One suite,
+  `use-device-live-updates.hook.test.ts`, needs a DOM and opts in per file with a
+  `// @vitest-environment jsdom` docblock (`jsdom` + `@testing-library/react` are
+  devDependencies). Prefer that docblock over switching the global environment.
+  Note `include` covers `*.test.ts` only, not `.tsx`, so a component test either
+  avoids JSX (`renderHook` does) or the pattern has to change. When rendering a
+  hook that opens an `EventSource` or calls `fetch`, stub both: jsdom provides
+  neither usefully.
+- Coverage is a **ratchet gate** (`vitest.config.ts`): statements 69 / branches
+  63 / functions 67 / lines 70, enforced by the required CI "Test" job. Raise,
+  never lower. Only modules the suite imports are measured, so `scripts/` is out
+  of scope and adding an untested script cannot move the number.
+- **Coverage is not reproducible to the last statement, so keep ~1pp of margin
+  and calibrate against CI, never a local run.** CI runs Node 22 (`.nvmrc`) and v8
+  counts statements differently per version (70.24 local vs 70.12 CI), and CI
+  varies between runs over identical source (70.12 then 69.96, about four
+  statements). A threshold set flush against one measurement failed a release PR
+  that changed no code. Something in the suite is timing- or environment-dependent
+  and has not been tracked down; real coverage sits near 70 for statements, so
+  lifting the floor to 70 needs tests with room to spare, not a tighter number.
 - Runtime env (`.env.example` + `deploy/vellum.env.example` are the source of
   truth): `DATABASE_URL`, `ENCRYPTION_KEY`, `SESSION_SECRET`, `ADMIN_API_KEY`
   (all **min 32 chars**), `ADMIN_USER`, `ADMIN_PASS` (min 8), `NODE_ENV`,
@@ -72,13 +89,50 @@ them in `__vellum_migrations`. Consequences:
   only type-checks the model, and the test suite runs without Postgres. This
   actually shipped broken — `devices.orientation_override` had no migration for
   ~3 months, taking out `/api/v1/ink/render` on fresh databases.
-- **Do NOT trust `pnpm db:generate`.** `drizzle/meta/` snapshots stop at `0005`
-  while migrations run past `0010`, and those snapshots already list columns the
-  SQL never creates — so drizzle-kit believes they exist and will never emit
-  them. Migrations here are hand-written by convention; keep them idempotent
-  (`ADD COLUMN IF NOT EXISTS`) and forward-only (there are no down migrations).
-- `pnpm db:check` (`scripts/check-schema-migrations.mjs`, CI "Schema Guard")
-  asserts every `schema.ts` column is created by some `drizzle/*.sql`.
+- **`pnpm db:generate` is usable again, and is now the normal route.** It was not
+  until 2026-08-17: `drizzle/meta/` stopped at `0005` while migrations ran to
+  `0022`, and `0000_snapshot.json` already claimed `devices.orientation_override`,
+  which only `0008` creates — so drizzle believed columns existed and would never
+  emit them. `_journal.json` now carries all 23 entries with monotonic `when`
+  values, and `0022_snapshot.json` describes the real schema, verified by building
+  a database from the model and diffing it against a `0022`-migrated one.
+  Generated files start at `0023`, so they cannot collide with the hand-written
+  history. Keep migrations idempotent (`ADD COLUMN IF NOT EXISTS`) and
+  forward-only (there are no down migrations).
+- **For anything drizzle cannot express, use
+  `pnpm exec drizzle-kit generate --custom --name <desc>`** and write the SQL by
+  hand. That still records a journal entry and snapshot, which plain hand-authoring
+  does not, and is how the journal fell behind in the first place. The snapshot
+  format has no representation for triggers or plpgsql functions (the schema has 4
+  and 3), nor for DML or drop/recreate transitions.
+- **`drizzle-kit migrate` is NOT the applier and must not be used.** It decides
+  what is pending from a single `created_at` high-water mark compared strictly
+  against `journal.when`, never reading the `hash` it stores — so it enforces no
+  checksum, takes no advisory lock, and permanently skips any migration merged
+  later with an earlier `when`. `scripts/migrate.mjs` does all three correctly and
+  additionally self-baselines onto databases created by `drizzle-kit push`.
+- `pnpm db:check` runs three guards: `check-schema-migrations.mjs` (CI "Schema
+  Guard") asserts every `schema.ts` column is created by some `drizzle/*.sql` and
+  **fails on any column builder it does not recognise** rather than skipping it
+  (`assets.data`, declared via a `customType`, was silently unchecked until
+  2026-08-17); `check-schema-snapshot.mjs` asserts the model is fully captured by
+  `drizzle/meta/`, printing the migration drizzle-kit would emit; and
+  `check-db-access.mjs` enforces the read/write/transaction wrappers.
+- **Foreign-key and primary-key names are pinned explicitly** where `0006`,
+  `0007`, `0013` and `0018` wrote them by hand. Inline `.references()` cannot pin
+  a name and implies drizzle's longer one, which no database has, so a generated
+  migration could `DROP CONSTRAINT` a name that was never created. Renaming
+  databases to drizzle's convention is not an option: one such name exceeds
+  PostgreSQL's 63-character limit and is silently truncated. Three indexes differ
+  cosmetically (`DESC` vs `DESC NULLS LAST`) on `NOT NULL` columns, where the
+  ordering is unobservable; that is deliberate, not drift to fix.
+- **`pnpm dev` refuses to start against a database behind `drizzle/`**
+  (`scripts/check-pending-migrations.mjs`) and prints the pending list. Only the
+  container migrates itself at boot, so a local database otherwise stays at
+  whatever revision the last `pnpm db:migrate` reached, and the resulting missing
+  relation surfaces far from its cause. An unset `DATABASE_URL` or an unreachable
+  database exits 0 (database-less dev keeps working);
+  `VELLUM_SKIP_MIGRATION_CHECK=1` overrides it.
 - Migration numbering has a historical gap; use the next free number, and expect
   server-rendered pages to guard optional columns with a fallback query.
 
@@ -280,6 +334,26 @@ releases carry no manifest → skipped. Walk is bounded (`MAX_RELEASE_PAGES=40`)
 with a page-1 ETag fast-path + permanent per-release manifest cache. Do NOT
 refactor this to tag/`latest` logic — it would break OTA and re-surface the
 anchor tag to the fleet.
+
+- **The walk itself is unchanged, but it is no longer a direct synchronous
+  call.** `getAllManifests()` now reads a persistent Postgres snapshot
+  (`firmware_catalog_state`), hydrated at boot by `initializeFirmwareCatalog()` /
+  `syncAutoPoll()` (`src/instrumentation.ts`) and refreshed asynchronously with
+  lease coordination across replicas — this replaced an earlier design where an
+  expired poll interval made the _next_ request block on GitHub, including the
+  admin dashboard's cold path.
+- **The server now proxies the firmware binary itself, not just its
+  discovery.** `/api/v1/ink/firmware` (`src/lib/firmware-download.ts` +
+  `firmware-binary-cache.ts`, a bounded 128 MiB in-memory LRU with
+  request-coalescing) serves the binary behind an HMAC-signed, device-bound
+  download grant (mac/tag/model/expiry, signed with the device token, 10-minute
+  TTL). `/api/v1/ink/config` hands the device a Vellum URL built by
+  `createOtaDownloadUrl()` **only when `VELLUM_PUBLIC_URL` is set and HTTPS**
+  (`otaOrigin.startsWith("https://")` in `config/route.ts`); otherwise it falls
+  back to the raw GitHub URL, which is a **local-HTTP-dev accommodation, not a
+  security fallback** — production firmware refuses plaintext OTA transport
+  either way. Devices still verify model, SHA-256 and the Ed25519 signature
+  before boot regardless of which origin served the bytes.
 
 ## Renderer sort-invariant
 

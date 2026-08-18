@@ -64,3 +64,7 @@ next-env.d.ts
 
 # Runtime serial-device artifacts written by dev tooling
 data/
+
+# Temporary output of scripts/check-schema-snapshot.mjs (must be a repo-relative
+# path because drizzle-kit prefixes --out with "./"); removed after each run.
+.drizzle-parity-*/
