@@ -2,6 +2,16 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.6.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.5.0...firmware-v1.6.0) (2026-08-17)
+
+
+### Features
+
+* **security:** add reversible device enrollment ([3d8b65b](https://github.com/metaneutrons/Vellum/commit/3d8b65b0908dfad8341e26319a4d51964ebef318))
+* **security:** add reversible device enrollment ([0dd72e9](https://github.com/metaneutrons/Vellum/commit/0dd72e90920f03bf3f6941829145e13701c25a57))
+* **security:** attest device flash layouts ([d03f41b](https://github.com/metaneutrons/Vellum/commit/d03f41b174953b16b23a4ce3875140241f8e9456))
+* **security:** attest device flash layouts ([8da7978](https://github.com/metaneutrons/Vellum/commit/8da7978f45a4572bdf110098dce97337b6259455))
+
 ## [1.5.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.4.10...firmware-v1.5.0) (2026-08-17)
 
 
