@@ -288,7 +288,29 @@ container or firmware assets).
   mid-publish never sees a manifest before its assets).
 - release-please routes each commit by path: `firmware/**` → firmware component;
   everything else → server. A server `fix:` does NOT rebuild firmware and vice
-  versa. The two components are independent — **no merge order is required.**
+  versa. The two components are independent in what they _release_, but **not
+  independent when two release PRs are open at once** — see the manifest note
+  below. That line used to claim "no merge order is required"; two incidents
+  (#265, #273) proved otherwise.
+- **`.release-please-manifest.json` is ONE file for BOTH components**, so every
+  release PR carries a snapshot of _both_ versions, each frozen when that PR was
+  generated. Merging the first one moves `main`; the second then arrives holding a
+  stale copy of the version the first just bumped. release-please only regenerates
+  a PR when its _own_ component changed, so it left the other PR untouched.
+  `always-update: true` is now set in `release-please-config.json` to force a
+  refresh whenever the base branch moves; the schema documents it as being for
+  exactly this ("pull requests must not be out-of-date with the base branch").
+  It has NOT yet been observed working, because it only takes effect on the next
+  cycle with two PRs open.
+  - If it still conflicts, resolve by hand rather than trusting either side:
+    check out the release branch, `git merge origin/main`, and write the manifest
+    so **each component keeps its own new version** (server from the server PR,
+    firmware from the firmware PR), then push to the release branch.
+  - The conflict is currently _loud_ only because the file is four lines, so
+    everything lands in one diff hunk and git refuses. **With a third component
+    the hunks separate, git auto-merges cleanly, and a merge would silently roll a
+    version back.** If a component is ever added, add a CI guard that fails a
+    release PR whose manifest disagrees with `main` on lines it is not releasing.
 - `separate-pull-requests: true` yields one PR per changed component on branches
   `release-please--branches--main--components--{server,firmware}`. **The server
   PR title does NOT contain the word "server"** (`chore(main): release 1.9.5`) —
