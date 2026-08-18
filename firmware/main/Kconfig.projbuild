@@ -117,6 +117,43 @@ menu "Vellum Configuration"
             range 5000 60000
     endmenu
 
+    config VELLUM_STALL_TIMEOUT_S
+        int "Reboot if the poll loop makes no progress for this long (0 = never)"
+        default 600
+        range 0 3600
+        help
+            A supervisor task reboots the device when the main poll loop stops
+            reporting progress for this long. This is NOT the ESP-IDF task
+            watchdog: that has a single 30 s timeout for every subscribed task,
+            and one poll cycle can legitimately exceed it, since each HTTP
+            request alone may take VELLUM_HTTP_TIMEOUT_MS.
+
+            Without it a wedged loop is permanent. A D1001 on 1.5.0 stopped
+            polling and stayed dead for hours: its button task still chimed and
+            set the refresh flag, but nothing was left to read it, and no
+            watchdog was watching because nothing in the firmware subscribes to
+            one.
+
+            An OTA download runs inside the loop and takes minutes, so the
+            supervisor is given an explicit wider grace window around it rather
+            than a timeout large enough to hide a real stall.
+
+            A reboot before ota_manager_mark_valid() deliberately lets the
+            anti-brick rollback take over: firmware that cannot render should
+            not be confirmed.
+
+    config VELLUM_OTA_GRACE_S
+        int "Extra stall allowance while an OTA download runs"
+        default 1200
+        range 0 3600
+        depends on VELLUM_STALL_TIMEOUT_S != 0
+        help
+            Added to VELLUM_STALL_TIMEOUT_S for the duration of
+            ota_manager_check_and_apply(), which downloads and verifies a
+            firmware image. Sized for a slow link rather than a fast one: a
+            reboot in the middle of an update is worse than detecting a stall
+            late.
+
     config VELLUM_OTA_SIGNING_PUBKEY
         string "Primary Ed25519 OTA signing public key (raw 32 bytes, base64)"
         default "sdY80/jyxvaEuXOHjs8qb5hyDdf3petsG+JjlSYZJmc="
