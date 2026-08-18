@@ -2,6 +2,25 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.7.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.6.0...firmware-v1.7.0) (2026-08-18)
+
+
+### Features
+
+* **firmware:** give every panel a font that can draw European text ([b80cb4f](https://github.com/metaneutrons/Vellum/commit/b80cb4f700f32c34dd3ae910fcbd9625ea77303f))
+
+
+### Bug Fixes
+
+* **display:** let the driver own its capabilities, and report them on every poll ([a809823](https://github.com/metaneutrons/Vellum/commit/a8098230cad7a69924a30cd179cbbdea7ed7ecc6))
+* **display:** let the driver own its capabilities, and report them on every poll ([a63b497](https://github.com/metaneutrons/Vellum/commit/a63b4973d6de60d4952deebb54089c8c3756d547))
+* **firmware:** guard boot, gate factory reset, quiet the chime, widen the fonts ([1e8a386](https://github.com/metaneutrons/Vellum/commit/1e8a3860d24543ad1875091575fdabbd50c70ee6))
+* **firmware:** reboot the display when its poll loop stalls ([e058988](https://github.com/metaneutrons/Vellum/commit/e05898817451493cd601a4c5bd6c3f17dca5fcb7))
+* **firmware:** reboot the display when its poll loop stalls ([d2a2191](https://github.com/metaneutrons/Vellum/commit/d2a2191bfa64cd2ae11f21dff04bfab93246c87f))
+* **firmware:** require confirmation for a factory reset, and refuse it when enrolled ([149e970](https://github.com/metaneutrons/Vellum/commit/149e970a569c4a9f7b10720a01559b4a26a05ae2))
+* **firmware:** stop the D1001 chime narrating itself to the console ([3cd71f4](https://github.com/metaneutrons/Vellum/commit/3cd71f401adaf3c1d4f8c27dcdf3e42ce8f864c9))
+* **firmware:** watch the boot path, not only the poll loop ([49b9eff](https://github.com/metaneutrons/Vellum/commit/49b9eff90adbf057beee59b12a827fd32834b8a4))
+
 ## [1.6.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.5.0...firmware-v1.6.0) (2026-08-17)
 
 
