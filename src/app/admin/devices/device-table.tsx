@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { approveDevice, updateDevice, deleteDevice } from "../actions";
+import { approveDevice, updateDevice, deleteDevice, queueDeviceOrientation } from "../actions";
 import { useToast } from "@/components/toast";
 import { ConfirmDialog } from "@/components/confirm";
 import { useTranslations } from "next-intl";
@@ -118,6 +118,18 @@ export function DeviceTable({
 
   function update(mac: string, data: Record<string, unknown>) {
     act(() => updateDevice(mac, data), t("updated"), t("failed"));
+  }
+
+  /* A mounting is a property of the physical installation, so it has to reach the
+   * device: the server can swap the rendered geometry, but the panel's own surface
+   * only changes across a restart. Clearing the choice is a server-side matter
+   * alone -- there is nothing to tell a device about "no preference". */
+  function setOrientation(mac: string, value: string) {
+    if (!value) {
+      update(mac, { orientationOverride: null });
+      return;
+    }
+    act(() => queueDeviceOrientation(mac, value), t("orientationQueued"), t("failed"));
   }
 
   const filtered = devices.filter((d) => {
@@ -435,9 +447,7 @@ export function DeviceTable({
                       className={selectCls}
                       value={d.orientation_override ?? ""}
                       aria-label={t("orientation")}
-                      onChange={(e) =>
-                        update(d.mac, { orientationOverride: e.target.value || null })
-                      }
+                      onChange={(e) => setOrientation(d.mac, e.target.value)}
                     >
                       {/* Only what the display reports it can do. All three used
                           to be listed unconditionally, so an operator could pick

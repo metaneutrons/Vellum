@@ -20,6 +20,8 @@ import {
   serverMigrationPayloadSchema,
   signRemoteConfiguration,
   signRemoteWifiConfiguration,
+  signRemoteOrientation,
+  orientationPayloadSchema,
   wifiConfigurationInputSchema,
 } from "@/lib/provisioning/remote-configuration";
 
@@ -180,6 +182,13 @@ export async function GET(request: NextRequest) {
         password: string;
         signature: string;
       }
+    | {
+        protocol: 1;
+        id: string;
+        kind: "orientation";
+        orientation: string;
+        signature: string;
+      }
     | undefined;
   if (activeCommand?.kind === "server_url" && device?.token) {
     const parsed = serverMigrationPayloadSchema.safeParse(activeCommand.payload);
@@ -242,6 +251,31 @@ export async function GET(request: NextRequest) {
             .where(eq(deviceConfigurationCommands.id, activeCommand.id)),
         "config-fail-undecryptable-wifi-command"
       );
+    }
+  }
+
+  if (activeCommand?.kind === "orientation" && device?.token) {
+    /* The mounting is not a secret, but it is authenticated: an attacker who could
+     * rotate a wall panel's surface could make it unreadable, and the device applies
+     * this by rebooting. */
+    const parsed = orientationPayloadSchema.safeParse(activeCommand.payload);
+    if (parsed.success) {
+      remoteConfiguration = {
+        protocol: 1,
+        id: activeCommand.id,
+        kind: "orientation",
+        orientation: parsed.data.orientation,
+        signature: signRemoteOrientation({
+          deviceToken: device.token,
+          id: activeCommand.id,
+          orientation: parsed.data.orientation,
+        }),
+      };
+    } else {
+      log.error("Invalid persisted device orientation command", {
+        mac: validation.data.mac,
+        commandId: activeCommand.id,
+      });
     }
   }
 

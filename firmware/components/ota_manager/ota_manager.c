@@ -65,6 +65,7 @@ static const char *TAG = "ota";
 #define OTA_FAILURE_NOTICE_MS 5000
 #define REMOTE_CONFIG_CONTEXT "vellum-remote-config-v1\n"
 #define REMOTE_WIFI_CONTEXT "vellum-remote-wifi-v1\n"
+#define REMOTE_ORIENTATION_CONTEXT "vellum-remote-orientation-v1\n"
 
 static bool constant_time_equal(const uint8_t *a, const uint8_t *b, size_t len)
 {
@@ -98,23 +99,24 @@ static bool decode_hex_32(const char *hex, uint8_t output[32])
     return true;
 }
 
-static bool verify_remote_config_signature(const char *id, const char *server_url,
-                                           const char *signature_hex)
+/*
+ * One HMAC primitive for every authenticated desired-state command.
+ *
+ * The context string prefixed by each caller is what separates the kinds: a
+ * signature minted for a server migration can never validate a Wi-Fi rotation or
+ * a mounting change, even though all three are keyed by the same device token.
+ * Keeping the PSA sequence in one place also keeps the three kinds from drifting
+ * apart -- a constant-time comparison or a zeroization fixed in one copy and
+ * forgotten in another is exactly the bug this shape prevents.
+ */
+static bool token_hmac_matches(const char *message, size_t message_len,
+                               const char *signature_hex)
 {
-    if (!valid_command_uuid(id) || !server_url || strncmp(server_url, "https://", 8) != 0 ||
-        strlen(server_url) >= NVS_MAX_URL_LEN) return false;
     uint8_t provided[32], expected[32];
-    if (!decode_hex_32(signature_hex, provided)) return false;
+    if (!message || message_len == 0 || !decode_hex_32(signature_hex, provided)) return false;
 
     char token[NVS_MAX_TOKEN_LEN] = {0};
     if (nvs_manager_get_token(token, sizeof(token)) != ESP_OK || strlen(token) != 64) {
-        mbedtls_platform_zeroize(token, sizeof(token));
-        return false;
-    }
-    char message[sizeof(REMOTE_CONFIG_CONTEXT) + 36 + NVS_MAX_URL_LEN + 1];
-    int message_len = snprintf(message, sizeof(message), "%s%s\n%s",
-                               REMOTE_CONFIG_CONTEXT, id, server_url);
-    if (message_len < 0 || message_len >= (int)sizeof(message)) {
         mbedtls_platform_zeroize(token, sizeof(token));
         return false;
     }
@@ -133,7 +135,7 @@ static bool verify_remote_config_signature(const char *id, const char *server_ur
     psa_reset_key_attributes(&attributes);
     if (status == PSA_SUCCESS) {
         status = psa_mac_compute(key, PSA_ALG_HMAC(PSA_ALG_SHA_256),
-                                 (const uint8_t *)message, (size_t)message_len,
+                                 (const uint8_t *)message, message_len,
                                  expected, sizeof(expected), &output_len);
     }
     if (key != 0) psa_destroy_key(key);
@@ -144,13 +146,23 @@ static bool verify_remote_config_signature(const char *id, const char *server_ur
     return valid;
 }
 
+static bool verify_remote_config_signature(const char *id, const char *server_url,
+                                           const char *signature_hex)
+{
+    if (!valid_command_uuid(id) || !server_url || strncmp(server_url, "https://", 8) != 0 ||
+        strlen(server_url) >= NVS_MAX_URL_LEN) return false;
+    char message[sizeof(REMOTE_CONFIG_CONTEXT) + 36 + NVS_MAX_URL_LEN + 1];
+    int message_len = snprintf(message, sizeof(message), "%s%s\n%s",
+                               REMOTE_CONFIG_CONTEXT, id, server_url);
+    if (message_len < 0 || message_len >= (int)sizeof(message)) return false;
+    return token_hmac_matches(message, (size_t)message_len, signature_hex);
+}
+
 static bool verify_remote_wifi_signature(const char *id, const char *ssid,
                                          const char *password, const char *signature_hex)
 {
     if (!valid_command_uuid(id) || !ssid || !password || strlen(ssid) == 0 ||
         strlen(ssid) >= NVS_MAX_SSID_LEN || strlen(password) >= NVS_MAX_PASS_LEN) return false;
-    uint8_t provided[32], expected[32];
-    if (!decode_hex_32(signature_hex, provided)) return false;
 
     unsigned char ssid_b64[48] = {0}, pass_b64[92] = {0};
     size_t ssid_b64_len = 0, pass_b64_len = 0;
@@ -161,43 +173,37 @@ static bool verify_remote_wifi_signature(const char *id, const char *ssid,
     ssid_b64[ssid_b64_len] = '\0';
     pass_b64[pass_b64_len] = '\0';
 
-    char token[NVS_MAX_TOKEN_LEN] = {0};
-    if (nvs_manager_get_token(token, sizeof(token)) != ESP_OK || strlen(token) != 64) {
-        mbedtls_platform_zeroize(token, sizeof(token));
-        return false;
-    }
     char message[sizeof(REMOTE_WIFI_CONTEXT) + 36 + sizeof(ssid_b64) + sizeof(pass_b64) + 3];
     int message_len = snprintf(message, sizeof(message), "%s%s\n%s\n%s",
                                REMOTE_WIFI_CONTEXT, id, ssid_b64, pass_b64);
     if (message_len < 0 || message_len >= (int)sizeof(message)) {
-        mbedtls_platform_zeroize(token, sizeof(token));
+        mbedtls_platform_zeroize(message, sizeof(message));
         return false;
     }
-
-    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
-    psa_set_key_bits(&attributes, strlen(token) * 8);
-    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
-    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_256));
-    psa_key_id_t key = 0;
-    size_t output_len = 0;
-    psa_status_t status = psa_crypto_init();
-    if (status == PSA_SUCCESS) {
-        status = psa_import_key(&attributes, (const uint8_t *)token, strlen(token), &key);
-    }
-    psa_reset_key_attributes(&attributes);
-    if (status == PSA_SUCCESS) {
-        status = psa_mac_compute(key, PSA_ALG_HMAC(PSA_ALG_SHA_256),
-                                 (const uint8_t *)message, (size_t)message_len,
-                                 expected, sizeof(expected), &output_len);
-    }
-    if (key != 0) psa_destroy_key(key);
-    bool valid = status == PSA_SUCCESS && output_len == sizeof(expected) &&
-                 constant_time_equal(expected, provided, sizeof(expected));
-    mbedtls_platform_zeroize(token, sizeof(token));
-    mbedtls_platform_zeroize(expected, sizeof(expected));
+    bool valid = token_hmac_matches(message, (size_t)message_len, signature_hex);
+    /* The message carries the PSK in base64; do not leave it on the stack. */
     mbedtls_platform_zeroize(message, sizeof(message));
+    mbedtls_platform_zeroize(pass_b64, sizeof(pass_b64));
     return valid;
+}
+
+/*
+ * A mounting is not a secret, but it is still authenticated: the device reboots to
+ * apply it, and a wrong mounting leaves a wall panel cropped and unreadable. So the
+ * same token-keyed HMAC gates it, under its own context string.
+ */
+static bool verify_remote_orientation_signature(const char *id, const char *orientation,
+                                                const char *signature_hex)
+{
+    if (!valid_command_uuid(id) || !orientation ||
+        (strcmp(orientation, "portrait") != 0 && strcmp(orientation, "landscape") != 0)) {
+        return false;
+    }
+    char message[sizeof(REMOTE_ORIENTATION_CONTEXT) + 36 + 16];
+    int message_len = snprintf(message, sizeof(message), "%s%s\n%s",
+                               REMOTE_ORIENTATION_CONTEXT, id, orientation);
+    if (message_len < 0 || message_len >= (int)sizeof(message)) return false;
+    return token_hmac_matches(message, (size_t)message_len, signature_hex);
 }
 
 static void rollback_remote_wifi(const char *command_id, const char *error_code)
@@ -239,18 +245,24 @@ static void apply_remote_configuration(cJSON *data)
     cJSON *server_url = cJSON_GetObjectItemCaseSensitive(remote, "serverUrl");
     cJSON *ssid = cJSON_GetObjectItemCaseSensitive(remote, "ssid");
     cJSON *password = cJSON_GetObjectItemCaseSensitive(remote, "password");
+    cJSON *orientation = cJSON_GetObjectItemCaseSensitive(remote, "orientation");
     cJSON *signature = cJSON_GetObjectItemCaseSensitive(remote, "signature");
     bool server_command = cJSON_IsString(kind) && strcmp(kind->valuestring, "server_url") == 0;
     bool wifi_command = cJSON_IsString(kind) && strcmp(kind->valuestring, "wifi") == 0;
+    bool orientation_command = cJSON_IsString(kind) && strcmp(kind->valuestring, "orientation") == 0;
     bool signature_valid = cJSON_IsString(signature) && cJSON_IsString(id) &&
         ((server_command && cJSON_IsString(server_url) &&
           verify_remote_config_signature(id->valuestring, server_url->valuestring,
                                          signature->valuestring)) ||
          (wifi_command && cJSON_IsString(ssid) && cJSON_IsString(password) &&
           verify_remote_wifi_signature(id->valuestring, ssid->valuestring,
-                                       password->valuestring, signature->valuestring)));
+                                       password->valuestring, signature->valuestring)) ||
+         (orientation_command && cJSON_IsString(orientation) &&
+          verify_remote_orientation_signature(id->valuestring, orientation->valuestring,
+                                              signature->valuestring)));
     if (!cJSON_IsNumber(protocol) || protocol->valueint != 1 ||
-        !cJSON_IsString(id) || (!server_command && !wifi_command) || !signature_valid) {
+        !cJSON_IsString(id) || (!server_command && !wifi_command && !orientation_command) ||
+        !signature_valid) {
         ESP_LOGE(TAG, "Rejected invalid remote configuration command");
         if (cJSON_IsString(id) && valid_command_uuid(id->valuestring)) {
             http_client_config_report(id->valuestring, "failed", "invalid_signature");
@@ -264,6 +276,55 @@ static void apply_remote_configuration(cJSON *data)
         ESP_LOGI(TAG, "Remote configuration %s already applied; acknowledging retry",
                  id->valuestring);
         http_client_config_report(id->valuestring, "applied", NULL);
+        return;
+    }
+
+    if (orientation_command) {
+        /* The panel is the authority on what it can deliver: the server checks the
+         * reported capability list too, but that list can be stale after a downgrade,
+         * and an unsupported mounting would leave the display cropped rather than
+         * merely wrong. Refuse it here with a distinguishable reason. */
+        vellum_display_caps_t caps = {0};
+        bool supported = false;
+        if (display_get_caps(&caps) == ESP_OK) {
+            for (uint8_t i = 0; i < caps.orientation_count; i++) {
+                if (caps.orientations[i] &&
+                    strcmp(caps.orientations[i], orientation->valuestring) == 0) {
+                    supported = true;
+                    break;
+                }
+            }
+        }
+        if (!supported) {
+            ESP_LOGE(TAG, "Panel cannot be mounted %s", orientation->valuestring);
+            http_client_config_report(id->valuestring, "failed", "orientation_not_supported");
+            return;
+        }
+        /* Already mounted this way: acknowledge without a pointless reboot. The
+         * marker is still written so a re-delivery short-circuits above. */
+        char current[16] = {0};
+        bool unchanged = nvs_manager_get_orientation(current, sizeof(current)) == ESP_OK &&
+                         strcmp(current, orientation->valuestring) == 0;
+        if (http_client_config_report(id->valuestring, "applying", NULL) != ESP_OK) {
+            ESP_LOGW(TAG, "Remote orientation claim was not acknowledged; retrying later");
+            return;
+        }
+        if (nvs_manager_apply_remote_orientation(orientation->valuestring,
+                                                 id->valuestring) != ESP_OK) {
+            http_client_config_report(id->valuestring, "failed", "storage_failed");
+            return;
+        }
+        http_client_config_report(id->valuestring, "applied", NULL);
+        if (unchanged) {
+            ESP_LOGI(TAG, "Orientation already %s; no restart needed", orientation->valuestring);
+            return;
+        }
+        /* The display adapter fixes its rotation at init and sizes its framebuffers
+         * from it, so the surface can only change across a restart. */
+        ESP_LOGI(TAG, "Orientation set to %s; restarting to re-init the panel",
+                 orientation->valuestring);
+        vTaskDelay(pdMS_TO_TICKS(250));
+        esp_restart();
         return;
     }
 

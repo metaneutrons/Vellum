@@ -47,6 +47,7 @@
     "approved": "Aprobado",
     "deleted": "Eliminado",
     "orientation": "Orientación",
+    "orientationQueued": "Orientación enviada. La pantalla se reiniciará para aplicarla.",
     "orientationAuto": "Automático",
     "orientationLandscape": "Horizontal",
     "orientationPortrait": "Vertical",

@@ -451,7 +451,10 @@ export const deviceConfigurationCommands = pgTable(
     uniqueIndex("device_configuration_commands_one_active_idx")
       .on(t.mac)
       .where(sql`${t.status} IN ('pending', 'delivered', 'applying')`),
-    check("device_configuration_commands_kind_check", sql`${t.kind} IN ('server_url', 'wifi')`),
+    check(
+      "device_configuration_commands_kind_check",
+      sql`${t.kind} IN ('server_url', 'wifi', 'orientation')`
+    ),
     check(
       "device_configuration_commands_status_check",
       sql`${t.status} IN ('pending', 'delivered', 'applying', 'applied', 'failed', 'superseded', 'cancelled')`

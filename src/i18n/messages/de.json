@@ -47,6 +47,7 @@
     "approved": "Genehmigt",
     "deleted": "Gelöscht",
     "orientation": "Orientierung",
+    "orientationQueued": "Ausrichtung gesendet. Das Display startet neu, um sie zu übernehmen.",
     "orientationAuto": "Automatisch",
     "orientationLandscape": "Querformat",
     "orientationPortrait": "Hochformat",

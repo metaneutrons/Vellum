@@ -84,6 +84,8 @@ esp_err_t nvs_manager_store_token(const char *token);
 esp_err_t nvs_manager_store_server_url(const char *url);
 
 /** Last successfully applied remote-configuration command UUID. */
+/** Commit a remotely commanded mounting and its command id together. */
+esp_err_t nvs_manager_apply_remote_orientation(const char *orientation, const char *command_id);
 esp_err_t nvs_manager_get_remote_command_id(char *buf, size_t buf_len);
 
 /** Atomically store a validated server migration and its idempotency marker. */

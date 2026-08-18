@@ -498,6 +498,26 @@ esp_err_t nvs_manager_apply_remote_server_url(const char *url, const char *comma
     return err;
 }
 
+esp_err_t nvs_manager_apply_remote_orientation(const char *orientation, const char *command_id)
+{
+    if (!orientation || !command_id ||
+        (strcmp(orientation, "portrait") != 0 && strcmp(orientation, "landscape") != 0) ||
+        strlen(command_id) != NVS_REMOTE_COMMAND_ID_LEN - 1) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    /* One commit, so the mounting and the idempotency marker cannot diverge: a
+     * reboot between two commits would otherwise leave the device rotated with the
+     * command still unacknowledged, and it would rotate again on re-delivery. */
+    nvs_handle_t h;
+    esp_err_t err = open_nvs(&h, NVS_READWRITE);
+    if (err != ESP_OK) return err;
+    err = nvs_set_str(h, KEY_ORIENTATION, orientation);
+    if (err == ESP_OK) err = nvs_set_str(h, KEY_REMOTE_COMMAND_ID, command_id);
+    if (err == ESP_OK) err = commit_with_integrity(h);
+    nvs_close(h);
+    return err;
+}
+
 esp_err_t nvs_manager_stage_remote_wifi(const char *ssid, const char *pass,
                                         const char *command_id)
 {
