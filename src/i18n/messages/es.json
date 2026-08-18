@@ -146,7 +146,10 @@
       "offline": "Sin conexión",
       "never": "Nunca visto"
     },
-    "liveStatus": { "live": "En directo", "reconnecting": "Reconectando…" },
+    "liveStatus": {
+      "live": "En directo",
+      "reconnecting": "Reconectando…"
+    },
     "remoteConfig": {
       "title": "Configuración remota",
       "description": "Cambia de forma segura el servidor y la red Wi-Fi de esta pantalla mediante su canal autenticado.",
@@ -770,7 +773,9 @@
     "protectedDeviceDescription": "Esta pantalla registrada requiere una autorización de administrador de corta duración. Vellum la obtiene automáticamente al provisionar.",
     "protectedSuccessSummary": "Se conservó su registro existente; el cambio fue autorizado y auditado.",
     "legacySecurityTitle": "Se recomienda actualizar el firmware.",
-    "legacySecurityDescription": "Este firmware es anterior al aprovisionamiento USB protegido. Actualícelo antes de instalar la pantalla en un lugar público."
+    "legacySecurityDescription": "Este firmware es anterior al aprovisionamiento USB protegido. Actualícelo antes de instalar la pantalla en un lugar público.",
+    "securityUnknownTitle": "No se puede confirmar la seguridad del aprovisionamiento.",
+    "securityUnknownDescription": "La pantalla no respondió a la comprobación de seguridad. Esto no significa necesariamente que su firmware sea antiguo: cierra cualquier monitor serie o terminal que ocupe el puerto y vuelve a conectar. Si continúa con el firmware actual, revisa el cable."
   },
   "access": {
     "title": "Acceso",

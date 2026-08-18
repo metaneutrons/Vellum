@@ -146,7 +146,10 @@
       "offline": "Offline",
       "never": "Never seen"
     },
-    "liveStatus": { "live": "Live", "reconnecting": "Reconnecting…" },
+    "liveStatus": {
+      "live": "Live",
+      "reconnecting": "Reconnecting…"
+    },
     "remoteConfig": {
       "title": "Remote configuration",
       "description": "Securely change this display’s server and Wi-Fi settings through its authenticated device channel.",
@@ -770,7 +773,9 @@
     "protectedDeviceDescription": "This enrolled display requires a short-lived admin authorization. Vellum obtains it automatically when you provision.",
     "protectedSuccessSummary": "Its existing enrollment was retained and the change was authorized and recorded.",
     "legacySecurityTitle": "Firmware update recommended.",
-    "legacySecurityDescription": "This firmware predates protected USB provisioning. Update it before deploying the display in a public location."
+    "legacySecurityDescription": "This firmware predates protected USB provisioning. Update it before deploying the display in a public location.",
+    "securityUnknownTitle": "Cannot confirm provisioning security.",
+    "securityUnknownDescription": "The display did not answer the security check. This does not necessarily mean its firmware is old: close any serial monitor or terminal holding the port, then reconnect. If it keeps failing on current firmware, check the cable."
   },
   "access": {
     "title": "Access",

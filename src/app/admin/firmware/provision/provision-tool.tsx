@@ -21,6 +21,7 @@ import {
   MAX_PROVISIONING_UNIX_TIME,
   type ProvisionPhase,
   type ProvisionResult,
+  type ProvisioningSecurityFailure,
   type WifiNetwork,
 } from "@/lib/provisioning/improv-serial";
 
@@ -55,7 +56,12 @@ export function ProvisionTool({
   const [networks, setNetworks] = useState<WifiNetwork[]>([]);
   const [zeroTouch, setZeroTouch] = useState(Boolean(firmware));
   const [provisioningLocked, setProvisioningLocked] = useState(false);
-  const [securitySupported, setSecuritySupported] = useState<boolean | null>(null);
+  /* Holds why the probe failed, not merely that it did: "unsupported" is a real
+   * answer from the display, "unanswered" is a guess and must not be reported as
+   * old firmware. null means supported or not yet probed. */
+  const [securityFailure, setSecurityFailure] = useState<ProvisioningSecurityFailure | null>(
+    null
+  );
   const [completedProtected, setCompletedProtected] = useState(false);
   const sessionRef = useRef<SerialProvisioningSession | null>(null);
 
@@ -93,7 +99,7 @@ export function ProvisionTool({
     setPhase(null);
     setDetail("");
     setProvisioningLocked(false);
-    setSecuritySupported(null);
+    setSecurityFailure(null);
     await session?.disconnect();
   }
 
@@ -135,7 +141,7 @@ export function ProvisionTool({
           sessionRef.current = null;
           setConnected(false);
           setProvisioningLocked(false);
-          setSecuritySupported(null);
+          setSecurityFailure(null);
           setScanning(false);
           setPhase("error");
           setResult({ ok: false, error: tx("connectionLost") });
@@ -146,7 +152,7 @@ export function ProvisionTool({
       setConnecting(false);
       setPhase(null);
       const security = await session.getProvisioningSecurity();
-      setSecuritySupported(security.supported);
+      setSecurityFailure(security.supported ? null : (security.failure ?? "unanswered"));
       setProvisioningLocked(security.locked);
       if (security.locked) setZeroTouch(false);
       await scanSession(session);
@@ -418,9 +424,15 @@ export function ProvisionTool({
           </div>
         )}
 
-        {connected && securitySupported === false && (
+        {connected && securityFailure === "unsupported" && (
           <Notice tone="orange">
             <strong>{tx("legacySecurityTitle")}</strong> {tx("legacySecurityDescription")}
+          </Notice>
+        )}
+
+        {connected && securityFailure === "unanswered" && (
+          <Notice tone="orange">
+            <strong>{tx("securityUnknownTitle")}</strong> {tx("securityUnknownDescription")}
           </Notice>
         )}
 

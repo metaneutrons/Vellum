@@ -146,7 +146,10 @@
       "offline": "Offline",
       "never": "Mai visto"
     },
-    "liveStatus": { "live": "In tempo reale", "reconnecting": "Riconnessione…" },
+    "liveStatus": {
+      "live": "In tempo reale",
+      "reconnecting": "Riconnessione…"
+    },
     "remoteConfig": {
       "title": "Configurazione remota",
       "description": "Modifica in modo sicuro il server e il Wi-Fi del display tramite il canale autenticato.",
@@ -770,7 +773,9 @@
     "protectedDeviceDescription": "Questo display registrato richiede un’autorizzazione amministratore di breve durata. Vellum la ottiene automaticamente durante il provisioning.",
     "protectedSuccessSummary": "La registrazione esistente è stata mantenuta; la modifica è stata autorizzata e registrata.",
     "legacySecurityTitle": "Aggiornamento firmware consigliato.",
-    "legacySecurityDescription": "Questo firmware precede il provisioning USB protetto. Aggiornalo prima di installare il display in un luogo pubblico."
+    "legacySecurityDescription": "Questo firmware precede il provisioning USB protetto. Aggiornalo prima di installare il display in un luogo pubblico.",
+    "securityUnknownTitle": "Impossibile confermare la sicurezza del provisioning.",
+    "securityUnknownDescription": "Il display non ha risposto al controllo di sicurezza. Questo non significa necessariamente che il firmware sia vecchio: chiudi qualsiasi monitor seriale o terminale che occupa la porta, poi ricollega. Se persiste con firmware aggiornato, controlla il cavo."
   },
   "access": {
     "title": "Accesso",

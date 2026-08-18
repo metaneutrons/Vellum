@@ -344,11 +344,27 @@ export interface UsbProvisioningAuthorizationRequest {
   payloadDigest: string;
 }
 
+/**
+ * Why `unsupported` is not the same as `unanswered`.
+ *
+ * Both used to collapse into `supported: false`, and the UI rendered that as
+ * "this firmware predates protected USB provisioning". For a display running
+ * current firmware that sentence is simply untrue, and it sends the operator to
+ * flash an image when the actual problem is the connection. Silence has mundane
+ * causes: another serial monitor holding the port and consuming the reply (on
+ * macOS two readers of the same `cu.` device split the incoming bytes), a busy
+ * device, a cable. The two conclusions need different actions, so they are now
+ * different values.
+ */
+export type ProvisioningSecurityFailure = "unsupported" | "unanswered";
+
 export interface ProvisioningSecurity {
   supported: boolean;
   locked: boolean;
   mac?: string;
   challenge?: string;
+  /** Only set when `supported` is false, to say which of the two it was. */
+  failure?: ProvisioningSecurityFailure;
 }
 
 const SERIAL_BAUD_RATE = 115_200;
@@ -694,7 +710,9 @@ export class SerialProvisioningSession {
       if (!frames) break;
       for (const frame of frames) {
         if (frame.type === ImprovType.ERROR_STATE && frame.payload[0] === ImprovError.UNKNOWN_CMD) {
-          return { supported: false, locked: false };
+          /* The display answered and said it does not know the command. This is
+           * the only response that actually proves the firmware is too old. */
+          return { supported: false, locked: false, failure: "unsupported" };
         }
         if (frame.type !== ImprovType.RPC_RESULT) continue;
         const { cmd, strings } = decodeRpcResult(frame.payload);
@@ -714,8 +732,12 @@ export class SerialProvisioningSession {
         };
       }
     }
-    // Pre-feature firmware can be silent instead of returning UNKNOWN_CMD.
-    return { supported: false, locked: false };
+    /* Nothing came back before the deadline. Pre-feature firmware can indeed be
+     * silent rather than returning UNKNOWN_CMD, so this MIGHT be old firmware —
+     * but a lost or stolen reply looks identical, and reporting a guess as a fact
+     * is what made this misleading. Report the uncertainty and let the caller say
+     * so. */
+    return { supported: false, locked: false, failure: "unanswered" };
   }
 
   private async authorizeProvisioningInternal(
