@@ -66,6 +66,11 @@ esp_err_t nvs_manager_get_token(char *buf, size_t buf_len);
 /** Read server URL. Returns ESP_OK on success. */
 esp_err_t nvs_manager_get_server_url(char *buf, size_t buf_len);
 
+/** How the panel is mounted: "portrait" or "landscape". ESP_ERR_NVS_NOT_FOUND
+ *  when the operator has never chosen, which means the panel's native mounting. */
+esp_err_t nvs_manager_get_orientation(char *buf, size_t buf_len);
+esp_err_t nvs_manager_set_orientation(const char *orientation);
+
 /** Read the optional administrator-provisioned NTP server. */
 esp_err_t nvs_manager_get_ntp_server(char *buf, size_t buf_len);
 

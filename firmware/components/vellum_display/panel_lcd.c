@@ -21,6 +21,7 @@
 #include "d1001_board.h"
 #include "lcd_jd9365.h"
 #include "jpeg_decoder.h"
+#include "nvs_manager.h"
 #include "lcd_rotation.h"
 
 /* Static image descriptor in flash. Building it in PSRAM at boot (malloc + a
@@ -108,11 +109,48 @@ static esp_err_t lcd_update_ota_progress(uint8_t percent, int x, int y,
     return ESP_OK;
 }
 
+/* ── Mounting ─────────────────────────────────────────────────────
+ *
+ * Orientation describes how the panel is MOUNTED, not a rendering preference, so
+ * it is persisted and applied once. It cannot be a per-request decision: the
+ * adapter's rotation is fixed at init and decides the frame-buffer count, which
+ * is why a change needs a reboot.
+ *
+ * The JD9365 scans portrait (800x1280). A landscape mounting therefore rotates
+ * 270 degrees and yields a 1280x800 surface; a portrait mounting uses the panel
+ * as it is. Before this existed the rotation was hardwired to 270 while the
+ * capabilities still claimed portrait, so a portrait render arrived 800x1280 for
+ * a 1280x800 surface and lost 480px off the bottom. */
+static bool s_mounted_portrait;
+static vellum_panel_t s_panel; /* initialised below; lcd_init() fills the geometry */
+
+static bool mounting_is_portrait(void)
+{
+    char stored[16] = {0};
+    if (nvs_manager_get_orientation(stored, sizeof(stored)) != ESP_OK || !stored[0]) {
+        /* Never chosen: landscape, which is how these panels ship in a room and
+         * what every existing installation already runs. */
+        return false;
+    }
+    return strcmp(stored, "portrait") == 0;
+}
+
 /* ── vtable ops ───────────────────────────────────────────────── */
 
 static lv_display_t *lcd_init(void)
 {
-    const esp_lv_adapter_rotation_t rotation = ESP_LV_ADAPTER_ROTATE_270;
+    s_mounted_portrait = mounting_is_portrait();
+    /* The reported surface has to follow the rotation, or the server renders for a
+     * geometry the panel does not have — which is precisely the bug this replaces. */
+    s_panel.width  = s_mounted_portrait ? LCD_WIDTH  : LCD_HEIGHT;
+    s_panel.height = s_mounted_portrait ? LCD_HEIGHT : LCD_WIDTH;
+    s_panel.orientation = s_mounted_portrait ? "portrait" : "landscape";
+    ESP_LOGI(TAG, "Mounted %s: surface %ux%u",
+             s_mounted_portrait ? "portrait" : "landscape",
+             (unsigned)s_panel.width, (unsigned)s_panel.height);
+    /* Portrait uses the panel's native scan order, so no rotation at all. */
+    const esp_lv_adapter_rotation_t rotation =
+        s_mounted_portrait ? ESP_LV_ADAPTER_ROTATE_0 : ESP_LV_ADAPTER_ROTATE_270;
     const esp_lv_adapter_tear_avoid_mode_t tear_mode =
         ESP_LV_ADAPTER_TEAR_AVOID_MODE_TRIPLE_PARTIAL;
 
@@ -255,6 +293,8 @@ static vellum_panel_t s_panel = {
     .sleep = lcd_off,
     .wake = lcd_wake,
     .off = lcd_off,
+    /* Filled by lcd_init() from the mounting: static values here would be a
+     * second source of truth again, which is the defect this file just fixed. */
     .width = LCD_HEIGHT,
     .height = LCD_WIDTH,
     .bpp = 16,
@@ -270,8 +310,10 @@ static vellum_panel_t s_panel = {
      * state applied before init — not a per-request decision. Reporting it as
      * available while the surface stayed landscape is exactly the defect this
      * field exists to prevent. */
-    .orientations = (const char *const[]){ "landscape" },
-    .orientation_count = 1,
+    /* Both mountings are real on this panel now: the adapter rotates for
+     * landscape and uses the native scan order for portrait. */
+    .orientations = (const char *const[]){ "landscape", "portrait" },
+    .orientation_count = 2,
     .orientation = "landscape",
     .fast_refresh = true,
     .retains_image = false,

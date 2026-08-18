@@ -31,6 +31,12 @@ static const char *TAG = "nvs_mgr";
 #define KEY_WIFI_PENDING "wifi_pending"
 #define KEY_CONFIG_REPORT_ID "cfg_rep_id"
 #define KEY_CONFIG_REPORT_ERROR "cfg_rep_err"
+/* How the panel is mounted, and the value to fall back to if a change turns out
+ * to be unusable. Staged and finalised like the Wi-Fi pair below, because a wrong
+ * orientation can leave a wall-mounted display unreadable, and the operator would
+ * then be left with the button as the only way back. */
+#define KEY_ORIENTATION     "orientation"
+#define KEY_ORIENTATION_OLD "orient_old"
 #define KEY_INTEGRITY_KEY "nvs_mac_key"
 #define KEY_INTEGRITY_TAG "nvs_mac_tag"
 
@@ -47,7 +53,7 @@ static const char *const INTEGRITY_STRING_KEYS[] = {
     KEY_WIFI_SSID, KEY_WIFI_PASS, KEY_TOKEN, KEY_SERVER_URL, KEY_NTP_SERVER,
     KEY_PRIV_KEY, KEY_PUB_KEY, KEY_REMOTE_COMMAND_ID, KEY_WIFI_OLD_SSID,
     KEY_WIFI_OLD_PASS, KEY_WIFI_PENDING, KEY_CONFIG_REPORT_ID,
-    KEY_CONFIG_REPORT_ERROR,
+    KEY_CONFIG_REPORT_ERROR, KEY_ORIENTATION, KEY_ORIENTATION_OLD,
 };
 
 static esp_err_t hmac_update(psa_mac_operation_t *operation, const void *data, size_t len)
@@ -392,6 +398,17 @@ bool nvs_manager_is_provisioning_locked(void)
     }
     nvs_close(h);
     return legacy_enrolled;
+}
+
+esp_err_t nvs_manager_get_orientation(char *buf, size_t buf_len)
+{
+    return read_str(KEY_ORIENTATION, buf, buf_len);
+}
+
+esp_err_t nvs_manager_set_orientation(const char *orientation)
+{
+    if (!orientation) return ESP_ERR_INVALID_ARG;
+    return write_str(KEY_ORIENTATION, orientation);
 }
 
 esp_err_t nvs_manager_get_wifi_ssid(char *buf, size_t buf_len)

@@ -275,6 +275,13 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
         .event_handler = http_event_handler,
         .user_data = &rb,
         .disable_auto_redirect = true,
+        /* 20-odd request headers, one of them a 64-char partition fingerprint,
+         * overflow the 512-byte default transmit buffer: ESP-IDF then logs
+         * "Buffer length is small to fit all the headers" and the surplus headers
+         * never leave the device. Adding X-Display-Caps tipped it over, and a
+         * silently dropped header is worse than a failed request — the capability
+         * report would have looked like it worked. */
+        .buffer_size_tx = 2048,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -409,6 +416,13 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
         .event_handler = http_event_handler,
         .user_data = &rb,
         .disable_auto_redirect = true,
+        /* 20-odd request headers, one of them a 64-char partition fingerprint,
+         * overflow the 512-byte default transmit buffer: ESP-IDF then logs
+         * "Buffer length is small to fit all the headers" and the surplus headers
+         * never leave the device. Adding X-Display-Caps tipped it over, and a
+         * silently dropped header is worse than a failed request — the capability
+         * report would have looked like it worked. */
+        .buffer_size_tx = 2048,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -492,6 +506,13 @@ esp_err_t http_client_report(const char *issue, vellum_http_response_t *resp)
         .event_handler = http_event_handler,
         .user_data = &rb,
         .disable_auto_redirect = true,
+        /* 20-odd request headers, one of them a 64-char partition fingerprint,
+         * overflow the 512-byte default transmit buffer: ESP-IDF then logs
+         * "Buffer length is small to fit all the headers" and the surplus headers
+         * never leave the device. Adding X-Display-Caps tipped it over, and a
+         * silently dropped header is worse than a failed request — the capability
+         * report would have looked like it worked. */
+        .buffer_size_tx = 2048,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -551,6 +572,13 @@ esp_err_t http_client_ota_report(const char *model, const char *from_version,
         .event_handler = http_event_handler,
         .user_data = &rb,
         .disable_auto_redirect = true,
+        /* 20-odd request headers, one of them a 64-char partition fingerprint,
+         * overflow the 512-byte default transmit buffer: ESP-IDF then logs
+         * "Buffer length is small to fit all the headers" and the surplus headers
+         * never leave the device. Adding X-Display-Caps tipped it over, and a
+         * silently dropped header is worse than a failed request — the capability
+         * report would have looked like it worked. */
+        .buffer_size_tx = 2048,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -644,6 +672,13 @@ esp_err_t http_client_config(vellum_http_response_t *resp)
         .event_handler = http_event_handler,
         .user_data = &rb,
         .disable_auto_redirect = true,
+        /* 20-odd request headers, one of them a 64-char partition fingerprint,
+         * overflow the 512-byte default transmit buffer: ESP-IDF then logs
+         * "Buffer length is small to fit all the headers" and the surplus headers
+         * never leave the device. Adding X-Display-Caps tipped it over, and a
+         * silently dropped header is worse than a failed request — the capability
+         * report would have looked like it worked. */
+        .buffer_size_tx = 2048,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -695,6 +730,13 @@ esp_err_t http_client_probe_server(const char *server_base_url, const char *comm
         .event_handler = http_event_handler,
         .user_data = &rb,
         .disable_auto_redirect = true,
+        /* 20-odd request headers, one of them a 64-char partition fingerprint,
+         * overflow the 512-byte default transmit buffer: ESP-IDF then logs
+         * "Buffer length is small to fit all the headers" and the surplus headers
+         * never leave the device. Adding X-Display-Caps tipped it over, and a
+         * silently dropped header is worse than a failed request — the capability
+         * report would have looked like it worked. */
+        .buffer_size_tx = 2048,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) return ESP_FAIL;
@@ -735,6 +777,13 @@ esp_err_t http_client_config_report(const char *command_id, const char *status,
         .event_handler = http_event_handler,
         .user_data = &rb,
         .disable_auto_redirect = true,
+        /* 20-odd request headers, one of them a 64-char partition fingerprint,
+         * overflow the 512-byte default transmit buffer: ESP-IDF then logs
+         * "Buffer length is small to fit all the headers" and the surplus headers
+         * never leave the device. Adding X-Display-Caps tipped it over, and a
+         * silently dropped header is worse than a failed request — the capability
+         * report would have looked like it worked. */
+        .buffer_size_tx = 2048,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) return ESP_FAIL;
