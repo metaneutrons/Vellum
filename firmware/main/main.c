@@ -621,9 +621,13 @@ volatile bool s_button_pressed = false;
 #ifndef CONFIG_VELLUM_OTA_GRACE_S
 #define CONFIG_VELLUM_OTA_GRACE_S 0
 #endif
+#ifndef CONFIG_VELLUM_BOOT_GRACE_S
+#define CONFIG_VELLUM_BOOT_GRACE_S 0
+#endif
 
 static volatile int64_t s_progress_us;   /* last time the loop reported progress */
 static volatile uint32_t s_grace_s;      /* extra allowance for a slow operation */
+static volatile bool s_stall_disarmed;   /* set where waiting forever is correct */
 
 /** Report that the poll loop is still advancing. */
 static void app_progress(void)
@@ -638,12 +642,29 @@ static void app_progress_grace(uint32_t seconds)
     app_progress();
 }
 
+/**
+ * Give up watching, permanently, because waiting forever is the correct
+ * behaviour here.
+ *
+ * Some states are deliberately unbounded: a display in SoftAP is holding a
+ * captive portal open until somebody provisions it, and one on a critical cell
+ * is waiting for power. Rebooting either on a timer would be worse than the
+ * stall this supervisor exists to catch — it would tear down the provisioning
+ * portal every few minutes and make setup nearly impossible. There is no
+ * re-arm: every one of these paths ends in a restart anyway.
+ */
+static void app_stall_disarm(void)
+{
+    s_stall_disarmed = true;
+}
+
 #if CONFIG_VELLUM_STALL_TIMEOUT_S > 0
 static void stall_supervisor_task(void *arg)
 {
     (void)arg;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(5000));
+        if (s_stall_disarmed) continue;
         int64_t idle_s = (esp_timer_get_time() - s_progress_us) / 1000000;
         uint32_t deadline_s = CONFIG_VELLUM_STALL_TIMEOUT_S + s_grace_s;
         if (idle_s >= (int64_t)deadline_s) {
@@ -661,6 +682,9 @@ static void stall_supervisor_task(void *arg)
 
 static void stall_supervisor_start(void)
 {
+    static bool started;
+    if (started) return;
+    started = true;
     app_progress();
 #if CONFIG_VELLUM_STALL_TIMEOUT_S > 0
     xTaskCreate(stall_supervisor_task, "vellum_stall", 3072, NULL, 5, NULL);
@@ -831,6 +855,22 @@ void app_main(void)
              wake == WAKE_REASON_TIMER  ? "TIMER" :
              wake == WAKE_REASON_BUTTON ? "BUTTON" : "POWER_ON");
 
+    /* Watch the boot path too, not just the steady-state loop.
+     *
+     * The first version armed this immediately before the poll loop, which left
+     * everything above it unguarded — and there is a lot above it: Wi-Fi
+     * association with retries, up to 50 s of NTP waiting, enrolment and the
+     * first render, each with its own 30 s HTTP timeout. A display that wedges
+     * there never reaches the loop, so nothing was watching precisely while the
+     * riskiest calls ran.
+     *
+     * Boot legitimately takes far longer than a poll cycle, hence its own
+     * grace; the loop drops back to the ordinary deadline once it starts. Paths
+     * that wait forever on purpose disarm the supervisor outright rather than
+     * stretching this number to cover them. */
+    stall_supervisor_start();
+    app_progress_grace(CONFIG_VELLUM_BOOT_GRACE_S);
+
     /* 2. Check battery — critical shutdown if below threshold */
     int battery = board_battery_level();
     if (battery >= 0) {
@@ -854,6 +894,8 @@ void app_main(void)
         display_sleep_unless_usb_powered();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
         /* LCD mode returns after a bounded delay and re-checks the battery. */
+        /* Waiting for someone to plug the display in is not a stall. */
+        app_stall_disarm();
         int retry_battery = board_battery_level();
         while (retry_battery >= 0 &&
                retry_battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
@@ -882,6 +924,7 @@ void app_main(void)
 
     /* 3. Connect to Wi-Fi or enter SoftAP */
     wifi_result_t wifi_result = wifi_manager_connect_station();
+    app_progress();
 
     if (wifi_result == WIFI_RESULT_NO_CREDENTIALS) {
         ESP_LOGI(TAG, "No Wi-Fi credentials — entering SoftAP");
@@ -890,6 +933,10 @@ void app_main(void)
         char qr_payload[64];
         snprintf(qr_payload, sizeof(qr_payload), "WIFI:T:nopass;S:%s;;", ssid);
         display_show_wifi_setup(ssid, qr_payload);
+        /* Holding a captive portal open is the job here, for as long as it takes
+         * somebody to walk over and provision the display. Rebooting on a timer
+         * would drop the portal mid-setup. */
+        app_stall_disarm();
         wifi_manager_start_softap();
         /* does not return — restarts after provisioning */
     }
@@ -1046,7 +1093,7 @@ void app_main(void)
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: poll loop instead of deep sleep */
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
-    stall_supervisor_start();
+    app_progress_grace(0); /* boot is over — back to the ordinary deadline */
     while (1) {
         for (uint32_t i = 0; i < sleep_duration && !s_button_pressed; i++) {
             vTaskDelay(pdMS_TO_TICKS(1000));
@@ -1075,10 +1122,9 @@ void app_main(void)
     /* 9. E-paper normally sleeps between refreshes. With external USB power
      * it deliberately remains awake and keeps polling, so a cabled display is
      * immediately reachable through its serial-provisioning interface. */
-    /* Armed only for this cabled, stays-awake path. The battery path below deep
-     * sleeps, which resets the SoC on wake, so a stall there cannot outlive the
-     * sleep timer and a supervisor task would not survive to observe it. */
-    if (board_is_usb_powered()) stall_supervisor_start();
+    /* The battery path below deep sleeps, which resets the SoC on wake, so a
+     * stall there cannot outlive the sleep timer. */
+    app_progress_grace(0); /* boot is over — back to the ordinary deadline */
     while (board_is_usb_powered()) {
         ESP_LOGI(TAG, "External USB power present; refreshing in %lu seconds",
                  (unsigned long)sleep_duration);

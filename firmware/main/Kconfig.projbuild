@@ -142,6 +142,22 @@ menu "Vellum Configuration"
             anti-brick rollback take over: firmware that cannot render should
             not be confirmed.
 
+    config VELLUM_BOOT_GRACE_S
+        int "Extra stall allowance for the boot path"
+        default 600
+        range 0 3600
+        depends on VELLUM_STALL_TIMEOUT_S != 0
+        help
+            Added to VELLUM_STALL_TIMEOUT_S from the moment the supervisor arms
+            until the poll loop starts. Boot is legitimately far slower than a
+            poll cycle: Wi-Fi association retries, up to 50 s of NTP waiting,
+            enrolment and the first render, each HTTP call bounded only by
+            VELLUM_HTTP_TIMEOUT_MS.
+
+            Paths that wait indefinitely on purpose — SoftAP holding a captive
+            portal, a critical battery waiting for power — disarm the supervisor
+            instead of being covered by a larger number here.
+
     config VELLUM_OTA_GRACE_S
         int "Extra stall allowance while an OTA download runs"
         default 1200
