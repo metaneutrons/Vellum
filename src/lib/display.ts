@@ -248,3 +248,46 @@ export function resolveDisplayCaps(
     orientation,
   };
 }
+export type Orientation = "portrait" | "landscape";
+
+/**
+ * Parse the `X-Display-Caps` header a device sends on every poll.
+ *
+ * Capabilities used to arrive only with `/hello`, so they were pinned to
+ * enrolment while the firmware describing them keeps changing. A display
+ * enrolled with the wrong geometry kept it forever, which is how a D1001 went on
+ * advertising portrait 800x1280 long after its drawable surface had become
+ * landscape 1280x800 — costing 480px off the bottom of every portrait render.
+ *
+ * Format: `WxH;orientation;orientations,csv` — only what the server cannot derive
+ * from the model. Treated as untrusted input: a device may be on any firmware, so
+ * anything malformed or out of range yields null and the stored record stands.
+ */
+export function parseDisplayCapsHeader(value: string | null | undefined): {
+  width: number;
+  height: number;
+  orientation: Orientation;
+  orientations: Orientation[];
+} | null {
+  if (!value) return null;
+  const [geometry, orientation, list] = value.split(";");
+  const match = /^(\d{1,5})x(\d{1,5})$/.exec(geometry?.trim() ?? "");
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  // A plausible panel, not an arbitrary number: the value sizes render buffers.
+  if (!width || !height || width > 4096 || height > 4096) return null;
+
+  const isOrientation = (v: string): v is Orientation => v === "portrait" || v === "landscape";
+  const current = orientation?.trim() ?? "";
+  if (!isOrientation(current)) return null;
+
+  const orientations = (list ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(isOrientation);
+  // A device that reports no mounting it supports still supports the one it is in.
+  if (!orientations.includes(current)) orientations.unshift(current);
+
+  return { width, height, orientation: current, orientations };
+}

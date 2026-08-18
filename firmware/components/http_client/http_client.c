@@ -6,6 +6,7 @@
  */
 
 #include "http_client.h"
+#include "vellum_display.h"
 #include "nvs_manager.h"
 #include "response_headers.h"
 #include "transport_policy.h"
@@ -290,106 +291,52 @@ esp_err_t http_client_hello(vellum_http_response_t *resp)
         cJSON_AddStringToObject(json, "publicKey", s_public_key);
     }
 
-    /* Display capabilities — server uses these for rendering */
+    /* Display capabilities — straight from the driver.
+     *
+     * This was a four-branch #if chain that restated the geometry, format,
+     * palette and orientation of every model. It was a second source of truth
+     * for facts the display driver already owned, and the two drifted: the
+     * D1001 advertised "portrait 800x1280" while its drawable surface was
+     * landscape 1280x800, so a portrait render lost 480px off the bottom and
+     * left 480px blank. Serialise what the panel reports; decide nothing here. */
     cJSON *display = cJSON_CreateObject();
-    cJSON_AddStringToObject(display, "model", CONFIG_VELLUM_DISPLAY_MODEL);
-#if defined(CONFIG_VELLUM_PANEL_GDEP073E01)
-    cJSON_AddNumberToObject(display, "width", 800);
-    cJSON_AddNumberToObject(display, "height", 480);
-    cJSON_AddStringToObject(display, "format", "raw");
-    cJSON_AddStringToObject(display, "colorMode", "indexed");
-    /* GDEP073E01 is a SIX-color Spectra panel. This used to advertise seven,
-     * including orange at index 4, so the server's quantiser could pick a color
-     * the panel cannot produce — every rendered image could be skewed toward it.
-     *
-     * The array position IS the on-wire pixel code (EPD_PIXEL_* in
-     * epaper_config.h), so index 4 cannot simply be dropped: that would slide
-     * blue onto 0x4 and green onto 0x5. The slot stays, holding a duplicate of
-     * white so that even a server predating `reservedPaletteIndices` can never
-     * emit 0x4, and is reported as reserved so a current server excludes it from
-     * quantisation and from the color count it shows operators.
-     *
-     * The codes below mirror EPD_PIXEL_* by value rather than by include: this
-     * component does not depend on a display driver, and the e-paper drivers are
-     * not built at all for the P4 target. */
-    cJSON *palette = cJSON_CreateArray();
-    int colors[][3] = {
-        {  0,   0,   0},    /* 0x0 EPD_PIXEL_BLACK  */
-        {255, 255, 255},    /* 0x1 EPD_PIXEL_WHITE  */
-        {255, 255,   0},    /* 0x2 EPD_PIXEL_YELLOW */
-        {255,   0,   0},    /* 0x3 EPD_PIXEL_RED    */
-        {255, 255, 255},    /* 0x4 reserved — orange exists only on 7-color ACeP */
-        {  0,   0, 255},    /* 0x5 EPD_PIXEL_BLUE   */
-        {  0, 255,   0},    /* 0x6 EPD_PIXEL_GREEN  */
-    };
-    for (int i = 0; i < 7; i++) {
-        cJSON *c = cJSON_CreateArray();
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][0]));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][1]));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][2]));
-        cJSON_AddItemToArray(palette, c);
+    vellum_display_caps_t caps = {0};
+    if (display_get_caps(&caps) != ESP_OK) {
+        ESP_LOGE(TAG, "Display capabilities unavailable");
+        cJSON_Delete(display);
+        cJSON_Delete(json);
+        return ESP_FAIL;
     }
-    cJSON_AddItemToObject(display, "palette", palette);
-    cJSON *reserved = cJSON_CreateArray();
-    cJSON_AddItemToArray(reserved, cJSON_CreateNumber(4));
-    cJSON_AddItemToObject(display, "reservedPaletteIndices", reserved);
-#elif defined(CONFIG_VELLUM_PANEL_GDEY075T7)
-    cJSON_AddNumberToObject(display, "width", 800);
-    cJSON_AddNumberToObject(display, "height", 480);
-    cJSON_AddStringToObject(display, "format", "raw");
-    cJSON_AddStringToObject(display, "colorMode", "mono");
-    cJSON *palette = cJSON_CreateArray();
-    int bw[][3] = {{0,0,0},{255,255,255}};
-    for (int i = 0; i < 2; i++) {
-        cJSON *c = cJSON_CreateArray();
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(bw[i][0]));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(bw[i][1]));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(bw[i][2]));
-        cJSON_AddItemToArray(palette, c);
+    cJSON_AddStringToObject(display, "model", caps.model);
+    cJSON_AddNumberToObject(display, "width", caps.width);
+    cJSON_AddNumberToObject(display, "height", caps.height);
+    cJSON_AddStringToObject(display, "format", caps.image_format);
+    cJSON_AddStringToObject(display, "colorMode", caps.color_mode);
+    if (caps.palette && caps.palette_count) {
+        cJSON *palette = cJSON_CreateArray();
+        for (uint8_t i = 0; i < caps.palette_count; i++) {
+            cJSON *c = cJSON_CreateArray();
+            for (uint8_t ch = 0; ch < 3; ch++) {
+                cJSON_AddItemToArray(c, cJSON_CreateNumber(caps.palette[i][ch]));
+            }
+            cJSON_AddItemToArray(palette, c);
+        }
+        cJSON_AddItemToObject(display, "palette", palette);
     }
-    cJSON_AddItemToObject(display, "palette", palette);
-#elif defined(CONFIG_VELLUM_PANEL_E1003)
-    cJSON_AddNumberToObject(display, "width", 1872);
-    cJSON_AddNumberToObject(display, "height", 1404);
-    cJSON_AddStringToObject(display, "format", "raw");
-    cJSON_AddStringToObject(display, "colorMode", "grayscale");
-    cJSON *palette = cJSON_CreateArray();
-    for (int i = 0; i < 16; i++) {
-        int v = i * 17; /* 0, 17, 34, ..., 255 */
-        cJSON *c = cJSON_CreateArray();
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(v));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(v));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(v));
-        cJSON_AddItemToArray(palette, c);
+    if (caps.reserved_palette_indices && caps.reserved_count) {
+        cJSON *reserved = cJSON_CreateArray();
+        for (uint8_t i = 0; i < caps.reserved_count; i++) {
+            cJSON_AddItemToArray(reserved,
+                                 cJSON_CreateNumber(caps.reserved_palette_indices[i]));
+        }
+        cJSON_AddItemToObject(display, "reservedPaletteIndices", reserved);
     }
-    cJSON_AddItemToObject(display, "palette", palette);
-#elif defined(CONFIG_VELLUM_PANEL_D1001)
-    cJSON_AddNumberToObject(display, "width", 800);
-    cJSON_AddNumberToObject(display, "height", 1280);
-    cJSON_AddStringToObject(display, "format", "jpeg");
-    cJSON_AddStringToObject(display, "colorMode", "fullcolor");
-    cJSON *palette = cJSON_CreateArray();
-    int colors[][3] = {{0,0,0},{255,255,255},{255,0,0},{0,255,0},{0,0,255},{255,255,0},{255,128,0}};
-    for (int i = 0; i < 7; i++) {
-        cJSON *c = cJSON_CreateArray();
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][0]));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][1]));
-        cJSON_AddItemToArray(c, cJSON_CreateNumber(colors[i][2]));
-        cJSON_AddItemToArray(palette, c);
-    }
-    cJSON_AddItemToObject(display, "palette", palette);
-#endif
-    /* Orientation */
     cJSON *orientations = cJSON_CreateArray();
-#if defined(CONFIG_VELLUM_PANEL_D1001)
-    cJSON_AddItemToArray(orientations, cJSON_CreateString("portrait"));
-    cJSON_AddItemToArray(orientations, cJSON_CreateString("landscape"));
+    for (uint8_t i = 0; i < caps.orientation_count; i++) {
+        cJSON_AddItemToArray(orientations, cJSON_CreateString(caps.orientations[i]));
+    }
     cJSON_AddItemToObject(display, "orientations", orientations);
-    cJSON_AddStringToObject(display, "orientation", "portrait");
-#else
-    cJSON_AddItemToObject(display, "orientations", orientations);
-    cJSON_AddStringToObject(display, "orientation", "landscape");
-#endif
+    cJSON_AddStringToObject(display, "orientation", caps.orientation);
 
     cJSON_AddItemToObject(json, "display", display);
 
@@ -637,6 +584,43 @@ esp_err_t http_client_ota_report(const char *model, const char *from_version,
     return err;
 }
 
+
+/**
+ * Report the drawable surface and the mountings this panel supports, on every
+ * poll rather than once at enrolment.
+ *
+ * Capabilities used to travel only in http_client_hello(), so they were pinned to
+ * a one-off event while the firmware they describe keeps changing. A display
+ * enrolled with wrong geometry kept it forever: correcting the driver could never
+ * reach the record, which is why a D1001 still advertised portrait 800x1280 long
+ * after its surface became landscape.
+ *
+ * Only what the server cannot derive goes here. Palette, format and colour mode
+ * follow from the model, which already travels in x-display-model, so sending them
+ * every 60 seconds would be waste. A header keeps this backwards compatible in
+ * both directions: an older server ignores it, an older device omits it.
+ */
+static void set_caps_header(esp_http_client_handle_t client)
+{
+    vellum_display_caps_t caps = {0};
+    if (display_get_caps(&caps) != ESP_OK) return;
+
+    char orientations[64] = {0};
+    size_t used = 0;
+    for (uint8_t i = 0; i < caps.orientation_count && used < sizeof(orientations); i++) {
+        int n = snprintf(orientations + used, sizeof(orientations) - used, "%s%s",
+                         used ? "," : "", caps.orientations[i]);
+        if (n < 0 || (size_t)n >= sizeof(orientations) - used) break;
+        used += (size_t)n;
+    }
+
+    char value[160];
+    snprintf(value, sizeof(value), "%ux%u;%s;%s", (unsigned)caps.width,
+             (unsigned)caps.height, caps.orientation ? caps.orientation : "",
+             orientations);
+    esp_http_client_set_header(client, "X-Display-Caps", value);
+}
+
 esp_err_t http_client_config(vellum_http_response_t *resp)
 {
     memset(resp, 0, sizeof(*resp));
@@ -666,6 +650,7 @@ esp_err_t http_client_config(vellum_http_response_t *resp)
     if (!client) return ESP_FAIL;
 
     set_telemetry_headers(client);
+    set_caps_header(client);
     set_auth_header(client);
 
     esp_err_t err = esp_http_client_perform(client);

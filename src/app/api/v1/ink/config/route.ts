@@ -13,7 +13,7 @@ import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { log } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { createOtaDownloadUrl } from "@/lib/firmware-download";
-import { completeDisplayCaps, displayCapsSchema } from "@/lib/display";
+import { completeDisplayCaps, displayCapsSchema, parseDisplayCapsHeader } from "@/lib/display";
 import { decryptCredentials } from "@/lib/encryption";
 import {
   encryptedWifiPayloadSchema,
@@ -67,7 +67,46 @@ export async function GET(request: NextRequest) {
   // authenticated poll; no re-provisioning or one-off migration is required.
   const storedCapsValid = displayCapsSchema.safeParse(device?.displayCaps).success;
   const completedCaps = headerModel ? completeDisplayCaps(device?.displayCaps, headerModel) : null;
-  if (device && completedCaps && (!storedCapsValid || storedModel !== headerModel)) {
+
+  /* The device also reports its drawable surface and the mountings it supports on
+   * every poll. Adopt those three fields: the driver is the only thing that knows
+   * them, and pinning them to enrolment is what let a D1001 keep advertising
+   * portrait 800x1280 after its surface became landscape 1280x800.
+   *
+   * Deliberately narrow. orientationOverride is a separate column and is never
+   * touched here: the mounting an operator chose is a decision, not a measurement,
+   * and a device must not be able to overrule it. */
+  const reported = parseDisplayCapsHeader(request.headers.get("x-display-caps"));
+  const baseCaps = completedCaps ?? (storedCapsValid ? device?.displayCaps : null);
+  const adoptedCaps =
+    reported && baseCaps
+      ? {
+          ...(baseCaps as Record<string, unknown>),
+          width: reported.width,
+          height: reported.height,
+          orientation: reported.orientation,
+          orientations: reported.orientations,
+        }
+      : null;
+  const capsChanged =
+    adoptedCaps !== null &&
+    JSON.stringify(adoptedCaps) !== JSON.stringify(device?.displayCaps ?? null);
+
+  if (device && adoptedCaps && capsChanged) {
+    await withDbWrite(
+      () =>
+        db
+          .update(devices)
+          .set({ displayCaps: adoptedCaps })
+          .where(eq(devices.mac, validation.data.mac)),
+      "config-adopt-reported-display-caps"
+    ).catch((error) =>
+      log.warn("Failed to persist reported display capabilities", {
+        mac: validation.data.mac,
+        error: String(error),
+      })
+    );
+  } else if (device && completedCaps && (!storedCapsValid || storedModel !== headerModel)) {
     await withDbWrite(
       () =>
         db

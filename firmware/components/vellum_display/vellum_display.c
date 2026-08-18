@@ -194,6 +194,28 @@ esp_err_t display_get_info(display_info_t *info)
     return ESP_OK;
 }
 
+esp_err_t display_get_caps(vellum_display_caps_t *out)
+{
+    if (!out) return ESP_ERR_INVALID_ARG;
+    const vellum_panel_t *p = vellum_panel();
+    out->model = p->model;
+    out->width = p->width;
+    out->height = p->height;
+    out->bpp = p->bpp;
+    /* The server's spelling, not the internal one: E1002 is "color" here and
+     * "indexed" on the wire. */
+    out->color_mode = p->wire_color_mode ? p->wire_color_mode : p->color_mode;
+    out->image_format = p->image_format;
+    out->palette = p->palette;
+    out->palette_count = p->palette_count;
+    out->reserved_palette_indices = p->reserved_palette_indices;
+    out->reserved_count = p->reserved_count;
+    out->orientations = p->orientations;
+    out->orientation_count = p->orientation_count;
+    out->orientation = p->orientation;
+    return ESP_OK;
+}
+
 /* ── Local mode: LVGL screens ─────────────────────────────────── */
 
 void display_show_boot(const char *version)

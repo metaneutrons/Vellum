@@ -439,9 +439,23 @@ export function DeviceTable({
                         update(d.mac, { orientationOverride: e.target.value || null })
                       }
                     >
+                      {/* Only what the display reports it can do. All three used
+                          to be listed unconditionally, so an operator could pick
+                          portrait on a panel whose driver cannot rotate: the
+                          server then rendered the swapped geometry and the image
+                          ran off the bottom edge. */}
                       <option value="">{t("auto")}</option>
-                      <option value="landscape">{t("landscape")}</option>
-                      <option value="portrait">{t("portrait")}</option>
+                      {(() => {
+                        const caps = d.display_caps as { orientations?: string[] } | null;
+                        const supported = caps?.orientations?.length
+                          ? caps.orientations
+                          : ["landscape", "portrait"];
+                        return supported.map((o) => (
+                          <option key={o} value={o}>
+                            {o === "portrait" ? t("portrait") : t("landscape")}
+                          </option>
+                        ));
+                      })()}
                     </select>
                   </label>
                   <span className="text-separator">|</span>
