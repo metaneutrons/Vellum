@@ -12,10 +12,29 @@
 
 <p align="center">
   <a href="https://github.com/metaneutrons/Vellum/actions/workflows/ci.yml"><img src="https://github.com/metaneutrons/Vellum/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/metaneutrons/Vellum/releases/latest"><img src="https://img.shields.io/github/v/release/metaneutrons/Vellum?label=release" alt="Latest release"></a>
+  <!-- filter excludes firmware-v* tags: server and firmware are separate release
+       components, and GitHub's "latest" is repo-wide, so an unfiltered badge can
+       advertise a firmware version as the server release. -->
+  <a href="https://github.com/metaneutrons/Vellum/releases?q=%22Vellum+Server%22"><img src="https://img.shields.io/github/v/release/metaneutrons/Vellum?filter=v*&label=server" alt="Latest server release"></a>
+  <a href="https://github.com/metaneutrons/Vellum/releases?q=firmware"><img src="https://img.shields.io/github/v/release/metaneutrons/Vellum?filter=firmware-v*&label=firmware" alt="Latest firmware release"></a>
   <a href="https://github.com/metaneutrons/Vellum/pkgs/container/vellum"><img src="https://img.shields.io/badge/container-ghcr.io-183157" alt="Container image"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-1c8a8f" alt="AGPL-3.0 license"></a>
 </p>
+
+> [!WARNING]
+> **Vellum is beta software, pre-1.0.** It runs a real fleet daily, but it is not
+> yet something to put in front of a room you cannot afford to have go blank.
+>
+> - **Displays have needed manual recovery.** A device can stop polling and stay
+>   that way until someone power-cycles it. Recovery is a 5–10 second press of the
+>   green button; holding past 10 seconds factory-resets it.
+> - **Back up PostgreSQL before upgrading.** Migrations are forward-only and there
+>   are no down migrations, so a downgrade is a restore.
+> - **Pin your versions.** Track a specific `vellum:vX.Y.Z` image and firmware
+>   release rather than following the newest one, and read the release notes before
+>   moving.
+> - **Interfaces still change**, including the database schema, the device API and
+>   firmware behaviour. Breaking changes land in minor releases while pre-1.0.
 
 Vellum turns Seeed Studio reTerminal displays into a managed signage fleet. The
 server combines booking data, content, branding, refresh policy, telemetry, and

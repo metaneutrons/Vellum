@@ -597,6 +597,79 @@ static bool handle_button_action(button_action_t action)
 
 volatile bool s_button_pressed = false;
 
+/* -----------------------------------------------------------------------
+ * Stall supervisor
+ *
+ * The poll loop below can stop making progress without crashing: a D1001 on
+ * 1.5.0 went silent for hours while its button task still chimed and set
+ * s_button_pressed, because nothing was left running to read that flag. Nothing
+ * recovered it, because nothing in this firmware subscribes to the ESP-IDF task
+ * watchdog.
+ *
+ * Subscribing the main task to that watchdog is not the fix. Its timeout is
+ * global (CONFIG_ESP_TASK_WDT_TIMEOUT_S, 30 s) and one cycle can legitimately
+ * exceed it, since a single HTTP request may take CONFIG_VELLUM_HTTP_TIMEOUT_MS
+ * and an OTA download takes minutes. It would reboot mid-update.
+ *
+ * So progress is reported explicitly and judged against a generous deadline,
+ * widened around operations known to be slow. Detecting a stall in minutes is
+ * the goal; anything is better than never.
+ * ----------------------------------------------------------------------- */
+
+/* Kconfig hides the grace window when the supervisor is switched off, so the
+ * call sites below still need a value to compile against. */
+#ifndef CONFIG_VELLUM_OTA_GRACE_S
+#define CONFIG_VELLUM_OTA_GRACE_S 0
+#endif
+
+static volatile int64_t s_progress_us;   /* last time the loop reported progress */
+static volatile uint32_t s_grace_s;      /* extra allowance for a slow operation */
+
+/** Report that the poll loop is still advancing. */
+static void app_progress(void)
+{
+    s_progress_us = esp_timer_get_time();
+}
+
+/** Widen the deadline while a known-slow operation runs; 0 restores the default. */
+static void app_progress_grace(uint32_t seconds)
+{
+    s_grace_s = seconds;
+    app_progress();
+}
+
+#if CONFIG_VELLUM_STALL_TIMEOUT_S > 0
+static void stall_supervisor_task(void *arg)
+{
+    (void)arg;
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        int64_t idle_s = (esp_timer_get_time() - s_progress_us) / 1000000;
+        uint32_t deadline_s = CONFIG_VELLUM_STALL_TIMEOUT_S + s_grace_s;
+        if (idle_s >= (int64_t)deadline_s) {
+            /* Logged before restarting so a cabled console shows the reason; the
+             * reboot itself is the recovery, and an unconfirmed image will be
+             * rolled back by the anti-brick check rather than looping forever. */
+            ESP_LOGE(TAG, "Poll loop stalled for %llds (limit %lus) — restarting",
+                     (long long)idle_s, (unsigned long)deadline_s);
+            vTaskDelay(pdMS_TO_TICKS(100)); /* let the log drain */
+            esp_restart();
+        }
+    }
+}
+#endif
+
+static void stall_supervisor_start(void)
+{
+    app_progress();
+#if CONFIG_VELLUM_STALL_TIMEOUT_S > 0
+    xTaskCreate(stall_supervisor_task, "vellum_stall", 3072, NULL, 5, NULL);
+    ESP_LOGI(TAG, "Stall supervisor armed (%ds)", CONFIG_VELLUM_STALL_TIMEOUT_S);
+#else
+    ESP_LOGW(TAG, "Stall supervisor disabled — a wedged poll loop will not recover");
+#endif
+}
+
 #if defined(CONFIG_VELLUM_PANEL_D1001)
 static void d1001_button_task(void *arg)
 {
@@ -973,20 +1046,28 @@ void app_main(void)
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: poll loop instead of deep sleep */
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
+    stall_supervisor_start();
     while (1) {
         for (uint32_t i = 0; i < sleep_duration && !s_button_pressed; i++) {
             vTaskDelay(pdMS_TO_TICKS(1000));
+            app_progress(); /* idling on purpose is progress; being stuck here is not */
         }
         if (s_button_pressed) {
             s_button_pressed = false;
             ESP_LOGI(TAG, "Button → immediate refresh");
         }
         sleep_duration = perform_render(&render_ok);
+        app_progress();
         /* A good image that failed its FIRST render still confirms on the first
          * successful poll here (mark_valid is idempotent). */
         if (render_ok) ota_manager_mark_valid();
-        if (ota_manager_check_and_apply() == OTA_CHECK_RESTORE_RENDER) {
+        /* An OTA download runs inside this call for minutes at a time. */
+        app_progress_grace(CONFIG_VELLUM_OTA_GRACE_S);
+        ota_check_result_t ota = ota_manager_check_and_apply();
+        app_progress_grace(0);
+        if (ota == OTA_CHECK_RESTORE_RENDER) {
             sleep_duration = perform_render(&render_ok);
+            app_progress();
             if (render_ok) ota_manager_mark_valid();
         }
     }
@@ -994,18 +1075,28 @@ void app_main(void)
     /* 9. E-paper normally sleeps between refreshes. With external USB power
      * it deliberately remains awake and keeps polling, so a cabled display is
      * immediately reachable through its serial-provisioning interface. */
+    /* Armed only for this cabled, stays-awake path. The battery path below deep
+     * sleeps, which resets the SoC on wake, so a stall there cannot outlive the
+     * sleep timer and a supervisor task would not survive to observe it. */
+    if (board_is_usb_powered()) stall_supervisor_start();
     while (board_is_usb_powered()) {
         ESP_LOGI(TAG, "External USB power present; refreshing in %lu seconds",
                  (unsigned long)sleep_duration);
         sleep_manager_enter(sleep_duration, buttons_get_wake_mask());
+        app_progress();
         if (!board_is_usb_powered()) break;
         if (sleep_manager_take_button_refresh_request()) {
             ESP_LOGI(TAG, "Green button confirmed — refreshing now");
         }
         sleep_duration = perform_render(&render_ok);
+        app_progress();
         if (render_ok) ota_manager_mark_valid();
-        if (ota_manager_check_and_apply() == OTA_CHECK_RESTORE_RENDER) {
+        app_progress_grace(CONFIG_VELLUM_OTA_GRACE_S);
+        ota_check_result_t ota = ota_manager_check_and_apply();
+        app_progress_grace(0);
+        if (ota == OTA_CHECK_RESTORE_RENDER) {
             sleep_duration = perform_render(&render_ok);
+            app_progress();
             if (render_ok) ota_manager_mark_valid();
         }
     }
