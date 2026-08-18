@@ -222,10 +222,22 @@ export function resolveDisplayCaps(
 
   const { format, colorMode } = migrateQuantize(caps);
 
-  const orientation =
-    orientationOverride ??
-    caps.orientation ??
-    (caps.height > caps.width ? "portrait" : "landscape");
+  /*
+   * Landscape is the default, deliberately, and there is no third "derive it from
+   * the geometry" state any more. That guess is what made a D1001 portrait: its
+   * panel is natively 800x1280, so taller-than-wide read as "mounted portrait"
+   * when the device had said nothing of the kind.
+   *
+   * Stage two is not a guess and stays: a device that reports its own mounting is
+   * stating a fact about the installation, and the renderer must follow it.
+   *
+   * The one case this changes is firmware old enough to report geometry but no
+   * mounting. Such a device really does have a portrait surface, so it will be
+   * rendered landscape and look wrong until it is updated. Every device in the
+   * fleet reports an explicit mounting, so this is a path for a downgraded or
+   * very old image, not for anything deployed.
+   */
+  const orientation = orientationOverride ?? caps.orientation ?? "landscape";
 
   const nativePortrait = caps.height > caps.width;
   const wantPortrait = orientation === "portrait";
