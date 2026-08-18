@@ -96,6 +96,9 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
+/* Defined below, next to the capability report it builds. */
+static void set_caps_header(esp_http_client_handle_t client);
+
 static void set_telemetry_headers(esp_http_client_handle_t client)
 {
     char buf[16];
@@ -429,6 +432,11 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
     if (!client) return ESP_FAIL;
 
     set_telemetry_headers(client);
+    /* The server renders from what the device reports here, not from the row it
+     * stored: this request comes BEFORE the /config poll, so a row that still holds
+     * the previous mounting would produce the first frame of every boot in the wrong
+     * geometry. */
+    set_caps_header(client);
     set_auth_header(client);
     esp_http_client_set_header(client, "X-Display-Model", CONFIG_VELLUM_DISPLAY_MODEL);
 

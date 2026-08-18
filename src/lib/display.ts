@@ -213,6 +213,38 @@ function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: 
  * Parse and validate display capabilities from a JSONB value.
  * Swaps width/height to match desired orientation.
  */
+/**
+ * Merge the surface a device reports into its stored capabilities.
+ *
+ * Only /config used to do this, and the device asks for its frame BEFORE it polls
+ * /config. So the first frame of every boot was rendered from whatever geometry the
+ * row still held, and after a mounting change that is the old one: a D1001 whose
+ * surface had just become landscape 1280x800 was sent a portrait 800x1280 frame,
+ * drawn top-left, with everything below row 800 cut off. It looked like the content
+ * had failed to load, and it corrected itself only on the next cycle.
+ *
+ * Deliberately narrow, same as on /config: geometry and mountings are measurements
+ * the driver alone knows, while orientationOverride is an operator decision a device
+ * must never overrule.
+ */
+export function mergeReportedCaps(
+  stored: unknown,
+  header: string | null
+): { caps: unknown; changed: boolean } {
+  const reported = parseDisplayCapsHeader(header);
+  if (!reported || !displayCapsSchema.safeParse(stored).success) {
+    return { caps: stored, changed: false };
+  }
+  const merged = {
+    ...(stored as Record<string, unknown>),
+    width: reported.width,
+    height: reported.height,
+    orientation: reported.orientation,
+    orientations: reported.orientations,
+  };
+  return { caps: merged, changed: JSON.stringify(merged) !== JSON.stringify(stored) };
+}
+
 export function resolveDisplayCaps(
   raw: unknown,
   orientationOverride?: "portrait" | "landscape"

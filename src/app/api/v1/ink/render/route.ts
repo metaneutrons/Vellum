@@ -12,7 +12,7 @@ import { canvasToPixelBuffer } from "@/lib/render";
 import { computeSleep, parseRefreshProfile, applyJitter, type RefreshProfile } from "@/lib/sleep";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
-import { resolveDisplayCaps } from "@/lib/display";
+import { resolveDisplayCaps, mergeReportedCaps } from "@/lib/display";
 import { getContentRenderer } from "@/lib/content";
 import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/theme";
 import { renderEntityTag } from "@/lib/render-etag";
@@ -169,9 +169,31 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Resolve display capabilities
-  const display = resolveDisplayCaps(
+  /* Resolve display capabilities.
+   *
+   * The device reports its surface on this request too, and that report wins over
+   * the stored row: the render call comes BEFORE the device polls /config, so
+   * relying on the row alone rendered the first frame of every boot from the
+   * previous mounting. Persist it as well, so the dashboard and the next cycle
+   * agree without waiting for /config. */
+  const { caps: reportedCaps, changed: capsChanged } = mergeReportedCaps(
     device.displayCaps,
+    request.headers.get("x-display-caps")
+  );
+  if (capsChanged) {
+    await withDbWrite(
+      () =>
+        db.update(devices).set({ displayCaps: reportedCaps }).where(eq(devices.mac, device.mac)),
+      "render-adopt-reported-display-caps"
+    ).catch((error) =>
+      log.warn("Failed to persist reported display capabilities", {
+        mac: device.mac,
+        error: String(error),
+      })
+    );
+  }
+  const display = resolveDisplayCaps(
+    reportedCaps,
     device.orientationOverride as "portrait" | "landscape" | undefined
   );
 
