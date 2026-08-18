@@ -523,18 +523,52 @@ jobs:
             firmware-manifest.json \
             --repo "${{ github.repository }}" --clobber
 
-      # Release Please creates the stable release before this workflow runs.
-      # Normalize its title and prevent a hardware artifact release from taking
-      # GitHub's single "Latest" badge away from the current server release.
+      # Release Please creates the stable release before this workflow runs, with
+      # a terse component-derived title. Give it a consistent name, then put the
+      # "Latest" badge back on the server release.
+      #
+      # `--latest=false` was used here and silently did nothing. GitHub derives
+      # "latest" as the newest non-prerelease release BY DATE; make_latest=false
+      # only declines to promote a release, it cannot demote one. A stable
+      # firmware release is newer than the server release, so it takes the badge
+      # regardless of what it asks for. The only way to keep it on the server is
+      # to re-assert that release explicitly, which is what this does.
+      #
+      # That badge is load-bearing, not decoration: deploy/install.sh downloads
+      # docker-compose.yml, vellum.env.example and SHA256SUMS from
+      # /releases/latest/download, and scripts/check-release-config.mjs requires
+      # the updater to resolve /releases/latest. With firmware holding it, a
+      # default install fetches a release that has none of those assets.
       - name: Normalize stable firmware release presentation
         if: needs.version.outputs.channel == 'stable'
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          gh release edit "${{ needs.version.outputs.tag }}" \
-            --repo "${{ github.repository }}" \
-            --title "Vellum Firmware v${{ needs.version.outputs.version }}" \
-            --latest=false
+          set -euo pipefail
+          gh release edit "$TAG" --repo "$REPO" --title "Vellum Firmware v$VERSION"
+
+          # Newest published, non-prerelease release whose tag is NOT firmware-*.
+          # Sorted explicitly rather than trusting list order.
+          server_tag=$(gh release list --repo "$REPO" --limit 100 \
+            --json tagName,isPrerelease,isDraft,publishedAt \
+            --jq '[.[] | select(.isPrerelease == false and .isDraft == false)
+                       | select(.tagName | startswith("firmware-") | not)]
+                  | sort_by(.publishedAt) | reverse | .[0].tagName // empty')
+
+          if [ -z "$server_tag" ]; then
+            echo "::warning::No server release found; /releases/latest still points at $TAG"
+            exit 0
+          fi
+
+          server_id=$(gh api "repos/$REPO/releases/tags/$server_tag" --jq .id)
+          gh api --method PATCH "repos/$REPO/releases/$server_id" -f "make_latest=true" >/dev/null
+          latest=$(gh api "repos/$REPO/releases/latest" --jq .tag_name)
+          echo "Restored $server_tag as the latest release (now: $latest)"
+          # Fail loudly rather than leaving a broken installer behind.
+          [ "$latest" = "$server_tag" ]
 
       - name: Create beta release with images (manifest uploaded last, below)
         if: needs.version.outputs.channel != 'stable'
