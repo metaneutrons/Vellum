@@ -40,6 +40,38 @@ int vellum_display_height(void);
 
 esp_err_t display_init(void);
 esp_err_t display_get_info(display_info_t *info);
+
+/**
+ * Everything the server needs to know about this panel, straight from the driver.
+ *
+ * The HTTP layer used to carry its own #if chain with a second copy of the
+ * geometry, format and palette. The two drifted, and the D1001 ended up telling
+ * the server "portrait 800x1280" while its drawable surface was landscape
+ * 1280x800 — 480px cut off the bottom, 480px blank on the right. There is one
+ * copy now, and it lives with the driver that knows the hardware.
+ *
+ * width/height are the DRAWABLE surface, after any scanout rotation.
+ */
+typedef struct {
+    const char *model;
+    uint16_t    width, height;
+    uint8_t     bpp;
+    /** Colour mode in the server's vocabulary ("indexed", "mono", ...). */
+    const char *color_mode;
+    /** "raw" or "jpeg". */
+    const char *image_format;
+    const uint8_t (*palette)[3];   /**< NULL when the panel needs none. */
+    uint8_t     palette_count;
+    const uint8_t *reserved_palette_indices;
+    uint8_t     reserved_count;
+    /** Mountings this panel can actually deliver, preferred first. */
+    const char *const *orientations;
+    uint8_t     orientation_count;
+    /** The mounting in effect now. */
+    const char *orientation;
+} vellum_display_caps_t;
+
+esp_err_t display_get_caps(vellum_display_caps_t *out);
 void display_show_boot(const char *version);
 void display_show_wifi_setup(const char *ssid, const char *url);
 void display_show_connecting(const char *ssid);

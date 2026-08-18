@@ -290,6 +290,59 @@ static void ep_off(void) { ep_sleep(); }
 
 /* ── Panel descriptor ─────────────────────────────────────────── */
 
+
+/* ── Palette and wire format (single source of truth) ─────────────
+ *
+ * These used to live a second time in http_client.c behind its own #if chain.
+ * Two copies of the same hardware facts is how the reported geometry drifted
+ * away from the driver, so the panel owns them now and the HTTP layer only
+ * serialises what the panel reports.
+ *
+ * The wire colour mode is NOT the internal PANEL_COLORS: the E1002 calls itself
+ * "color" internally but must advertise "indexed" to the server. Keeping both
+ * spellings explicit avoids a silent mistranslation. */
+#if defined(CONFIG_VELLUM_PANEL_GDEP073E01)
+/* SIX-color Spectra, but SEVEN slots: the array position IS the on-wire pixel
+ * code (EPD_PIXEL_*), so index 4 cannot be dropped or blue and green would slide
+ * onto 0x4 and 0x5. Slot 4 holds a duplicate of WHITE — not orange, which exists
+ * only on 7-color ACeP — so a server predating reservedPaletteIndices can never
+ * emit 0x4, and it is reported reserved so a current server excludes it from
+ * quantisation. Values mirror EPD_PIXEL_* deliberately rather than by include,
+ * because the e-paper drivers are not built at all for the P4 target. */
+static const uint8_t PANEL_PALETTE[][3] = {
+    {  0,   0,   0},    /* 0x0 EPD_PIXEL_BLACK  */
+    {255, 255, 255},    /* 0x1 EPD_PIXEL_WHITE  */
+    {255, 255,   0},    /* 0x2 EPD_PIXEL_YELLOW */
+    {255,   0,   0},    /* 0x3 EPD_PIXEL_RED    */
+    {255, 255, 255},    /* 0x4 reserved         */
+    {  0,   0, 255},    /* 0x5 EPD_PIXEL_BLUE   */
+    {  0, 255,   0},    /* 0x6 EPD_PIXEL_GREEN  */
+};
+static const uint8_t PANEL_RESERVED[] = { 4 };
+  #define PANEL_FORMAT     "raw"
+  #define PANEL_WIRE_COLOR "indexed"
+#elif defined(CONFIG_VELLUM_PANEL_GDEY075T7)
+static const uint8_t PANEL_PALETTE[][3] = { {0,0,0}, {255,255,255} };
+  #define PANEL_FORMAT     "raw"
+  #define PANEL_WIRE_COLOR "mono"
+#elif defined(CONFIG_VELLUM_PANEL_E1003)
+/* 16 grays: i * 17, so 0, 17, 34 ... 255. */
+static const uint8_t PANEL_PALETTE[][3] = {
+    {  0,  0,  0},{ 17, 17, 17},{ 34, 34, 34},{ 51, 51, 51},
+    { 68, 68, 68},{ 85, 85, 85},{102,102,102},{119,119,119},
+    {136,136,136},{153,153,153},{170,170,170},{187,187,187},
+    {204,204,204},{221,221,221},{238,238,238},{255,255,255},
+};
+  #define PANEL_FORMAT     "raw"
+  #define PANEL_WIRE_COLOR "grayscale"
+#endif
+
+/* Every e-paper panel here is natively landscape and none of their drivers
+ * rotates: the UC8179 config struct declares a `rotation` field that no .c file
+ * ever reads, and the IT8951 hardwires rotate=0 into its LD_IMG_AREA argument.
+ * One mounting is therefore the truth, not a shortcut in this list. */
+static const char *const PANEL_ORIENTATIONS[] = { "landscape" };
+
 static vellum_panel_t s_panel = {
     .init = ep_init,
     .refresh = ep_refresh,
@@ -302,6 +355,17 @@ static vellum_panel_t s_panel = {
     .bpp = PANEL_BPP,
     .model = PANEL_MODEL,
     .color_mode = PANEL_COLORS,
+    .image_format = PANEL_FORMAT,
+    .wire_color_mode = PANEL_WIRE_COLOR,
+    .palette = PANEL_PALETTE,
+    .palette_count = (uint8_t)(sizeof(PANEL_PALETTE) / sizeof(PANEL_PALETTE[0])),
+#if defined(CONFIG_VELLUM_PANEL_GDEP073E01)
+    .reserved_palette_indices = PANEL_RESERVED,
+    .reserved_count = (uint8_t)(sizeof(PANEL_RESERVED) / sizeof(PANEL_RESERVED[0])),
+#endif
+    .orientations = PANEL_ORIENTATIONS,
+    .orientation_count = 1,
+    .orientation = "landscape",
     .fast_refresh = PANEL_FAST_REFRESH,
     .retains_image = true,
     .needs_tick_timer = true,

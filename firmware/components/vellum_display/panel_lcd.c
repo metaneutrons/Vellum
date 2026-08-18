@@ -260,6 +260,19 @@ static vellum_panel_t s_panel = {
     .bpp = 16,
     .model = "d1001",
     .color_mode = "fullcolor",
+    .image_format = "jpeg",
+    .wire_color_mode = "fullcolor",
+    /* No fixed palette: the JD9365 is driven at 16bpp and the server sends JPEG. */
+    .palette = NULL,
+    .palette_count = 0,
+    /* Landscape only, for now. The adapter's rotation is chosen at init and
+     * determines the frame-buffer count, so a portrait mounting needs persisted
+     * state applied before init — not a per-request decision. Reporting it as
+     * available while the surface stayed landscape is exactly the defect this
+     * field exists to prevent. */
+    .orientations = (const char *const[]){ "landscape" },
+    .orientation_count = 1,
+    .orientation = "landscape",
     .fast_refresh = true,
     .retains_image = false,
     /* esp_lv_adapter owns the LVGL tick timer. */

@@ -40,10 +40,33 @@ typedef struct {
     void          (*off)(void);     /**< may be NULL */
 
     /* ── Geometry / capabilities (static per panel) ───────────── */
+    /* width/height are the DRAWABLE surface, after any scanout rotation the
+     * backend applies. They are what the server must render, and the only
+     * geometry any other component may report: a second copy of these numbers
+     * elsewhere is how the D1001 came to tell the server "portrait 800x1280"
+     * while its actual surface was landscape 1280x800, which cut 480px off the
+     * bottom and left 480px blank on the right. */
     uint16_t        width, height;
     uint8_t         bpp;
     const char     *model;
     const char     *color_mode;
+    /** Wire format the server should send: "raw" or "jpeg". */
+    const char     *image_format;
+    /** Colour mode as the SERVER names it, which is not always color_mode:
+     *  the E1002 is "color" internally but must advertise "indexed". */
+    const char     *wire_color_mode;
+    /** Fixed palette, or NULL for a panel that needs none (fullcolor). */
+    const uint8_t (*palette)[3];
+    uint8_t         palette_count;
+    /** Palette positions reserved by the panel and unusable for content. */
+    const uint8_t  *reserved_palette_indices;
+    uint8_t         reserved_count;
+    /* Mountings this panel can actually deliver, preferred first, and the one
+     * in effect now. Reported rather than assumed: the UI used to offer portrait
+     * for every model regardless, including panels whose driver cannot rotate. */
+    const char *const *orientations;
+    uint8_t         orientation_count;
+    const char     *orientation;
     bool            fast_refresh;     /**< false => slow e-paper hides transient screens */
     bool            retains_image;    /**< pixels survive MCU reset/deep sleep without redraw */
     bool            needs_tick_timer; /**< true => shared layer drives the LVGL tick */
