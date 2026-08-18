@@ -61,6 +61,12 @@
 
 static const char *TAG = "vellum_main";
 
+/* Boot-time NVS verdict, kept so the button paths can consult it. A display whose
+ * storage is broken must stay recoverable by hand even where a factory reset is
+ * otherwise refused. */
+static bool s_nvs_unavailable;
+static bool s_nvs_integrity_failed;
+
 /* Certificates cannot be validated safely until the RTC has a real date.
  * A provisioned NTP server is an explicit administrator override. Otherwise,
  * DHCP option 42 is preferred and PTB's UTC(PTB) servers are fallbacks. */
@@ -550,6 +556,48 @@ static uint32_t perform_render(bool *render_ok)
     return pace_retry(sleep_sec, ok);
 }
 
+/**
+ * May a button erase this display's configuration?
+ *
+ * Re-provisioning an enrolled display over USB already demands a server-signed
+ * admin authorization (see vellum_serial's challenge/HMAC exchange). A button
+ * held for a few seconds needed nothing at all, which made the physical path the
+ * weakest one and let anybody who could reach a panel in a public room wipe its
+ * Wi-Fi credentials, device token and keypair. The lock's own comment conceded
+ * as much: it holds "until a physical factory reset erases the namespace".
+ *
+ * Broken storage is the deliberate exception, and it is not a loophole. When NVS
+ * cannot be opened or fails its integrity check there is nothing readable left to
+ * protect, the enrollment lock reports locked because it fails closed, and the
+ * firmware already puts "Storage recovery required — Factory reset and re-enroll"
+ * on the screen. Refusing here would make that instruction impossible to follow
+ * and turn every corrupted display into a workshop case.
+ *
+ * Returns false and sets *reason to a short line for the panel when refused.
+ */
+static bool factory_reset_permitted(const char **reason)
+{
+    if (s_nvs_unavailable || s_nvs_integrity_failed) return true; /* recovery */
+
+#if !CONFIG_VELLUM_BUTTON_FACTORY_RESET
+    *reason = "Disabled on this firmware";
+    return false;
+#else
+    if (nvs_manager_is_provisioning_locked()) {
+        *reason = "Enrolled display \u2014 authorize in Vellum";
+        return false;
+    }
+    return true;
+#endif
+}
+
+/** Refuse visibly: a dead button teaches nothing. */
+static void factory_reset_refused(const char *reason)
+{
+    ESP_LOGW(TAG, "Factory reset refused: %s", reason);
+    display_show_status_message(VD_ICON_SERVER, "Factory reset not allowed", reason);
+}
+
 /* -----------------------------------------------------------------------
  * Button action handler
  * ----------------------------------------------------------------------- */
@@ -570,7 +618,12 @@ static bool handle_button_action(button_action_t action)
         return true;
     }
 
-    case BUTTON_ACTION_FACTORY_RESET:
+    case BUTTON_ACTION_FACTORY_RESET: {
+        const char *reason = NULL;
+        if (!factory_reset_permitted(&reason)) {
+            factory_reset_refused(reason);
+            return true;
+        }
         ESP_LOGW(TAG, "Factory reset — erasing NVS");
         board_buzzer_beep(500, 500);
         /* This recovery path must work even when the NVS namespace cannot be
@@ -578,6 +631,7 @@ static bool handle_button_action(button_action_t action)
         nvs_flash_erase();
         esp_restart();
         return true;
+    }
 
     case BUTTON_ACTION_NONE:
     default:
@@ -621,9 +675,13 @@ volatile bool s_button_pressed = false;
 #ifndef CONFIG_VELLUM_OTA_GRACE_S
 #define CONFIG_VELLUM_OTA_GRACE_S 0
 #endif
+#ifndef CONFIG_VELLUM_BOOT_GRACE_S
+#define CONFIG_VELLUM_BOOT_GRACE_S 0
+#endif
 
 static volatile int64_t s_progress_us;   /* last time the loop reported progress */
 static volatile uint32_t s_grace_s;      /* extra allowance for a slow operation */
+static volatile bool s_stall_disarmed;   /* set where waiting forever is correct */
 
 /** Report that the poll loop is still advancing. */
 static void app_progress(void)
@@ -638,12 +696,29 @@ static void app_progress_grace(uint32_t seconds)
     app_progress();
 }
 
+/**
+ * Give up watching, permanently, because waiting forever is the correct
+ * behaviour here.
+ *
+ * Some states are deliberately unbounded: a display in SoftAP is holding a
+ * captive portal open until somebody provisions it, and one on a critical cell
+ * is waiting for power. Rebooting either on a timer would be worse than the
+ * stall this supervisor exists to catch — it would tear down the provisioning
+ * portal every few minutes and make setup nearly impossible. There is no
+ * re-arm: every one of these paths ends in a restart anyway.
+ */
+static void app_stall_disarm(void)
+{
+    s_stall_disarmed = true;
+}
+
 #if CONFIG_VELLUM_STALL_TIMEOUT_S > 0
 static void stall_supervisor_task(void *arg)
 {
     (void)arg;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(5000));
+        if (s_stall_disarmed) continue;
         int64_t idle_s = (esp_timer_get_time() - s_progress_us) / 1000000;
         uint32_t deadline_s = CONFIG_VELLUM_STALL_TIMEOUT_S + s_grace_s;
         if (idle_s >= (int64_t)deadline_s) {
@@ -661,6 +736,9 @@ static void stall_supervisor_task(void *arg)
 
 static void stall_supervisor_start(void)
 {
+    static bool started;
+    if (started) return;
+    started = true;
     app_progress();
 #if CONFIG_VELLUM_STALL_TIMEOUT_S > 0
     xTaskCreate(stall_supervisor_task, "vellum_stall", 3072, NULL, 5, NULL);
@@ -671,6 +749,20 @@ static void stall_supervisor_start(void)
 }
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
+/* D1001 has a single wired key (KEY0), so it cannot copy the E-Series two-key
+ * factory-reset grip. Its scale used to be refresh under 5 s, reboot from 5 to
+ * 10 s and erase at 10 s: one continuous press, with the destructive step one
+ * second past a routine one. Holding a fraction too long wiped the display, and
+ * that is how one lost its Wi-Fi credentials during this investigation.
+ *
+ * The ranges no longer touch, and the erase is no longer part of the same
+ * gesture. A long hold only ASKS; releasing does nothing. Confirming needs a
+ * second, separate press inside a short window, which an accidental grip does
+ * not produce. */
+#define D1001_REBOOT_HOLD_MS   2000
+#define D1001_RESET_ASK_MS     5000
+#define D1001_CONFIRM_WINDOW_MS 5000
+
 static void d1001_button_task(void *arg)
 {
     (void)arg;
@@ -679,43 +771,67 @@ static void d1001_button_task(void *arg)
     while (gpio_get_level(btn) == PRESSED_LEVEL) vTaskDelay(pdMS_TO_TICKS(50));
     vTaskDelay(pdMS_TO_TICKS(500));
 
+    /* Set by a hold that reached the ask; cleared when the window closes. */
+    int64_t confirm_until_us = 0;
+
     while (1) {
         if (gpio_get_level(btn) == PRESSED_LEVEL) {
-            int64_t start = esp_timer_get_time();
-            int last_cd = -1;
+            int64_t start_us = esp_timer_get_time();
+            bool asked = false;
             while (gpio_get_level(btn) == PRESSED_LEVEL) {
-                int64_t held = (esp_timer_get_time() - start) / 1000;
-                if (held >= 5000) {
-                    int rem = (int)((10000 - held) / 1000);
-                    if (rem < 0) rem = 0;
-                    if (rem != last_cd) {
-                        char msg[48];
-                        snprintf(msg, sizeof(msg), "Factory reset in %d", rem);
-                        display_show_status_message(VD_ICON_REFRESH, msg,
-                                                    "Release the button to cancel");
-                        last_cd = rem;
+                int64_t held_ms = (esp_timer_get_time() - start_us) / 1000;
+                if (!asked && held_ms >= D1001_RESET_ASK_MS) {
+                    asked = true;
+                    const char *reason = NULL;
+                    if (factory_reset_permitted(&reason)) {
+                        display_show_status_message(
+                            VD_ICON_REFRESH, "Factory reset?",
+                            "Release, then press again to confirm");
+                    } else {
+                        /* Say no while the finger is still down, rather than
+                         * letting the operator complete a gesture that cannot
+                         * work. */
+                        factory_reset_refused(reason);
                     }
                 }
-                if (held >= 10000) {
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+            int64_t held_ms = (esp_timer_get_time() - start_us) / 1000;
+
+            if (held_ms >= D1001_RESET_ASK_MS) {
+                const char *reason = NULL;
+                /* Arm the window only if it could actually be honoured. */
+                confirm_until_us = factory_reset_permitted(&reason)
+                                       ? esp_timer_get_time() +
+                                             (int64_t)D1001_CONFIRM_WINDOW_MS * 1000
+                                       : 0;
+            } else if (confirm_until_us && esp_timer_get_time() < confirm_until_us) {
+                /* The second press. Length does not matter here: reaching the ask
+                 * was the deliberate part, this is the confirmation. */
+                confirm_until_us = 0;
+                const char *reason = NULL;
+                if (factory_reset_permitted(&reason)) {
                     display_show_status_message(VD_ICON_REFRESH, "Factory reset",
                                                 "Erasing configuration");
                     vTaskDelay(pdMS_TO_TICKS(500));
                     nvs_flash_erase();
                     esp_restart();
+                } else {
+                    factory_reset_refused(reason);
                 }
-                vTaskDelay(pdMS_TO_TICKS(50));
-            }
-            int64_t held = (esp_timer_get_time() - start) / 1000;
-            if (held >= 5000) {
-                /* Released between 5-10s: reboot */
+            } else if (held_ms >= D1001_REBOOT_HOLD_MS) {
                 esp_restart();
+            } else {
+                /* Short press: refresh. D1001 has an ES8311 speaker instead of the
+                 * E-Series PWM buzzer, so board_buzzer_beep() maps to its
+                 * confirmation chime; acknowledge before the render work begins. */
+                board_buzzer_beep(1000, 100);
+                s_button_pressed = true;
             }
-            /* Short press (<5s): trigger immediate refresh/retry */
-            /* D1001 has an ES8311 speaker instead of the E-Series PWM buzzer.
-             * board_buzzer_beep() maps to its confirmation chime, so acknowledge
-             * the press before the network/render work begins. */
-            board_buzzer_beep(1000, 100);
-            s_button_pressed = true;
+        }
+        if (confirm_until_us && esp_timer_get_time() >= confirm_until_us) {
+            confirm_until_us = 0;
+            ESP_LOGI(TAG, "Factory reset not confirmed — window closed");
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -733,6 +849,8 @@ void app_main(void)
     esp_err_t nvs_init_err = nvs_manager_init();
     bool nvs_integrity_failed = nvs_init_err == ESP_ERR_INVALID_CRC;
     bool nvs_unavailable = nvs_init_err != ESP_OK;
+    s_nvs_integrity_failed = nvs_integrity_failed;
+    s_nvs_unavailable = nvs_unavailable;
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001: board init first (power rails, I2C, IO-expander) */
     ESP_ERROR_CHECK(d1001_board_init());
@@ -764,7 +882,11 @@ void app_main(void)
     wifi_manager_init();
     vellum_serial_init();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    xTaskCreate(d1001_button_task, "d1001_btn", 4096, NULL, 5, NULL);
+    /* 8 KiB, not 4: this task draws. Showing the factory-reset prompt or a
+     * refusal calls into the display and LVGL, which overflowed a 4 KiB stack and
+     * panicked with "Stack protection fault" — read from the outside as the
+     * display simply rebooting after a long press. */
+    xTaskCreate(d1001_button_task, "d1001_btn", 8192, NULL, 5, NULL);
 #endif
 
     sleep_manager_init();
@@ -801,6 +923,15 @@ void app_main(void)
             held_ms += 200;
         }
         if (held_ms >= 10000) {
+            /* Same policy as the runtime paths. Held at power-on this gesture is
+             * already deliberate, so it needs no second press, but an enrolled or
+             * production display must still refuse it. */
+            const char *reason = NULL;
+            if (!factory_reset_permitted(&reason)) {
+                factory_reset_refused(reason);
+                vTaskDelay(pdMS_TO_TICKS(3000));
+                esp_restart();
+            }
             display_show_status_message(VD_ICON_REFRESH, "Factory reset",
                                         "Erasing configuration");
             vTaskDelay(pdMS_TO_TICKS(500));
@@ -831,6 +962,22 @@ void app_main(void)
              wake == WAKE_REASON_TIMER  ? "TIMER" :
              wake == WAKE_REASON_BUTTON ? "BUTTON" : "POWER_ON");
 
+    /* Watch the boot path too, not just the steady-state loop.
+     *
+     * The first version armed this immediately before the poll loop, which left
+     * everything above it unguarded — and there is a lot above it: Wi-Fi
+     * association with retries, up to 50 s of NTP waiting, enrolment and the
+     * first render, each with its own 30 s HTTP timeout. A display that wedges
+     * there never reaches the loop, so nothing was watching precisely while the
+     * riskiest calls ran.
+     *
+     * Boot legitimately takes far longer than a poll cycle, hence its own
+     * grace; the loop drops back to the ordinary deadline once it starts. Paths
+     * that wait forever on purpose disarm the supervisor outright rather than
+     * stretching this number to cover them. */
+    stall_supervisor_start();
+    app_progress_grace(CONFIG_VELLUM_BOOT_GRACE_S);
+
     /* 2. Check battery — critical shutdown if below threshold */
     int battery = board_battery_level();
     if (battery >= 0) {
@@ -854,6 +1001,8 @@ void app_main(void)
         display_sleep_unless_usb_powered();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
         /* LCD mode returns after a bounded delay and re-checks the battery. */
+        /* Waiting for someone to plug the display in is not a stall. */
+        app_stall_disarm();
         int retry_battery = board_battery_level();
         while (retry_battery >= 0 &&
                retry_battery < CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT &&
@@ -882,6 +1031,7 @@ void app_main(void)
 
     /* 3. Connect to Wi-Fi or enter SoftAP */
     wifi_result_t wifi_result = wifi_manager_connect_station();
+    app_progress();
 
     if (wifi_result == WIFI_RESULT_NO_CREDENTIALS) {
         ESP_LOGI(TAG, "No Wi-Fi credentials — entering SoftAP");
@@ -890,6 +1040,10 @@ void app_main(void)
         char qr_payload[64];
         snprintf(qr_payload, sizeof(qr_payload), "WIFI:T:nopass;S:%s;;", ssid);
         display_show_wifi_setup(ssid, qr_payload);
+        /* Holding a captive portal open is the job here, for as long as it takes
+         * somebody to walk over and provision the display. Rebooting on a timer
+         * would drop the portal mid-setup. */
+        app_stall_disarm();
         wifi_manager_start_softap();
         /* does not return — restarts after provisioning */
     }
@@ -1046,7 +1200,7 @@ void app_main(void)
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: poll loop instead of deep sleep */
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
-    stall_supervisor_start();
+    app_progress_grace(0); /* boot is over — back to the ordinary deadline */
     while (1) {
         for (uint32_t i = 0; i < sleep_duration && !s_button_pressed; i++) {
             vTaskDelay(pdMS_TO_TICKS(1000));
@@ -1075,10 +1229,9 @@ void app_main(void)
     /* 9. E-paper normally sleeps between refreshes. With external USB power
      * it deliberately remains awake and keeps polling, so a cabled display is
      * immediately reachable through its serial-provisioning interface. */
-    /* Armed only for this cabled, stays-awake path. The battery path below deep
-     * sleeps, which resets the SoC on wake, so a stall there cannot outlive the
-     * sleep timer and a supervisor task would not survive to observe it. */
-    if (board_is_usb_powered()) stall_supervisor_start();
+    /* The battery path below deep sleeps, which resets the SoC on wake, so a
+     * stall there cannot outlive the sleep timer. */
+    app_progress_grace(0); /* boot is over — back to the ordinary deadline */
     while (board_is_usb_powered()) {
         ESP_LOGI(TAG, "External USB power present; refreshing in %lu seconds",
                  (unsigned long)sleep_duration);

@@ -67,6 +67,12 @@ CONFIG_BOOTLOADER_APP_SEC_VER_SIZE_EFUSE_FIELD=32
 # build can never accidentally ship fail-open.
 CONFIG_VELLUM_OTA_REQUIRE_SIGNATURE=y
 
+# ── No unauthenticated physical wipe of an enrolled display ─────────────────
+# Re-provisioning over USB requires a server-signed admin authorization; the
+# buttons must not be an unauthenticated way around it. Recovery of a display
+# whose NVS is unreadable or fails integrity stays possible regardless.
+CONFIG_VELLUM_BUTTON_FACTORY_RESET=n
+
 # ── Reduce log verbosity / info leakage in the field ────────────────────────
 CONFIG_LOG_DEFAULT_LEVEL_WARN=y
 CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y

@@ -155,6 +155,49 @@ static void amplifier(bool on)
     if (exp) esp_io_expander_set_level(exp, D1001_EXP_AMP_EN, on ? 1 : 0);
 }
 
+/* Tags that re-announce the same I2S/codec configuration on every single chime.
+ * `i2s_common` is the loud one: it logs at ERROR level. */
+static const char *const AUDIO_NOISY_TAGS[] = { "i2s_common", "I2S_IF", "Adev_Codec" };
+
+/**
+ * Open the codec without narrating it to the console.
+ *
+ * esp_codec_dev_open() disables the I2S channel unconditionally while applying
+ * the sample format — `// disable internally` in
+ * managed_components/espressif__esp_codec_dev/platform/audio_codec_data_i2s.c,
+ * whose return value it then ignores. Ours is always already disabled, because
+ * the previous chime closed it, so ESP-IDF logs
+ *
+ *     E i2s_common: i2s_channel_disable(1246): the channel has not been enabled yet
+ *
+ * plus a DMA-alignment warning and two lines of STD configuration, every time a
+ * button is pressed. The open then succeeds and the chime plays: the error is
+ * expected, harmless, and not suppressible from the calling side.
+ *
+ * It is worth silencing anyway rather than living with it. On the D1001 the
+ * console shares the native USB-Serial-JTAG endpoint with the Improv
+ * provisioning channel, so log bytes emitted mid-session interleave with Improv
+ * frames on the same stream — untidy output here is a plausible source of a
+ * corrupted provisioning exchange. It also buries real errors: a genuine
+ * i2s_common failure was indistinguishable from this routine one.
+ *
+ * Scoped as tightly as possible: only these tags, only for the duration of the
+ * call, with the previous levels restored afterwards.
+ */
+static int audio_open_quietly(esp_codec_dev_sample_info_t *fs)
+{
+    esp_log_level_t saved[sizeof(AUDIO_NOISY_TAGS) / sizeof(AUDIO_NOISY_TAGS[0])];
+    for (size_t i = 0; i < sizeof(saved) / sizeof(saved[0]); i++) {
+        saved[i] = esp_log_level_get(AUDIO_NOISY_TAGS[i]);
+        esp_log_level_set(AUDIO_NOISY_TAGS[i], ESP_LOG_NONE);
+    }
+    int result = esp_codec_dev_open(s_codec, fs);
+    for (size_t i = 0; i < sizeof(saved) / sizeof(saved[0]); i++) {
+        esp_log_level_set(AUDIO_NOISY_TAGS[i], saved[i]);
+    }
+    return result;
+}
+
 void vellum_audio_play_chime(void)
 {
     if (!s_playback_mutex && vellum_audio_init() != ESP_OK) {
@@ -172,7 +215,7 @@ void vellum_audio_play_chime(void)
         .channel = 1,
         .sample_rate = vellum_chime_sample_rate,
     };
-    if (esp_codec_dev_open(s_codec, &fs) != ESP_CODEC_DEV_OK) {
+    if (audio_open_quietly(&fs) != ESP_CODEC_DEV_OK) {
         ESP_LOGW(TAG, "codec open failed — skipping chime");
         goto out;
     }

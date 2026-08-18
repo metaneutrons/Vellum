@@ -242,6 +242,11 @@ static void lcd_wake(void) { d1001_backlight_on(); }
 
 /* ── Panel descriptor ─────────────────────────────────────────── */
 
+extern const lv_font_t vellum_font_montserrat_48;
+extern const lv_font_t vellum_font_montserrat_32;
+extern const lv_font_t vellum_font_montserrat_24;
+extern const lv_font_t vellum_font_montserrat_16;
+
 static vellum_panel_t s_panel = {
     .init = lcd_init,
     .refresh = lcd_refresh,
@@ -259,11 +264,14 @@ static vellum_panel_t s_panel = {
     .retains_image = false,
     /* esp_lv_adapter owns the LVGL tick timer. */
     .needs_tick_timer = false,
-    /* Fonts enabled in the P4 LVGL config (sdkconfig.defaults.p4). */
-    .font_lg = &lv_font_montserrat_48,
-    .font_md = &lv_font_montserrat_32,
-    .font_sm = &lv_font_montserrat_24,
-    .font_xs = &lv_font_montserrat_16,
+    /* Pre-generated rather than LVGL's built-ins, whose glyph range is fixed at
+     * ASCII and cannot be extended: an em dash in a status message drew as an
+     * empty box, and any European accent would do the same. See
+     * assets/render-fonts.sh for the range and its cost. */
+    .font_lg = &vellum_font_montserrat_48,
+    .font_md = &vellum_font_montserrat_32,
+    .font_sm = &vellum_font_montserrat_24,
+    .font_xs = &vellum_font_montserrat_16,
 };
 
 const vellum_panel_t *vellum_panel(void)
