@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.15.0](https://github.com/metaneutrons/Vellum/compare/v1.14.0...v1.15.0) (2026-08-18)
+
+
+### Features
+
+* **firmware:** give every panel a font that can draw European text ([b80cb4f](https://github.com/metaneutrons/Vellum/commit/b80cb4f700f32c34dd3ae910fcbd9625ea77303f))
+
+
+### Bug Fixes
+
+* **ci:** restore the server release as "Latest" after a firmware release ([8fada6d](https://github.com/metaneutrons/Vellum/commit/8fada6df1751d10c6455765a446234d61834328a))
+* **ci:** restore the server release as "Latest" after a firmware release ([01fef14](https://github.com/metaneutrons/Vellum/commit/01fef144454d198431047a3371a72dcdd4598f91))
+* **display:** let the driver own its capabilities, and report them on every poll ([a809823](https://github.com/metaneutrons/Vellum/commit/a8098230cad7a69924a30cd179cbbdea7ed7ecc6))
+* **display:** let the driver own its capabilities, and report them on every poll ([a63b497](https://github.com/metaneutrons/Vellum/commit/a63b4973d6de60d4952deebb54089c8c3756d547))
+* **firmware:** guard boot, gate factory reset, quiet the chime, widen the fonts ([1e8a386](https://github.com/metaneutrons/Vellum/commit/1e8a3860d24543ad1875091575fdabbd50c70ee6))
+* **firmware:** reboot the display when its poll loop stalls ([e058988](https://github.com/metaneutrons/Vellum/commit/e05898817451493cd601a4c5bd6c3f17dca5fcb7))
+* **provisioning:** stop reporting an unanswered security probe as old firmware ([12acd97](https://github.com/metaneutrons/Vellum/commit/12acd97e48bb6ab54fe14e99401c374c0d072e9e))
+* **provisioning:** stop reporting an unanswered security probe as old firmware ([0b9cbc7](https://github.com/metaneutrons/Vellum/commit/0b9cbc7ee3fe4d046d0c13ebf503ff38ddee13c9))
+
 ## [1.14.0](https://github.com/metaneutrons/Vellum/compare/v1.13.2...v1.14.0) (2026-08-17)
 
 
