@@ -674,3 +674,73 @@ describe("serial error explanations", () => {
     expect(result.error).not.toMatch(/The port is already open/);
   });
 });
+
+/* The distinction these cover is the whole point: "the display told us it does
+ * not know the command" and "the display said nothing" both used to surface as
+ * "this firmware predates protected USB provisioning", which is a false
+ * statement about current firmware and sends the operator to reflash a display
+ * whose real problem is the connection. */
+describe("provisioning security probe diagnosis", () => {
+  const rpcResult = (cmd: number, strings: string[]) => {
+    const encoded = strings.flatMap((value) => {
+      const bytes = Array.from(new TextEncoder().encode(value));
+      return [bytes.length, ...bytes];
+    });
+    return encodeFrame(ImprovType.RPC_RESULT, [cmd, encoded.length, ...encoded]);
+  };
+
+  /** A fake display that answers GET_STATE, then whatever `reply` decides. */
+  async function connectWith(reply: (enqueue: (frame: Uint8Array) => void) => void) {
+    let controller: ReadableStreamDefaultController<Uint8Array>;
+    const readable = new ReadableStream<Uint8Array>({
+      start(nextController) {
+        controller = nextController;
+      },
+    });
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) {
+        const cmd = chunk[9];
+        if (cmd === ImprovCmd.GET_STATE) {
+          controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.READY]));
+        } else if (cmd === ImprovCmd.GET_PROVISIONING_SECURITY) {
+          reply((frame) => controller.enqueue(frame));
+        }
+      },
+    });
+    const port = { readable, writable, async open() {}, async close() {} };
+    vi.stubGlobal("navigator", { serial: { requestPort: async () => port } });
+    return SerialProvisioningSession.connect();
+  }
+
+  it("reports firmware that answers UNKNOWN_CMD as genuinely unsupported", async () => {
+    const session = await connectWith((enqueue) =>
+      enqueue(encodeFrame(ImprovType.ERROR_STATE, [ImprovError.UNKNOWN_CMD]))
+    );
+    const security = await session.getProvisioningSecurity();
+
+    expect(security.supported).toBe(false);
+    expect(security.failure).toBe("unsupported");
+    await session.disconnect();
+  });
+
+  it("reports silence as unanswered rather than blaming the firmware", async () => {
+    // Answers GET_STATE so the connection succeeds, then never replies.
+    const session = await connectWith(() => {});
+    const security = await session.getProvisioningSecurity();
+
+    expect(security.supported).toBe(false);
+    expect(security.failure).toBe("unanswered");
+    await session.disconnect();
+  }, 10_000);
+
+  it("carries no failure when the display answers properly", async () => {
+    const session = await connectWith((enqueue) =>
+      enqueue(rpcResult(ImprovCmd.GET_PROVISIONING_SECURITY, ["1", "58E6C50F4054", "", "unlocked"]))
+    );
+    const security = await session.getProvisioningSecurity();
+
+    expect(security).toMatchObject({ supported: true, locked: false, mac: "58E6C50F4054" });
+    expect(security.failure).toBeUndefined();
+    await session.disconnect();
+  });
+});
