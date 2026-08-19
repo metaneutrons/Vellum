@@ -19,6 +19,7 @@ static struct {
     bool trigger_suspended; /* an upload is in flight; its failures must not re-arm it */
     char last_body[LOG_RING_LINE_MAX];
     uint32_t repeat;        /* consecutive identical messages folded so far */
+    uint32_t compressed;    /* repeats dropped while assembling a payload */
 } r;
 
 void log_ring_init(char *storage, size_t size, size_t context_bytes)
@@ -35,6 +36,7 @@ void log_ring_init(char *storage, size_t size, size_t context_bytes)
     r.trigger_suspended = false;
     r.last_body[0] = '\0';
     r.repeat = 0;
+    r.compressed = 0;
 }
 
 size_t log_ring_redact(char *line, size_t len)
@@ -174,6 +176,100 @@ void log_ring_append(const char *line, size_t len, bool serious, char *folded,
     raw_append(line, len);
     if (line[len - 1] != '\n') raw_append("\n", 1);
     if (serious && !r.trigger_suspended) r.pending_serious = true;
+}
+
+/* Tags whose INFO output repeats every cycle and carries no diagnostic value.
+ * Kept deliberately short: the cycle heartbeat (render, config, OTA check) stays,
+ * because "GET /render -> 200, 88817 bytes" is exactly what tells a reader that
+ * the server answered while the panel still showed nothing. */
+static const char *const NOISE_TAGS[] = {
+    "esp-x509-crt-bundle:",
+    "Battery voltage:",
+};
+
+bool log_ring_is_noise(const char *line)
+{
+    const char *body = log_ring_message_of(line);
+    for (size_t i = 0; i < sizeof(NOISE_TAGS) / sizeof(NOISE_TAGS[0]); i++) {
+        const char *needle = NOISE_TAGS[i];
+        for (const char *p = body; *p != '\0'; p++) {
+            size_t k = 0;
+            while (needle[k] != '\0' && p[k] == needle[k]) k++;
+            if (needle[k] == '\0') return true;
+        }
+    }
+    return false;
+}
+
+/* Compare two lines by message, ignoring the timestamp and the trailing newline. */
+static bool same_message(const char *a, size_t alen, const char *b, size_t blen)
+{
+    const char *ma = log_ring_message_of(a);
+    const char *mb = log_ring_message_of(b);
+    size_t la = alen - (size_t)(ma - a);
+    size_t lb = blen - (size_t)(mb - b);
+    while (la > 0 && (ma[la - 1] == '\n' || ma[la - 1] == '\r')) la--;
+    while (lb > 0 && (mb[lb - 1] == '\n' || mb[lb - 1] == '\r')) lb--;
+    if (la != lb || la == 0) return false;
+    for (size_t i = 0; i < la; i++) {
+        if (ma[i] != mb[i]) return false;
+    }
+    return true;
+}
+
+size_t log_ring_compress(char *text, size_t len)
+{
+    if (!text || len == 0) return 0;
+
+    /* Two passes over the buffer, in place. Pass one counts how often each
+     * message occurs; pass two copies the first occurrence of each and drops the
+     * rest. Bounded by the payload, so no allocation and no second buffer. */
+    size_t out = 0;
+    size_t start = 0;
+    while (start < len) {
+        size_t end = start;
+        while (end < len && text[end] != '\n') end++;
+        const size_t line_len = end < len ? end - start + 1 : end - start;
+
+        /* Already emitted? Then this is a repeat: count it and skip. */
+        bool seen = false;
+        size_t scan = 0;
+        while (scan < out) {
+            size_t scan_end = scan;
+            while (scan_end < out && text[scan_end] != '\n') scan_end++;
+            const size_t prev_len = scan_end < out ? scan_end - scan + 1 : scan_end - scan;
+            if (same_message(text + scan, prev_len, text + start, line_len)) {
+                seen = true;
+                break;
+            }
+            scan = scan_end + 1;
+        }
+
+        if (!seen) {
+            if (out != start) {
+                for (size_t i = 0; i < line_len; i++) text[out + i] = text[start + i];
+            }
+            out += line_len;
+        } else {
+            /* Count the repeat against the line already emitted. The counter is
+             * appended after the whole pass, so the loop stays a single sweep. */
+            r.compressed++;
+        }
+        start = end + 1;
+    }
+
+    if (r.compressed > 0) {
+        char note[56];
+        const int n = snprintf(note, sizeof(note), "    (%u repeated line(s) collapsed)\n",
+                               (unsigned)r.compressed);
+        if (n > 0 && out + (size_t)n < len) {
+            for (int i = 0; i < n; i++) text[out + i] = note[i];
+            out += (size_t)n;
+        }
+        r.compressed = 0;
+    }
+    text[out] = '\0';
+    return out;
 }
 
 bool log_ring_should_upload(void)

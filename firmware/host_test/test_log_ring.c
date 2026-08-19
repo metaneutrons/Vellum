@@ -216,6 +216,74 @@ static void test_a_hex_run_at_the_end_of_a_line_is_redacted(void)
     TEST_ASSERT_TRUE(strstr(line, "token=********") != NULL);
 }
 
+/* Measured on a real uploaded batch: 4 KB of diagnostics from a D1001 consisted
+ * mostly of a TLS bundle confirmation and a battery reading, once per cycle. */
+static void test_routine_chatter_is_recognised_as_noise(void)
+{
+    TEST_ASSERT_TRUE(log_ring_is_noise("I (10) esp-x509-crt-bundle: Certificate validated"));
+    TEST_ASSERT_TRUE(log_ring_is_noise("I (10) d1001_board: Battery voltage: 4108 mV"));
+    /* The cycle heartbeat stays: "the server answered 200 with 88817 bytes" is
+     * exactly what a reader needs when the panel showed nothing. */
+    TEST_ASSERT_FALSE(log_ring_is_noise("I (10) http_cli: GET /render 200, 88817 bytes"));
+    TEST_ASSERT_FALSE(log_ring_is_noise("W (10) panel: No memory for the decode buffer"));
+}
+
+/* The case real data exposed: a failure repeating every cycle, separated by
+ * routine lines, which recording-time folding never collapsed because it only
+ * looked at the immediately preceding line. */
+static void test_non_consecutive_repeats_collapse_in_a_payload(void)
+{
+    char payload[512];
+    const char *src =
+        "I (10) main: Requesting render\n"
+        "W (11) http: POST /logs 404\n"
+        "I (70) main: Requesting render\n"
+        "W (71) http: POST /logs 404\n"
+        "I (130) main: Requesting render\n"
+        "W (131) http: POST /logs 404\n";
+    size_t len = strlen(src);
+    memcpy(payload, src, len + 1);
+
+    const size_t out = log_ring_compress(payload, len);
+    TEST_ASSERT_TRUE(out < len);
+    /* Each distinct message survives exactly once, in first-occurrence order. */
+    TEST_ASSERT_TRUE(strstr(payload, "Requesting render") != NULL);
+    TEST_ASSERT_TRUE(strstr(payload, "POST /logs 404") != NULL);
+    TEST_ASSERT_TRUE(strstr(payload, "collapsed") != NULL);
+    const char *first = strstr(payload, "Requesting render");
+    TEST_ASSERT_TRUE(strstr(first + 1, "Requesting render") == NULL);
+}
+
+static void test_compression_keeps_a_payload_without_repeats_intact(void)
+{
+    char payload[256];
+    const char *src = "I (10) a: one\nW (20) b: two\nE (30) c: three\n";
+    size_t len = strlen(src);
+    memcpy(payload, src, len + 1);
+    TEST_ASSERT_EQUAL_INT((int)len, (int)log_ring_compress(payload, len));
+    TEST_ASSERT_TRUE(strstr(payload, "collapsed") == NULL);
+}
+
+/* The bug this pins: the payload is shorter than the span consumed from the ring,
+ * so acknowledging the payload length would leave the collapsed bytes unsent and
+ * offer them again forever. The caller must confirm the RAW span. */
+static void test_confirming_the_raw_span_clears_the_ring(void)
+{
+    reset_ring(4096);
+    put("W (10) panel: failure\n", true);
+    put("I (20) main: other\n", false);
+    put("W (30) panel: failure\n", true);
+
+    char payload[STORAGE * 2];
+    const size_t raw = log_ring_peek_unsent(payload, sizeof(payload));
+    const size_t sent = log_ring_compress(payload, raw);
+    TEST_ASSERT_TRUE(sent < raw);
+
+    log_ring_confirm(raw);
+    TEST_ASSERT_EQUAL_INT(0, (int)log_ring_unsent_bytes());
+    TEST_ASSERT_FALSE(log_ring_should_upload());
+}
+
 void run_log_ring_tests(void)
 {
     RUN_TEST(test_routine_lines_do_not_arm_an_upload);
@@ -233,4 +301,8 @@ void run_log_ring_tests(void)
     RUN_TEST(test_a_hex_run_at_the_end_of_a_line_is_redacted);
     RUN_TEST(test_diagnostic_values_survive_redaction);
     RUN_TEST(test_level_is_found_behind_a_colour_escape);
+    RUN_TEST(test_routine_chatter_is_recognised_as_noise);
+    RUN_TEST(test_non_consecutive_repeats_collapse_in_a_payload);
+    RUN_TEST(test_compression_keeps_a_payload_without_repeats_intact);
+    RUN_TEST(test_confirming_the_raw_span_clears_the_ring);
 }

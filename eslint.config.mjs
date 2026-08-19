@@ -2,7 +2,22 @@ import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
-  { ignores: [".next/", "node_modules/", "drizzle/", "firmware/", "public/"] },
+  /* ".claude/" and ".codacy/" hold agent and quality-gate tooling, not project
+     source: the Verity setup drops a pattern validator and its own ESLint config
+     there, and linting them under this repo's rules fails on a plugin they do not
+     use and on console output that is their entire purpose. */
+  {
+    ignores: [
+      ".next/",
+      "node_modules/",
+      "drizzle/",
+      "firmware/",
+      "public/",
+      ".claude/",
+      ".codacy/",
+      ".verity/",
+    ],
+  },
   ...tseslint.configs.strict,
   {
     plugins: { "react-hooks": reactHooks },
