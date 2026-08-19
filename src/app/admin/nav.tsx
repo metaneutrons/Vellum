@@ -19,6 +19,7 @@ import {
   LogOut,
   Menu,
   X,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -31,6 +32,7 @@ const links: {
     | "devices"
     | "content"
     | "providers"
+    | "sites"
     | "themes"
     | "profiles"
     | "firmware"
@@ -42,6 +44,7 @@ const links: {
   { href: "/admin/devices", key: "devices", Icon: MonitorSmartphone },
   { href: "/admin/content", key: "content", Icon: FileText },
   { href: "/admin/providers", key: "providers", Icon: Plug },
+  { href: "/admin/sites", key: "sites", Icon: MapPin },
   { href: "/admin/themes", key: "themes", Icon: Palette },
   { href: "/admin/profiles", key: "profiles", Icon: Timer },
   { href: "/admin/firmware", key: "firmware", Icon: Cpu },

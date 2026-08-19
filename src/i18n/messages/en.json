@@ -6,6 +6,7 @@
     "devices": "Devices",
     "content": "Content",
     "providers": "Data Providers",
+    "sites": "Sites",
     "themes": "Themes",
     "profiles": "Refresh Profiles",
     "firmware": "Firmware",
@@ -197,6 +198,24 @@
       "startVerbose": "Report everything",
       "stopVerbose": "Back to warnings only",
       "verboseActive": "This display is reporting every line. Turn it off when you are done."
+    },
+    "site": {
+      "title": "Site and effective settings",
+      "assigned": "Site",
+      "none": "No site",
+      "hint": "A display without a site uses the workspace defaults and the server clock.",
+      "serverClock": "server clock",
+      "notSet": "not set",
+      "timezone": "Timezone",
+      "profile": "Profile",
+      "theme": "Theme",
+      "content": "Content",
+      "from": {
+        "builtin": "workspace default",
+        "site": "from the site",
+        "profile": "from the profile",
+        "device": "set on this display"
+      }
     }
   },
   "content": {
@@ -846,5 +865,30 @@
     "placeholder": "e.g. ntp.internal.example",
     "tooLong": "Must be at most {max} bytes.",
     "profileTooLarge": "Profile is too large for one USB frame ({current}/{max} bytes) — shorten the URL or NTP server."
+  },
+  "sites": {
+    "title": "Sites",
+    "hint": "A site carries a timezone and defaults for the displays in it.",
+    "add": "New site",
+    "edit": "Edit site",
+    "empty": "No sites yet.",
+    "name": "Name",
+    "namePlaceholder": "Hanover office",
+    "timezone": "Timezone",
+    "timezoneHint": "IANA name. Schedule rules are evaluated in this zone.",
+    "defaultsHint": "Defaults for displays in this site. A display can override any of them.",
+    "profile": "Profile",
+    "theme": "Theme",
+    "content": "Content",
+    "notSet": "Not set",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saved": "Site saved",
+    "saveFailed": "Could not save site",
+    "delete": "Delete",
+    "deleted": "Site deleted",
+    "deleteFailed": "Could not delete site",
+    "deleteTitle": "Delete site?",
+    "deleteMessage": "{name} is removed. Its displays stay, lose their site and fall back to the workspace defaults and the server clock."
   }
 }

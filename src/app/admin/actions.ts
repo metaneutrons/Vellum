@@ -4,10 +4,13 @@
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { isUsableTimezone } from "@/lib/settings/device-settings";
 import { db, withDbRead } from "@/db";
 import { safeFetch } from "@/lib/safe-fetch";
 import {
   devices,
+  sites,
   themes,
   dataProviders,
   contentInstances,
@@ -906,6 +909,130 @@ export async function getAllRefreshProfiles() {
     () => db.select().from(refreshProfiles).orderBy(refreshProfiles.name),
     "get-all-refresh-profiles"
   );
+}
+
+/* ── Sites ─────────────────────────────────────────────────────────
+ * A site is a physical location: a timezone plus defaults for the displays in
+ * it. Guarded by profiles.manage rather than a new permission, because it is the
+ * same class of decision as designing a profile, and inventing a permission
+ * nobody has assigned yet would lock every existing operator out of the feature.
+ * ─────────────────────────────────────────────────────────────── */
+
+const siteInputSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  timezone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isUsableTimezone, { message: "unknown timezone" }),
+  refreshProfileId: z.string().uuid().nullish(),
+  themeId: z.string().uuid().nullish(),
+  contentInstanceId: z.string().uuid().nullish(),
+});
+
+export async function getAllSites() {
+  await requireAdmin("devices.read");
+  return withDbRead(() => db.select().from(sites).orderBy(sites.name), "list-sites");
+}
+
+export async function createSite(input: unknown) {
+  const actor = await requireAdmin("profiles.manage");
+  const data = siteInputSchema.parse(input);
+  await withAuditedTransaction(
+    actor,
+    (created: { id: string }[]) => ({
+      action: "site.create",
+      targetType: "site",
+      targetId: created[0].id,
+      metadata: { name: data.name, timezone: data.timezone },
+    }),
+    (tx) =>
+      tx
+        .insert(sites)
+        .values({
+          name: data.name,
+          timezone: data.timezone,
+          refreshProfileId: data.refreshProfileId ?? null,
+          themeId: data.themeId ?? null,
+          contentInstanceId: data.contentInstanceId ?? null,
+        })
+        .returning({ id: sites.id }),
+    "create-site"
+  );
+  revalidatePath("/admin/sites");
+  revalidatePath("/admin/devices");
+}
+
+export async function updateSite(id: string, input: unknown) {
+  const actor = await requireAdmin("profiles.manage");
+  const data = siteInputSchema.parse(input);
+  await withAuditedTransaction(
+    actor,
+    {
+      action: "site.update",
+      targetType: "site",
+      targetId: id,
+      metadata: { name: data.name, timezone: data.timezone },
+    },
+    (tx) =>
+      tx
+        .update(sites)
+        .set({
+          name: data.name,
+          timezone: data.timezone,
+          refreshProfileId: data.refreshProfileId ?? null,
+          themeId: data.themeId ?? null,
+          contentInstanceId: data.contentInstanceId ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(sites.id, id)),
+    "update-site"
+  );
+  revalidatePath("/admin/sites");
+  revalidatePath("/admin/devices");
+}
+
+/**
+ * Deleting a site does not delete its displays.
+ *
+ * `devices.site_id` is ON DELETE SET NULL, so they become siteless and fall back
+ * to the workspace defaults and the server clock. That is a visible change in
+ * behaviour rather than a silent one, which is why the UI names the count.
+ */
+export async function deleteSite(id: string) {
+  const actor = await requireAdmin("profiles.manage");
+  await withAuditedTransaction(
+    actor,
+    { action: "site.delete", targetType: "site", targetId: id, metadata: {} },
+    (tx) => tx.delete(sites).where(eq(sites.id, id)),
+    "delete-site"
+  );
+  revalidatePath("/admin/sites");
+  revalidatePath("/admin/devices");
+}
+
+/** Assign a display to a site, or to none. */
+export async function setDeviceSite(macInput: string, siteId: string | null) {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(macInput);
+  const target = siteId ? z.string().uuid().parse(siteId) : null;
+  await withAuditedTransaction(
+    actor,
+    {
+      action: "device.site.assign",
+      targetType: "device",
+      targetId: mac,
+      metadata: { siteId: target },
+    },
+    async (tx) => {
+      await tx.update(devices).set({ siteId: target }).where(eq(devices.mac, mac));
+      return { id: mac };
+    },
+    "set-device-site"
+  );
+  revalidatePath(`/admin/devices/${mac}`);
+  revalidatePath("/admin/devices");
 }
 
 export async function createRefreshProfile(name: string, config: Record<string, unknown>) {

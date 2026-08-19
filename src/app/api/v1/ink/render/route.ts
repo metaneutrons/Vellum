@@ -10,6 +10,7 @@ import { validateToken } from "@/lib/auth";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { canvasToPixelBuffer } from "@/lib/render";
 import { computeSleep, parseRefreshProfile, applyJitter, type RefreshProfile } from "@/lib/sleep";
+import { settingsForDevice } from "@/lib/settings/for-device";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { resolveDisplayCaps, mergeReportedCaps } from "@/lib/display";
@@ -120,9 +121,12 @@ export async function GET(request: NextRequest) {
    * firmware and hardware that cannot determine the source fall back
    * conservatively to battery behavior for refresh scheduling. */
   const powerSource = telemetryData?.powerSource === "usb" ? "usb" : "battery";
-  const profile = await resolveRefreshProfile(device.refreshProfileId);
+  /* Site then device, before any of the three fallbacks below. A display without a
+   * site resolves exactly as it did before this layer existed. */
+  const settings = await settingsForDevice(device);
+  const profile = await resolveRefreshProfile(settings.values.refreshProfileId);
 
-  if (!device.contentInstanceId) {
+  if (!settings.values.contentInstanceId) {
     /* Enrolled, healthy, nothing assigned yet — the commissioning state. This used
      * to return bare, so the device fell back to its 900s firmware default and an
      * operator assigning content could wait a quarter of an hour to see it. The
@@ -133,6 +137,9 @@ export async function GET(request: NextRequest) {
       nextEventStart: null,
       now: new Date(),
       profile,
+      /* Schedule rules are evaluated in the display's own zone, not the
+       * server's. Null keeps the previous server-clock behaviour. */
+      timezone: settings.values.timezone ?? undefined,
       hasContent: false,
     });
     await recordExpectedInterval(validation.data.mac, device.expectedIntervalS, idle.durationS);
@@ -150,7 +157,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Load content instance
-  const contentInstanceId = device.contentInstanceId;
+  const contentInstanceId = settings.values.contentInstanceId;
   const [instance] = await withDbRead(
     () =>
       db.select().from(contentInstances).where(eq(contentInstances.id, contentInstanceId)).limit(1),
@@ -199,8 +206,8 @@ export async function GET(request: NextRequest) {
 
   // Resolve theme: device-specific → DB default → hardcoded fallback
   let theme: Theme = resolveTheme(display.colorCount);
-  if (device.themeId) {
-    const themeId = device.themeId;
+  if (settings.values.themeId) {
+    const themeId = settings.values.themeId;
     const [dbTheme] = await withDbRead(
       () => db.select().from(themes).where(eq(themes.id, themeId)).limit(1),
       "render-get-device-theme"
@@ -262,6 +269,7 @@ export async function GET(request: NextRequest) {
     nextEventStart: null,
     now,
     profile,
+    timezone: settings.values.timezone ?? undefined,
     rendererOverrideS: renderResult.sleepOverrideS ?? null,
   });
 
