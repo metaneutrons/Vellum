@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveDisplayCaps, mergeReportedCaps } from "../display";
+import { resolveDisplayCaps, mergeReportedCaps, parseDisplayCapsHeader } from "../display";
 
 const portraitPanel = {
   model: "d1001",
@@ -84,5 +84,90 @@ describe("reported surface on every authenticated poll", () => {
   it("never lets a device overrule the operator's chosen mounting", () => {
     const { caps } = mergeReportedCaps(stored, "1280x800;landscape;landscape,portrait");
     expect(resolveDisplayCaps(caps, "portrait").orientation).toBe("portrait");
+  });
+});
+
+describe("backlight capability in the header", () => {
+  it("reads the flag when firmware reports one", () => {
+    const r = parseDisplayCapsHeader("1280x800;landscape;landscape,portrait;backlight");
+    expect(r?.backlight).toBe(true);
+  });
+
+  /* Firmware predating the flag sends three fields. Absent must mean "no
+   * control", not "unknown, offer it anyway": a slider that moves nothing is
+   * worse than no slider. */
+  it("treats an absent fourth field as no backlight", () => {
+    expect(parseDisplayCapsHeader("800x480;landscape;landscape")?.backlight).toBe(false);
+    expect(parseDisplayCapsHeader("1280x800;landscape;landscape,portrait;")?.backlight).toBe(false);
+  });
+
+  it("ignores flags it does not know", () => {
+    const r = parseDisplayCapsHeader("1280x800;landscape;landscape;speaker,backlight,tilt");
+    expect(r?.backlight).toBe(true);
+    expect(r?.orientations).toEqual(["landscape"]);
+  });
+
+  it("carries the flag into the stored capabilities", () => {
+    const stored = {
+      model: "d1001",
+      width: 800,
+      height: 1280,
+      orientation: "portrait",
+      orientations: ["landscape", "portrait"],
+      palette: [
+        [0, 0, 0],
+        [255, 255, 255],
+      ],
+      format: "jpeg",
+      colorMode: "fullcolor",
+    };
+    const { caps, changed } = mergeReportedCaps(
+      stored,
+      "1280x800;landscape;landscape,portrait;backlight"
+    );
+    expect(changed).toBe(true);
+    expect((caps as { backlight?: boolean }).backlight).toBe(true);
+  });
+
+  /* The regression this pins: writing the flag unconditionally made every device
+   * on firmware without it look changed on every poll, one needless database
+   * write per cycle per display. */
+  it("does not invent a change for firmware that never mentions the flag", () => {
+    const stored = {
+      model: "e1002",
+      width: 800,
+      height: 480,
+      orientation: "landscape",
+      orientations: ["landscape"],
+      palette: [
+        [0, 0, 0],
+        [255, 255, 255],
+      ],
+      format: "raw",
+      colorMode: "indexed",
+    };
+    const { caps, changed } = mergeReportedCaps(stored, "800x480;landscape;landscape");
+    expect(changed).toBe(false);
+    expect("backlight" in (caps as Record<string, unknown>)).toBe(false);
+  });
+
+  it("observes a downgrade once the row already carries the flag", () => {
+    const stored = {
+      model: "d1001",
+      width: 1280,
+      height: 800,
+      orientation: "landscape",
+      orientations: ["landscape", "portrait"],
+      backlight: true,
+      palette: [
+        [0, 0, 0],
+        [255, 255, 255],
+      ],
+      format: "jpeg",
+      colorMode: "fullcolor",
+    };
+    const { caps, changed } = mergeReportedCaps(stored, "1280x800;landscape;landscape,portrait");
+    expect(changed).toBe(true);
+    expect((caps as { backlight?: boolean }).backlight).toBe(false);
   });
 });

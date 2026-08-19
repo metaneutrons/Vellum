@@ -216,6 +216,13 @@
         "profile": "du profil",
         "device": "défini sur cet écran"
       }
+    },
+    "backlight": {
+      "label": "Luminosité",
+      "override": "Définir pour cet écran",
+      "followProfile": "Suivre le profil",
+      "fromProfile": "Suit le profil : résolu depuis l'horaire et la source d'alimentation.",
+      "overridden": "Défini pour cet écran, l'horaire du profil ne s'applique plus ici."
     }
   },
   "content": {

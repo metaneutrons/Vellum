@@ -13,6 +13,7 @@ import {
   updateDevice,
   setDeviceLogVerbose,
   setDeviceSite,
+  setDeviceBacklight,
 } from "../../actions";
 import { useToast } from "@/components/toast";
 import { deviceConnectivity } from "@/lib/connectivity";
@@ -30,6 +31,7 @@ interface Device {
   expectedIntervalS: number | null;
   logVerbose: boolean;
   siteId: string | null;
+  backlightPercent: number | null;
   createdAt: Date;
 }
 
@@ -196,6 +198,18 @@ export function DeviceDetail({
       try {
         await updateDevice(device.mac, data);
         toast("success", "Device updated");
+      } catch {
+        toast("error", "Update failed");
+      }
+    });
+  }
+
+  function applyBacklight(value: number | null) {
+    startTransition(async () => {
+      try {
+        await setDeviceBacklight(device.mac, value);
+        toast("success", "Device updated");
+        router.refresh();
       } catch {
         toast("error", "Update failed");
       }
@@ -711,6 +725,48 @@ export function DeviceDetail({
             );
           })}
         </dl>
+
+        {/* Only where the panel says it has one. An e-paper display would show a
+            slider that moves nothing, and the server refuses the value anyway. */}
+        {(device.displayCaps as { backlight?: boolean } | null)?.backlight && (
+          <div className="mt-4 border-t border-separator pt-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                {t("backlight.label")}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  disabled={!canProvision || pending || device.backlightPercent === null}
+                  value={device.backlightPercent ?? 80}
+                  onChange={(e) => applyBacklight(Number(e.target.value))}
+                  className="w-40"
+                />
+                <span className="w-12 font-mono text-sm text-label">
+                  {device.backlightPercent === null ? "—" : `${device.backlightPercent}%`}
+                </span>
+              </label>
+              {canProvision && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => applyBacklight(device.backlightPercent === null ? 80 : null)}
+                  className="focus-ring rounded border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                >
+                  {device.backlightPercent === null
+                    ? t("backlight.override")
+                    : t("backlight.followProfile")}
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              {device.backlightPercent === null
+                ? t("backlight.fromProfile")
+                : t("backlight.overridden")}
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Diagnostics. Uploads are event-driven, so an empty card means a healthy

@@ -216,6 +216,13 @@
         "profile": "vom Profil",
         "device": "an diesem Display gesetzt"
       }
+    },
+    "backlight": {
+      "label": "Helligkeit",
+      "override": "Für dieses Display setzen",
+      "followProfile": "Dem Profil folgen",
+      "fromProfile": "Folgt dem Profil: aufgelöst aus Zeitplan und Stromquelle.",
+      "overridden": "Für dieses Display gesetzt, der Zeitplan des Profils greift hier nicht mehr."
     }
   },
   "content": {

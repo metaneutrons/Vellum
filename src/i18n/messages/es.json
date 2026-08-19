@@ -216,6 +216,13 @@
         "profile": "del perfil",
         "device": "definido en esta pantalla"
       }
+    },
+    "backlight": {
+      "label": "Brillo",
+      "override": "Definir para esta pantalla",
+      "followProfile": "Seguir el perfil",
+      "fromProfile": "Sigue el perfil: resuelto a partir del horario y la fuente de alimentación.",
+      "overridden": "Definido para esta pantalla, el horario del perfil ya no se aplica aquí."
     }
   },
   "content": {

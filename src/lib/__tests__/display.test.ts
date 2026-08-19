@@ -12,6 +12,7 @@ describe("parseDisplayCapsHeader", () => {
       height: 800,
       orientation: "landscape",
       orientations: ["landscape"],
+      backlight: false,
     });
   });
 
@@ -21,6 +22,7 @@ describe("parseDisplayCapsHeader", () => {
       height: 1280,
       orientation: "portrait",
       orientations: ["portrait", "landscape"],
+      backlight: false,
     });
   });
 

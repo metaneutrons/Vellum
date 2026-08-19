@@ -67,6 +67,10 @@ typedef struct {
     const char *const *orientations;
     uint8_t         orientation_count;
     const char     *orientation;
+    /** Panel has a dimmable backlight. No e-paper panel has one. */
+    bool            has_backlight;
+    /** Apply a brightness, 0-100. NULL when the panel has no backlight. */
+    esp_err_t     (*set_backlight)(int percent);
     bool            fast_refresh;     /**< false => slow e-paper hides transient screens */
     bool            retains_image;    /**< pixels survive MCU reset/deep sleep without redraw */
     bool            needs_tick_timer; /**< true => shared layer drives the LVGL tick */

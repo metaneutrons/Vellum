@@ -132,6 +132,15 @@ static bool s_mounted_portrait;
  * "Image rejected" until the next reboot, with no log line naming the cause.
  */
 static uint8_t *s_rgb_buf;
+
+/*
+ * The brightness the server asked for, remembered.
+ *
+ * d1001_backlight_on() sets a hardcoded 80 percent, so without a remembered
+ * target every wake and every render would undo whatever an operator configured.
+ * Initialised to that same 80 so behaviour is unchanged until a value arrives.
+ */
+static int s_backlight_target = 80;
 static vellum_panel_t s_panel; /* initialised below; lcd_init() fills the geometry */
 
 static bool mounting_is_portrait(void)
@@ -241,7 +250,7 @@ static lv_display_t *lcd_init(void)
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    d1001_backlight_on();
+    d1001_backlight_set(s_backlight_target);
     ESP_LOGI(TAG, "LCD initialized: %dx%d, %d MHz triple-partial rotation",
              LCD_WIDTH, LCD_HEIGHT, D1001_LCD_DPI_CLOCK_MHZ);
     return s_disp;
@@ -304,7 +313,15 @@ static esp_err_t lcd_draw_raw(const uint8_t *data, size_t len)
 }
 
 static void lcd_off(void) { d1001_backlight_off(); }
-static void lcd_wake(void) { d1001_backlight_on(); }
+static void lcd_wake(void) { d1001_backlight_set(s_backlight_target); }
+
+static esp_err_t lcd_set_backlight(int percent)
+{
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+    s_backlight_target = percent;
+    return d1001_backlight_set(percent);
+}
 
 /* ── Panel descriptor ─────────────────────────────────────────── */
 
@@ -316,6 +333,7 @@ extern const lv_font_t vellum_font_montserrat_16;
 static vellum_panel_t s_panel = {
     .init = lcd_init,
     .refresh = lcd_refresh,
+    .set_backlight = lcd_set_backlight,
     .draw_raw = lcd_draw_raw,
     .update_ota_progress = lcd_update_ota_progress,
     .sleep = lcd_off,
@@ -341,6 +359,7 @@ static vellum_panel_t s_panel = {
     /* Both mountings are real on this panel now: the adapter rotates for
      * landscape and uses the native scan order for portrait. */
     .orientations = (const char *const[]){ "landscape", "portrait" },
+    .has_backlight = true,
     .orientation_count = 2,
     .orientation = "landscape",
     .fast_refresh = true,
