@@ -11,12 +11,28 @@ import {
   requestHasPermission,
   withAuditedTransaction,
 } from "@/lib/access";
-import { hasTrustedMutationOrigin } from "@/lib/request-origin";
+import { checkMutationOrigin } from "@/lib/request-origin";
+import { log } from "@/lib/logger";
 import { env } from "@/lib/env";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/svg+xml", "image/jpeg"];
 const DEFAULT_LIMIT = 50;
+
+/* One place for both handlers here, so a future third cannot forget the log. */
+function originAccepted(request: Request, publicUrl: string | undefined, allowMissing: boolean) {
+  const verdict = checkMutationOrigin(request, publicUrl, allowMissing);
+  if (!verdict.ok) {
+    log.warn("Refused mutation on origin", {
+      route: "assets",
+      reason: verdict.reason,
+      expected: verdict.expected,
+      received: verdict.received,
+      derivedFromHost: verdict.derivedFromHost,
+    });
+  }
+  return verdict.ok;
+}
 
 export async function GET(request: NextRequest) {
   if (!(await requestHasPermission(request, "content.read")))
@@ -52,7 +68,7 @@ export async function POST(request: Request) {
   const principal = await getRequestPrincipal(request);
   if (!principal || !hasPermission(principal, "content.manage"))
     return Response.json({ error: "Forbidden" }, { status: 403 });
-  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user"))
+  if (!originAccepted(request, env.VELLUM_PUBLIC_URL, principal.type !== "user"))
     return Response.json({ error: "Invalid origin" }, { status: 403 });
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
@@ -120,7 +136,7 @@ export async function DELETE(request: Request) {
   const principal = await getRequestPrincipal(request);
   if (!principal || !hasPermission(principal, "content.manage"))
     return Response.json({ error: "Forbidden" }, { status: 403 });
-  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user"))
+  if (!originAccepted(request, env.VELLUM_PUBLIC_URL, principal.type !== "user"))
     return Response.json({ error: "Invalid origin" }, { status: 403 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");

@@ -71,13 +71,23 @@ socket`" does NOT apply to Vellum.
   truth): `DATABASE_URL`, `ENCRYPTION_KEY`, `SESSION_SECRET`, `ADMIN_API_KEY`
   (all **min 32 chars**), `ADMIN_USER`, `ADMIN_PASS` (min 8), `NODE_ENV`,
   `LOG_LEVEL`; optional `ENTRA_TENANT_ID` / `ENTRA_CLIENT_ID` /
-  `ENTRA_CLIENT_SECRET` + `VELLUM_PUBLIC_URL` (Entra OIDC), `UPDATER_URL` /
-  `UPDATER_TOKEN` (update sidecar), `TRUST_PROXY_HEADERS` (**set `false` on a
+  `ENTRA_CLIENT_SECRET`, `UPDATER_URL` / `UPDATER_TOKEN` (update sidecar), `TRUST_PROXY_HEADERS` (**set `false` on a
   directly-exposed instance** or `X-Forwarded-For` can be spoofed to bypass rate
   limits — `src/lib/rate-limit.ts`; it is missing from both env templates).
   Validated at boot in `src/lib/env.ts` / `src/lib/session.ts`; a failure
-  `process.exit(1)`s. Workspace convention: real secrets live in `~/.env_vars`,
-  never in-repo.
+  `process.exit(1)`s.
+- **`VELLUM_PUBLIC_URL` is optional but load-bearing in three places**, and it is
+  NOT only about Entra OIDC: it is the canonical origin the admin mutation
+  endpoints compare `Origin` against (`src/lib/request-origin.ts`), and it decides
+  whether OTA downloads are proxied by Vellum or fall back to raw GitHub. An unset
+  value used to make every admin mutation answer a bare `403` behind a
+  TLS-terminating proxy, because the fallback compared the browser's `https`
+  origin against the internal `http` request URL — observed live on
+  `anny-display.it.hs-hannover.de`. The fallback now compares HOST only (from
+  `X-Forwarded-Host`/`Host`), the refusal is logged with expected vs received,
+  and boot warns when it is unset in production. Setting it remains the strong
+  configuration, since only then is the scheme checked too.
+- Workspace convention: real secrets live in `~/.env_vars`, never in-repo.
 
 ## Schema ↔ migration parity (invariant)
 
