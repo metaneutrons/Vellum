@@ -6,8 +6,14 @@ import Link from "next/link";
 import { db, withDbRead } from "@/db";
 import { deviceConfigurationCommands, deviceLogs, devices, telemetry, reports } from "@/db/schema";
 import { DeviceDetail } from "./detail";
-import { getAllThemes, getAllContentInstances, getAllRefreshProfiles } from "../../actions";
+import {
+  getAllThemes,
+  getAllContentInstances,
+  getAllRefreshProfiles,
+  getAllSites,
+} from "../../actions";
 import { getCurrentPrincipal, hasPermission } from "@/lib/access";
+import { explainDeviceSettings } from "@/lib/settings/for-device";
 
 export default async function DeviceDetailPage({ params }: { params: Promise<{ mac: string }> }) {
   const { mac } = await params;
@@ -25,6 +31,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
     themeList,
     contentList,
     profileList,
+    siteList,
     configCommands,
     logBatches,
   ] = await Promise.all([
@@ -51,6 +58,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
     getAllThemes(),
     getAllContentInstances(),
     getAllRefreshProfiles(),
+    getAllSites(),
     withDbRead(
       () =>
         db
@@ -75,6 +83,10 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
     ),
   ]);
 
+  /* Resolved with the workspace defaults included, so the page can name where
+     each value comes from instead of leaving an operator to infer it. */
+  const effective = await explainDeviceSettings(device);
+
   return (
     <div>
       <Link
@@ -90,6 +102,8 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
         themes={themeList}
         contentInstances={contentList}
         refreshProfiles={profileList}
+        sites={siteList}
+        effective={effective}
         logBatches={logBatches}
         configurationCommands={configCommands.map((command) => ({
           ...command,

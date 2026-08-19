@@ -6,6 +6,7 @@
     "devices": "Appareils",
     "content": "Contenus",
     "providers": "Sources de données",
+    "sites": "Sites",
     "themes": "Thèmes",
     "profiles": "Profils de rafraîchissement",
     "firmware": "Firmware",
@@ -197,6 +198,24 @@
       "startVerbose": "Tout signaler",
       "stopVerbose": "Avertissements seulement",
       "verboseActive": "Cet écran signale chaque ligne. Désactivez-le quand vous avez fini."
+    },
+    "site": {
+      "title": "Site et réglages effectifs",
+      "assigned": "Site",
+      "none": "Aucun site",
+      "hint": "Un écran sans site utilise les valeurs de l'espace de travail et l'horloge du serveur.",
+      "serverClock": "horloge du serveur",
+      "notSet": "non défini",
+      "timezone": "Fuseau horaire",
+      "profile": "Profil",
+      "theme": "Thème",
+      "content": "Contenu",
+      "from": {
+        "builtin": "valeur de l'espace de travail",
+        "site": "du site",
+        "profile": "du profil",
+        "device": "défini sur cet écran"
+      }
     }
   },
   "content": {
@@ -846,5 +865,30 @@
     "placeholder": "ex. ntp.interne.example",
     "tooLong": "Doit contenir au plus {max} octets.",
     "profileTooLarge": "Le profil est trop volumineux pour une trame USB ({current}/{max} octets) ; raccourcissez l’URL ou le serveur NTP."
+  },
+  "sites": {
+    "title": "Sites",
+    "hint": "Un site porte un fuseau horaire et des valeurs par défaut pour ses écrans.",
+    "add": "Nouveau site",
+    "edit": "Modifier le site",
+    "empty": "Aucun site pour le moment.",
+    "name": "Nom",
+    "namePlaceholder": "Bureau de Hanovre",
+    "timezone": "Fuseau horaire",
+    "timezoneHint": "Nom IANA. Les règles horaires sont évaluées dans ce fuseau.",
+    "defaultsHint": "Valeurs par défaut pour les écrans de ce site. Chaque écran peut les remplacer.",
+    "profile": "Profil",
+    "theme": "Thème",
+    "content": "Contenu",
+    "notSet": "Non défini",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "saved": "Site enregistré",
+    "saveFailed": "Impossible d'enregistrer le site",
+    "delete": "Supprimer",
+    "deleted": "Site supprimé",
+    "deleteFailed": "Impossible de supprimer le site",
+    "deleteTitle": "Supprimer le site ?",
+    "deleteMessage": "{name} est supprimé. Ses écrans restent, perdent leur site et reviennent aux valeurs de l'espace de travail et à l'horloge du serveur."
   }
 }

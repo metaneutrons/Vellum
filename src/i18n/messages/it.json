@@ -6,6 +6,7 @@
     "devices": "Dispositivi",
     "content": "Contenuti",
     "providers": "Fonti dati",
+    "sites": "Sedi",
     "themes": "Temi",
     "profiles": "Profili di aggiornamento",
     "firmware": "Firmware",
@@ -197,6 +198,24 @@
       "startVerbose": "Segnala tutto",
       "stopVerbose": "Solo avvisi",
       "verboseActive": "Questo display segnala ogni riga. Disattivalo quando hai finito."
+    },
+    "site": {
+      "title": "Sede e impostazioni effettive",
+      "assigned": "Sede",
+      "none": "Nessuna sede",
+      "hint": "Un display senza sede usa i valori dell'area di lavoro e l'orologio del server.",
+      "serverClock": "orologio del server",
+      "notSet": "non impostato",
+      "timezone": "Fuso orario",
+      "profile": "Profilo",
+      "theme": "Tema",
+      "content": "Contenuto",
+      "from": {
+        "builtin": "valore dell'area di lavoro",
+        "site": "dalla sede",
+        "profile": "dal profilo",
+        "device": "impostato su questo display"
+      }
     }
   },
   "content": {
@@ -846,5 +865,30 @@
     "placeholder": "es. ntp.interno.example",
     "tooLong": "Deve contenere al massimo {max} byte.",
     "profileTooLarge": "Il profilo è troppo grande per un frame USB ({current}/{max} byte): accorcia l'URL o il server NTP."
+  },
+  "sites": {
+    "title": "Sedi",
+    "hint": "Una sede porta un fuso orario e valori predefiniti per i suoi display.",
+    "add": "Nuova sede",
+    "edit": "Modifica sede",
+    "empty": "Nessuna sede ancora.",
+    "name": "Nome",
+    "namePlaceholder": "Ufficio di Hannover",
+    "timezone": "Fuso orario",
+    "timezoneHint": "Nome IANA. Le regole orarie sono valutate in questo fuso.",
+    "defaultsHint": "Valori predefiniti per i display di questa sede. Ogni display può sostituirli.",
+    "profile": "Profilo",
+    "theme": "Tema",
+    "content": "Contenuto",
+    "notSet": "Non impostato",
+    "save": "Salva",
+    "cancel": "Annulla",
+    "saved": "Sede salvata",
+    "saveFailed": "Impossibile salvare la sede",
+    "delete": "Elimina",
+    "deleted": "Sede eliminata",
+    "deleteFailed": "Impossibile eliminare la sede",
+    "deleteTitle": "Eliminare la sede?",
+    "deleteMessage": "{name} viene rimossa. I display restano, perdono la sede e tornano ai valori dell'area di lavoro e all'orologio del server."
   }
 }

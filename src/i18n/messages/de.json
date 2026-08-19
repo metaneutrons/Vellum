@@ -6,6 +6,7 @@
     "devices": "Geräte",
     "content": "Inhalte",
     "providers": "Datenquellen",
+    "sites": "Standorte",
     "themes": "Designs",
     "profiles": "Aktualisierungsprofile",
     "firmware": "Firmware",
@@ -197,6 +198,24 @@
       "startVerbose": "Alles melden",
       "stopVerbose": "Nur noch Warnungen",
       "verboseActive": "Dieses Display meldet jede Zeile. Schalte es aus, wenn du fertig bist."
+    },
+    "site": {
+      "title": "Standort und wirksame Einstellungen",
+      "assigned": "Standort",
+      "none": "Kein Standort",
+      "hint": "Ein Display ohne Standort nutzt die Arbeitsbereich-Vorgaben und die Serveruhr.",
+      "serverClock": "Serveruhr",
+      "notSet": "nicht gesetzt",
+      "timezone": "Zeitzone",
+      "profile": "Profil",
+      "theme": "Theme",
+      "content": "Inhalt",
+      "from": {
+        "builtin": "Arbeitsbereich-Vorgabe",
+        "site": "vom Standort",
+        "profile": "vom Profil",
+        "device": "an diesem Display gesetzt"
+      }
     }
   },
   "content": {
@@ -846,5 +865,30 @@
     "placeholder": "z. B. ntp.intern.example",
     "tooLong": "Maximal {max} Bytes.",
     "profileTooLarge": "Das Profil ist für einen USB-Frame zu groß ({current}/{max} Bytes) — URL oder NTP-Server kürzen."
+  },
+  "sites": {
+    "title": "Standorte",
+    "hint": "Ein Standort trägt eine Zeitzone und Vorgaben für die Displays darin.",
+    "add": "Neuer Standort",
+    "edit": "Standort bearbeiten",
+    "empty": "Noch keine Standorte.",
+    "name": "Name",
+    "namePlaceholder": "Büro Hannover",
+    "timezone": "Zeitzone",
+    "timezoneHint": "IANA-Name. Zeitplanregeln werden in dieser Zone ausgewertet.",
+    "defaultsHint": "Vorgaben für Displays an diesem Standort. Jedes Display kann davon abweichen.",
+    "profile": "Profil",
+    "theme": "Theme",
+    "content": "Inhalt",
+    "notSet": "Nicht gesetzt",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "saved": "Standort gespeichert",
+    "saveFailed": "Standort konnte nicht gespeichert werden",
+    "delete": "Löschen",
+    "deleted": "Standort gelöscht",
+    "deleteFailed": "Standort konnte nicht gelöscht werden",
+    "deleteTitle": "Standort löschen?",
+    "deleteMessage": "{name} wird entfernt. Die Displays bleiben, verlieren ihren Standort und fallen auf die Arbeitsbereich-Vorgaben und die Serveruhr zurück."
   }
 }

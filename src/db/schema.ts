@@ -391,6 +391,48 @@ export const auditLogs = pgTable(
 
 /* ── Devices ──────────────────────────────────────────────────── */
 
+/* ── Sites ─────────────────────────────────────────────────────────
+ * A physical location, and the settings layer that belongs to it.
+ *
+ * Two things a site owns that nothing else can:
+ *
+ *  - the TIMEZONE. Schedule rules are meaningless without one, and the zone is a
+ *    property of where a display hangs, not of the policy applied to it. Until
+ *    now rules were judged by the server's clock, which was right only because
+ *    the container happens to run Europe/Berlin.
+ *  - DEFAULTS for the displays in it. Commissioning fifty displays in a new
+ *    office should not mean fifty times three pickers.
+ *
+ * A device belongs to at most one site and may belong to none: a display on a
+ * bench is not a location, and making the link optional is what lets this ship
+ * without a migration that has to invent a site for every existing device.
+ * ─────────────────────────────────────────────────────────────── */
+export const sites = pgTable(
+  "sites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    /** IANA zone, e.g. "Europe/Berlin". Validated in code against Intl. */
+    timezone: text("timezone").notNull(),
+    /* The site layer of the cascade. Each is a default that a device may override,
+     * and each clears to null rather than cascading a deletion onto devices. */
+    refreshProfileId: uuid("refresh_profile_id").references(() => refreshProfiles.id, {
+      onDelete: "set null",
+    }),
+    themeId: uuid("theme_id").references(() => themes.id, { onDelete: "set null" }),
+    contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("sites_refresh_profile_idx").on(t.refreshProfileId),
+    index("sites_theme_idx").on(t.themeId),
+    index("sites_content_instance_idx").on(t.contentInstanceId),
+  ]
+);
+
 export const devices = pgTable(
   "devices",
   {
@@ -406,6 +448,12 @@ export const devices = pgTable(
      * from becoming a fleet-wide firehose. Raised per device while an operator is
      * actively debugging one. */
     logVerbose: boolean("log_verbose").default(false).notNull(),
+    /* At most one site, and none is allowed. Set null on delete rather than
+     * cascade: removing a location must not remove the displays in it. */
+    siteId: uuid("site_id").references(() => sites.id, { onDelete: "set null" }),
+    /* Overrides the site's zone for this one display. Rare but real: a display
+     * that physically moved before its site record caught up. */
+    timezone: text("timezone"),
     contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id, {
       onDelete: "set null",
     }),
@@ -428,6 +476,10 @@ export const devices = pgTable(
     index("devices_content_instance_idx").on(t.contentInstanceId),
     index("devices_theme_idx").on(t.themeId),
     index("devices_refresh_profile_idx").on(t.refreshProfileId),
+    /* Every foreign key carries a leading index, enforced by schema.test.ts.
+     * Without one, deleting a site scans the devices table, and "displays in
+     * this site" is the query the sites page runs. */
+    index("devices_site_idx").on(t.siteId),
   ]
 );
 

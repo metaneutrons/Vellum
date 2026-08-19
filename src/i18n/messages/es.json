@@ -6,6 +6,7 @@
     "devices": "Dispositivos",
     "content": "Contenidos",
     "providers": "Fuentes de datos",
+    "sites": "Ubicaciones",
     "themes": "Temas",
     "profiles": "Perfiles de actualización",
     "firmware": "Firmware",
@@ -197,6 +198,24 @@
       "startVerbose": "Informar de todo",
       "stopVerbose": "Solo advertencias",
       "verboseActive": "Esta pantalla informa de cada línea. Desactívalo cuando termines."
+    },
+    "site": {
+      "title": "Ubicación y ajustes efectivos",
+      "assigned": "Ubicación",
+      "none": "Sin ubicación",
+      "hint": "Una pantalla sin ubicación usa los valores del espacio de trabajo y el reloj del servidor.",
+      "serverClock": "reloj del servidor",
+      "notSet": "sin definir",
+      "timezone": "Zona horaria",
+      "profile": "Perfil",
+      "theme": "Tema",
+      "content": "Contenido",
+      "from": {
+        "builtin": "valor del espacio de trabajo",
+        "site": "de la ubicación",
+        "profile": "del perfil",
+        "device": "definido en esta pantalla"
+      }
     }
   },
   "content": {
@@ -846,5 +865,30 @@
     "placeholder": "p. ej., ntp.interno.example",
     "tooLong": "Debe tener como máximo {max} bytes.",
     "profileTooLarge": "El perfil es demasiado grande para una trama USB ({current}/{max} bytes); acorte la URL o el servidor NTP."
+  },
+  "sites": {
+    "title": "Ubicaciones",
+    "hint": "Una ubicación aporta una zona horaria y valores por defecto para sus pantallas.",
+    "add": "Nueva ubicación",
+    "edit": "Editar ubicación",
+    "empty": "Aún no hay ubicaciones.",
+    "name": "Nombre",
+    "namePlaceholder": "Oficina de Hannover",
+    "timezone": "Zona horaria",
+    "timezoneHint": "Nombre IANA. Las reglas horarias se evalúan en esta zona.",
+    "defaultsHint": "Valores por defecto para las pantallas de esta ubicación. Cada pantalla puede anularlos.",
+    "profile": "Perfil",
+    "theme": "Tema",
+    "content": "Contenido",
+    "notSet": "Sin definir",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "saved": "Ubicación guardada",
+    "saveFailed": "No se pudo guardar la ubicación",
+    "delete": "Eliminar",
+    "deleted": "Ubicación eliminada",
+    "deleteFailed": "No se pudo eliminar la ubicación",
+    "deleteTitle": "¿Eliminar la ubicación?",
+    "deleteMessage": "{name} se elimina. Sus pantallas permanecen, pierden su ubicación y recurren a los valores del espacio de trabajo y al reloj del servidor."
   }
 }

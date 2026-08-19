@@ -12,6 +12,7 @@ import {
   queueDeviceWifiConfiguration,
   updateDevice,
   setDeviceLogVerbose,
+  setDeviceSite,
 } from "../../actions";
 import { useToast } from "@/components/toast";
 import { deviceConnectivity } from "@/lib/connectivity";
@@ -28,6 +29,7 @@ interface Device {
   lastSeen: Date | null;
   expectedIntervalS: number | null;
   logVerbose: boolean;
+  siteId: string | null;
   createdAt: Date;
 }
 
@@ -79,6 +81,18 @@ interface Props {
     deliveredAt: Date | null;
     completedAt: Date | null;
   }[];
+  sites: { id: string; name: string; timezone: string }[];
+  effective: {
+    values: {
+      refreshProfileId: string | null;
+      themeId: string | null;
+      contentInstanceId: string | null;
+      timezone: string | null;
+    };
+    from: Partial<
+      Record<"refreshProfileId" | "themeId" | "contentInstanceId" | "timezone", string>
+    >;
+  };
   logBatches: {
     id: number;
     seq: number;
@@ -119,10 +133,14 @@ export function DeviceDetail({
   contentInstances,
   refreshProfiles,
   configurationCommands,
+  sites,
+  effective,
   logBatches,
   canProvision,
 }: Props) {
   const t = useTranslations("devices");
+  const nameFor = (list: { id: string; name: string }[], id: string | null) =>
+    id ? (list.find((x) => x.id === id)?.name ?? id) : t("site.notSet");
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -178,6 +196,18 @@ export function DeviceDetail({
       try {
         await updateDevice(device.mac, data);
         toast("success", "Device updated");
+      } catch {
+        toast("error", "Update failed");
+      }
+    });
+  }
+
+  function assignSite(siteId: string) {
+    startTransition(async () => {
+      try {
+        await setDeviceSite(device.mac, siteId || null);
+        toast("success", "Device updated");
+        router.refresh();
       } catch {
         toast("error", "Update failed");
       }
@@ -629,6 +659,59 @@ export function DeviceDetail({
           )}
         </Card>
       </div>
+
+      {/* Site and effective settings. The provenance is the point: a cascade is
+          only usable if the interface can say which layer supplied a value. */}
+      <Card title={t("site.title")}>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            {t("site.assigned")}
+            <select
+              className="min-h-8 rounded-md border border-separator bg-surface-secondary px-2.5 text-[13px] text-label focus-ring"
+              value={device.siteId ?? ""}
+              disabled={!canProvision || pending}
+              onChange={(e) => assignSite(e.target.value)}
+            >
+              <option value="">{t("site.none")}</option>
+              {sites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="min-w-0 flex-1 text-xs text-gray-500">{t("site.hint")}</p>
+        </div>
+
+        <dl className="mt-4 space-y-1 text-xs">
+          {(
+            [
+              ["timezone", effective.values.timezone ?? t("site.serverClock")],
+              ["profile", nameFor(refreshProfiles, effective.values.refreshProfileId)],
+              ["theme", nameFor(themes, effective.values.themeId)],
+              ["content", nameFor(contentInstances, effective.values.contentInstanceId)],
+            ] as const
+          ).map(([key, value]) => {
+            const source =
+              effective.from[
+                key === "profile"
+                  ? "refreshProfileId"
+                  : key === "theme"
+                    ? "themeId"
+                    : key === "content"
+                      ? "contentInstanceId"
+                      : "timezone"
+              ] ?? "builtin";
+            return (
+              <div key={key} className="flex flex-wrap items-baseline gap-2">
+                <dt className="w-24 text-gray-500">{t(`site.${key}`)}</dt>
+                <dd className="font-mono text-label">{value}</dd>
+                <span className="text-gray-500">{t(`site.from.${source}`)}</span>
+              </div>
+            );
+          })}
+        </dl>
+      </Card>
 
       {/* Diagnostics. Uploads are event-driven, so an empty card means a healthy
           display, not a missing feature: the device reports only when something
