@@ -2,6 +2,18 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.10.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.9.0...firmware-v1.10.0) (2026-08-19)
+
+
+### Features
+
+* **display:** brightness by time of day, power source and operator choice ([#298](https://github.com/metaneutrons/Vellum/issues/298)) ([3fd0635](https://github.com/metaneutrons/Vellum/commit/3fd0635740999ca8a304f141f52775bded712615))
+
+
+### Bug Fixes
+
+* **diagnostics:** make the batches readable, and the page reachable ([#292](https://github.com/metaneutrons/Vellum/issues/292)) ([7882c17](https://github.com/metaneutrons/Vellum/commit/7882c17d3fa07f722c8ad1e0fe57822e931dcf42))
+
 ## [1.9.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.8.2...firmware-v1.9.0) (2026-08-19)
 
 
