@@ -4,7 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db, withDbRead } from "@/db";
-import { deviceConfigurationCommands, devices, telemetry, reports } from "@/db/schema";
+import { deviceConfigurationCommands, deviceLogs, devices, telemetry, reports } from "@/db/schema";
 import { DeviceDetail } from "./detail";
 import { getAllThemes, getAllContentInstances, getAllRefreshProfiles } from "../../actions";
 import { getCurrentPrincipal, hasPermission } from "@/lib/access";
@@ -19,42 +19,61 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
   );
   if (!device) notFound();
 
-  const [recentTelemetry, recentReports, themeList, contentList, profileList, configCommands] =
-    await Promise.all([
-      withDbRead(
-        () =>
-          db
-            .select()
-            .from(telemetry)
-            .where(eq(telemetry.mac, mac))
-            .orderBy(desc(telemetry.timestamp))
-            .limit(50),
-        "device-detail-telemetry"
-      ),
-      withDbRead(
-        () =>
-          db
-            .select()
-            .from(reports)
-            .where(eq(reports.mac, mac))
-            .orderBy(desc(reports.timestamp))
-            .limit(10),
-        "device-detail-reports"
-      ),
-      getAllThemes(),
-      getAllContentInstances(),
-      getAllRefreshProfiles(),
-      withDbRead(
-        () =>
-          db
-            .select()
-            .from(deviceConfigurationCommands)
-            .where(eq(deviceConfigurationCommands.mac, mac))
-            .orderBy(desc(deviceConfigurationCommands.createdAt))
-            .limit(5),
-        "device-detail-configuration-commands"
-      ),
-    ]);
+  const [
+    recentTelemetry,
+    recentReports,
+    themeList,
+    contentList,
+    profileList,
+    configCommands,
+    logBatches,
+  ] = await Promise.all([
+    withDbRead(
+      () =>
+        db
+          .select()
+          .from(telemetry)
+          .where(eq(telemetry.mac, mac))
+          .orderBy(desc(telemetry.timestamp))
+          .limit(50),
+      "device-detail-telemetry"
+    ),
+    withDbRead(
+      () =>
+        db
+          .select()
+          .from(reports)
+          .where(eq(reports.mac, mac))
+          .orderBy(desc(reports.timestamp))
+          .limit(10),
+      "device-detail-reports"
+    ),
+    getAllThemes(),
+    getAllContentInstances(),
+    getAllRefreshProfiles(),
+    withDbRead(
+      () =>
+        db
+          .select()
+          .from(deviceConfigurationCommands)
+          .where(eq(deviceConfigurationCommands.mac, mac))
+          .orderBy(desc(deviceConfigurationCommands.createdAt))
+          .limit(5),
+      "device-detail-configuration-commands"
+    ),
+    /* Newest first, and only a handful: uploads are event-driven, so a device
+     * with several batches is a device that had several incidents. */
+    withDbRead(
+      () =>
+        db
+          .select()
+          .from(deviceLogs)
+          .where(eq(deviceLogs.mac, mac))
+          .orderBy(desc(deviceLogs.receivedAt))
+          .limit(10),
+      "device-detail-log-batches"
+    ),
+  ]);
 
   return (
     <div>
@@ -71,6 +90,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
         themes={themeList}
         contentInstances={contentList}
         refreshProfiles={profileList}
+        logBatches={logBatches}
         configurationCommands={configCommands.map((command) => ({
           ...command,
           payload:

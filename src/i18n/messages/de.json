@@ -189,6 +189,14 @@
         "interrupted": "Der WLAN-Wechsel wurde unterbrochen und automatisch zurückgerollt",
         "credential_decryption_failed": "Die gespeicherten WLAN-Zugangsdaten konnten nicht entschlüsselt werden"
       }
+    },
+    "diagnostics": {
+      "title": "Diagnose",
+      "hint": "Displays melden Warnungen und Fehler samt umgebendem Kontext. Ein gesundes Display schickt nichts.",
+      "empty": "Nichts gemeldet.",
+      "startVerbose": "Alles melden",
+      "stopVerbose": "Nur noch Warnungen",
+      "verboseActive": "Dieses Display meldet jede Zeile. Schalte es aus, wenn du fertig bist."
     }
   },
   "content": {

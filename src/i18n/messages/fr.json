@@ -189,6 +189,14 @@
         "interrupted": "Le changement Wi-Fi a été interrompu et annulé automatiquement",
         "credential_decryption_failed": "Les identifiants Wi-Fi enregistrés n’ont pas pu être déchiffrés"
       }
+    },
+    "diagnostics": {
+      "title": "Diagnostic",
+      "hint": "Les écrans signalent avertissements et erreurs avec leur contexte. Un écran sain n'envoie rien.",
+      "empty": "Rien signalé.",
+      "startVerbose": "Tout signaler",
+      "stopVerbose": "Avertissements seulement",
+      "verboseActive": "Cet écran signale chaque ligne. Désactivez-le quand vous avez fini."
     }
   },
   "content": {

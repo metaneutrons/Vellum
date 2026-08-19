@@ -816,6 +816,56 @@ esp_err_t http_client_config_report(const char *command_id, const char *status,
     return response_status >= 200 && response_status < 300 ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
 }
 
+esp_err_t http_client_post_logs(uint32_t seq, const char *lines, size_t len)
+{
+    if (!lines || len == 0 || !s_base_url_transport_allowed) return ESP_ERR_INVALID_ARG;
+    char url[512];
+    int written = snprintf(url, sizeof(url), "%s/api/v1/ink/logs", s_base_url);
+    if (written < 0 || written >= (int)sizeof(url)) return ESP_ERR_INVALID_SIZE;
+    resp_buf_t rb = {0};
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_POST,
+        .timeout_ms = CONFIG_VELLUM_HTTP_TIMEOUT_MS,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .event_handler = http_event_handler,
+        .user_data = &rb,
+        .disable_auto_redirect = true,
+        .buffer_size_tx = 2048,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) return ESP_FAIL;
+    set_auth_header(client);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+
+    cJSON *json = cJSON_CreateObject();
+    if (!json) { esp_http_client_cleanup(client); return ESP_ERR_NO_MEM; }
+    cJSON_AddStringToObject(json, "mac", s_mac);
+    cJSON_AddNumberToObject(json, "seq", (double)seq);
+    /* The payload is text, not structure: cJSON escapes it, and the server keeps
+     * it verbatim. Parsing device log lines on the server would only add a way
+     * for a malformed line to lose the whole batch. */
+    cJSON *item = cJSON_CreateStringReference(lines);
+    if (!item) { cJSON_Delete(json); esp_http_client_cleanup(client); return ESP_ERR_NO_MEM; }
+    cJSON_AddItemToObject(json, "lines", item);
+    char *body = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+    if (!body) { esp_http_client_cleanup(client); return ESP_ERR_NO_MEM; }
+
+    esp_http_client_set_post_field(client, body, strlen(body));
+    esp_err_t err = esp_http_client_perform(client);
+    int response_status = err == ESP_OK ? esp_http_client_get_status_code(client) : -1;
+    cJSON_free(body);
+    free(rb.buf);
+    esp_http_client_cleanup(client);
+    if (err != ESP_OK) return err;
+    if (response_status >= 200 && response_status < 300) return ESP_OK;
+    /* A server that does not know this endpoint yet must not cost the buffer:
+     * the caller only drops bytes on success. */
+    ESP_LOGW(TAG, "POST /logs → %d", response_status);
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
 void http_client_free_response(vellum_http_response_t *resp)
 {
     if (resp->body) {

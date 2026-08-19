@@ -46,6 +46,20 @@ export const otaReportSchema = z.object({
   errorCode: z.string().max(64).optional(),
 });
 
+/**
+ * A batch of diagnostic log lines a device reports about itself.
+ *
+ * The payload is text and stays text. Parsing device log lines here would only
+ * add a way for one malformed line to cost the whole batch, and the batch is the
+ * evidence. The cap is generous enough for a boot's worth of context and small
+ * enough that a device in a crash loop cannot fill the table.
+ */
+export const deviceLogBatchSchema = z.object({
+  mac: macSchema,
+  seq: z.number().int().positive().max(2_000_000_000),
+  lines: z.string().min(1).max(32_768),
+});
+
 export const configurationReportSchema = z
   .object({
     mac: macSchema,

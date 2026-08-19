@@ -189,6 +189,14 @@
         "interrupted": "El cambio de Wi-Fi se interrumpió y se revirtió automáticamente",
         "credential_decryption_failed": "No se pudieron descifrar las credenciales Wi-Fi guardadas"
       }
+    },
+    "diagnostics": {
+      "title": "Diagnóstico",
+      "hint": "Las pantallas informan de advertencias y errores con su contexto. Una pantalla sana no envía nada.",
+      "empty": "Nada informado.",
+      "startVerbose": "Informar de todo",
+      "stopVerbose": "Solo advertencias",
+      "verboseActive": "Esta pantalla informa de cada línea. Desactívalo cuando termines."
     }
   },
   "content": {

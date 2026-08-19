@@ -401,6 +401,11 @@ export const devices = pgTable(
     displayCaps: jsonb("display_caps"),
     orientationOverride:
       text("orientation_override") /* null = use device-reported, "portrait" | "landscape" */,
+    /* Report every line instead of only warnings and errors. Off by default: a
+     * healthy display uploads nothing at all, and that is what keeps diagnostics
+     * from becoming a fleet-wide firehose. Raised per device while an operator is
+     * actively debugging one. */
+    logVerbose: boolean("log_verbose").default(false).notNull(),
     contentInstanceId: uuid("content_instance_id").references(() => contentInstances.id, {
       onDelete: "set null",
     }),
@@ -671,6 +676,40 @@ export const otaEvents = pgTable(
     index("ota_events_mac_to_version_idx").on(t.mac, t.toVersion),
     // Rollout dashboard: recent events / failure-rate windows.
     index("ota_events_timestamp_idx").on(t.timestamp),
+  ]
+);
+
+/* ── Device diagnostics ────────────────────────────────────────────
+ * Log batches a device reports about itself.
+ *
+ * Firmware logs used to live only on a live UART, so a display that wedged or
+ * refused its frames had to be diagnosed with a cable attached at the moment it
+ * happened, and the evidence was gone before that was possible. Devices now
+ * retain their recent lines and ship them when something goes wrong.
+ *
+ * Uploads are event-driven, not periodic: a healthy display sends nothing. The
+ * device folds repeated messages and keeps only a context window of routine
+ * lines, so a batch is a readable incident rather than a transcript.
+ * ─────────────────────────────────────────────────────────────── */
+export const deviceLogs = pgTable(
+  "device_logs",
+  {
+    id: serial("id").primaryKey(),
+    mac: text("mac")
+      .notNull()
+      .references(() => devices.mac, { onDelete: "cascade" }),
+    /* Device-side counter. A lost response makes the device offer the same
+     * sequence again, so the unique index turns a duplicate into a no-op rather
+     * than a second copy. It restarts at 1 after a power cycle, which is why the
+     * index is (mac, seq) and not seq alone. */
+    seq: integer("seq").notNull(),
+    lines: text("lines").notNull(),
+    byteLen: integer("byte_len").notNull(),
+    receivedAt: timestamp("received_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("device_logs_mac_seq_idx").on(t.mac, t.seq),
+    index("device_logs_mac_received_idx").on(t.mac, t.receivedAt),
   ]
 );
 

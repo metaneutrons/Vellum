@@ -176,6 +176,13 @@
       "when": 1787092090315,
       "tag": "0024_remote_orientation",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787157415723,
+      "tag": "0025_device_logs",
+      "breakpoints": true
     }
   ]
 }

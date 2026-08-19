@@ -64,7 +64,12 @@ vi.mock("@/db", () => ({
       })),
     })),
     insert: vi.fn(() => ({
-      values: vi.fn(),
+      values: vi.fn(() => ({
+        onConflictDoNothing: vi.fn(),
+      })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(),
     })),
   },
   withDbRead: vi.fn(async (fn: () => unknown) => fn()),
@@ -77,6 +82,7 @@ import { POST as helloHandler } from "../hello/route";
 import { GET as configHandler } from "../config/route";
 import { POST as reportHandler } from "../report/route";
 import { POST as configReportHandler } from "../config-report/route";
+import { POST as logsHandler } from "../logs/route";
 
 const mockedHandleHello = vi.mocked(handleHello);
 const mockedValidateToken = vi.mocked(validateToken);
@@ -462,5 +468,65 @@ describe("GET /api/v1/ink/config — display model resolution", () => {
     const res = await configHandler(req);
     expect(res.status).toBe(200);
     expect(vi.mocked(resolveOta).mock.calls[0][1]).toBe("unknown");
+  });
+});
+
+describe("POST /api/v1/ink/logs", () => {
+  const batch = (overrides: Record<string, unknown> = {}) =>
+    makeRequest("http://localhost/api/v1/ink/logs", {
+      method: "POST",
+      body: JSON.stringify({
+        mac: "AA:BB:CC:DD:EE:FF",
+        seq: 1,
+        lines: "W (1234) panel_lcd: No memory for the decode buffer\n",
+        ...overrides,
+      }),
+      headers: { "Content-Type": "application/json", "x-device-token": "valid-token" },
+    });
+
+  it("stores a reported batch and acknowledges the sequence", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    const res = await logsHandler(batch());
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    /* The device drops its bytes only on a 2xx, so the acknowledgement has to
+     * name the sequence it accepted. */
+    expect(body.data.seq).toBe(1);
+  });
+
+  it("acknowledges a stored batch even when housekeeping fails", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    /* The device drops its bytes only on a 2xx. A pruning failure that reached the
+     * caller would make it retry a batch that is already stored, for as long as
+     * the failure lasts. */
+    const { withDbWrite } = await import("@/db");
+    const mocked = vi.mocked(withDbWrite);
+    let call = 0;
+    mocked.mockImplementation(async (fn: () => unknown) => {
+      call += 1;
+      if (call === 1) return fn();
+      throw new Error("lock timeout");
+    });
+    const res = await logsHandler(batch());
+    expect(res.status).toBe(200);
+    mocked.mockImplementation(async (fn: () => unknown) => fn());
+  });
+
+  it("refuses a batch from an unauthenticated device", async () => {
+    mockedValidateToken.mockResolvedValue(false);
+    const res = await logsHandler(batch());
+    expect(res.status).toBe(401);
+  });
+
+  it("refuses a payload larger than the cap", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    const res = await logsHandler(batch({ lines: "x".repeat(32_769) }));
+    expect(res.status).toBe(400);
+  });
+
+  it("refuses a sequence that cannot come from a device", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    expect((await logsHandler(batch({ seq: 0 }))).status).toBe(400);
+    expect((await logsHandler(batch({ seq: -3 }))).status).toBe(400);
   });
 });

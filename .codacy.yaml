@@ -1,0 +1,22 @@
+---
+# Two exclusions, both because a tool is being applied outside the context it can
+# reason about. Neither hides a finding about shipped behaviour.
+#
+# drizzle/**
+#   Codacy runs a SQL Server (T-SQL) linter over .sql files and reports things
+#   that have no PostgreSQL meaning: SET ANSI_NULLS, SET QUOTED_IDENTIFIER, READ
+#   UNCOMMITTED isolation, table data compression. "Object name not schema
+#   qualified" is simply how drizzle-kit generates DDL for the public schema.
+#   These files are generated output, kept byte-for-byte as drizzle-kit produced
+#   it, and two CI guards (`pnpm db:check`) exist to keep model, SQL and snapshot
+#   in agreement. Hand-editing migrations to satisfy a linter for a different
+#   database engine would undermine exactly that.
+#
+# firmware/host_test/**
+#   Host-native test fixtures. flawfinder flags strlen, memset and friends
+#   unconditionally, regardless of whether the argument is a string literal three
+#   lines above. Rewriting assertions to avoid those calls would make the tests
+#   less readable and prove nothing about the firmware.
+exclude_paths:
+  - "drizzle/**"
+  - "firmware/host_test/**"

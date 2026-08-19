@@ -3,6 +3,7 @@ idf_component_register(
     INCLUDE_DIRS "include"
     REQUIRES
         http_client
+        vellum_log
         vellum_display
         board
         nvs_manager

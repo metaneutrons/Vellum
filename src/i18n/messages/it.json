@@ -189,6 +189,14 @@
         "interrupted": "Il cambio Wi-Fi è stato interrotto e annullato automaticamente",
         "credential_decryption_failed": "Impossibile decifrare le credenziali Wi-Fi salvate"
       }
+    },
+    "diagnostics": {
+      "title": "Diagnostica",
+      "hint": "I display segnalano avvisi ed errori con il contesto circostante. Un display sano non invia nulla.",
+      "empty": "Nulla segnalato.",
+      "startVerbose": "Segnala tutto",
+      "stopVerbose": "Solo avvisi",
+      "verboseActive": "Questo display segnala ogni riga. Disattivalo quando hai finito."
     }
   },
   "content": {

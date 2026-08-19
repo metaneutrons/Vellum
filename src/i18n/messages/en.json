@@ -189,6 +189,14 @@
         "interrupted": "The Wi-Fi change was interrupted and rolled back automatically",
         "credential_decryption_failed": "The stored Wi-Fi credentials could not be decrypted"
       }
+    },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "hint": "Displays report warnings and errors with the surrounding context. A healthy display sends nothing.",
+      "empty": "Nothing reported.",
+      "startVerbose": "Report everything",
+      "stopVerbose": "Back to warnings only",
+      "verboseActive": "This display is reporting every line. Turn it off when you are done."
     }
   },
   "content": {

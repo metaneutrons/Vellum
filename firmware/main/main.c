@@ -34,6 +34,7 @@
 #include "mbedtls/base64.h"
 
 #include "nvs_manager.h"
+#include "vellum_log.h"
 #include "wifi_manager.h"
 #include "http_client.h"
 #include "vellum_display.h"
@@ -434,6 +435,24 @@ static uint32_t pace_retry(uint32_t base_sec, bool ok)
                  (unsigned long)base_sec);
     }
     return delay;
+}
+
+/*
+ * Ship retained diagnostics once per cycle, after the poll has proved the server
+ * reachable. Bytes are dropped only on a 2xx, so a server that does not know the
+ * endpoint yet, or one that is unreachable, costs a retry rather than the
+ * evidence.
+ */
+static void upload_pending_logs(void)
+{
+    static char batch[4096];
+    uint32_t seq = 0;
+    const size_t len = vellum_log_take_upload(batch, sizeof(batch), &seq);
+    if (len == 0) return;
+    vellum_log_suspend_trigger(true);
+    const esp_err_t err = http_client_post_logs(seq, batch, len);
+    vellum_log_suspend_trigger(false);
+    if (err == ESP_OK) vellum_log_upload_confirmed(seq);
 }
 
 static uint32_t perform_render(bool *render_ok)
@@ -855,10 +874,23 @@ static void d1001_button_task(void *arg)
 
 void app_main(void)
 {
+    /* First, so the banner and every later line are retained. A display that
+     * wedges or refuses its frames has to be diagnosable without a cable
+     * attached at the exact moment it happens. */
+    vellum_log_init();
+
     const esp_app_desc_t *app = esp_app_get_description();
     const char *firmware_version =
         (app && app->version[0]) ? app->version : CONFIG_VELLUM_FIRMWARE_VERSION;
     ESP_LOGI(TAG, "===== Vellum Firmware v%s =====", firmware_version);
+
+    /* Recorded through the hook, so it reaches the server with the rest. */
+    {
+        char carried[1024];
+        if (vellum_log_previous_boot(carried, sizeof(carried)) > 0) {
+            ESP_LOGW(TAG, "Carried over from the previous boot:\n%s", carried);
+        }
+    }
 
     /* 1. Initialize core subsystems */
     esp_err_t nvs_init_err = nvs_manager_init();
@@ -1206,6 +1238,7 @@ void app_main(void)
 
     /* 8. Check for OTA update. A failed OTA briefly owns the display for clear
      * feedback, then we immediately restore the normal room view before sleep. */
+    upload_pending_logs();
     if (ota_manager_check_and_apply() == OTA_CHECK_RESTORE_RENDER) {
         sleep_duration = perform_render(&render_ok);
         if (render_ok) ota_manager_mark_valid();
@@ -1234,6 +1267,7 @@ void app_main(void)
         app_progress_grace(CONFIG_VELLUM_OTA_GRACE_S);
         ota_check_result_t ota = ota_manager_check_and_apply();
         app_progress_grace(0);
+        upload_pending_logs();
         if (ota == OTA_CHECK_RESTORE_RENDER) {
             sleep_duration = perform_render(&render_ok);
             app_progress();
@@ -1262,6 +1296,7 @@ void app_main(void)
         app_progress_grace(CONFIG_VELLUM_OTA_GRACE_S);
         ota_check_result_t ota = ota_manager_check_and_apply();
         app_progress_grace(0);
+        upload_pending_logs();
         if (ota == OTA_CHECK_RESTORE_RENDER) {
             sleep_duration = perform_render(&render_ok);
             app_progress();
