@@ -9,7 +9,7 @@ import { log } from "@/lib/logger";
 import { helloLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { macSchema } from "@/lib/validation";
 import { getRequestPrincipal, hasPermission, withAuditedTransaction } from "@/lib/access";
-import { hasTrustedMutationOrigin } from "@/lib/request-origin";
+import { checkMutationOrigin } from "@/lib/request-origin";
 import { env } from "@/lib/env";
 import { devices } from "@/db/schema";
 
@@ -25,7 +25,22 @@ export async function POST(request: NextRequest) {
   if (!principal || !hasPermission(principal, "devices.approve")) {
     return Response.json(errorResponse("Unauthorized"), { status: 401 });
   }
-  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user")) {
+  const originVerdict = checkMutationOrigin(
+    request,
+    env.VELLUM_PUBLIC_URL,
+    principal.type !== "user"
+  );
+  if (!originVerdict.ok) {
+    /* Logged because the client sees only a 403 and cannot tell it apart from a
+     * permission failure. An unset VELLUM_PUBLIC_URL behind a reverse proxy used
+     * to produce exactly this with no trace at all. */
+    log.warn("Refused mutation on origin", {
+      route: "device-approve",
+      reason: originVerdict.reason,
+      expected: originVerdict.expected,
+      received: originVerdict.received,
+      derivedFromHost: originVerdict.derivedFromHost,
+    });
     return Response.json(errorResponse("Invalid origin"), { status: 403 });
   }
 

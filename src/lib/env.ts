@@ -109,3 +109,23 @@ function loadEnv(): Env {
 }
 
 export const env: Env = loadEnv();
+
+/*
+ * VELLUM_PUBLIC_URL is optional, but a production deployment without it degrades
+ * in a way nobody can see: the admin mutation endpoints fall back to comparing the
+ * request's own Host, and every OTA download URL handed to a device falls back to
+ * raw GitHub. Warned rather than fatal, because instances that never touch those
+ * endpoints do work — but the warning names the consequence so an operator does
+ * not have to find it from a bare 403.
+ */
+if (env.NODE_ENV === "production" && !env.VELLUM_PUBLIC_URL) {
+  /* console.error, not console.warn: the lint rule allows only error, and the
+   * repo's logger cannot be used here — it imports env, so this would be a cycle
+   * at module load. The severity is right either way, since two features degrade. */
+  console.error(
+    "[env] VELLUM_PUBLIC_URL is not set. Admin mutations will be validated against " +
+      "the request Host instead of a configured origin, and OTA downloads will be " +
+      "served from GitHub rather than proxied. Set it to this instance's public " +
+      "HTTPS origin."
+  );
+}

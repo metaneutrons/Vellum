@@ -6,7 +6,7 @@ import {
   requestServerUpdate,
   requestServerUpdateCheck,
 } from "@/lib/server-updater";
-import { hasTrustedMutationOrigin } from "@/lib/request-origin";
+import { checkMutationOrigin } from "@/lib/request-origin";
 import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
 import { z } from "zod";
@@ -47,7 +47,22 @@ export async function POST(request: Request) {
   const principal = await getRequestPrincipal(request);
   if (!principal || !hasPermission(principal, "system.update"))
     return Response.json({ error: "Forbidden" }, { status: 403 });
-  if (!hasTrustedMutationOrigin(request, env.VELLUM_PUBLIC_URL, principal.type !== "user")) {
+  const originVerdict = checkMutationOrigin(
+    request,
+    env.VELLUM_PUBLIC_URL,
+    principal.type !== "user"
+  );
+  if (!originVerdict.ok) {
+    /* Logged because the client sees only a 403 and cannot tell it apart from a
+     * permission failure. An unset VELLUM_PUBLIC_URL behind a reverse proxy used
+     * to produce exactly this with no trace at all. */
+    log.warn("Refused mutation on origin", {
+      route: "server-update",
+      reason: originVerdict.reason,
+      expected: originVerdict.expected,
+      received: originVerdict.received,
+      derivedFromHost: originVerdict.derivedFromHost,
+    });
     return Response.json({ error: "Invalid origin" }, { status: 403 });
   }
 
