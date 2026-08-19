@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/metaneutrons/Vellum/compare/v1.16.1...v1.17.0) (2026-08-19)
+
+
+### Features
+
+* **diagnostics:** let a display report why it failed, without a cable ([#288](https://github.com/metaneutrons/Vellum/issues/288)) ([23679c5](https://github.com/metaneutrons/Vellum/commit/23679c5afd326258d3f8599fc97345e735436f5f))
+
 ## [1.16.1](https://github.com/metaneutrons/Vellum/compare/v1.16.0...v1.16.1) (2026-08-19)
 
 
