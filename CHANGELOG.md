@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.16.0](https://github.com/metaneutrons/Vellum/compare/v1.15.0...v1.16.0) (2026-08-18)
+
+
+### Features
+
+* **devices:** tell the device how it is mounted ([e63ec2c](https://github.com/metaneutrons/Vellum/commit/e63ec2c3a5dc9481e667945ff3d32c89eecd77ef))
+* **devices:** tell the device how it is mounted ([9e65d28](https://github.com/metaneutrons/Vellum/commit/9e65d28c48f03461efcd857bd74ad3753ed50a09))
+
+
+### Bug Fixes
+
+* **ci:** keep open release PRs current with the base branch ([5fb74ea](https://github.com/metaneutrons/Vellum/commit/5fb74eaeca9b0d0b078297aa6d7aec067334af31))
+* **ci:** keep open release PRs current with the base branch ([ba40c76](https://github.com/metaneutrons/Vellum/commit/ba40c766b952a213260d5a6b30f7b1c8f6df3bdc))
+
 ## [1.15.0](https://github.com/metaneutrons/Vellum/compare/v1.14.0...v1.15.0) (2026-08-18)
 
 
