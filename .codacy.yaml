@@ -1,0 +1,13 @@
+---
+# Codacy applies a SQL Server (T-SQL) linter to .sql files, which reports things
+# that are wrong for PostgreSQL: SET ANSI_NULLS, SET QUOTED_IDENTIFIER, READ
+# UNCOMMITTED isolation and table data compression have no PostgreSQL meaning,
+# and "object name not schema qualified" is how drizzle-kit generates DDL for the
+# public schema.
+#
+# The files are generated output that stays byte-for-byte as drizzle-kit produced
+# it: two guards in CI (`pnpm db:check`) exist precisely to keep model, SQL and
+# snapshot in agreement, and hand-editing migrations to satisfy a linter for a
+# different database engine would undermine them.
+exclude_paths:
+  - "drizzle/**"

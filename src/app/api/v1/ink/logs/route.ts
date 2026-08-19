@@ -14,6 +14,34 @@ import { log } from "@/lib/logger";
 const RETAIN_DAYS = 30;
 const RETAIN_BATCHES = 50;
 
+/*
+ * Pruned on write rather than by a scheduler: uploads are event-driven and rare,
+ * so this runs about as often as it needs to and the deployment needs no cron.
+ */
+async function prune(mac: string) {
+  const cutoff = new Date(Date.now() - RETAIN_DAYS * 24 * 60 * 60 * 1000);
+  await withDbWrite(
+    () =>
+      db.delete(deviceLogs).where(and(eq(deviceLogs.mac, mac), lt(deviceLogs.receivedAt, cutoff))),
+    "prune-device-logs-by-age"
+  );
+  await withDbWrite(
+    () =>
+      db.delete(deviceLogs).where(
+        and(
+          eq(deviceLogs.mac, mac),
+          sql`${deviceLogs.id} NOT IN (
+              SELECT id FROM ${deviceLogs}
+              WHERE ${deviceLogs.mac} = ${mac}
+              ORDER BY ${deviceLogs.receivedAt} DESC, ${deviceLogs.id} DESC
+              LIMIT ${RETAIN_BATCHES}
+            )`
+        )
+      ),
+    "prune-device-logs-by-count"
+  );
+}
+
 export async function POST(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
   if (rateLimited) return rateLimited;
@@ -46,31 +74,7 @@ export async function POST(request: NextRequest) {
       "store-device-log-batch"
     );
 
-    /* Pruned on write rather than by a scheduler: uploads are event-driven and
-     * rare, so this runs about as often as it needs to and needs no cron. */
-    const cutoff = new Date(Date.now() - RETAIN_DAYS * 24 * 60 * 60 * 1000);
-    await withDbWrite(
-      () =>
-        db
-          .delete(deviceLogs)
-          .where(and(eq(deviceLogs.mac, mac), lt(deviceLogs.receivedAt, cutoff))),
-      "prune-device-logs-by-age"
-    );
-    await withDbWrite(
-      () =>
-        db.delete(deviceLogs).where(
-          and(
-            eq(deviceLogs.mac, mac),
-            sql`${deviceLogs.id} NOT IN (
-              SELECT id FROM ${deviceLogs}
-              WHERE ${deviceLogs.mac} = ${mac}
-              ORDER BY ${deviceLogs.receivedAt} DESC, ${deviceLogs.id} DESC
-              LIMIT ${RETAIN_BATCHES}
-            )`
-          )
-        ),
-      "prune-device-logs-by-count"
-    );
+    await prune(mac);
 
     return Response.json(okResponse({ seq }));
   } catch (error) {
