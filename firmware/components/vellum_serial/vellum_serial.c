@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include "esp_log.h"
 #include "esp_system.h"
+#include "vellum_log.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include "esp_console.h"
@@ -614,6 +615,22 @@ static int cmd_token(int argc, char **argv)
     return 0;
 }
 
+static int cmd_log(int argc, char **argv)
+{
+    (void)argc; (void)argv;
+    /* Static rather than on the stack: the console task's stack is nowhere near
+     * this size, and a blown stack while reading a diagnostic would be ironic. */
+    static char snapshot[8448];
+    const size_t len = vellum_log_snapshot(snapshot, sizeof(snapshot));
+    if (len == 0) {
+        printf("(log is empty)\n");
+        return 0;
+    }
+    fwrite(snapshot, 1, len, stdout);
+    if (snapshot[len - 1] != '\n') printf("\n");
+    return 0;
+}
+
 static int cmd_info(int argc, char **argv)
 {
     (void)argc; (void)argv;
@@ -666,6 +683,7 @@ static void register_console_commands(void)
         { .command = "wifi",      .help = "Set WiFi: wifi <ssid> <password> [server-url]", .func = &cmd_wifi },
         { .command = "server",    .help = "Get/set server URL: server [url]", .func = &cmd_server },
         { .command = "token",     .help = "Store a pre-provisioning device token", .func = &cmd_token },
+        { .command = "log",       .help = "Dump the retained diagnostic log",  .func = &cmd_log },
         { .command = "info",      .help = "Show device info",                 .func = &cmd_info },
         { .command = "nvs-erase", .help = "Factory reset (erase NVS)",        .func = &cmd_nvs_erase },
         { .command = "reboot",    .help = "Restart device",                   .func = &cmd_reboot },

@@ -315,6 +315,10 @@ export async function GET(request: NextRequest) {
       otaUrl,
       rotation: 0,
       remoteConfiguration,
+      /* Diagnostics verbosity. Off means the device reports only warnings and
+       * errors, which is what keeps a fleet from becoming a firehose; an operator
+       * raises one device while debugging it. */
+      logVerbose: device?.logVerbose === true,
     })
   );
 }

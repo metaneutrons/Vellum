@@ -11,6 +11,7 @@ import {
   queueDeviceServerMigration,
   queueDeviceWifiConfiguration,
   updateDevice,
+  setDeviceLogVerbose,
 } from "../../actions";
 import { useToast } from "@/components/toast";
 import { deviceConnectivity } from "@/lib/connectivity";
@@ -26,6 +27,7 @@ interface Device {
   approvedAt: Date | null;
   lastSeen: Date | null;
   expectedIntervalS: number | null;
+  logVerbose: boolean;
   createdAt: Date;
 }
 
@@ -77,6 +79,13 @@ interface Props {
     deliveredAt: Date | null;
     completedAt: Date | null;
   }[];
+  logBatches: {
+    id: number;
+    seq: number;
+    lines: string;
+    byteLen: number;
+    receivedAt: Date;
+  }[];
   canProvision: boolean;
 }
 
@@ -110,6 +119,7 @@ export function DeviceDetail({
   contentInstances,
   refreshProfiles,
   configurationCommands,
+  logBatches,
   canProvision,
 }: Props) {
   const t = useTranslations("devices");
@@ -168,6 +178,18 @@ export function DeviceDetail({
       try {
         await updateDevice(device.mac, data);
         toast("success", "Device updated");
+      } catch {
+        toast("error", "Update failed");
+      }
+    });
+  }
+
+  function toggleVerbose() {
+    startTransition(async () => {
+      try {
+        await setDeviceLogVerbose(device.mac, !device.logVerbose);
+        toast("success", "Device updated");
+        router.refresh();
       } catch {
         toast("error", "Update failed");
       }
@@ -607,6 +629,45 @@ export function DeviceDetail({
           )}
         </Card>
       </div>
+
+      {/* Diagnostics. Uploads are event-driven, so an empty card means a healthy
+          display, not a missing feature: the device reports only when something
+          goes wrong, or while an operator raised it to report everything. */}
+      <Card title={`${t("diagnostics.title")} (${logBatches.length})`}>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 text-xs text-gray-500">{t("diagnostics.hint")}</p>
+          {canProvision && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={toggleVerbose}
+              className="rounded border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+            >
+              {device.logVerbose ? t("diagnostics.stopVerbose") : t("diagnostics.startVerbose")}
+            </button>
+          )}
+        </div>
+        {device.logVerbose && (
+          <p className="mt-2 text-xs text-amber-700">{t("diagnostics.verboseActive")}</p>
+        )}
+        {logBatches.length > 0 ? (
+          <div className="mt-4 space-y-3">
+            {logBatches.map((batch) => (
+              <details key={batch.id} className="rounded border">
+                <summary className="cursor-pointer px-3 py-2 text-xs text-gray-600">
+                  {new Date(batch.receivedAt).toLocaleString("de-DE")} · #{batch.seq} ·{" "}
+                  {batch.byteLen} B
+                </summary>
+                <pre className="max-h-96 overflow-auto border-t bg-gray-50 p-3 text-[11px] leading-relaxed whitespace-pre-wrap">
+                  {batch.lines}
+                </pre>
+              </details>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">{t("diagnostics.empty")}</p>
+        )}
+      </Card>
 
       {/* Telemetry History */}
       <Card title={`${t("telemetryHistory")} (${telemetryHistory.length})`}>

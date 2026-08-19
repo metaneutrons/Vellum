@@ -228,6 +228,34 @@ export async function queueDeviceServerMigration(macInput: string, serverUrlInpu
 }
 
 /**
+ * Raise or lower one device's diagnostics verbosity.
+ *
+ * Off by default and per device on purpose. A fleet that reports every line is a
+ * fleet whose logs nobody reads, so devices report warnings and errors with a
+ * window of context around them, and an operator turns a single display chatty
+ * only while actually debugging it.
+ */
+export async function setDeviceLogVerbose(macInput: string, verbose: boolean) {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(macInput);
+  await withAuditedTransaction(
+    actor,
+    () => ({
+      action: "device.diagnostics.verbosity",
+      targetType: "device",
+      targetId: mac,
+      metadata: { verbose },
+    }),
+    async (tx) => {
+      await tx.update(devices).set({ logVerbose: verbose }).where(eq(devices.mac, mac));
+      return { id: mac };
+    },
+    "set-device-log-verbose"
+  );
+  revalidatePath(`/admin/devices/${mac}`);
+}
+
+/**
  * Queue a mounting change, and record it as the operator's decision.
  *
  * Orientation describes how the panel hangs on the wall, so it has to reach the

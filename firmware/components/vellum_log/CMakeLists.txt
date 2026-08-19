@@ -1,0 +1,6 @@
+idf_component_register(
+    SRCS "vellum_log.c"
+    INCLUDE_DIRS "include"
+    REQUIRES
+        esp_timer esp_system log
+)

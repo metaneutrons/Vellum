@@ -2,6 +2,7 @@ idf_component_register(
     SRCS "main.c"
     INCLUDE_DIRS "."
     REQUIRES
+        vellum_log
         nvs_manager
         wifi_manager
         http_client

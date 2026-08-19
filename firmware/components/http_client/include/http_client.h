@@ -108,6 +108,10 @@ esp_err_t http_client_config(vellum_http_response_t *resp);
 esp_err_t http_client_probe_server(const char *server_base_url, const char *command_id);
 
 /** POST the terminal outcome of a remote configuration command. */
+/** Upload retained diagnostic log lines. The caller keeps them until this
+ *  returns ESP_OK, so a lost response costs a duplicate rather than a gap. */
+esp_err_t http_client_post_logs(uint32_t seq, const char *lines, size_t len);
+
 esp_err_t http_client_config_report(const char *command_id, const char *status,
                                     const char *error_code);
 

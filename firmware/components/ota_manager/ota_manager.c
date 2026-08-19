@@ -48,6 +48,7 @@
 #include "vellum_display.h"
 #include "board.h"
 #include "nvs_manager.h"
+#include "vellum_log.h"
 #include "wifi_manager.h"
 #include "esp_attr.h"
 #include "esp_rom_crc.h"
@@ -683,6 +684,11 @@ ota_check_result_t ota_manager_check_and_apply(void)
     if (!root) { http_client_free_response(&resp); return OTA_CHECK_NO_RESTORE; }
 
     cJSON *data = cJSON_GetObjectItemCaseSensitive(root, "data");
+    /* Diagnostics verbosity is a desired state like any other, so it rides the
+     * ordinary poll rather than needing its own channel or a reboot. */
+    cJSON *verbose = cJSON_GetObjectItemCaseSensitive(data, "logVerbose");
+    if (cJSON_IsBool(verbose)) vellum_log_set_ship_everything(cJSON_IsTrue(verbose));
+
     apply_remote_configuration(data);
 
     /* Power guard (anti-brick) applies to the large OTA flash write, not to the
