@@ -194,6 +194,13 @@ esp_err_t display_get_info(display_info_t *info)
     return ESP_OK;
 }
 
+esp_err_t display_set_backlight(int percent)
+{
+    const vellum_panel_t *p = vellum_panel();
+    if (!p || !p->set_backlight) return ESP_ERR_NOT_SUPPORTED;
+    return p->set_backlight(percent);
+}
+
 esp_err_t display_get_caps(vellum_display_caps_t *out)
 {
     if (!out) return ESP_ERR_INVALID_ARG;
@@ -211,6 +218,7 @@ esp_err_t display_get_caps(vellum_display_caps_t *out)
     out->reserved_palette_indices = p->reserved_palette_indices;
     out->reserved_count = p->reserved_count;
     out->orientations = p->orientations;
+    out->has_backlight = p->has_backlight;
     out->orientation_count = p->orientation_count;
     out->orientation = p->orientation;
     return ESP_OK;

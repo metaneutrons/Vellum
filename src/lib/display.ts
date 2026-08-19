@@ -44,6 +44,15 @@ export const displayCapsSchema = z.object({
   quantize: z.enum(["color", "grayscale", "mono", "none", "jpeg"]).optional(),
   /** Orientations the device supports. Empty = fixed (no rotation). */
   orientations: z.array(z.enum(["portrait", "landscape"])).default([]),
+  /**
+   * Whether the panel has a dimmable backlight.
+   *
+   * Optional and absent by default, which is what firmware predating the flag
+   * reports. Absent means no brightness control is offered, and that is the safe
+   * direction: a slider that moves nothing is worse than no slider. No e-paper
+   * panel has one; the D1001's LCD does, on LEDC channel 0.
+   */
+  backlight: z.boolean().optional(),
   /** Current orientation as reported by the device (from IMU or fixed). */
   orientation: z.enum(["portrait", "landscape"]).optional(),
 });
@@ -235,13 +244,22 @@ export function mergeReportedCaps(
   if (!reported || !displayCapsSchema.safeParse(stored).success) {
     return { caps: stored, changed: false };
   }
-  const merged = {
+  const merged: Record<string, unknown> = {
     ...(stored as Record<string, unknown>),
     width: reported.width,
     height: reported.height,
     orientation: reported.orientation,
     orientations: reported.orientations,
   };
+  /* Only touch the flag when it says something, or when the row already carries
+   * it. Writing `backlight: false` unconditionally would make every device on
+   * firmware that predates the field look changed on every single poll, and each
+   * of those polls would cost a database write for nothing. A device that once
+   * reported a backlight and stops keeps the key, so a downgrade is still
+   * observed. */
+  if (reported.backlight || "backlight" in (stored as Record<string, unknown>)) {
+    merged.backlight = reported.backlight;
+  }
   return { caps: merged, changed: JSON.stringify(merged) !== JSON.stringify(stored) };
 }
 
@@ -303,18 +321,25 @@ export type Orientation = "portrait" | "landscape";
  * advertising portrait 800x1280 long after its drawable surface had become
  * landscape 1280x800 — costing 480px off the bottom of every portrait render.
  *
- * Format: `WxH;orientation;orientations,csv` — only what the server cannot derive
- * from the model. Treated as untrusted input: a device may be on any firmware, so
- * anything malformed or out of range yields null and the stored record stands.
+ * Format: `WxH;orientation;orientations,csv;flags,csv` — only what the server
+ * cannot derive from the model. Treated as untrusted input: a device may be on any
+ * firmware, so anything malformed or out of range yields null and the stored
+ * record stands.
+ *
+ * The flags field is optional and additive. Firmware predating it sends three
+ * fields, which resolves to no flags, so a control is withheld rather than
+ * offered and silently ignored. That direction is deliberate: an operator moving
+ * a slider that does nothing is worse than a slider that is not there.
  */
 export function parseDisplayCapsHeader(value: string | null | undefined): {
   width: number;
   height: number;
   orientation: Orientation;
   orientations: Orientation[];
+  backlight: boolean;
 } | null {
   if (!value) return null;
-  const [geometry, orientation, list] = value.split(";");
+  const [geometry, orientation, list, flags] = value.split(";");
   const match = /^(\d{1,5})x(\d{1,5})$/.exec(geometry?.trim() ?? "");
   if (!match) return null;
   const width = Number(match[1]);
@@ -333,5 +358,12 @@ export function parseDisplayCapsHeader(value: string | null | undefined): {
   // A device that reports no mounting it supports still supports the one it is in.
   if (!orientations.includes(current)) orientations.unshift(current);
 
-  return { width, height, orientation: current, orientations };
+  /* A dimmable backlight, which no e-paper panel has and which decides whether a
+   * brightness control is offered at all. */
+  const backlight = (flags ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .includes("backlight");
+
+  return { width, height, orientation: current, orientations, backlight };
 }

@@ -689,6 +689,16 @@ ota_check_result_t ota_manager_check_and_apply(void)
     cJSON *verbose = cJSON_GetObjectItemCaseSensitive(data, "logVerbose");
     if (cJSON_IsBool(verbose)) vellum_log_set_ship_everything(cJSON_IsTrue(verbose));
 
+    /* Brightness arrives already resolved: the server evaluated the profile, the
+     * schedule and the operator's override in the display's own timezone, so the
+     * device applies a number and keeps no clock logic of its own. Absent means
+     * the panel reported no backlight, and nothing is touched. */
+    cJSON *backlight = cJSON_GetObjectItemCaseSensitive(data, "backlightPercent");
+    if (cJSON_IsNumber(backlight)) {
+        const int percent = backlight->valueint;
+        if (percent >= 0 && percent <= 100) display_set_backlight(percent);
+    }
+
     apply_remote_configuration(data);
 
     /* Power guard (anti-brick) applies to the large OTA flash write, not to the

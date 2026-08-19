@@ -451,6 +451,11 @@ export const devices = pgTable(
     /* At most one site, and none is allowed. Set null on delete rather than
      * cascade: removing a location must not remove the displays in it. */
     siteId: uuid("site_id").references(() => sites.id, { onDelete: "set null" }),
+    /* An operator's brightness for this one display, 0-100, or null for "follow
+     * the profile". Null rather than a sentinel: 0 is a legitimate value, it turns
+     * the backlight off, and a magic number would make that indistinguishable
+     * from unset. */
+    backlightPercent: integer("backlight_percent"),
     /* Overrides the site's zone for this one display. Rare but real: a display
      * that physically moved before its site record caught up. */
     timezone: text("timezone"),

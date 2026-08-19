@@ -650,10 +650,14 @@ static void set_caps_header(esp_http_client_handle_t client)
         used += (size_t)n;
     }
 
-    char value[160];
-    snprintf(value, sizeof(value), "%ux%u;%s;%s", (unsigned)caps.width,
+    /* Fourth field: capability flags, comma-separated and optional. A server that
+     * predates it ignores the extra field; firmware that predates it sends three
+     * fields and the server withholds the control rather than offering one the
+     * panel cannot honour. */
+    char value[192];
+    snprintf(value, sizeof(value), "%ux%u;%s;%s;%s", (unsigned)caps.width,
              (unsigned)caps.height, caps.orientation ? caps.orientation : "",
-             orientations);
+             orientations, caps.has_backlight ? "backlight" : "");
     esp_http_client_set_header(client, "X-Display-Caps", value);
 }
 

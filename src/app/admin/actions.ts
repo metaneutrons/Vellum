@@ -238,6 +238,45 @@ export async function queueDeviceServerMigration(macInput: string, serverUrlInpu
  * window of context around them, and an operator turns a single display chatty
  * only while actually debugging it.
  */
+
+/**
+ * Set or clear one display's brightness.
+ *
+ * null means "follow the profile"; 0 is a legitimate value that turns the
+ * backlight off, which is why the two cannot share a representation. Refused for
+ * a panel that reports no backlight, so the UI and the server agree rather than
+ * the UI hiding a control the server would still accept.
+ */
+export async function setDeviceBacklight(macInput: string, percent: number | null) {
+  const actor = await requireAdmin("devices.provision");
+  const mac = normalizeProvisioningMac(macInput);
+  const value = percent === null ? null : z.number().int().min(0).max(100).parse(percent);
+
+  await withAuditedTransaction(
+    actor,
+    {
+      action: "device.backlight.set",
+      targetType: "device",
+      targetId: mac,
+      metadata: { percent: value },
+    },
+    async (tx) => {
+      const existing = await tx
+        .select({ caps: devices.displayCaps })
+        .from(devices)
+        .where(eq(devices.mac, mac))
+        .limit(1);
+      const caps = existing[0]?.caps as { backlight?: boolean } | null;
+      if (value !== null && !caps?.backlight) throw new Error("panel_has_no_backlight");
+      await tx.update(devices).set({ backlightPercent: value }).where(eq(devices.mac, mac));
+      return { id: mac };
+    },
+    "set-device-backlight",
+    "serializable"
+  );
+  revalidatePath(`/admin/devices/${mac}`);
+}
+
 export async function setDeviceLogVerbose(macInput: string, verbose: boolean) {
   const actor = await requireAdmin("devices.provision");
   const mac = normalizeProvisioningMac(macInput);

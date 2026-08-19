@@ -3,13 +3,15 @@
 import { NextRequest } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, withDbRead, withDbWrite } from "@/db";
-import { deviceConfigurationCommands, devices } from "@/db/schema";
+import { deviceConfigurationCommands, devices, refreshProfiles } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
+import { settingsForDevice } from "@/lib/settings/for-device";
+import { evaluateBrightness, parseBrightnessPolicy } from "@/lib/settings/brightness";
 import { log } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { createOtaDownloadUrl } from "@/lib/firmware-download";
@@ -88,6 +90,12 @@ export async function GET(request: NextRequest) {
           height: reported.height,
           orientation: reported.orientation,
           orientations: reported.orientations,
+          /* Same rule as mergeReportedCaps: only touch the flag when it says
+           * something or the row already carries it, or every device on firmware
+           * without it would look changed on every poll. */
+          ...(reported.backlight || "backlight" in (baseCaps as Record<string, unknown>)
+            ? { backlight: reported.backlight }
+            : {}),
         }
       : null;
   const capsChanged =
@@ -309,6 +317,41 @@ export async function GET(request: NextRequest) {
       })
     );
 
+  /* Backlight brightness, resolved to a single number the device just applies.
+   *
+   * Only sent when the panel reports a backlight: no e-paper model has one, and
+   * firmware predating the capability flag reports none, so nothing is sent to a
+   * device that could not honour it. The device learns neither the schedule nor
+   * the timezone, which keeps clock logic out of the firmware and lets a schedule
+   * change take effect on the next poll. */
+  /* Taken from the header of THIS poll, not from the stored row: the row is
+   * whatever the last adoption wrote, and a device that just gained the
+   * capability should not have to wait a cycle to be dimmable. */
+  const hasBacklight =
+    reported?.backlight ?? (device?.displayCaps as { backlight?: boolean } | null)?.backlight;
+  let backlightPercent: number | undefined;
+  if (hasBacklight && device) {
+    const settings = await settingsForDevice(device);
+    const [assignedProfile] = settings.values.refreshProfileId
+      ? await withDbRead(
+          () =>
+            db
+              .select({ config: refreshProfiles.config })
+              .from(refreshProfiles)
+              .where(eq(refreshProfiles.id, settings.values.refreshProfileId as string))
+              .limit(1),
+          "config-get-brightness-profile"
+        )
+      : [];
+    backlightPercent = evaluateBrightness({
+      policy: parseBrightnessPolicy(assignedProfile?.config),
+      powerSource: t?.powerSource === "battery" ? "battery" : "usb",
+      now: new Date(),
+      timezone: settings.values.timezone ?? undefined,
+      override: device.backlightPercent,
+    }).percent;
+  }
+
   return Response.json(
     okResponse({
       ...publicOta,
@@ -319,6 +362,7 @@ export async function GET(request: NextRequest) {
        * errors, which is what keeps a fleet from becoming a firehose; an operator
        * raises one device while debugging it. */
       logVerbose: device?.logVerbose === true,
+      backlightPercent,
     })
   );
 }

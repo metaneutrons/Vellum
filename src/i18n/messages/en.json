@@ -216,6 +216,13 @@
         "profile": "from the profile",
         "device": "set on this display"
       }
+    },
+    "backlight": {
+      "label": "Brightness",
+      "override": "Set for this display",
+      "followProfile": "Follow the profile",
+      "fromProfile": "Following the profile: resolved from the schedule and the power source.",
+      "overridden": "Set for this display, so the profile's schedule no longer applies here."
     }
   },
   "content": {

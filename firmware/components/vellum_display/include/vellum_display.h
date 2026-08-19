@@ -27,6 +27,15 @@ esp_err_t vellum_display_show_image(const uint8_t *data, size_t len, const char 
 /** Show status text with the Vellum logo. */
 esp_err_t vellum_display_show_status(const char *text);
 
+/**
+ * Apply a backlight brightness, 0-100.
+ *
+ * Remembered as the target: display_wake() and every render restore it. Before
+ * this existed, d1001_backlight_on() set a hardcoded 80 percent, so any value the
+ * server sent would have been overwritten on the next wake.
+ */
+esp_err_t display_set_backlight(int percent);
+
 /** Turn off display / backlight. */
 void vellum_display_off(void);
 
@@ -69,6 +78,8 @@ typedef struct {
     uint8_t     orientation_count;
     /** The mounting in effect now. */
     const char *orientation;
+    /** Panel has a dimmable backlight, so a brightness value is honourable. */
+    bool        has_backlight;
 } vellum_display_caps_t;
 
 esp_err_t display_get_caps(vellum_display_caps_t *out);

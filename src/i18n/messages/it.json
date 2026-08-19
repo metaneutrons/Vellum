@@ -216,6 +216,13 @@
         "profile": "dal profilo",
         "device": "impostato su questo display"
       }
+    },
+    "backlight": {
+      "label": "Luminosità",
+      "override": "Imposta per questo display",
+      "followProfile": "Segui il profilo",
+      "fromProfile": "Segue il profilo: risolto da orario e fonte di alimentazione.",
+      "overridden": "Impostato per questo display, l'orario del profilo qui non si applica più."
     }
   },
   "content": {
