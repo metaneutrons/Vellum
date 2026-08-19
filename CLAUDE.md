@@ -260,6 +260,12 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
     nit. `components-lcd/esp_io_expander_pca9535` is likewise **vendored because
     the registry version fails on IDF 6.0**; its README (verbatim upstream) tells
     you to `idf.py add-dependency` it — don't.
+- **Brightness is per-model and remembered.** `d1001_backlight_set(percent)` drives
+  LEDC channel 0 (10-bit, 5 kHz) and existed unused for a long time;
+  `d1001_backlight_on()` sets a hardcoded **80 %**, so `panel_lcd` keeps the
+  server's value as a target and restores that on wake and after every render.
+  Without the remembered target, every wake would undo the configured value. Only
+  the D1001 reports `has_backlight`; no e-paper panel has one.
 - **D1001 renders JPEG, not raw pixels.** `panel_lcd.c` decodes JPEG
   (`esp_jpeg_decode()`) into RGB565; the server sends `image/jpeg` for `d1001`
   (`src/lib/display.ts`, `api/v1/ink/render`). Only the S3 e-paper path takes a
@@ -282,6 +288,69 @@ firmware/host_test/build && ctest --test-dir firmware/host_test/build`.
 - `firmware-host-test.yml` runs on EVERY push/PR to main with **no path filter
   on purpose** (required check; path-filtering would wedge unrelated PRs in
   "Expected — Waiting for status"). `host_test/README.md` states this correctly.
+
+## Settings model: sites, profiles, overrides
+
+Three primitives and one resolver, introduced over four staged PRs (#295, #296,
+#298, and the UI/naming follow-up). The point of the shape is that adding a
+setting does not add a mechanism.
+
+- **Site** (`sites`) = a physical location: an IANA timezone plus defaults
+  (profile, theme, content) for the displays in it. A device belongs to **at most
+  one** and may belong to **none** — that is what let each stage ship on its own,
+  since a siteless display resolves exactly as it did before sites existed.
+  `user_role_assignments.scope_type` was already reserved for a `site` scope, so
+  the RBAC seam fits this rather than a parallel concept.
+- **Profile** (`refresh_profiles`) = a named policy bundle with **sections**, not
+  one profile type per subject. `config` holds cadence today and `brightness`
+  alongside it. **The UI calls it a "display profile"; the table is still
+  `refresh_profiles`.** That drift is deliberate: a rename migration in this
+  repo's history costs more than it returns.
+- **Override** = an explicit per-device column (`orientation_override`,
+  `timezone`, `backlight_percent`, `log_verbose`). Kept as columns, not a JSONB
+  bag, because `check-schema-migrations.mjs` verifies column coverage and a blob
+  is invisible to it. At three overrides the column count is not a burden; the
+  calculation changes at ten.
+
+**Two operations, deliberately separate** (`src/lib/settings/`): `cascade()`
+resolves configuration over ordered layers (`builtin → site → profile → device`)
+with per-key provenance; the evaluators (`computeSleep`, `evaluateBrightness`)
+then judge the resolved policy against runtime state (power source, battery, time
+of day, whether content is assigned). `computeSleep` used to do both, and adding
+brightness would have duplicated the mixing.
+
+Rules that hold across the model:
+
+- **A `null` in a layer means silence, not "explicitly none".** `devices.theme_id`
+  is null for nearly every display; reading that as a choice would make the device
+  layer override every site with emptiness. There is no way to say "none, and
+  ignore the site" — assign an empty object instead, which an operator can see.
+- **Arrays replace wholesale.** "Does a site's schedule extend the profile's or
+  replace it?" has no predictable answer; replacement fits in one sentence.
+- **Tiers for power, rules for time.** Power has a fixed small vocabulary (USB,
+  battery, low battery), so it stays a table of base values. Time is open-ended,
+  so it uses rules — `days` / `startHour` / `endHour`, wrapping past midnight,
+  first match wins. Cadence and brightness each have their own rule list of the
+  same shape; sharing one list would force duplicate rules for the ordinary case.
+- **Schedules are evaluated on the server, in the display's zone,** and the device
+  receives a resolved number. No clock or timezone logic in firmware, and a
+  schedule change takes effect on the next poll. `SleepContext.timezone` was
+  declared and unread until #295 — rules were judged by the container's clock and
+  were correct only because it runs `TZ=Europe/Berlin`.
+- **Zone precedence**: `devices.timezone` → its site's → the server clock. The
+  room-booking renderer's own `timezone` (default `UTC`) still wins when set, and
+  otherwise now falls back to the display's, so the clock on screen cannot
+  disagree with the schedule that decided when to draw it.
+- **Capabilities gate controls.** `X-Display-Caps` has a fourth, optional field
+  for flags; `backlight` is the first. Firmware predating it sends three fields,
+  so a control is **withheld** rather than offered and silently ignored. Note the
+  flag is only written into the stored row when it says something or the row
+  already carries it — writing it unconditionally made every older device look
+  changed on every poll, one needless write per cycle per display.
+- **`zod`'s `.partial()` cannot produce a cascade layer.** Every field carries a
+  `.default()`, and an absent optional key still resolves to it:
+  `.partial().parse({ usbIntervalS: 30 })` returns ten keys, which would then
+  outrank the layer below. `parseRefreshProfilePatch` picks only the keys present.
 
 ## Release: TWO components, separate PRs
 

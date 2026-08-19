@@ -8,7 +8,7 @@
     "providers": "Datenquellen",
     "sites": "Standorte",
     "themes": "Designs",
-    "profiles": "Aktualisierungsprofile",
+    "profiles": "Betriebsprofile",
     "firmware": "Firmware",
     "system": "System",
     "access": "Zugriff",
@@ -411,7 +411,7 @@
     "days": "Tage",
     "from": "Von",
     "until": "Bis",
-    "title": "Aktualisierungsprofile",
+    "title": "Betriebsprofile",
     "description": "Aktualisierungszeitpläne konfigurieren",
     "add": "Profil hinzufügen",
     "edit": "Bearbeiten",
@@ -482,7 +482,20 @@
     "ruleFallback": "Regel {number}",
     "active": "aktiv",
     "overlapSummary": "Regeln überschneiden sich: {pairs} — die erste Übereinstimmung gilt",
-    "default": "Standard"
+    "default": "Standard",
+    "brightness": {
+      "title": "Helligkeit",
+      "hint": "Gilt nur für Displays, die ein Backlight melden. Regeln nutzen dieselben Tage und Stunden wie oben, die erste passende gewinnt.",
+      "onUsb": "Am USB-Strom",
+      "onBattery": "Im Akkubetrieb",
+      "rules": "Absenkungsregeln",
+      "addRule": "Regel hinzufügen",
+      "removeRule": "Regel entfernen",
+      "noRules": "Keine Absenkungsregeln. Die Werte oben gelten ganztägig.",
+      "night": "Nacht",
+      "level": "Stufe"
+    },
+    "scopeHint": "Abfragerhythmus und Helligkeit für eine Gruppe von Displays."
   },
   "system": {
     "title": "System",

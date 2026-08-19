@@ -8,7 +8,7 @@
     "providers": "Fonti dati",
     "sites": "Sedi",
     "themes": "Temi",
-    "profiles": "Profili di aggiornamento",
+    "profiles": "Profili display",
     "firmware": "Firmware",
     "system": "Sistema",
     "access": "Accesso",
@@ -411,7 +411,7 @@
     "days": "Giorni",
     "from": "Da",
     "until": "A",
-    "title": "Profili di aggiornamento",
+    "title": "Profili display",
     "description": "Configura i programmi di aggiornamento",
     "add": "Aggiungi profilo",
     "edit": "Modifica",
@@ -482,7 +482,20 @@
     "ruleFallback": "Regola {number}",
     "active": "attiva",
     "overlapSummary": "Le regole si sovrappongono: {pairs} — prevale la prima corrispondenza",
-    "default": "Predefinito"
+    "default": "Predefinito",
+    "brightness": {
+      "title": "Luminosità",
+      "hint": "Solo display che segnalano una retroilluminazione. Le regole usano gli stessi giorni e orari di sopra; vince la prima corrispondenza.",
+      "onUsb": "Con alimentazione USB",
+      "onBattery": "A batteria",
+      "rules": "Regole di attenuazione",
+      "addRule": "Aggiungi regola",
+      "removeRule": "Rimuovi regola",
+      "noRules": "Nessuna regola di attenuazione. I valori sopra valgono tutto il giorno.",
+      "night": "Notte",
+      "level": "Livello"
+    },
+    "scopeHint": "Cadenza e luminosità per un gruppo di display."
   },
   "system": {
     "title": "Sistema",

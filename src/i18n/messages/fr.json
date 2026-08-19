@@ -8,7 +8,7 @@
     "providers": "Sources de données",
     "sites": "Sites",
     "themes": "Thèmes",
-    "profiles": "Profils de rafraîchissement",
+    "profiles": "Profils d'affichage",
     "firmware": "Firmware",
     "system": "Système",
     "access": "Accès",
@@ -411,7 +411,7 @@
     "days": "Jours",
     "from": "De",
     "until": "À",
-    "title": "Profils de rafraîchissement",
+    "title": "Profils d'affichage",
     "description": "Configurer les plannings de rafraîchissement",
     "add": "Ajouter un profil",
     "edit": "Modifier",
@@ -482,7 +482,20 @@
     "ruleFallback": "Règle {number}",
     "active": "active",
     "overlapSummary": "Chevauchement des règles : {pairs} — la première correspondance est prioritaire",
-    "default": "Par défaut"
+    "default": "Par défaut",
+    "brightness": {
+      "title": "Luminosité",
+      "hint": "Uniquement les écrans qui signalent un rétroéclairage. Les règles utilisent les mêmes jours et heures que ci-dessus ; la première correspondance gagne.",
+      "onUsb": "Sur alimentation USB",
+      "onBattery": "Sur batterie",
+      "rules": "Règles d'atténuation",
+      "addRule": "Ajouter une règle",
+      "removeRule": "Supprimer la règle",
+      "noRules": "Aucune règle d'atténuation. Les valeurs ci-dessus s'appliquent toute la journée.",
+      "night": "Nuit",
+      "level": "Niveau"
+    },
+    "scopeHint": "Cadence et luminosité pour un groupe d'écrans."
   },
   "system": {
     "title": "Système",
