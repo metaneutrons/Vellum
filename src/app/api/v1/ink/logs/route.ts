@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
+import { readDeviceRequest } from "@/lib/device-request";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db, withDbWrite } from "@/db";
 import { deviceLogs } from "@/db/schema";
-import { validateToken } from "@/lib/auth";
-import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
+import { okResponse, errorResponse } from "@/lib/api-response";
 import { deviceLogBatchSchema } from "@/lib/validation";
-import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 
 /** Keep a bounded history per device: enough to read an incident, not a fleet-wide archive. */
@@ -43,24 +42,10 @@ async function prune(mac: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
-  if (rateLimited) return rateLimited;
+  const parsed = await readDeviceRequest(request, deviceLogBatchSchema);
+  if (!parsed.ok) return parsed.response;
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json(errorResponse("Invalid JSON body"), { status: 400 });
-  }
-  const validation = validateRequest(deviceLogBatchSchema, body);
-  if (!validation.success) return validation.response;
-
-  const token = request.headers.get("x-device-token") ?? "";
-  if (!(await validateToken(validation.data.mac, token))) {
-    return Response.json(errorResponse("Unauthorized"), { status: 401 });
-  }
-
-  const { mac, seq, lines } = validation.data;
+  const { mac, seq, lines } = parsed.data;
   try {
     /* A device re-offers the same sequence until it sees a 2xx, so a lost
      * response must cost nothing. The unique (mac, seq) index turns the retry

@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
+import { readDeviceRequest } from "@/lib/device-request";
 import { db, withDbWrite } from "@/db";
 import { otaEvents } from "@/db/schema";
 import { otaReportSchema } from "@/lib/validation";
-import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
-import { validateToken } from "@/lib/auth";
-import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
+import { okResponse, errorResponse } from "@/lib/api-response";
 import { log } from "@/lib/logger";
 
 /**
@@ -16,37 +15,19 @@ import { log } from "@/lib/logger";
  * per-device failure blocklist that breaks the brick-retry loop.
  */
 export async function POST(request: NextRequest) {
-  const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
-  if (rateLimited) return rateLimited;
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json(errorResponse("Invalid JSON body"), { status: 400 });
-  }
-
-  const validation = validateRequest(otaReportSchema, body);
-  if (!validation.success) {
-    return validation.response;
-  }
-
-  const token = request.headers.get("x-device-token") ?? "";
-  const isValid = await validateToken(validation.data.mac, token);
-  if (!isValid) {
-    return Response.json(errorResponse("Unauthorized"), { status: 401 });
-  }
+  const parsed = await readDeviceRequest(request, otaReportSchema);
+  if (!parsed.ok) return parsed.response;
 
   try {
     await withDbWrite(
       () =>
         db.insert(otaEvents).values({
-          mac: validation.data.mac,
-          model: validation.data.model ?? null,
-          fromVersion: validation.data.fromVersion ?? null,
-          toVersion: validation.data.toVersion ?? null,
-          phase: validation.data.phase,
-          errorCode: validation.data.errorCode ?? null,
+          mac: parsed.data.mac,
+          model: parsed.data.model ?? null,
+          fromVersion: parsed.data.fromVersion ?? null,
+          toVersion: parsed.data.toVersion ?? null,
+          phase: parsed.data.phase,
+          errorCode: parsed.data.errorCode ?? null,
           timestamp: new Date(),
         }),
       "insert-ota-event"
@@ -54,7 +35,7 @@ export async function POST(request: NextRequest) {
     return Response.json(okResponse({}));
   } catch (err) {
     log.error("ota-report insert failed", {
-      mac: validation.data.mac,
+      mac: parsed.data.mac,
       error: String(err),
     });
     return Response.json(errorResponse("Internal server error"), { status: 500 });
