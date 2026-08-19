@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.18.0](https://github.com/metaneutrons/Vellum/compare/v1.17.0...v1.18.0) (2026-08-19)
+
+
+### Features
+
+* **display:** brightness by time of day, power source and operator choice ([#298](https://github.com/metaneutrons/Vellum/issues/298)) ([3fd0635](https://github.com/metaneutrons/Vellum/commit/3fd0635740999ca8a304f141f52775bded712615))
+* **settings:** introduce sites as the layer between defaults and a display ([#296](https://github.com/metaneutrons/Vellum/issues/296)) ([72d0418](https://github.com/metaneutrons/Vellum/commit/72d041858df6e68575082f16629498e22371d9c3))
+* **settings:** make brightness editable, and name the profile for what it is ([#299](https://github.com/metaneutrons/Vellum/issues/299)) ([e09edec](https://github.com/metaneutrons/Vellum/commit/e09edec3c08eaa44f5d2cee1b31d81fe1aaf7281))
+
+
+### Bug Fixes
+
+* **admin:** stop refusing browser mutations behind a TLS-terminating proxy ([#300](https://github.com/metaneutrons/Vellum/issues/300)) ([905dc23](https://github.com/metaneutrons/Vellum/commit/905dc23e637935b4c977e214e6bfe3cf9640df7a))
+* **diagnostics:** make the batches readable, and the page reachable ([#292](https://github.com/metaneutrons/Vellum/issues/292)) ([7882c17](https://github.com/metaneutrons/Vellum/commit/7882c17d3fa07f722c8ad1e0fe57822e931dcf42))
+
 ## [1.17.0](https://github.com/metaneutrons/Vellum/compare/v1.16.1...v1.17.0) (2026-08-19)
 
 
