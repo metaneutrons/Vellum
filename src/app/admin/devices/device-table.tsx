@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { approveDevice, updateDevice, deleteDevice, queueDeviceOrientation } from "../actions";
 import { useToast } from "@/components/toast";
 import { ConfirmDialog } from "@/components/confirm";
@@ -261,9 +262,15 @@ export function DeviceTable({
                           .join(", ")}
                       />
                     )}
-                    <span className="font-mono text-sm font-semibold tracking-tight text-label">
+                    {/* The detail page carries telemetry, configuration history and
+                        the diagnostics log. It was only reachable from the firmware
+                        page, so the list an operator actually uses was a dead end. */}
+                    <Link
+                      href={`/admin/devices/${d.mac}`}
+                      className="focus-ring rounded font-mono text-sm font-semibold tracking-tight text-label hover:text-accent hover:underline"
+                    >
                       {d.mac}
-                    </span>
+                    </Link>
                     <StatusPill tone={statusTone} dot>
                       {d.status}
                     </StatusPill>

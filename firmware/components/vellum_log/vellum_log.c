@@ -30,7 +30,11 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static vprintf_like_t s_next_writer;
 static uint32_t s_seq;
 static uint32_t s_seq_in_flight;
-static size_t s_in_flight_len;
+/* Two lengths, and conflating them is a bug: `raw` is what was consumed from the
+ * ring and therefore what must be acknowledged, while the payload is shorter
+ * because repeats were collapsed. Confirming the payload length would leave the
+ * collapsed bytes unsent and re-upload them forever. */
+static size_t s_in_flight_raw;
 
 /*
  * NOINIT rather than DATA: the content has to outlive a reset, and the magic plus
@@ -88,6 +92,10 @@ static int log_writer(const char *format, va_list args)
         if (len > 0) {
             const char level = log_ring_level_of(line);
             const bool serious = level == 'E' || level == 'W';
+            /* Routine chatter never enters the ring, so the history that does fit
+             * is history worth reading. Warnings and errors are always kept, even
+             * from a noisy tag. */
+            if (!serious && log_ring_is_noise(line)) goto chain;
             char folded[48];
             size_t folded_len = 0;
 
@@ -102,6 +110,7 @@ static int log_writer(const char *format, va_list args)
         }
     }
 
+chain:;
     /* Chain last, so the console keeps its output even if we bail out above. */
     return s_next_writer ? s_next_writer(format, args) : written;
 }
@@ -163,8 +172,12 @@ size_t vellum_log_take_upload(char *out, size_t out_len, uint32_t *seq)
     /* Re-offer the same sequence number until it is confirmed, so a lost
      * response costs a duplicate the server discards, never a gap. */
     if (s_seq_in_flight == 0) s_seq_in_flight = ++s_seq;
-    const size_t copied = log_ring_peek_unsent(out, out_len);
-    s_in_flight_len = copied;
+    const size_t raw = log_ring_peek_unsent(out, out_len);
+    /* Dense payload, raw ring: the console still shows every line in order, while
+     * a batch collapses a failure that repeats every cycle into one line plus a
+     * count. Measured need, not a guess: a real 4 KB batch was mostly repeats. */
+    const size_t copied = log_ring_compress(out, raw);
+    s_in_flight_raw = raw;
     *seq = s_seq_in_flight;
     portEXIT_CRITICAL(&s_lock);
     return copied;
@@ -174,9 +187,9 @@ void vellum_log_upload_confirmed(uint32_t seq)
 {
     portENTER_CRITICAL(&s_lock);
     if (seq == s_seq_in_flight && s_seq_in_flight != 0) {
-        log_ring_confirm(s_in_flight_len);
+        log_ring_confirm(s_in_flight_raw);
         s_seq_in_flight = 0;
-        s_in_flight_len = 0;
+        s_in_flight_raw = 0;
     }
     portEXIT_CRITICAL(&s_lock);
 }

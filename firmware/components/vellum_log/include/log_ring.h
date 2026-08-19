@@ -26,6 +26,28 @@
 /** Point the ring at its storage and forget everything held so far. */
 void log_ring_init(char *storage, size_t size, size_t context_bytes);
 
+/**
+ * True when a line is high-frequency, low-value chatter that should not enter the
+ * ring at all. Applies to INFO and below; warnings and errors are always kept.
+ *
+ * Measured on a real batch rather than guessed: 4 KB of uploaded diagnostics from
+ * a D1001 consisted mostly of two lines repeating every cycle, a TLS bundle
+ * confirmation and a battery reading, which say nothing about a failure.
+ */
+bool log_ring_is_noise(const char *line);
+
+/**
+ * Collapse repeated messages in an assembled payload, preserving first-occurrence
+ * order and appending a count. Returns the new length.
+ *
+ * Deliberately applied when the batch is built, not when a line is recorded. The
+ * recorder stays simple and the console keeps the raw sequence, while the payload
+ * gets dense. Recording-time folding only caught CONSECUTIVE duplicates, and real
+ * data showed the case that matters is a failure repeating every cycle with
+ * routine lines in between, which never folded at all.
+ */
+size_t log_ring_compress(char *text, size_t len);
+
 /** Replace anything that authenticates. Returns the new length.
  *  Long hex runs (32 or more) are tokens, signatures and fingerprints. SSIDs and
  *  URLs are kept: a transport failure cannot be read without them. */
