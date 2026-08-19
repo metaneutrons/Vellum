@@ -23,6 +23,8 @@
 #include <stdlib.h>
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "esp_console.h"
 #include "esp_vfs_dev.h"
 #include "driver/uart.h"
@@ -621,6 +623,16 @@ static int cmd_info(int argc, char **argv)
     printf("Firmware: %s\n", CONFIG_VELLUM_FIRMWARE_VERSION);
     printf("Model:    %s\n", CONFIG_VELLUM_DISPLAY_MODEL);
     printf("IDF:      %s\n", esp_get_idf_version());
+    /* Memory belongs in here: a display that cannot reserve its 2 MB decode
+     * buffer refuses every server-rendered frame, and until this line existed
+     * the only way to see that was a live UART at the moment it happened. */
+    printf("Internal: %u free, largest block %u\n",
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    printf("PSRAM:    %u free, largest block %u\n",
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+    printf("Uptime:   %llu s\n", (unsigned long long)(esp_timer_get_time() / 1000000));
     return 0;
 }
 
