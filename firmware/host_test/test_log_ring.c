@@ -190,6 +190,32 @@ static void test_level_is_found_behind_a_colour_escape(void)
     TEST_ASSERT_EQUAL_INT('I', log_ring_level_of("\033[0;32mI (10) tag: msg"));
 }
 
+/* Two tokens separated by a single delimiter: after redacting the first, the scan
+ * resumes one character later, and the second must still be found. */
+static void test_adjacent_hex_runs_are_both_redacted(void)
+{
+    char line[LOG_RING_LINE_MAX];
+    snprintf(line, sizeof(line), "I (10) auth: %s/%s end",
+             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+             "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
+    log_ring_redact(line, strlen(line));
+    TEST_ASSERT_TRUE(strstr(line, "0123456789abcdef") == NULL);
+    TEST_ASSERT_TRUE(strstr(line, "fedcba9876543210") == NULL);
+    TEST_ASSERT_TRUE(strstr(line, "********/********") != NULL);
+    TEST_ASSERT_TRUE(strstr(line, "end") != NULL);
+}
+
+static void test_a_hex_run_at_the_end_of_a_line_is_redacted(void)
+{
+    char line[LOG_RING_LINE_MAX];
+    snprintf(line, sizeof(line), "I (10) auth: token=%s",
+             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+    const size_t len = log_ring_redact(line, strlen(line));
+    TEST_ASSERT_EQUAL_INT((int)strlen(line), (int)len);
+    TEST_ASSERT_TRUE(strstr(line, "0123456789abcdef") == NULL);
+    TEST_ASSERT_TRUE(strstr(line, "token=********") != NULL);
+}
+
 void run_log_ring_tests(void)
 {
     RUN_TEST(test_routine_lines_do_not_arm_an_upload);
@@ -203,6 +229,8 @@ void run_log_ring_tests(void)
     RUN_TEST(test_wrapping_drops_whole_lines_only);
     RUN_TEST(test_a_line_longer_than_the_ring_cannot_overflow_it);
     RUN_TEST(test_long_hex_runs_are_redacted);
+    RUN_TEST(test_adjacent_hex_runs_are_both_redacted);
+    RUN_TEST(test_a_hex_run_at_the_end_of_a_line_is_redacted);
     RUN_TEST(test_diagnostic_values_survive_redaction);
     RUN_TEST(test_level_is_found_behind_a_colour_escape);
 }

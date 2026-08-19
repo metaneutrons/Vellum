@@ -74,7 +74,15 @@ export async function POST(request: NextRequest) {
       "store-device-log-batch"
     );
 
-    await prune(mac);
+    /* Housekeeping must never withhold the acknowledgement. The device drops its
+     * bytes only on a 2xx, so a pruning failure that reached the caller would make
+     * it retry a batch that is already stored, for as long as the failure lasts. */
+    prune(mac).catch((error) =>
+      log.warn("Unable to prune device log history", {
+        mac,
+        errorType: error instanceof Error ? error.name : "unknown",
+      })
+    );
 
     return Response.json(okResponse({ seq }));
   } catch (error) {

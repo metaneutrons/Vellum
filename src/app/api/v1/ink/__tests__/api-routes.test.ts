@@ -494,6 +494,24 @@ describe("POST /api/v1/ink/logs", () => {
     expect(body.data.seq).toBe(1);
   });
 
+  it("acknowledges a stored batch even when housekeeping fails", async () => {
+    mockedValidateToken.mockResolvedValue(true);
+    /* The device drops its bytes only on a 2xx. A pruning failure that reached the
+     * caller would make it retry a batch that is already stored, for as long as
+     * the failure lasts. */
+    const { withDbWrite } = await import("@/db");
+    const mocked = vi.mocked(withDbWrite);
+    let call = 0;
+    mocked.mockImplementation(async (fn: () => unknown) => {
+      call += 1;
+      if (call === 1) return fn();
+      throw new Error("lock timeout");
+    });
+    const res = await logsHandler(batch());
+    expect(res.status).toBe(200);
+    mocked.mockImplementation(async (fn: () => unknown) => fn());
+  });
+
   it("refuses a batch from an unauthenticated device", async () => {
     mockedValidateToken.mockResolvedValue(false);
     const res = await logsHandler(batch());
