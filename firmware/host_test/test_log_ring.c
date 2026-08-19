@@ -116,7 +116,9 @@ static void test_an_unconfirmed_span_is_offered_again(void)
     const size_t a = log_ring_peek_unsent(first, sizeof(first));
     const size_t b = log_ring_peek_unsent(second, sizeof(second));
     TEST_ASSERT_EQUAL_INT((int)a, (int)b);
-    TEST_ASSERT_EQUAL_STRING(first, second);
+    /* Compared rather than printed: the diff macro formats both buffers into a
+     * fixed string, and gcc rejects that for buffers this size. */
+    TEST_ASSERT_TRUE(strcmp(first, second) == 0);
 }
 
 /* Wrap-around is where a ring buffer hides its bugs: a snapshot must never begin
