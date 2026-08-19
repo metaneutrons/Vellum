@@ -122,6 +122,16 @@ static esp_err_t lcd_update_ota_progress(uint8_t percent, int x, int y,
  * capabilities still claimed portrait, so a portrait render arrived 800x1280 for
  * a 1280x800 surface and lost 480px off the bottom. */
 static bool s_mounted_portrait;
+/*
+ * Full-frame RGB565 scratch for JPEG decoding, reserved once at init.
+ *
+ * It used to be allocated lazily on the first draw, and that lost a race it did
+ * not need to enter: 2 MB of contiguous PSRAM is easy to get while the display
+ * is coming up and harder later, and once the attempt failed nothing freed
+ * anything, so every following frame failed too. The panel then showed
+ * "Image rejected" until the next reboot, with no log line naming the cause.
+ */
+static uint8_t *s_rgb_buf;
 static vellum_panel_t s_panel; /* initialised below; lcd_init() fills the geometry */
 
 static bool mounting_is_portrait(void)
@@ -220,6 +230,16 @@ static lv_display_t *lcd_init(void)
     /* Vellum renders synchronously after each state change. We intentionally do
      * not start the adapter's background worker; this preserves that ownership
      * model while using its VSYNC-synchronised triple-buffer flush pipeline. */
+    s_rgb_buf = heap_caps_malloc(LCD_WIDTH * LCD_HEIGHT * 2, MALLOC_CAP_SPIRAM);
+    if (!s_rgb_buf) {
+        /* Not fatal: status screens are drawn by LVGL and still work. Only
+         * server-rendered frames need this buffer, and lcd_draw_raw retries. */
+        ESP_LOGE(TAG, "Could not reserve the %d KB decode buffer (PSRAM free %u, largest %u)",
+                 (LCD_WIDTH * LCD_HEIGHT * 2) / 1024,
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+    }
+
     vTaskDelay(pdMS_TO_TICKS(100));
     d1001_backlight_on();
     ESP_LOGI(TAG, "LCD initialized: %dx%d, %d MHz triple-partial rotation",
@@ -239,12 +259,19 @@ static void lcd_refresh(void)
 
 static esp_err_t lcd_draw_raw(const uint8_t *data, size_t len)
 {
-    if (!data || !s_disp) return ESP_ERR_INVALID_STATE;
+    if (!data || !s_disp) {
+        ESP_LOGE(TAG, "Cannot draw: %s", s_disp ? "no frame data" : "display not registered");
+        return ESP_ERR_INVALID_STATE;
+    }
 
-    static uint8_t *s_rgb_buf = NULL;
-    if (!s_rgb_buf)
-        s_rgb_buf = heap_caps_malloc(LCD_WIDTH * LCD_HEIGHT * 2, MALLOC_CAP_SPIRAM);
-    if (!s_rgb_buf) return ESP_ERR_NO_MEM;
+    /* Reserved at init; retried here only if that attempt failed. */
+    if (!s_rgb_buf) s_rgb_buf = heap_caps_malloc(LCD_WIDTH * LCD_HEIGHT * 2, MALLOC_CAP_SPIRAM);
+    if (!s_rgb_buf) {
+        ESP_LOGE(TAG, "No memory for the decode buffer (PSRAM free %u, largest %u)",
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+        return ESP_ERR_NO_MEM;
+    }
 
     esp_jpeg_image_cfg_t jpeg_cfg = {
         .indata = (uint8_t *)data, .indata_size = len,
@@ -255,7 +282,8 @@ static esp_err_t lcd_draw_raw(const uint8_t *data, size_t len)
     esp_jpeg_image_output_t out;
     esp_err_t ret = esp_jpeg_decode(&jpeg_cfg, &out);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "JPEG decode failed: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "JPEG decode failed: %s (%zu bytes from the server)",
+                 esp_err_to_name(ret), len);
         return ret;
     }
 

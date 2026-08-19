@@ -485,11 +485,26 @@ static uint32_t perform_render(bool *render_ok)
              * Wi-Fi reset line, and this runs on every render. */
             gpio_set_direction(GPIO_NUM_13, GPIO_MODE_INPUT);
 #endif
-            if (display_update_raw(resp.binary_body, resp.binary_len) != ESP_OK) {
-                ESP_LOGW(TAG, "Malformed pixel buffer (%zu bytes)", resp.binary_len);
-                display_show_status_message(VD_ICON_WARNING, "Image rejected",
-                                            "The server sent a frame this panel "
-                                            "could not draw");
+            /* Name the cause. All three used to surface as one "Image rejected"
+             * screen with no log line, and a display that could not reserve its
+             * decode buffer looked exactly like a server sending a bad frame. */
+            const esp_err_t draw = display_update_raw(resp.binary_body, resp.binary_len);
+            if (draw != ESP_OK) {
+                ESP_LOGW(TAG, "Frame not drawn: %s (%zu bytes)", esp_err_to_name(draw),
+                         resp.binary_len);
+                if (draw == ESP_ERR_NO_MEM) {
+                    display_show_status_message(VD_ICON_WARNING, "Out of memory",
+                                                "The display could not reserve memory "
+                                                "to draw this frame");
+                } else if (draw == ESP_ERR_INVALID_STATE) {
+                    display_show_status_message(VD_ICON_WARNING, "Display not ready",
+                                                "The panel was not initialized when "
+                                                "the frame arrived");
+                } else {
+                    display_show_status_message(VD_ICON_WARNING, "Image rejected",
+                                                "The server sent a frame this panel "
+                                                "could not draw");
+                }
             } else {
                 ok = true;           /* frame drawn successfully */
                 http_client_commit_render_etag(resp.etag);
