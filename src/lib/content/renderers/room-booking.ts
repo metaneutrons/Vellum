@@ -854,8 +854,19 @@ export const roomBookingRenderer: ContentRenderer = {
   name: "Room Booking",
   configSchema: roomBookingConfigSchema,
 
-  async render({ config, theme, display, now }: RenderParams): Promise<RenderResult> {
+  async render({ config, theme, display, now, timezone }: RenderParams): Promise<RenderResult> {
     const cfg = roomBookingConfigSchema.parse(config);
+
+    /* The room's own zone wins when it is set; otherwise the display's zone, from
+     * its device override or its site. Read from the RAW config rather than the
+     * parsed one, because the schema defaults timezone to "UTC" and a parsed value
+     * can no longer tell "unset" from "explicitly UTC". Without this the clock on
+     * screen could disagree with the schedule that decided when to draw it. */
+    const rawTimezone = (config as { timezone?: unknown } | null)?.timezone;
+    const tz =
+      typeof rawTimezone === "string" && rawTimezone.trim()
+        ? rawTimezone
+        : (timezone ?? cfg.timezone);
     const { width, height, colorCount } = display;
 
     let events: CalendarEvent[];
@@ -889,7 +900,7 @@ export const roomBookingRenderer: ContentRenderer = {
         canvas: renderStacked(
           displayEvents,
           cfg.roomName,
-          cfg.timezone,
+          tz,
           now,
           theme,
           width,
@@ -906,7 +917,7 @@ export const roomBookingRenderer: ContentRenderer = {
       canvas: renderToCanvas(
         displayEvents,
         cfg.roomName,
-        cfg.timezone,
+        tz,
         now,
         theme,
         width,

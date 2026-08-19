@@ -235,6 +235,7 @@ export async function GET(request: NextRequest) {
       theme,
       display,
       now,
+      timezone: settings.values.timezone ?? undefined,
     });
   } catch (err) {
     log.error("Render failed", {

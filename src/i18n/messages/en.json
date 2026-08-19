@@ -8,7 +8,7 @@
     "providers": "Data Providers",
     "sites": "Sites",
     "themes": "Themes",
-    "profiles": "Refresh Profiles",
+    "profiles": "Display Profiles",
     "firmware": "Firmware",
     "system": "System",
     "access": "Access",
@@ -411,7 +411,7 @@
     "days": "Days",
     "from": "From",
     "until": "Until",
-    "title": "Refresh Profiles",
+    "title": "Display Profiles",
     "description": "Configure display refresh schedules",
     "add": "Add Profile",
     "edit": "Edit",
@@ -482,7 +482,20 @@
     "ruleFallback": "Rule {number}",
     "active": "active",
     "overlapSummary": "Rules overlap: {pairs} — first match wins",
-    "default": "Default"
+    "default": "Default",
+    "brightness": {
+      "title": "Brightness",
+      "hint": "Only displays that report a backlight. Rules use the same days and hours as above; the first match wins.",
+      "onUsb": "On USB power",
+      "onBattery": "On battery",
+      "rules": "Dimming rules",
+      "addRule": "Add rule",
+      "removeRule": "Remove rule",
+      "noRules": "No dimming rules. The values above apply all day.",
+      "night": "Night",
+      "level": "Level"
+    },
+    "scopeHint": "Cadence and brightness for a group of displays."
   },
   "system": {
     "title": "System",

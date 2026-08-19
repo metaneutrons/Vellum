@@ -8,7 +8,7 @@
     "providers": "Fuentes de datos",
     "sites": "Ubicaciones",
     "themes": "Temas",
-    "profiles": "Perfiles de actualización",
+    "profiles": "Perfiles de pantalla",
     "firmware": "Firmware",
     "system": "Sistema",
     "access": "Acceso",
@@ -411,7 +411,7 @@
     "days": "Días",
     "from": "Desde",
     "until": "Hasta",
-    "title": "Perfiles de actualización",
+    "title": "Perfiles de pantalla",
     "description": "Configurar programas de actualización",
     "add": "Añadir perfil",
     "edit": "Editar",
@@ -482,7 +482,20 @@
     "ruleFallback": "Regla {number}",
     "active": "activa",
     "overlapSummary": "Las reglas se solapan: {pairs} — se aplica la primera coincidencia",
-    "default": "Predeterminado"
+    "default": "Predeterminado",
+    "brightness": {
+      "title": "Brillo",
+      "hint": "Solo pantallas que informan de retroiluminación. Las reglas usan los mismos días y horas que arriba; gana la primera coincidencia.",
+      "onUsb": "Con alimentación USB",
+      "onBattery": "Con batería",
+      "rules": "Reglas de atenuación",
+      "addRule": "Añadir regla",
+      "removeRule": "Quitar regla",
+      "noRules": "Sin reglas de atenuación. Los valores de arriba se aplican todo el día.",
+      "night": "Noche",
+      "level": "Nivel"
+    },
+    "scopeHint": "Ritmo de consulta y brillo para un grupo de pantallas."
   },
   "system": {
     "title": "Sistema",

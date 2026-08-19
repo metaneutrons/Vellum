@@ -238,7 +238,23 @@ const DEFAULT_CONFIG = {
   unassignedIntervalS: 300,
   schedule: [] as ScheduleRule[],
   errorBackoffS: [60, 300, 900, 3600],
+  /* The second section of the profile. 80 on USB is what the firmware did
+   * unconditionally before brightness existed, so an untouched profile keeps
+   * behaving as it did. */
+  brightness: {
+    usbPercent: 80,
+    batteryPercent: 40,
+    schedule: [] as BrightnessRule[],
+  },
 };
+
+interface BrightnessRule {
+  name: string;
+  days: number[];
+  startHour: number;
+  endHour: number;
+  percent: number;
+}
 
 export function ProfileList({ profiles }: { profiles: Profile[] }) {
   const t = useTranslations("profiles");
@@ -253,6 +269,19 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   const backoff = (config.errorBackoffS ?? []) as number[];
   function setBackoff(steps: number[]) {
     setConfig((c) => ({ ...c, errorBackoffS: steps }));
+  }
+
+  const brightness = (config.brightness ?? DEFAULT_CONFIG.brightness) as {
+    usbPercent: number;
+    batteryPercent: number;
+    schedule: BrightnessRule[];
+  };
+  function setBrightness(patch: Partial<typeof brightness>) {
+    setConfig((c) => ({ ...c, brightness: { ...brightness, ...patch } }));
+  }
+  const dimRules = brightness.schedule ?? [];
+  function setDimRules(rules: BrightnessRule[]) {
+    setBrightness({ schedule: rules });
   }
 
   const schedule = (config.schedule ?? []) as ScheduleRule[];
@@ -337,6 +366,11 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
             {t("title")}
           </h1>
           <p className="text-[15px] text-label-secondary mt-1.5">{t("description")}</p>
+          {/* A profile carries cadence AND brightness now, so "refresh profile" no
+              longer describes it. The table is still refresh_profiles; the drift
+              between the UI term and the schema is noted in CLAUDE.md rather than
+              paid for with a rename migration. */}
+          <p className="text-[13px] text-label-tertiary mt-1">{t("scopeHint")}</p>
           {/* Name the inherited behaviour instead of leaving it implied: the device
             picker offers a "Default" that used to resolve to constants in the
             source, so an operator could not see what an unconfigured display did. */}
@@ -679,6 +713,134 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
           rules={schedule}
           defaultIntervalS={(config.batteryIntervalS as number) ?? 900}
         />
+
+        {/* Brightness: the same rule shape as above, deliberately. An operator
+            learns days-and-hours once and applies it to both sections. Only
+            panels that report a backlight are affected; e-paper ignores it. */}
+        <div className="border-t border-separator pt-4 mt-4">
+          <h4 className="text-sm font-medium text-label mb-1">{t("brightness.title")}</h4>
+          <p className="text-xs text-label-tertiary mb-3">{t("brightness.hint")}</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            {(
+              [
+                ["usbPercent", "brightness.onUsb"],
+                ["batteryPercent", "brightness.onBattery"],
+              ] as const
+            ).map(([key, labelKey]) => (
+              <label key={key} className="block">
+                <span className="block text-xs font-medium text-label-secondary mb-1">
+                  {t(labelKey)}
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={brightness[key]}
+                    onChange={(e) => setBrightness({ [key]: Number(e.target.value) })}
+                    className="w-full"
+                  />
+                  <span className="w-10 font-mono text-xs text-label">{brightness[key]}%</span>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between mt-4 mb-2">
+            <span className="text-xs font-medium text-label-secondary">
+              {t("brightness.rules")}
+            </span>
+            <Button
+              variant="plain"
+              onClick={() =>
+                setDimRules([
+                  ...dimRules,
+                  { name: t("brightness.night"), days: [], startHour: 22, endHour: 6, percent: 15 },
+                ])
+              }
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              {t("brightness.addRule")}
+            </Button>
+          </div>
+
+          {dimRules.length === 0 ? (
+            <div className="text-center py-4 text-xs text-label-tertiary border border-separator rounded-lg border-dashed">
+              {t("brightness.noRules")}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {dimRules.map((rule, i) => (
+                <div key={i} className="rounded-lg border border-separator p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={rule.name}
+                      onChange={(e) =>
+                        setDimRules(
+                          dimRules.map((r, j) => (j === i ? { ...r, name: e.target.value } : r))
+                        )
+                      }
+                      placeholder={t("brightness.night")}
+                    />
+                    <button
+                      type="button"
+                      aria-label={t("brightness.removeRule")}
+                      onClick={() => setDimRules(dimRules.filter((_, j) => j !== i))}
+                      className="focus-ring rounded p-2 text-label-tertiary hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {(["startHour", "endHour"] as const).map((field) => (
+                      <label key={field} className="flex items-center gap-1.5 text-xs">
+                        {t(field === "startHour" ? "from" : "until")}
+                        <select
+                          className={selectCls}
+                          value={rule[field]}
+                          onChange={(e) =>
+                            setDimRules(
+                              dimRules.map((r, j) =>
+                                j === i ? { ...r, [field]: Number(e.target.value) } : r
+                              )
+                            )
+                          }
+                        >
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <option key={h} value={h}>
+                              {fmtHour(h)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                    <label className="flex flex-1 items-center gap-2 text-xs">
+                      {t("brightness.level")}
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={rule.percent}
+                        onChange={(e) =>
+                          setDimRules(
+                            dimRules.map((r, j) =>
+                              j === i ? { ...r, percent: Number(e.target.value) } : r
+                            )
+                          )
+                        }
+                        className="flex-1"
+                      />
+                      <span className="w-10 font-mono text-label">{rule.percent}%</span>
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Modal>
 
       <ConfirmDialog
