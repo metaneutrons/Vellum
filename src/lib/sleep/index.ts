@@ -16,6 +16,7 @@
  */
 
 import { z } from "zod";
+import { TZDate } from "@date-fns/tz";
 
 /** A time-based override rule */
 const scheduleRuleSchema = z.object({
@@ -87,6 +88,35 @@ export const refreshProfileSchema = z.object({
 
 export type RefreshProfile = z.infer<typeof refreshProfileSchema>;
 
+/** One layer of a cascade: only the keys it actually sets. */
+export type RefreshProfilePatch = Partial<RefreshProfile>;
+
+/**
+ * Validate a cascade layer without inventing values for what it omits.
+ *
+ * `refreshProfileSchema.partial()` does NOT do this: every field carries a
+ * `.default()`, and making the key optional on top still resolves an absent key
+ * to its default. Parsing a site layer that only sets a night rule would come
+ * back carrying built-in intervals for everything else, and those would then
+ * outrank the profile they were supposed to leave alone. Verified, not assumed:
+ * `.partial().parse({ usbIntervalS: 30 })` returns ten keys.
+ *
+ * So only the keys actually present are picked and parsed. A layer with one
+ * malformed value is discarded whole rather than half-applied, matching what
+ * parseRefreshProfile already does with a malformed profile.
+ */
+export function parseRefreshProfilePatch(raw: unknown): RefreshProfilePatch {
+  if (!raw || typeof raw !== "object") return {};
+  const source = raw as Record<string, unknown>;
+  const present = (Object.keys(refreshProfileSchema.shape) as Array<keyof RefreshProfile>).filter(
+    (key) => source[key] !== undefined
+  );
+  if (present.length === 0) return {};
+  const mask = Object.fromEntries(present.map((key) => [key, true]));
+  const result = refreshProfileSchema.pick(mask as never).safeParse(source);
+  return result.success ? (result.data as RefreshProfilePatch) : {};
+}
+
 const DEFAULT_PROFILE: RefreshProfile = refreshProfileSchema.parse({});
 
 export interface SleepContext {
@@ -106,9 +136,21 @@ export interface SleepContext {
   hasContent?: boolean;
 }
 
+/** Which tier of the precedence chain decided the result. */
+export type SleepTier =
+  "renderer-override" | "low-battery" | "schedule" | "imminent-event" | "power-default";
+
 export interface SleepResult {
   durationS: number;
   mode: "poll" | "sleep";
+  /* Optional and additive: existing callers destructure durationS and mode. The
+   * point is to be able to answer "why is this display polling every 15 minutes"
+   * without re-deriving the chain by hand. */
+  tier?: SleepTier;
+  /** Name of the schedule rule that matched, when one did. */
+  rule?: string;
+  /** True when unassignedIntervalS shortened the tier's own answer. */
+  capped?: boolean;
 }
 
 export function parseRefreshProfile(raw: unknown): RefreshProfile {
@@ -116,10 +158,25 @@ export function parseRefreshProfile(raw: unknown): RefreshProfile {
   return result.success ? result.data : DEFAULT_PROFILE;
 }
 
+/**
+ * Day and hour as the DISPLAY experiences them.
+ *
+ * Without a timezone this falls back to the server's, which is what the code did
+ * implicitly until now: `SleepContext.timezone` was declared and never read, so a
+ * schedule looked timezone-aware while being only accidentally right. It happened
+ * to be correct because the container sets TZ=Europe/Berlin, and would have gone
+ * silently wrong at the first display in another zone or the first change to that
+ * variable.
+ */
+function localParts(now: Date, timezone?: string): { day: number; hour: number } {
+  if (!timezone) return { day: now.getDay(), hour: now.getHours() };
+  const zoned = new TZDate(now, timezone);
+  return { day: zoned.getDay(), hour: zoned.getHours() };
+}
+
 /** Check if a schedule rule matches the current time */
-function matchesRule(rule: ScheduleRule, now: Date): boolean {
-  const day = now.getDay();
-  const hour = now.getHours();
+function matchesRule(rule: ScheduleRule, now: Date, timezone?: string): boolean {
+  const { day, hour } = localParts(now, timezone);
 
   if (rule.days.length > 0 && !rule.days.includes(day)) return false;
 
@@ -129,9 +186,16 @@ function matchesRule(rule: ScheduleRule, now: Date): boolean {
   return hour >= rule.startHour || hour < rule.endHour;
 }
 
-/** Compute seconds from now until a target hour (today or tomorrow) */
-function secondsUntilHour(now: Date, targetHour: number): number {
-  const target = new Date(now);
+/**
+ * Seconds from now until a target hour, today or tomorrow, in the display's zone.
+ *
+ * The zone matters more here than in matching: a rule that sleeps until 07:00 and
+ * computes that hour in the wrong zone oversleeps or wakes early by the offset,
+ * which on a room display is the difference between a dark panel and a booked
+ * meeting at 07:00.
+ */
+function secondsUntilHour(now: Date, targetHour: number, timezone?: string): number {
+  const target = timezone ? new TZDate(now, timezone) : new Date(now);
   target.setHours(targetHour, 0, 0, 0);
   if (target.getTime() <= now.getTime()) {
     target.setDate(target.getDate() + 1);
@@ -150,28 +214,38 @@ export function computeSleep(ctx: SleepContext): SleepResult {
   const awaitingContent = ctx.hasContent === false;
   const cap = (r: SleepResult): SleepResult =>
     awaitingContent && r.durationS > p.unassignedIntervalS
-      ? { durationS: p.unassignedIntervalS, mode: r.mode }
+      ? { ...r, durationS: p.unassignedIntervalS, capped: true }
       : r;
 
   // 1. Content renderer override (always poll mode)
   if (ctx.rendererOverrideS != null && ctx.rendererOverrideS > 0) {
-    return { durationS: ctx.rendererOverrideS, mode: "poll" };
+    return { durationS: ctx.rendererOverrideS, mode: "poll", tier: "renderer-override" };
   }
 
   // 2. Low battery → sleep to conserve. NOT capped: a near-dead cell outranks
   // commissioning convenience, and this is the one tier meant to be slow.
   if (ctx.powerSource === "battery" && ctx.batteryLevel < p.lowBatteryThresholdPct) {
-    return { durationS: p.lowBatteryIntervalS, mode: "sleep" };
+    return { durationS: p.lowBatteryIntervalS, mode: "sleep", tier: "low-battery" };
   }
 
   // 3. Schedule rules — first match wins
   for (const rule of p.schedule) {
-    if (matchesRule(rule, ctx.now)) {
+    if (matchesRule(rule, ctx.now, ctx.timezone)) {
       if (rule.mode === "sleep") {
         // Sleep until the rule's endHour
-        return cap({ durationS: secondsUntilHour(ctx.now, rule.endHour), mode: "sleep" });
+        return cap({
+          durationS: secondsUntilHour(ctx.now, rule.endHour, ctx.timezone),
+          mode: "sleep",
+          tier: "schedule",
+          rule: rule.name || undefined,
+        });
       }
-      return cap({ durationS: rule.intervalS, mode: "poll" });
+      return cap({
+        durationS: rule.intervalS,
+        mode: "poll",
+        tier: "schedule",
+        rule: rule.name || undefined,
+      });
     }
   }
 
@@ -179,13 +253,17 @@ export function computeSleep(ctx: SleepContext): SleepResult {
   if (ctx.nextEventStart !== null) {
     const diffS = Math.floor((ctx.nextEventStart.getTime() - ctx.now.getTime()) / 1000);
     if (diffS > 0 && diffS <= p.imminentEventWindowS) {
-      return { durationS: Math.max(diffS - p.wakeBeforeEventS, 0), mode: "poll" };
+      return {
+        durationS: Math.max(diffS - p.wakeBeforeEventS, 0),
+        mode: "poll",
+        tier: "imminent-event",
+      };
     }
   }
 
   // 5. Default based on power source
   const durationS = ctx.powerSource === "usb" ? p.usbIntervalS : p.batteryIntervalS;
-  return cap({ durationS, mode: p.defaultMode });
+  return cap({ durationS, mode: p.defaultMode, tier: "power-default" });
 }
 
 /** Legacy wrapper — returns just the duration in seconds */
