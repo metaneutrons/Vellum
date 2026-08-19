@@ -4,20 +4,37 @@
 
 #include <stdio.h>
 
-void log_ring_init(log_ring_t *ring, char *storage, size_t size, size_t context_bytes)
+/* One ring per device: the state lives here rather than in a struct the caller
+ * has to carry, so nothing outside can depend on its layout. */
+static struct {
+    char *buf;
+    size_t size;
+    size_t head;            /* next write position */
+    size_t used;            /* bytes held */
+    size_t unsent;          /* bytes not yet acknowledged, counted back from head */
+    size_t context_bytes;   /* unsent history kept while nothing is wrong */
+    uint32_t dropped;       /* lines discarded to make room */
+    bool pending_serious;   /* a warning or error is waiting to be reported */
+    bool ship_everything;   /* operator raised this device for debugging */
+    bool trigger_suspended; /* an upload is in flight; its failures must not re-arm it */
+    char last_body[LOG_RING_LINE_MAX];
+    uint32_t repeat;        /* consecutive identical messages folded so far */
+} r;
+
+void log_ring_init(char *storage, size_t size, size_t context_bytes)
 {
-    ring->buf = storage;
-    ring->size = size;
-    ring->head = 0;
-    ring->used = 0;
-    ring->unsent = 0;
-    ring->context_bytes = context_bytes;
-    ring->dropped = 0;
-    ring->pending_serious = false;
-    ring->ship_everything = false;
-    ring->trigger_suspended = false;
-    ring->last_body[0] = '\0';
-    ring->repeat = 0;
+    r.buf = storage;
+    r.size = size;
+    r.head = 0;
+    r.used = 0;
+    r.unsent = 0;
+    r.context_bytes = context_bytes;
+    r.dropped = 0;
+    r.pending_serious = false;
+    r.ship_everything = false;
+    r.trigger_suspended = false;
+    r.last_body[0] = '\0';
+    r.repeat = 0;
 }
 
 size_t log_ring_redact(char *line, size_t len)
@@ -32,8 +49,8 @@ size_t log_ring_redact(char *line, size_t len)
         }
         if (run >= 32) {
             /* Replace the run with a fixed marker and pull the remainder forward.
-             * The copy only ever moves left and shrinks the line, and the length
-             * is carried rather than re-measured, so the bound stays local. */
+             * The copy only ever moves left and shrinks the line, and the length is
+             * carried rather than re-measured, so the bound stays local. */
             const size_t start = i - run;
             const size_t rest = len - i;
             for (size_t k = 0; k < 8; k++) line[start + k] = '*';
@@ -68,129 +85,148 @@ char log_ring_level_of(const char *line)
 /* Drops whole lines until `need` bytes are free. A snapshot never begins
  * mid-message: half a line is worse than a missing one when the reader is trying
  * to decide what failed. */
-static void make_room(log_ring_t *ring, size_t need)
+static void make_room(size_t need)
 {
-    while (ring->size - ring->used < need && ring->used > 0) {
-        size_t tail = (ring->head + ring->size - ring->used) % ring->size;
+    while (r.size - r.used < need && r.used > 0) {
+        size_t tail = (r.head + r.size - r.used) % r.size;
         size_t scanned = 0;
-        while (scanned < ring->used && ring->buf[tail] != '\n') {
-            tail = (tail + 1) % ring->size;
+        while (scanned < r.used && r.buf[tail] != '\n') {
+            tail = (tail + 1) % r.size;
             scanned++;
         }
         scanned++; /* the newline itself */
-        if (scanned > ring->used) scanned = ring->used;
-        ring->used -= scanned;
-        ring->dropped++;
-        if (ring->unsent > ring->used) ring->unsent = ring->used;
+        if (scanned > r.used) scanned = r.used;
+        r.used -= scanned;
+        r.dropped++;
+        if (r.unsent > r.used) r.unsent = r.used;
     }
 }
 
-static void raw_append(log_ring_t *ring, const char *text, size_t len)
+static void raw_append(const char *text, size_t len)
 {
-    if (len > ring->size) len = ring->size;
-    make_room(ring, len);
+    if (len > r.size) len = r.size;
+    make_room(len);
     for (size_t i = 0; i < len; i++) {
-        ring->buf[ring->head] = text[i];
-        ring->head = (ring->head + 1) % ring->size;
+        r.buf[r.head] = text[i];
+        r.head = (r.head + 1) % r.size;
     }
-    ring->used += len;
-    if (ring->used > ring->size) ring->used = ring->size;
-    ring->unsent += len;
-    if (ring->unsent > ring->used) ring->unsent = ring->used;
+    r.used += len;
+    if (r.used > r.size) r.used = r.size;
+    r.unsent += len;
+    if (r.unsent > r.used) r.unsent = r.used;
 
     /* Nothing is wrong, so keep only a context window: without this the unsent
-     * span would grow until the next warning and carry minutes of routine
-     * polling with it. */
-    if (!ring->pending_serious && !ring->ship_everything && ring->unsent > ring->context_bytes) {
-        size_t tail = (ring->head + ring->size - ring->unsent) % ring->size;
-        while (ring->unsent > ring->context_bytes) {
-            const bool newline = ring->buf[tail] == '\n';
-            tail = (tail + 1) % ring->size;
-            ring->unsent--;
+     * span would grow until the next warning and carry minutes of routine polling
+     * with it. */
+    if (!r.pending_serious && !r.ship_everything && r.unsent > r.context_bytes) {
+        size_t tail = (r.head + r.size - r.unsent) % r.size;
+        while (r.unsent > r.context_bytes) {
+            const bool newline = r.buf[tail] == '\n';
+            tail = (tail + 1) % r.size;
+            r.unsent--;
             if (newline) break;
         }
     }
 }
 
-void log_ring_append(log_ring_t *ring, const char *line, size_t len, bool serious,
-                     char *folded, size_t folded_len, size_t *folded_out)
+void log_ring_append(const char *line, size_t len, bool serious, char *folded,
+                     size_t folded_len, size_t *folded_out)
 {
     if (folded_out) *folded_out = 0;
     if (len == 0) return;
 
     const char *body = log_ring_message_of(line);
     bool same = true;
-    for (size_t i = 0; i < sizeof(ring->last_body); i++) {
-        if (ring->last_body[i] != body[i]) {
+    for (size_t i = 0; i < sizeof(r.last_body); i++) {
+        if (r.last_body[i] != body[i]) {
             same = false;
             break;
         }
         if (body[i] == '\0') break;
     }
-    if (same && ring->last_body[0] != '\0') {
-        ring->repeat++;
-        if (serious && !ring->trigger_suspended) ring->pending_serious = true;
+    if (same && r.last_body[0] != '\0') {
+        r.repeat++;
+        if (serious && !r.trigger_suspended) r.pending_serious = true;
         return;
     }
 
-    if (ring->repeat > 0) {
+    if (r.repeat > 0) {
         char text[48];
-        const int n = snprintf(text, sizeof(text), "    (repeated %ux)\n",
-                               (unsigned)ring->repeat);
+        const int n = snprintf(text, sizeof(text), "    (repeated %ux)\n", (unsigned)r.repeat);
         if (n > 0) {
-            raw_append(ring, text, (size_t)n);
+            raw_append(text, (size_t)n);
             if (folded && folded_len > (size_t)n) {
                 for (int k = 0; k < n; k++) folded[k] = text[k];
                 folded[n] = '\0';
                 if (folded_out) *folded_out = (size_t)n;
             }
         }
-        ring->repeat = 0;
+        r.repeat = 0;
     }
 
     size_t b = 0;
-    while (b < sizeof(ring->last_body) - 1 && body[b] != '\0') {
-        ring->last_body[b] = body[b];
+    while (b < sizeof(r.last_body) - 1 && body[b] != '\0') {
+        r.last_body[b] = body[b];
         b++;
     }
-    ring->last_body[b] = '\0';
+    r.last_body[b] = '\0';
 
-    raw_append(ring, line, len);
-    if (line[len - 1] != '\n') raw_append(ring, "\n", 1);
-    if (serious && !ring->trigger_suspended) ring->pending_serious = true;
+    raw_append(line, len);
+    if (line[len - 1] != '\n') raw_append("\n", 1);
+    if (serious && !r.trigger_suspended) r.pending_serious = true;
 }
 
-bool log_ring_should_upload(const log_ring_t *ring)
+bool log_ring_should_upload(void)
 {
-    if (ring->unsent == 0) return false;
-    return ring->pending_serious || ring->ship_everything;
+    if (r.unsent == 0) return false;
+    return r.pending_serious || r.ship_everything;
 }
 
-static size_t copy_span(const log_ring_t *ring, size_t span, char *out, size_t out_len)
+static size_t copy_span(size_t span, char *out, size_t out_len)
 {
     if (!out || out_len == 0) return 0;
-    const size_t start = (ring->head + ring->size - span) % ring->size;
+    const size_t start = (r.head + r.size - span) % r.size;
     size_t copied = 0;
     while (copied < span && copied < out_len - 1) {
-        out[copied] = ring->buf[(start + copied) % ring->size];
+        out[copied] = r.buf[(start + copied) % r.size];
         copied++;
     }
     out[copied] = '\0';
     return copied;
 }
 
-size_t log_ring_snapshot(const log_ring_t *ring, char *out, size_t out_len)
+size_t log_ring_snapshot(char *out, size_t out_len)
 {
-    return copy_span(ring, ring->used, out, out_len);
+    return copy_span(r.used, out, out_len);
 }
 
-size_t log_ring_peek_unsent(const log_ring_t *ring, char *out, size_t out_len)
+size_t log_ring_peek_unsent(char *out, size_t out_len)
 {
-    return copy_span(ring, ring->unsent, out, out_len);
+    return copy_span(r.unsent, out, out_len);
 }
 
-void log_ring_confirm(log_ring_t *ring, size_t len)
+void log_ring_confirm(size_t len)
 {
-    ring->unsent = ring->unsent > len ? ring->unsent - len : 0;
-    if (ring->unsent == 0) ring->pending_serious = false;
+    r.unsent = r.unsent > len ? r.unsent - len : 0;
+    if (r.unsent == 0) r.pending_serious = false;
+}
+
+void log_ring_set_ship_everything(bool enabled)
+{
+    r.ship_everything = enabled;
+}
+
+void log_ring_set_trigger_suspended(bool suspended)
+{
+    r.trigger_suspended = suspended;
+}
+
+size_t log_ring_unsent_bytes(void)
+{
+    return r.unsent;
+}
+
+uint32_t log_ring_dropped_lines(void)
+{
+    return r.dropped;
 }

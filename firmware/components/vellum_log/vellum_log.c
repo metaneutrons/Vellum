@@ -26,7 +26,6 @@
  * exactly when the device crashed would defeat the point.
  */
 static char s_storage[RING_SIZE];
-static log_ring_t s_ring;
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static vprintf_like_t s_next_writer;
 static uint32_t s_seq;
@@ -93,7 +92,7 @@ static int log_writer(const char *format, va_list args)
             size_t folded_len = 0;
 
             portENTER_CRITICAL(&s_lock);
-            log_ring_append(&s_ring, line, len, serious, folded, sizeof(folded), &folded_len);
+            log_ring_append(line, len, serious, folded, sizeof(folded), &folded_len);
             if (folded_len > 0) rtc_append(folded, folded_len);
             if (serious) {
                 rtc_append(line, len);
@@ -109,7 +108,7 @@ static int log_writer(const char *format, va_list args)
 
 void vellum_log_init(void)
 {
-    log_ring_init(&s_ring, s_storage, sizeof(s_storage), CONTEXT_BYTES);
+    log_ring_init(s_storage, sizeof(s_storage), CONTEXT_BYTES);
 
     if (s_rtc.magic == RTC_MAGIC && s_rtc.len > 0 && s_rtc.len <= sizeof(s_prev)) {
         s_prev_len = s_rtc.len;
@@ -133,7 +132,7 @@ void vellum_log_init(void)
 size_t vellum_log_snapshot(char *out, size_t out_len)
 {
     portENTER_CRITICAL(&s_lock);
-    const size_t copied = log_ring_snapshot(&s_ring, out, out_len);
+    const size_t copied = log_ring_snapshot(out, out_len);
     portEXIT_CRITICAL(&s_lock);
     return copied;
 }
@@ -157,14 +156,14 @@ size_t vellum_log_take_upload(char *out, size_t out_len, uint32_t *seq)
 {
     if (!out || out_len < 2 || !seq) return 0;
     portENTER_CRITICAL(&s_lock);
-    if (!log_ring_should_upload(&s_ring)) {
+    if (!log_ring_should_upload()) {
         portEXIT_CRITICAL(&s_lock);
         return 0;
     }
     /* Re-offer the same sequence number until it is confirmed, so a lost
      * response costs a duplicate the server discards, never a gap. */
     if (s_seq_in_flight == 0) s_seq_in_flight = ++s_seq;
-    const size_t copied = log_ring_peek_unsent(&s_ring, out, out_len);
+    const size_t copied = log_ring_peek_unsent(out, out_len);
     s_in_flight_len = copied;
     *seq = s_seq_in_flight;
     portEXIT_CRITICAL(&s_lock);
@@ -175,7 +174,7 @@ void vellum_log_upload_confirmed(uint32_t seq)
 {
     portENTER_CRITICAL(&s_lock);
     if (seq == s_seq_in_flight && s_seq_in_flight != 0) {
-        log_ring_confirm(&s_ring, s_in_flight_len);
+        log_ring_confirm(s_in_flight_len);
         s_seq_in_flight = 0;
         s_in_flight_len = 0;
     }
@@ -185,13 +184,13 @@ void vellum_log_upload_confirmed(uint32_t seq)
 void vellum_log_set_ship_everything(bool enabled)
 {
     portENTER_CRITICAL(&s_lock);
-    s_ring.ship_everything = enabled;
+    log_ring_set_ship_everything(enabled);
     portEXIT_CRITICAL(&s_lock);
 }
 
 void vellum_log_suspend_trigger(bool suspended)
 {
     portENTER_CRITICAL(&s_lock);
-    s_ring.trigger_suspended = suspended;
+    log_ring_set_trigger_suspended(suspended);
     portEXIT_CRITICAL(&s_lock);
 }

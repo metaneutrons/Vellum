@@ -8,18 +8,17 @@
 
 #define STORAGE 256
 
-static log_ring_t ring;
 static char storage[STORAGE];
 
 static void reset_ring(size_t context)
 {
-    memset(storage, 0, sizeof(storage));
-    log_ring_init(&ring, storage, sizeof(storage), context);
+    for (size_t i = 0; i < sizeof(storage); i++) storage[i] = 0;
+    log_ring_init(storage, sizeof(storage), context);
 }
 
 static void put(const char *line, bool serious)
 {
-    log_ring_append(&ring, line, strlen(line), serious, NULL, 0, NULL);
+    log_ring_append(line, strlen(line), serious, NULL, 0, NULL);
 }
 
 /* A healthy display must send nothing at all: that is what keeps diagnostics
@@ -29,7 +28,7 @@ static void test_routine_lines_do_not_arm_an_upload(void)
     reset_ring(128);
     put("I (10) main: Requesting render\n", false);
     put("I (20) http: GET /render 200\n", false);
-    TEST_ASSERT_FALSE(log_ring_should_upload(&ring));
+    TEST_ASSERT_FALSE(log_ring_should_upload());
 }
 
 static void test_a_warning_arms_an_upload_with_its_context(void)
@@ -37,10 +36,10 @@ static void test_a_warning_arms_an_upload_with_its_context(void)
     reset_ring(128);
     put("I (10) main: Requesting render\n", false);
     put("W (20) panel: No memory for the decode buffer\n", true);
-    TEST_ASSERT_TRUE(log_ring_should_upload(&ring));
+    TEST_ASSERT_TRUE(log_ring_should_upload());
 
     char out[STORAGE];
-    const size_t len = log_ring_peek_unsent(&ring, out, sizeof(out));
+    const size_t len = log_ring_peek_unsent(out, sizeof(out));
     TEST_ASSERT_TRUE(len > 0);
     /* The preceding routine line travels with the warning: a failure without its
      * surroundings often cannot be read at all. */
@@ -54,7 +53,7 @@ static void test_context_window_is_trimmed_while_nothing_is_wrong(void)
     for (int i = 0; i < 20; i++) put("I (10) main: a routine line of some length\n", false);
     /* Without trimming the unsent span would grow until the next warning and
      * carry minutes of routine polling with it. */
-    TEST_ASSERT_TRUE(ring.unsent <= 64 + 44);
+    TEST_ASSERT_TRUE(log_ring_unsent_bytes() <= 64 + 44);
 }
 
 static void test_repeats_are_folded(void)
@@ -64,7 +63,7 @@ static void test_repeats_are_folded(void)
     put("I (60) main: something else\n", false);
 
     char out[STORAGE];
-    log_ring_snapshot(&ring, out, sizeof(out));
+    log_ring_snapshot(out, sizeof(out));
     /* Five identical warnings become one line plus a count, which is what turns a
      * wedged display from thousands of lines into a handful. */
     TEST_ASSERT_TRUE(strstr(out, "(repeated 4x)") != NULL);
@@ -78,7 +77,7 @@ static void test_differing_timestamps_still_count_as_repeats(void)
     put("I (99) main: other\n", false);
 
     char out[STORAGE];
-    log_ring_snapshot(&ring, out, sizeof(out));
+    log_ring_snapshot(out, sizeof(out));
     TEST_ASSERT_TRUE(strstr(out, "(repeated 1x)") != NULL);
 }
 
@@ -87,12 +86,12 @@ static void test_differing_timestamps_still_count_as_repeats(void)
 static void test_a_suspended_trigger_records_without_arming(void)
 {
     reset_ring(128);
-    ring.trigger_suspended = true;
+    log_ring_set_trigger_suspended(true);
     put("W (10) http: POST /logs 404\n", true);
-    TEST_ASSERT_FALSE(log_ring_should_upload(&ring));
+    TEST_ASSERT_FALSE(log_ring_should_upload());
 
     char out[STORAGE];
-    log_ring_snapshot(&ring, out, sizeof(out));
+    log_ring_snapshot(out, sizeof(out));
     TEST_ASSERT_TRUE(strstr(out, "POST /logs 404") != NULL);
 }
 
@@ -101,10 +100,10 @@ static void test_confirming_clears_the_pending_state(void)
     reset_ring(128);
     put("W (10) panel: failure\n", true);
     char out[STORAGE];
-    const size_t len = log_ring_peek_unsent(&ring, out, sizeof(out));
-    log_ring_confirm(&ring, len);
-    TEST_ASSERT_FALSE(log_ring_should_upload(&ring));
-    TEST_ASSERT_EQUAL_INT(0, (int)ring.unsent);
+    const size_t len = log_ring_peek_unsent(out, sizeof(out));
+    log_ring_confirm(len);
+    TEST_ASSERT_FALSE(log_ring_should_upload());
+    TEST_ASSERT_EQUAL_INT(0, (int)log_ring_unsent_bytes());
 }
 
 /* A lost response must cost a discarded duplicate, never a gap: an unconfirmed
@@ -114,8 +113,8 @@ static void test_an_unconfirmed_span_is_offered_again(void)
     reset_ring(128);
     put("W (10) panel: failure\n", true);
     char first[STORAGE], second[STORAGE];
-    const size_t a = log_ring_peek_unsent(&ring, first, sizeof(first));
-    const size_t b = log_ring_peek_unsent(&ring, second, sizeof(second));
+    const size_t a = log_ring_peek_unsent(first, sizeof(first));
+    const size_t b = log_ring_peek_unsent(second, sizeof(second));
     TEST_ASSERT_EQUAL_INT((int)a, (int)b);
     TEST_ASSERT_EQUAL_STRING(first, second);
 }
@@ -133,9 +132,9 @@ static void test_wrapping_drops_whole_lines_only(void)
         put(line, false);
     }
     char out[STORAGE * 2];
-    const size_t len = log_ring_snapshot(&ring, out, sizeof(out));
+    const size_t len = log_ring_snapshot(out, sizeof(out));
     TEST_ASSERT_TRUE(len <= STORAGE);
-    TEST_ASSERT_TRUE(ring.dropped > 0);
+    TEST_ASSERT_TRUE(log_ring_dropped_lines() > 0);
     /* Every retained line is whole, so the text starts at a level letter. */
     TEST_ASSERT_TRUE(out[0] == 'I' || out[0] == ' ');
     TEST_ASSERT_EQUAL_INT('\n', out[len - 1]);
@@ -145,10 +144,12 @@ static void test_a_line_longer_than_the_ring_cannot_overflow_it(void)
 {
     reset_ring(4096);
     char huge[STORAGE * 3];
-    memset(huge, 'x', sizeof(huge) - 1);
+    for (size_t i = 0; i < sizeof(huge) - 1; i++) huge[i] = 'x';
     huge[sizeof(huge) - 1] = '\0';
-    log_ring_append(&ring, huge, strlen(huge), false, NULL, 0, NULL);
-    TEST_ASSERT_TRUE(ring.used <= STORAGE);
+    log_ring_append(huge, strlen(huge), false, NULL, 0, NULL);
+    /* A snapshot is the observable bound: whatever the ring kept has to fit. */
+    char out[STORAGE * 2];
+    TEST_ASSERT_TRUE(log_ring_snapshot(out, sizeof(out)) <= STORAGE);
 }
 
 /* Nothing that authenticates may reach flash or the server. */
