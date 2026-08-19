@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.16.1](https://github.com/metaneutrons/Vellum/compare/v1.16.0...v1.16.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **devices:** make landscape the default and stop guessing the mounting ([0148be4](https://github.com/metaneutrons/Vellum/commit/0148be47346fdda2b6e5edfb8d4c38c619bd0711))
+* **render:** render the first frame from what the device reports ([f8a409f](https://github.com/metaneutrons/Vellum/commit/f8a409fa3eb757ba4bfe666d50712457a63455bd))
+* **render:** render the first frame from what the device reports, not the row ([c64886f](https://github.com/metaneutrons/Vellum/commit/c64886f75344a3f694b589bd8b548e5f3b6c7aad))
+
 ## [1.16.0](https://github.com/metaneutrons/Vellum/compare/v1.15.0...v1.16.0) (2026-08-18)
 
 
