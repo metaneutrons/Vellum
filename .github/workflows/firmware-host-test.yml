@@ -17,11 +17,28 @@ jobs:
   host-tests:
     name: Firmware logic/crypto host tests
     runs-on: ubuntu-latest
+    # A suite that finishes in under a second must never hold a runner for hours.
+    # Without this, GitHub's 6-hour default applies, and because this check is
+    # REQUIRED on main a single hung job wedges every open pull request. That
+    # happened twice in one evening, both times stuck in apt-get below.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install toolchain
-        run: sudo apt-get update && sudo apt-get install -y cmake libssl-dev
+        # The runner image already ships cmake and the OpenSSL headers, so the
+        # normal path touches apt at all. It stays as a fallback in case the image
+        # changes, with DEBIAN_FRONTEND set so it can never block on a prompt and
+        # retries so a slow mirror fails instead of hanging.
+        run: |
+          set -euo pipefail
+          if command -v cmake >/dev/null && [ -f /usr/include/openssl/ssl.h ]; then
+            echo "cmake $(cmake --version | head -1) and OpenSSL headers present; skipping apt"
+            exit 0
+          fi
+          export DEBIAN_FRONTEND=noninteractive
+          sudo -E apt-get update -qq -o Acquire::Retries=3
+          sudo -E apt-get install -y -qq -o Acquire::Retries=3 cmake libssl-dev
 
       - name: Configure
         run: cmake -S firmware/host_test -B firmware/host_test/build
