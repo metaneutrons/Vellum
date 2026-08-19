@@ -237,7 +237,12 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
 - **Orientation describes how the device is mounted**, not a server-side render
   preference — that distinction is the whole bug class. `devices.orientation_override`
   is the operator's choice and what the renderer uses until the device re-reports its
-  surface; picking it in the devices list queues a signed `orientation` command
+  surface. Resolution is two stages and **no longer guesses**: operator choice, then
+  the mounting the device reports, then `landscape` as the default. The removed third
+  stage derived a mounting from the geometry, and since the D1001's panel is natively
+  800x1280 that guess read as portrait although no device had said so. The UI has no
+  "auto" entry either, because it hid which mounting was actually in effect. Picking
+  one in the devices list queues a signed `orientation` command
   (a third `device_configuration_commands.kind` beside `server_url` and `wifi`),
   and the device applies it by committing NVS and restarting, because
   `esp_lv_adapter` fixes its rotation at init and sizes its framebuffers from it.

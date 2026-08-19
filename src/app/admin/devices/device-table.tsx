@@ -125,10 +125,6 @@ export function DeviceTable({
    * only changes across a restart. Clearing the choice is a server-side matter
    * alone -- there is nothing to tell a device about "no preference". */
   function setOrientation(mac: string, value: string) {
-    if (!value) {
-      update(mac, { orientationOverride: null });
-      return;
-    }
     act(() => queueDeviceOrientation(mac, value), t("orientationQueued"), t("failed"));
   }
 
@@ -445,7 +441,14 @@ export function DeviceTable({
                     {t("orientation")}
                     <select
                       className={selectCls}
-                      value={d.orientation_override ?? ""}
+                      /* Always a concrete mounting. An "auto" entry only hid which
+                         one was in effect, and its fallback guessed from the panel
+                         geometry, which is how a D1001 ended up portrait. */
+                      value={
+                        d.orientation_override ??
+                        (d.display_caps as { orientation?: string } | null)?.orientation ??
+                        "landscape"
+                      }
                       aria-label={t("orientation")}
                       onChange={(e) => setOrientation(d.mac, e.target.value)}
                     >
@@ -454,7 +457,6 @@ export function DeviceTable({
                           portrait on a panel whose driver cannot rotate: the
                           server then rendered the swapped geometry and the image
                           ran off the bottom edge. */}
-                      <option value="">{t("auto")}</option>
                       {(() => {
                         const caps = d.display_caps as { orientations?: string[] } | null;
                         const supported = caps?.orientations?.length
