@@ -210,6 +210,37 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   resolving that conflict, not just filling in the pin. Frequency/duration
   arguments are meaningless on D1001: every event plays the same sample, where the
   E-Series distinguish events by pitch.
+- **Sound has a policy, and it is short: a failure, or acknowledging a button
+  someone just pressed. Nothing else.** No sound on waking, on an update starting,
+  or on an update succeeding — a rollout across a building must not chime its way
+  through the night, and a display in a meeting room is not a device that should
+  announce itself. The three call sites that violated this were removed in
+  `fix/beep-policy-and-rtc-pullup`; the remaining ones are the OTA failure notice,
+  the factory-reset acknowledgement, and the refresh button. A genuine button wake
+  is silent too: EXT1 is level-triggered, so a wake cause cannot distinguish a
+  finger from a floating pin, and the acknowledgement belongs to the paths that
+  observe a press while the device runs.
+- **EXT1 wake pins need their pull armed in the RTC domain, and this was missing
+  for a long time.** The buttons (GPIO3 refresh / GPIO4 / GPIO5, active low) carry
+  **no external pull-up on any E-Series board** — Seeed's board ports declare all
+  three `GPIO_PULL_UP`, i.e. the SoC's internal one. `buttons_init()` sets that
+  pull in the DIGITAL domain only, which stops applying the moment a pin is handed
+  to the RTC domain for EXT1, and because `sleep_manager` keeps RTC_PERIPH powered
+  the automatic HOLD path does not act either. ESP-IDF requires
+  `rtc_gpio_init()` + `rtc_gpio_pullup_en()` + `rtc_gpio_pulldown_dis()` in
+  exactly that configuration (see its `deep_sleep` example). Without them the wake
+  pin floats through deep sleep while `ANY_LOW` is armed, which is a wake condition
+  already satisfied: the display woke early, reported a button nobody touched,
+  beeped about it, and never served out its assigned interval. `arm_button_wake()`
+  now does this for every pin in the mask, and `sleep_manager_init()` logs
+  `esp_sleep_get_ext1_wakeup_status()` so "a button woke us" is checkable rather
+  than asserted.
+- **The status LED is per-model: E1001/E1002 on GPIO6, E1003 on GPIO16.** The
+  shared `VELLUM_LED_GPIO` default of 6 lit nothing on an E1003 and drove a pin
+  that appears nowhere in that board's device tree. Same class as the
+  `VELLUM_BATTERY_EN_GPIO` exception (21 vs 40) directly above it. Seeed's Zephyr
+  board ports (`boards/seeed/reterminal_e100{1,2,3}`) are the authority for all of
+  this, and they are worth reading before assuming any E-Series pin is uniform.
 - Panel-capability inconsistencies — **unresolved, do not "fix" one side blindly;
   confirm against the physical panel first**:
   - E1003: code and server use **1872×1404** (landscape) while
