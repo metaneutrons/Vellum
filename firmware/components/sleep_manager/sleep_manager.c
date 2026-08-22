@@ -12,6 +12,7 @@
 #include "esp_system.h"
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
+#include "soc/soc_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
@@ -24,6 +25,9 @@ static const char *TAG = "sleep_mgr";
 static wake_reason_t s_wake_reason = WAKE_REASON_POWER_ON;
 static bool s_button_refresh_requested;
 
+/* Everything from here to the #endif serves deep sleep, which only the E-Series
+ * do. Compiled for the P4 these are dead code, and gcc says so. */
+#if !defined(CONFIG_VELLUM_PANEL_D1001)
 /* The wake mask is configured for active-low buttons.  When USB power keeps
  * the MCU awake there is no deep-sleep wake event, so poll that same mask to
  * preserve the physical refresh button's behaviour. */
@@ -43,6 +47,63 @@ static bool wake_button_pressed(uint64_t button_wake_mask)
     return false;
 }
 
+/**
+ * @brief Arm the EXT1 wake pins so a resting button reads as released.
+ *
+ * The buttons carry no external pull-up on any E-Series board. Seeed's own board
+ * ports declare all three as `GPIO_PULL_UP`, i.e. the SoC's internal one, and
+ * `buttons_init()` duly enables it — but only in the DIGITAL domain. That pull
+ * does not apply once a pin is handed to the RTC domain for EXT1, and because
+ * RTC_PERIPH is deliberately kept powered here, the HOLD feature that would
+ * otherwise carry a pull into sleep does not act either. ESP-IDF requires
+ * rtc_gpio_pullup_en() in exactly this configuration.
+ *
+ * Without it the wake pin floats through deep sleep while ANY_LOW is armed,
+ * which is a wake condition already satisfied. The display woke early, reported
+ * a button nobody had touched, and used to beep about it. It also never served
+ * out its assigned interval, so the cost was battery as much as noise.
+ *
+ * rtc_gpio_init() has to come first: it selects the RTC function for the pad,
+ * and the pull registers only reach the pin once it is under RTC control. That
+ * also detaches the digital input, so the level is logged before the handover —
+ * it describes what the digital domain saw, not what the RTC pad will hold.
+ * Proof that the pull works is on the other side of the sleep, in the wake
+ * reason and the EXT1 status mask that sleep_manager_init() reports.
+ */
+static void arm_button_wake(uint64_t button_wake_mask)
+{
+    if (button_wake_mask == 0) return;
+
+    esp_err_t err = esp_sleep_enable_ext1_wakeup_io(button_wake_mask,
+                                                    ESP_EXT1_WAKEUP_ANY_LOW);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "EXT1 wake could not be armed: %s", esp_err_to_name(err));
+        return;
+    }
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+
+    for (int gpio = 0; gpio < SOC_GPIO_PIN_COUNT; ++gpio) {
+        if (!(button_wake_mask & (1ULL << gpio))) continue;
+        const gpio_num_t pin = (gpio_num_t)gpio;
+
+        if (!rtc_gpio_is_valid_gpio(pin)) {
+            /* Not an RTC IO, so nothing can hold it through sleep. Worth saying
+             * out loud rather than silently accepting a wake that will misfire. */
+            ESP_LOGW(TAG, "GPIO%d is no RTC IO; its idle level cannot be held", gpio);
+            continue;
+        }
+
+        const int digital_level = gpio_get_level(pin);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(rtc_gpio_init(pin));
+        /* Buttons are active low, so the idle level to hold is high. */
+        ESP_ERROR_CHECK_WITHOUT_ABORT(rtc_gpio_pulldown_dis(pin));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(rtc_gpio_pullup_en(pin));
+        ESP_LOGI(TAG, "EXT1 wake armed on GPIO%d (level before handover=%d, RTC pull-up on)",
+                 gpio, digital_level);
+    }
+}
+#endif /* !CONFIG_VELLUM_PANEL_D1001 — the LCD model never deep sleeps */
+
 void sleep_manager_init(void)
 {
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
@@ -56,7 +117,11 @@ void sleep_manager_init(void)
     case ESP_SLEEP_WAKEUP_EXT0:
     case ESP_SLEEP_WAKEUP_EXT1:
         s_wake_reason = WAKE_REASON_BUTTON;
-        ESP_LOGI(TAG, "Wake reason: BUTTON (GPIO)");
+        /* Naming the pins turns "a button woke us" into a checkable claim. A
+         * mask here for a button nobody pressed means the pin was not held at
+         * its idle level through sleep; see arm_button_wake(). */
+        ESP_LOGI(TAG, "Wake reason: BUTTON (GPIO), ext1 status=0x%llx",
+                 esp_sleep_get_ext1_wakeup_status());
         break;
 
     default:
@@ -121,12 +186,7 @@ void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask)
     ESP_LOGI(TAG, "Entering deep sleep for %lu seconds", (unsigned long)seconds);
 
     esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
-
-    if (button_wake_mask != 0) {
-        esp_sleep_enable_ext1_wakeup(button_wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
-        esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-        ESP_LOGI(TAG, "EXT1 wake configured: mask=0x%llx, GPIO3 level=%d", button_wake_mask, gpio_get_level(3));
-    }
+    arm_button_wake(button_wake_mask);
 
     esp_deep_sleep_start();
     /* does not return */
@@ -147,11 +207,10 @@ void sleep_manager_enter_permanent(uint64_t button_wake_mask)
     while (1) vTaskDelay(pdMS_TO_TICKS(1000));
 #else
     ESP_LOGI(TAG, "Entering permanent deep sleep (no timer)");
-
-    if (button_wake_mask != 0) {
-        esp_sleep_enable_ext1_wakeup(button_wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
-        esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-    }
+    /* No timer here, so the wake pin is the ONLY way back. A floating pin was
+     * bad enough with a timer; here it decides whether the display ever
+     * returns. */
+    arm_button_wake(button_wake_mask);
 
     esp_deep_sleep_start();
     /* does not return */

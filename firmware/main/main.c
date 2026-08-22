@@ -23,7 +23,6 @@
 #include "esp_app_desc.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
-#include "esp_sleep.h"
 #include "esp_timer.h"
 #include "esp_netif_sntp.h"
 #include "nvs_flash.h"
@@ -917,10 +916,16 @@ void app_main(void)
 #else
     board_init();
 
-    /* Immediate beep on button wake (before slow display init) */
-    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) {
-        board_buzzer_beep(1000, 100);
-    }
+    /* No sound on waking, deliberately. Audio is reserved for two things: a
+     * failure the room needs to notice, and acknowledging a button someone just
+     * pressed. A wake is neither. It also cannot be trusted as a press: EXT1 is
+     * armed level-triggered on a pin whose only pull-up is internal, so an
+     * unattended wake reports the same cause a finger does.
+     *
+     * A genuine button wake is therefore silent too. The acknowledgement now
+     * belongs to the paths that observe the press while the device is running
+     * (buttons_key0_pressed() below, and the USB-powered wait in
+     * sleep_manager_enter()), not to a wake reason. */
 #endif
     display_init();
     /* Improv scan/provision commands may arrive as soon as the serial task is
