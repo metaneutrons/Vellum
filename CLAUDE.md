@@ -212,9 +212,11 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   E-Series distinguish events by pitch.
 - **Sound has a policy, and it is short: a failure, or acknowledging a button
   someone just pressed. Nothing else.** No sound on waking, on an update starting,
-  or on an update succeeding — a rollout across a building must not chime its way
-  through the night, and a display in a meeting room is not a device that should
-  announce itself. The three call sites that violated this were removed in
+  or on an update succeeding: a rollout across a building would otherwise chime
+  its way through the night, and a display in a meeting room is not a device that
+  announces itself. If some new event seems to deserve a sound, ask the owner
+  rather than deciding in passing — the two admitted cases are deliberate, and
+  widening them is a product call. The three call sites that violated this were removed in
   `fix/beep-policy-and-rtc-pullup`; the remaining ones are the OTA failure notice,
   the factory-reset acknowledgement, and the refresh button. A genuine button wake
   is silent too: EXT1 is level-triggered, so a wake cause cannot distinguish a
@@ -231,7 +233,7 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   exactly that configuration (see its `deep_sleep` example). Without them the wake
   pin floats through deep sleep while `ANY_LOW` is armed, which is a wake condition
   already satisfied: the display woke early, reported a button nobody touched,
-  beeped about it, and never served out its assigned interval. `arm_button_wake()`
+  beeped about it, and served a fraction of its assigned interval. `arm_button_wake()`
   now does this for every pin in the mask, and `sleep_manager_init()` logs
   `esp_sleep_get_ext1_wakeup_status()` so "a button woke us" is checkable rather
   than asserted. The beep was the mildest symptom: `main.c`'s boot path takes
@@ -254,11 +256,13 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   conflict with the RTC pull-up above: the old knob governed switching pulls on
   ALL pins at sleep entry (BUSY is GPIO13), while `arm_button_wake()` touches only
   the pins in the wake mask. It also mattered mainly to light sleep, which this
-  firmware never enters. Three other vanished symbols were removed with it
+  firmware has no path into today. Three other vanished symbols were removed with it
   (`ESP_WIFI_REMOTE_ENABLED`, `LV_MEM_CUSTOM`, `LV_MEMCPY_MEMSET_STD`); all four
   had been producing "unknown kconfig symbol" warnings on every build of every
-  model. **The firmware build is warning-free as of that cleanup — keep it that
-  way, because a build that always prints warnings teaches people to skip them.**
+  model. **The firmware build is warning-free as of that cleanup, and worth
+  keeping so, because a build that prints warnings on every run teaches people to
+  scroll past them.** Where a warning is genuinely unavoidable, suppress it at the
+  line with a comment saying why, rather than leaving it to accumulate.
 - **The status LED is per-model: E1001/E1002 on GPIO6, E1003 on GPIO16.** The
   shared `VELLUM_LED_GPIO` default of 6 lit nothing on an E1003 and drove a pin
   that appears nowhere in that board's device tree. Same class as the
