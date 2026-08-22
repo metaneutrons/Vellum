@@ -161,6 +161,12 @@ static float s_batt_voltage = 0.0f;
 
 /* ── Battery ──────────────────────────────────────────────────── */
 
+/* The reTerminal divider + enable-GPIO path, so E-Series only. board_init()
+ * already calls it behind this same condition; without it on the definition the
+ * P4 build compiles a function nothing can reach and warns about it. D1001 reads
+ * its battery through d1001_battery_voltage(), initialised by
+ * d1001_board_init(). */
+#if !CONFIG_VELLUM_PANEL_D1001
 static void battery_adc_init(void)
 {
     adc_unit_t unit = ADC_UNIT_1;
@@ -201,6 +207,7 @@ static void battery_adc_init(void)
         s_adc_cali = NULL;
     }
 }
+#endif /* !CONFIG_VELLUM_PANEL_D1001 */
 
 float board_battery_voltage(void)
 {

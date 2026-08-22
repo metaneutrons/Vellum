@@ -135,18 +135,6 @@ static uint16_t read_data(void)
     return val;
 }
 
-static void write_n_data(const uint16_t *buf, uint32_t count)
-{
-    gpio_set_level(s_cs_pin, 0);
-    wait_busy();
-    spi_write_16(PREAMBLE_WR);
-    wait_busy();
-    for (uint32_t i = 0; i < count; i++) {
-        spi_write_16(buf[i]);
-    }
-    gpio_set_level(s_cs_pin, 1);
-}
-
 static void read_n_data(uint16_t *buf, uint32_t count)
 {
     gpio_set_level(s_cs_pin, 0);
@@ -158,14 +146,6 @@ static void read_n_data(uint16_t *buf, uint32_t count)
         buf[i] = spi_read_16();
     }
     gpio_set_level(s_cs_pin, 1);
-}
-
-static void send_cmd_arg(uint16_t cmd, const uint16_t *args, uint16_t n_args)
-{
-    write_cmd(cmd);
-    for (uint16_t i = 0; i < n_args; i++) {
-        write_data(args[i]);
-    }
 }
 
 static void write_reg(uint16_t reg, uint16_t val)
