@@ -771,8 +771,10 @@ ota_check_result_t ota_manager_check_and_apply(void)
         return OTA_CHECK_NO_RESTORE;
     }
 
+    /* Silent: an update starting is neither a failure nor an acknowledgement of
+     * a button, and those are the only two things this hardware makes noise for.
+     * The progress screen is the feedback here. */
     display_show_ota_progress(0);
-    board_buzzer_beep(800, 200);
 
     esp_http_client_config_t http_cfg = {
         .url = ota_url->valuestring,
@@ -916,7 +918,9 @@ ota_check_result_t ota_manager_check_and_apply(void)
     ESP_LOGI(TAG, "OTA verified + applied — restarting");
     display_show_ota_progress(100);
     ota_report(to_ver, "applied", NULL);
-    board_buzzer_beep(2000, 100); vTaskDelay(pdMS_TO_TICKS(100)); board_buzzer_beep(2000, 100);
+    /* Silent for the same reason the start is: success is not a failure, and
+     * nobody pressed anything. A room full of displays finishing an overnight
+     * rollout should not chime in sequence. */
     esp_restart();
     return OTA_CHECK_NO_RESTORE; /* esp_restart does not return */
 }
