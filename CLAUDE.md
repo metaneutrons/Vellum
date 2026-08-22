@@ -234,7 +234,31 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   beeped about it, and never served out its assigned interval. `arm_button_wake()`
   now does this for every pin in the mask, and `sleep_manager_init()` logs
   `esp_sleep_get_ext1_wakeup_status()` so "a button woke us" is checkable rather
-  than asserted.
+  than asserted. The beep was the mildest symptom: `main.c`'s boot path takes
+  `WAKE_REASON_BUTTON` plus a low KEY0 as a factory-reset gesture, so a floating
+  pin could reboot an unenrolled display or erase its NVS. Only
+  `factory_reset_permitted()` stood between that and an enrolled one.
+- **Two wake sources are armed on every sleep, so the wake reason needs a
+  precedence rule, and A BUTTON OUTRANKS THE TIMER.** Somebody standing at the
+  display pressed it; that the interval expired in the same second is a
+  coincidence, and swallowing the press would make the button feel broken at
+  random. This became explicit when `sleep_manager_init()` moved to
+  `esp_sleep_get_wakeup_causes()` — the singular `esp_sleep_get_wakeup_cause()`
+  is deprecated in IDF 6.0 precisely because it "will only return one wakeup
+  source", which for this firmware is not a corner case but the normal
+  configuration. The choice is load-bearing: `WAKE_REASON_BUTTON` is what sends
+  `main()` into the factory-reset hold check and into `buttons_poll()`.
+- **`CONFIG_GPIO_ESP32_SUPPORT_SWITCH_SLP_PULL=n` used to sit in the defaults
+  with the comment "breaks IT8951 BUSY pin", and it is gone — the symbol does not
+  exist in IDF 6.0, so that protection had been inert for a while.** It is not in
+  conflict with the RTC pull-up above: the old knob governed switching pulls on
+  ALL pins at sleep entry (BUSY is GPIO13), while `arm_button_wake()` touches only
+  the pins in the wake mask. It also mattered mainly to light sleep, which this
+  firmware never enters. Three other vanished symbols were removed with it
+  (`ESP_WIFI_REMOTE_ENABLED`, `LV_MEM_CUSTOM`, `LV_MEMCPY_MEMSET_STD`); all four
+  had been producing "unknown kconfig symbol" warnings on every build of every
+  model. **The firmware build is warning-free as of that cleanup — keep it that
+  way, because a build that always prints warnings teaches people to skip them.**
 - **The status LED is per-model: E1001/E1002 on GPIO6, E1003 on GPIO16.** The
   shared `VELLUM_LED_GPIO` default of 6 lit nothing on an E1003 and drove a pin
   that appears nowhere in that board's device tree. Same class as the
