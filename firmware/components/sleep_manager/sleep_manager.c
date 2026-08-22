@@ -134,7 +134,7 @@ void sleep_manager_init(void)
          * mask here for a button nobody pressed means the pin was not held at
          * its idle level through sleep; see arm_button_wake(). */
         ESP_LOGI(TAG, "Wake reason: BUTTON (GPIO), causes=0x%" PRIx32
-                      ", ext1 status=0x%llx",
+                      ", ext1 status=0x%" PRIx64,
                  causes, esp_sleep_get_ext1_wakeup_status());
     } else if (causes & BIT(ESP_SLEEP_WAKEUP_TIMER)) {
         s_wake_reason = WAKE_REASON_TIMER;
