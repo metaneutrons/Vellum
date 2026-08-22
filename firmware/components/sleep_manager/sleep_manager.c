@@ -7,6 +7,8 @@
 
 #include "sleep_manager.h"
 
+#include <inttypes.h>
+
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_system.h"
@@ -104,30 +106,44 @@ static void arm_button_wake(uint64_t button_wake_mask)
 }
 #endif /* !CONFIG_VELLUM_PANEL_D1001 — the LCD model never deep sleeps */
 
+/**
+ * @brief Classify the wake, reading ALL causes rather than one of them.
+ *
+ * `esp_sleep_get_wakeup_cause()` is deprecated in IDF 6.0, and its own
+ * documentation says why it had to be: it "will only return one wakeup source.
+ * If multiple wakeup sources wake up at the same time, the wakeup source
+ * information may be lost." Every sleep here arms a timer AND a button, so two
+ * simultaneous sources are the normal configuration, not a corner case.
+ *
+ * When both fired, the BUTTON wins. Somebody is standing at the display and
+ * pressed it; that the interval happened to expire in the same second is a
+ * coincidence, and letting it swallow the press would make the button feel
+ * broken at random moments. The choice is load-bearing rather than cosmetic,
+ * because WAKE_REASON_BUTTON is what sends main() into the factory-reset hold
+ * check and into buttons_poll().
+ */
 void sleep_manager_init(void)
 {
-    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+    const uint32_t causes = esp_sleep_get_wakeup_causes();
+    const uint32_t button_causes =
+        BIT(ESP_SLEEP_WAKEUP_EXT0) | BIT(ESP_SLEEP_WAKEUP_EXT1);
 
-    switch (cause) {
-    case ESP_SLEEP_WAKEUP_TIMER:
-        s_wake_reason = WAKE_REASON_TIMER;
-        ESP_LOGI(TAG, "Wake reason: TIMER");
-        break;
-
-    case ESP_SLEEP_WAKEUP_EXT0:
-    case ESP_SLEEP_WAKEUP_EXT1:
+    if (causes & button_causes) {
         s_wake_reason = WAKE_REASON_BUTTON;
         /* Naming the pins turns "a button woke us" into a checkable claim. A
          * mask here for a button nobody pressed means the pin was not held at
          * its idle level through sleep; see arm_button_wake(). */
-        ESP_LOGI(TAG, "Wake reason: BUTTON (GPIO), ext1 status=0x%llx",
-                 esp_sleep_get_ext1_wakeup_status());
-        break;
-
-    default:
+        ESP_LOGI(TAG, "Wake reason: BUTTON (GPIO), causes=0x%" PRIx32
+                      ", ext1 status=0x%llx",
+                 causes, esp_sleep_get_ext1_wakeup_status());
+    } else if (causes & BIT(ESP_SLEEP_WAKEUP_TIMER)) {
+        s_wake_reason = WAKE_REASON_TIMER;
+        ESP_LOGI(TAG, "Wake reason: TIMER");
+    } else {
+        /* Includes BIT(ESP_SLEEP_WAKEUP_UNDEFINED), which the bitmap sets when
+         * the reset was not an exit from deep sleep at all. */
         s_wake_reason = WAKE_REASON_POWER_ON;
-        ESP_LOGI(TAG, "Wake reason: POWER_ON (cause=%d)", (int)cause);
-        break;
+        ESP_LOGI(TAG, "Wake reason: POWER_ON (causes=0x%" PRIx32 ")", causes);
     }
 }
 
