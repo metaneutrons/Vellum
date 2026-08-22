@@ -2,6 +2,16 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.10.1](https://github.com/metaneutrons/Vellum/compare/firmware-v1.10.0...firmware-v1.10.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* **firmware:** hold the wake pin, and stop the display beeping at nobody ([0aa3d27](https://github.com/metaneutrons/Vellum/commit/0aa3d27eb44b418fd9569b153b48a561fd336171))
+* **firmware:** print the ext1 mask with PRIx64, as its type requires ([4b84186](https://github.com/metaneutrons/Vellum/commit/4b84186cc3435cf7084c0ae9b93162fdf876463a))
+* **firmware:** put the E1003 status LED on the pin it actually has ([42424b4](https://github.com/metaneutrons/Vellum/commit/42424b427ba6db3fb32dedc3668517331547ec65))
+* **firmware:** read every wake cause, so a press is not lost to a timer ([bb7fe39](https://github.com/metaneutrons/Vellum/commit/bb7fe397a83eaf80784fe575102990b8c21c2440))
+
 ## [1.10.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.9.0...firmware-v1.10.0) (2026-08-19)
 
 
