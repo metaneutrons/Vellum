@@ -68,6 +68,12 @@ menu "Vellum Configuration"
             default n
         config VELLUM_LED_GPIO
             int "Status LED GPIO (inverted)"
+            # E1001/E1002 put the green LED on GPIO6; the E1003 puts it on
+            # GPIO16. Seeed's board ports carry all three (green_led0), and
+            # GPIO6 does not appear anywhere in the E1003 device tree — so the
+            # shared default lit nothing on that model and drove an unrelated
+            # pin to do it.
+            default 16 if VELLUM_PANEL_E1003
             default 6
         config VELLUM_BUZZER_GPIO
             int "Buzzer GPIO"
