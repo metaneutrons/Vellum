@@ -164,12 +164,13 @@ design calls:
       rendered frame rather than only arithmetic. Likely the single largest remaining
       win for crowded plates.
 
-- [ ] **Inter and PixelOperator still ship without licence text.** OFL requires the
-      licence to accompany the font, and `assets/fonts` carries neither. Plex's is
-      there now; Inter's is OFL 1.1 (`rsms/inter`, `LICENSE.txt`) and PixelOperator's
-      terms come from its author's own page. Two more small files, deliberately not
-      fetched with the Plex ones because that download was approved and these were
-      not.
+- [x] **Every font in `assets/fonts` now carries its licence text**, and the
+      declarations were read out of each font's own `name` table rather than copied
+      from a download page. Inter 4.001 and IBM Plex Sans Condensed 3.000 are OFL
+      1.1; Pixel Operator is **CC0 1.0**, not OFL, which the earlier note assumed.
+      `assets/fonts/README.md` records family, version, licence and source per file,
+      plus which face is used for what and the two measurements behind the condensed
+      one.
 
 - [ ] **The surname heuristic cannot detect surname-first order without a comma.**
       `name-split.ts` reads "Ćurić Nikola" as given name "Ćurić", surname "Nikola",
