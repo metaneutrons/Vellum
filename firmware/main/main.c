@@ -928,6 +928,12 @@ void app_main(void)
      * (buttons_key0_pressed() below, and the USB-powered wait in
      * sleep_manager_enter()), not to a wake reason. */
 #endif
+    /* Outside the split on purpose. board_init() runs on the E-Series ONLY -- the
+     * D1001 brings its own board up above -- so anything left inside it is
+     * invisible on that model. This also has to happen before the first task, so
+     * the lazy fallback in board_led_indicate() stays a safety net rather than
+     * something two tasks could enter at once. */
+    board_led_init();
     display_init();
     /* Improv scan/provision commands may arrive as soon as the serial task is
      * visible to Web Serial. Initialize the shared Wi-Fi driver first so an
@@ -953,8 +959,8 @@ void app_main(void)
         display_show_boot(firmware_version);
     }
     /* Somebody is present for a button wake and for a cold boot, and the
-      * indicator is for them. A timer wake is the display working on its own, so
-      * it stays dark: see board_led.h on why dark is the normal state. */
+     * indicator is for them. A timer wake is the display working on its own, so
+     * it stays dark: see board_led.h on why dark is the normal state. */
     board_led_indicate(wake == WAKE_REASON_TIMER ? BOARD_LED_STATE_IDLE
                                                  : BOARD_LED_STATE_BUSY);
 #if !defined(CONFIG_VELLUM_PANEL_D1001)

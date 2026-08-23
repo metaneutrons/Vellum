@@ -62,15 +62,21 @@ void board_led_init(void)
 {
     if (s_ready) return;
 
-    s_profile = board_led_profile();
-    if (!s_profile || !s_profile->channels || !s_profile->states ||
-        s_profile->channel_count == 0) {
-        /* A board with no indicators is legitimate. Say so once and become a
-         * no-op rather than checking for it at every call site. */
-        ESP_LOGI(TAG, "No indicator LEDs on this board");
+    const board_led_profile_t *profile = board_led_profile();
+    if (!profile || !profile->channels || !profile->states ||
+        profile->channel_count == 0) {
+        /* A board with no indicators is legitimate, and so is a board whose
+         * tables are half-written. Both become a no-op by leaving s_profile NULL
+         * rather than keeping an incomplete one: every path below then fails its
+         * first guard instead of reaching through a missing table. Keeping the
+         * profile while marking init done is how a missing `states` turned into a
+         * dereference at the first board_led_indicate(). */
+        ESP_LOGI(TAG, "No usable indicator LEDs on this board");
+        s_profile = NULL;
         s_ready = true;
         return;
     }
+    s_profile = profile;
 
     for (uint8_t i = 0; i < s_profile->channel_count; ++i) {
         const board_led_channel_t *c = &s_profile->channels[i];
@@ -78,6 +84,14 @@ void board_led_init(void)
         gpio_set_level(c->gpio, (uint8_t)!c->on_level);
         ESP_LOGD(TAG, "indicator %u: GPIO%d (%s), on=%u",
                  i, (int)c->gpio, c->label ? c->label : "?", c->on_level);
+    }
+
+    /* Idempotent by design: the eager init at boot should be the only caller, but
+     * if the lazy path in board_led_indicate() were ever entered twice, creating
+     * a second timer would leak the first. Cheaper than a mutex, and enough. */
+    if (s_tick) {
+        s_ready = true;
+        return;
     }
 
     const esp_timer_create_args_t args = {
