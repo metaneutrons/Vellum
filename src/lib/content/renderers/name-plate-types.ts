@@ -46,6 +46,14 @@ export const seatOccupantSchema = z.discriminatedUnion("kind", [
     resourceId: z.string().min(1),
     /** Passed to the provider; some need it to resolve the resource. */
     resourceName: z.string().optional(),
+    /**
+     * The room this seat sits in, as the provider named it.
+     *
+     * Stored so the header can fall back to it: anny's seats are children of a
+     * room ("Föhr 1" inside "S1 2er Flexbüro Föhr"), and an operator who picked
+     * the seats has already said which room this is.
+     */
+    parentName: z.string().optional(),
   }),
 ]);
 
@@ -60,6 +68,14 @@ export const seatSchema = z.object({
 export type Seat = z.infer<typeof seatSchema>;
 
 export const namePlateConfigSchema = z.object({
+  /**
+   * The room, shown in the header.
+   *
+   * A door sign says WHERE it is before it says who is inside, the same way the
+   * room-booking display does. Empty falls back to the room the seats came from,
+   * and with neither there is simply no header.
+   */
+  roomName: z.string().default(""),
   seats: z.array(seatSchema).min(1).max(MAX_SEATS),
   /**
    * Whether calendar seats show free/occupied.
@@ -80,4 +96,24 @@ export type NamePlateConfig = z.infer<typeof namePlateConfigSchema>;
 /** True when anything on this plate can actually have a booking state. */
 export function hasCalendarSeat(config: NamePlateConfig): boolean {
   return config.seats.some((s) => s.occupant.kind === "calendar");
+}
+
+/**
+ * The room to put in the header, or null for no header at all.
+ *
+ * Prefers what the operator typed. Otherwise, if every calendar seat names the
+ * same parent room, that is unambiguous and worth using — a plate whose seats all
+ * come from "S1 2er Flexbüro Föhr" is a sign for that room. Seats from different
+ * rooms name none, because guessing one would be wrong on the display.
+ */
+export function resolveRoomName(config: NamePlateConfig): string | null {
+  const typed = config.roomName.trim();
+  if (typed) return typed;
+
+  const parents = new Set(
+    config.seats
+      .map((s) => (s.occupant.kind === "calendar" ? s.occupant.parentName?.trim() : undefined))
+      .filter((n): n is string => !!n)
+  );
+  return parents.size === 1 ? [...parents][0] : null;
 }

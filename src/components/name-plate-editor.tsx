@@ -90,8 +90,8 @@ function CalendarSeatFields({
             /* The name is stored beside the id on purpose: the renderer falls back
              * to it when the provider is unreachable, so the band still says which
              * place it is instead of showing a bare identifier. */
-            onChange={(resourceId, resourceName) =>
-              onChange({ ...occupant, resourceId, resourceName })
+            onChange={(resourceId, resourceName, _bookingUrl, parentName) =>
+              onChange({ ...occupant, resourceId, resourceName, parentName })
             }
           />
         ) : (
@@ -225,6 +225,18 @@ export function NamePlateEditor({ config, onChange, providers }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-[13px] text-label-secondary">{t("noEditorHint")}</p>
+
+      <div>
+        <label className="block text-sm font-medium text-label-secondary mb-1">
+          {t("roomName")}
+        </label>
+        <Input
+          placeholder={t("roomNamePlaceholder")}
+          value={config.roomName ?? ""}
+          onChange={(e) => update({ roomName: e.target.value })}
+        />
+        <p className="mt-1 text-[12px] text-label-tertiary">{t("roomNameHint")}</p>
+      </div>
 
       <div className="space-y-3">
         <div className="flex items-baseline justify-between">

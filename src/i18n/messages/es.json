@@ -327,7 +327,10 @@
       "showStatusHint": "Solo para puestos de calendario. Un nombre fijo no tiene estado, por lo que su línea se omite en lugar de quedar vacía.",
       "maxSeatsHint": "Cuatro puestos como máximo, para que los nombres sigan siendo legibles a distancia.",
       "noEditorHint": "La composición se calcula a partir del número de puestos y de la pantalla. No hay nada que colocar.",
-      "resource": "Recurso (sala / escritorio)"
+      "resource": "Recurso (sala / escritorio)",
+      "roomName": "Sala (encabezado)",
+      "roomNamePlaceholder": "1J.2.27",
+      "roomNameHint": "Se muestra en la parte superior, como en la pantalla de reserva de sala. Si se deja vacío se usa la sala de la que provienen los puestos."
     }
   },
   "providers": {

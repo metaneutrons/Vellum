@@ -1,17 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { seatBands, bandContent, bandLineCount, fitSharedSize } from "../name-plate-layout";
-import { seatSchema, namePlateConfigSchema, MAX_SEATS } from "../name-plate-types";
+import { seatSchema, namePlateConfigSchema, resolveRoomName, MAX_SEATS } from "../name-plate-types";
 
 const staticSeat = (name: string, caption = "") =>
   seatSchema.parse({ caption, occupant: { kind: "static", name } });
 
-const calendarSeat = (caption = "") =>
+const calendarSeat = (caption = "", parentName?: string) =>
   seatSchema.parse({
     caption,
     occupant: {
       kind: "calendar",
       providerId: "123e4567-e89b-42d3-a456-426614174000",
       resourceId: "room-1",
+      parentName,
     },
   });
 
@@ -62,41 +63,104 @@ describe("seatBands", () => {
   });
 });
 
+const LABELS = { free: "Frei", unknown: "Keine Verbindung" };
+
 describe("bandContent", () => {
-  /* The decision the operator asked for: a static seat has no booking state, and
-   * its band omits the line instead of reserving an empty one. */
-  it("gives a static seat no status even when the plate shows status", () => {
-    const c = bandContent(staticSeat("Müller"), { name: "Müller", status: "Belegt" }, true);
+  /* The roles are fixed: the ROOM is in the header, the SEAT is the caption, the
+   * big line is the person. The bug this replaced put the resource name in the
+   * big line whenever a seat was free, so an empty desk rendered as
+   * "Föhr 1 (1J.2.27)" in the slot meant for a person and read like one. */
+  it("says nobody is there instead of putting the place in the name slot", () => {
+    const c = bandContent(
+      calendarSeat(),
+      { occupant: null, placeLabel: "Föhr 1 (1J.2.27)" },
+      false,
+      LABELS
+    );
+    expect(c.name).toBe("Frei");
+    expect(c.caption).toBe("Föhr 1 (1J.2.27)");
+  });
+
+  it("puts the occupant in the name slot and the seat in the caption", () => {
+    const c = bandContent(
+      calendarSeat(),
+      { occupant: "Schmieder", placeLabel: "Föhr 1", detail: "bis 12:00" },
+      true,
+      LABELS
+    );
+    expect(c).toMatchObject({ caption: "Föhr 1", name: "Schmieder", status: "bis 12:00" });
+  });
+
+  /* showStatus governs the DETAIL, not whether the state is admitted: a plate that
+   * cannot say "free" is not a door sign, and is indistinguishable from a failed
+   * lookup. */
+  it("still reveals a free seat when the detail is switched off", () => {
+    const c = bandContent(calendarSeat(), { occupant: null, placeLabel: "Föhr 1" }, false, LABELS);
+    expect(c.name).toBe("Frei");
     expect(c.status).toBeNull();
+  });
+
+  it("drops only the detail when status is switched off", () => {
+    const c = bandContent(
+      calendarSeat(),
+      { occupant: "Schmieder", placeLabel: "Föhr 1", detail: "bis 12:00" },
+      false,
+      LABELS
+    );
+    expect(c.name).toBe("Schmieder");
+    expect(c.status).toBeNull();
+  });
+
+  /* An operator's own caption beats the provider's name for the same seat. */
+  it("prefers the operator's caption over the resource name", () => {
+    const c = bandContent(
+      calendarSeat("Schreibtisch 1"),
+      { occupant: null, placeLabel: "Föhr 1" },
+      false,
+      LABELS
+    );
+    expect(c.caption).toBe("Schreibtisch 1");
+  });
+
+  /* A static seat is always occupied by the person named, has no place label and
+   * no state, so it composes one line. */
+  it("gives a static seat its name and nothing else", () => {
+    const c = bandContent(staticSeat("Müller"), { occupant: "Müller" }, true, LABELS);
+    expect(c).toMatchObject({ caption: null, name: "Müller", status: null });
     expect(bandLineCount(c)).toBe(1);
   });
 
-  it("gives a calendar seat its status when the plate shows status", () => {
-    const c = bandContent(calendarSeat(), { name: "Schmieder", status: "Belegt" }, true);
-    expect(c.status).toBe("Belegt");
+  it("keeps a caption on a static seat", () => {
+    const c = bandContent(
+      staticSeat("Müller", "Schreibtisch 2"),
+      { occupant: "Müller" },
+      false,
+      LABELS
+    );
+    expect(c.caption).toBe("Schreibtisch 2");
     expect(bandLineCount(c)).toBe(2);
   });
 
-  it("withholds status from a calendar seat when the plate does not show it", () => {
-    const c = bandContent(calendarSeat(), { name: "Schmieder", status: "Belegt" }, false);
-    expect(c.status).toBeNull();
-  });
-
-  /* A caption is the place, not the person, so it is independent of the source. */
-  it("keeps a caption for either kind of seat", () => {
-    expect(
-      bandContent(staticSeat("Müller", "Platz 1"), { name: "Müller", status: null }, false).caption
-    ).toBe("Platz 1");
-    expect(
-      bandContent(calendarSeat("Platz 2"), { name: "Schmieder", status: null }, false).caption
-    ).toBe("Platz 2");
-  });
-
-  /* An empty caption means "no caption", so whitespace must not buy a line. */
+  /* A blank caption means "no caption", so whitespace must not buy a line. */
   it("treats a blank caption as absent", () => {
-    const c = bandContent(staticSeat("Müller", "   "), { name: "Müller", status: null }, false);
+    const c = bandContent(staticSeat("Müller", "   "), { occupant: "Müller" }, false, LABELS);
     expect(c.caption).toBeNull();
     expect(bandLineCount(c)).toBe(1);
+  });
+
+  /* A sign may withhold detail; it may not present an unknown state as current.
+   * Before this, a failed lookup rendered exactly like a free desk. */
+  it("names an unreachable provider whatever the operator asked for", () => {
+    const off = bandContent(
+      calendarSeat(),
+      { occupant: null, placeLabel: "Föhr 1", unreachable: true },
+      false,
+      LABELS
+    );
+    expect(off.name).toBe("Keine Verbindung");
+    expect(off.name).not.toBe(
+      bandContent(calendarSeat(), { occupant: null, placeLabel: "Föhr 1" }, false, LABELS).name
+    );
   });
 });
 
@@ -216,5 +280,64 @@ describe("namePlateConfigSchema", () => {
       seats: [{ occupant: { kind: "static", name: "Müller" } }],
     });
     expect(cfg.timezone).toBeUndefined();
+  });
+});
+
+describe("resolveRoomName", () => {
+  const plate = (over: Record<string, unknown>) =>
+    namePlateConfigSchema.parse({
+      seats: [{ occupant: { kind: "static", name: "Müller" } }],
+      ...over,
+    });
+
+  it("prefers what the operator typed", () => {
+    expect(resolveRoomName(plate({ roomName: "1J.2.27" }))).toBe("1J.2.27");
+  });
+
+  /* An operator who picked seats has already said which room this is, so the
+   * header does not need typing again. */
+  it("falls back to the room the seats came from", () => {
+    const cfg = namePlateConfigSchema.parse({
+      seats: [calendarSeat("", "S1 2er Flexbüro Föhr"), calendarSeat("", "S1 2er Flexbüro Föhr")],
+    });
+    expect(resolveRoomName(cfg)).toBe("S1 2er Flexbüro Föhr");
+  });
+
+  /* Guessing one of two rooms would put a wrong name on a wall. */
+  it("names none when the seats come from different rooms", () => {
+    const cfg = namePlateConfigSchema.parse({
+      seats: [calendarSeat("", "Föhr"), calendarSeat("", "Sylt")],
+    });
+    expect(resolveRoomName(cfg)).toBeNull();
+  });
+
+  it("names none for static seats with nothing typed", () => {
+    expect(resolveRoomName(plate({}))).toBeNull();
+  });
+
+  it("treats a blank room name as unset", () => {
+    const cfg = namePlateConfigSchema.parse({
+      roomName: "   ",
+      seats: [calendarSeat("", "Föhr")],
+    });
+    expect(resolveRoomName(cfg)).toBe("Föhr");
+  });
+});
+
+describe("seatBands with a header", () => {
+  /* Bands start below the header and still end inside the padding, so adding a
+   * header shortens the seats rather than pushing one off the panel. */
+  it("keeps every band below the header and inside the panel", () => {
+    const headerH = 75;
+    const bands = seatBands(4, 800, 480, 20, headerH);
+    expect(bands[0].y).toBeGreaterThanOrEqual(headerH);
+    const last = bands[bands.length - 1];
+    expect(last.y + last.h).toBeLessThanOrEqual(480 - 20 + 1);
+  });
+
+  it("gives seats less height than it would without a header", () => {
+    const withHeader = seatBands(4, 800, 480, 20, 75)[0].h;
+    const without = seatBands(4, 800, 480, 20)[0].h;
+    expect(withHeader).toBeLessThan(without);
   });
 });

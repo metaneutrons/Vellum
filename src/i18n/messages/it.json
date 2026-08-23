@@ -327,7 +327,10 @@
       "showStatusHint": "Solo per le postazioni da calendario. Un nome fisso non ha stato, quindi la sua riga viene omessa invece di restare vuota.",
       "maxSeatsHint": "Al massimo quattro postazioni, così i nomi restano leggibili da lontano.",
       "noEditorHint": "La disposizione è calcolata dal numero di postazioni e dal display. Non c'è nulla da posizionare.",
-      "resource": "Risorsa (sala / scrivania)"
+      "resource": "Risorsa (sala / scrivania)",
+      "roomName": "Sala (intestazione)",
+      "roomNamePlaceholder": "1J.2.27",
+      "roomNameHint": "Mostrata in alto, come nel display di prenotazione sala. Se lasciata vuota si usa la sala da cui provengono le postazioni."
     }
   },
   "providers": {

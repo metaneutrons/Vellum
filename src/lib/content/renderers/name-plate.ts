@@ -30,11 +30,17 @@ import { drawBitmapText, measureBitmapText, type BitmapFontSize } from "@/lib/re
 import { ensureRenderFonts } from "@/lib/render/fonts";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
-import { namePlateConfigSchema, type NamePlateConfig, type Seat } from "./name-plate-types";
+import {
+  namePlateConfigSchema,
+  resolveRoomName,
+  type NamePlateConfig,
+  type Seat,
+} from "./name-plate-types";
 import {
   seatBands,
   bandContent,
   bandLineCount,
+  type SeatState,
   fitSharedSize,
   type BandContent,
   type Rect,
@@ -53,11 +59,6 @@ const ATLAS_STEPS: readonly { key: BitmapFontSize; px: number }[] = [
 
 const BOOKING_CACHE_TTL_MS = 60_000;
 const bookingCache = new TtlCache<CalendarEvent[]>(BOOKING_CACHE_TTL_MS);
-
-interface ResolvedSeat {
-  name: string;
-  status: string | null;
-}
 
 async function fetchDayEvents(
   providerId: string,
@@ -117,28 +118,30 @@ async function resolveSeat(
   now: Date,
   timezone: string,
   locale: string,
-  labels: { free: string; busy: string; unknown: string }
-): Promise<ResolvedSeat> {
+  labels: { free: string; busy: string; unknown: string; until: string }
+): Promise<SeatState> {
   if (seat.occupant.kind === "static") {
-    return { name: seat.occupant.name, status: null };
+    /* A fixed name is always the occupant; there is no place label to fall back
+     * to and no state to report. */
+    return { occupant: seat.occupant.name };
   }
 
   const { providerId, resourceId, resourceName } = seat.occupant;
+  const placeLabel = resourceName ?? resourceId;
   try {
     const events = await fetchDayEvents(providerId, resourceId, resourceName, now, timezone);
     const current = events.find((e) => now >= e.startTime && now < e.endTime);
-    if (!current) {
-      return { name: resourceName ?? resourceId, status: labels.free };
-    }
+    if (!current) return { occupant: null, placeLabel };
+
     const who = current.isPrivate ? labels.busy : current.organizer || current.subject;
     const until = current.endTime.toLocaleTimeString(locale, {
       hour: "2-digit",
       minute: "2-digit",
       timeZone: timezone,
     });
-    return { name: who, status: `${labels.busy} · ${until}` };
+    return { occupant: who, placeLabel, detail: `${labels.until} ${until}` };
   } catch {
-    return { name: resourceName ?? resourceId, status: labels.unknown };
+    return { occupant: null, placeLabel, unreachable: true };
   }
 }
 
@@ -256,7 +259,12 @@ function drawBand(
     lines.push({ text, size, drawn: effectiveSize(t, size, bold), color, bold });
 
   if (content.caption) push(content.caption, sizes.caption, colors.caption, false);
-  push(content.name, sizes.name, colors.name, true);
+  if (content.nameIsNotice) {
+    /* Small and muted: a note about the sign, not the content of the sign. */
+    push(content.name, sizes.status, colors.status, false);
+  } else {
+    push(content.name, sizes.name, colors.name, true);
+  }
   if (content.status) push(content.status, sizes.status, colors.status, false);
 
   /* Tight, because the caption and the status belong to the NAME between them,
@@ -321,7 +329,9 @@ async function render(params: RenderParams): Promise<RenderResult> {
   const resolved = await Promise.all(
     config.seats.map((s) => resolveSeat(s, params.now, timezone, locale, labels))
   );
-  const contents = config.seats.map((seat, i) => bandContent(seat, resolved[i], config.showStatus));
+  const contents = config.seats.map((seat, i) =>
+    bandContent(seat, resolved[i], config.showStatus, labels)
+  );
 
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
@@ -333,8 +343,38 @@ async function render(params: RenderParams): Promise<RenderResult> {
 
   const shortSide = Math.min(width, height);
   const pad = Math.round(shortSide * 0.06);
-  const bands = seatBands(config.seats.length, width, height, pad);
+  const scale = shortSide / 480;
   const t: TypeCtx = { ctx, useBitmap, ff: ensureRenderFonts() };
+
+  /* A door sign says WHERE it is before it says who is inside, and it says it the
+   * way the room-booking display does: same bar, same height, same weight, so a
+   * corridor of both kinds looks like one system rather than two products. */
+  const room = resolveRoomName(config);
+  const headerH = room ? Math.round(75 * scale) : 0;
+  if (room) {
+    ctx.fillStyle = T.headerBg;
+    ctx.fillRect(0, 0, width, headerH);
+    const roomSize = fitSharedSize({
+      texts: [room],
+      maxWidth: width - Math.round(32 * scale),
+      maxHeight: Math.round(headerH * 0.42),
+      measure: (text, size) => measureAt(t, text, size),
+      min: 12,
+      max: Math.round(34 * scale),
+    });
+    drawCentred(
+      t,
+      room,
+      width / 2,
+      Math.round(headerH / 2 + roomSize * lineRatio(t) * 0.5),
+      roomSize,
+      T.headerText,
+      true,
+      width - Math.round(32 * scale)
+    );
+  }
+
+  const bands = seatBands(config.seats.length, width, height, pad, headerH);
 
   /* Every band is the same height, so the tightest constraint is the band with
    * the MOST lines: sizing against the average would clip it. */
@@ -344,8 +384,16 @@ async function render(params: RenderParams): Promise<RenderResult> {
    * is needed. 0.62 keeps them clearly subordinate while staying legible. */
   const nameShare = maxLines === 1 ? 0.72 : maxLines === 2 ? 0.5 : 0.4;
 
+  /* Notices are excluded from the fit: "Keine Verbindung" is longer than any name
+   * and would otherwise decide the size for every band, so one unreachable seat
+   * would shrink the names of the seats that can be reached.
+   *
+   * When EVERY band is a notice there is nothing left to measure, and an empty
+   * list makes the search return its ceiling — which blew the captions up to fill
+   * a plate that has nothing to say. Fall back to measuring the notices then. */
+  const names = contents.filter((c) => !c.nameIsNotice).map((c) => c.name);
   const nameSize = fitSharedSize({
-    texts: contents.map((c) => c.name),
+    texts: names.length ? names : contents.map((c) => c.name),
     /* 0.90, not 0.96: type running to within two percent of the band edge reads
      * as cramped on a physical sign, where the bezel is already right there. */
     maxWidth: (bands[0]?.w ?? width) * 0.9,
@@ -380,19 +428,24 @@ async function render(params: RenderParams): Promise<RenderResult> {
  * Three strings do not justify wiring a second loader, and the room-booking
  * renderer already carries its labels the same way.
  */
-function statusLabels(locale: string): { free: string; busy: string; unknown: string } {
+function statusLabels(locale: string): {
+  free: string;
+  busy: string;
+  unknown: string;
+  until: string;
+} {
   const lang = locale.slice(0, 2).toLowerCase();
   switch (lang) {
     case "de":
-      return { free: "Frei", busy: "Belegt", unknown: "Keine Verbindung" };
+      return { free: "Frei", busy: "Belegt", unknown: "Keine Verbindung", until: "bis" };
     case "fr":
-      return { free: "Libre", busy: "Occupé", unknown: "Hors ligne" };
+      return { free: "Libre", busy: "Occupé", unknown: "Hors ligne", until: "jusqu'à" };
     case "es":
-      return { free: "Libre", busy: "Ocupado", unknown: "Sin conexión" };
+      return { free: "Libre", busy: "Ocupado", unknown: "Sin conexión", until: "hasta" };
     case "it":
-      return { free: "Libero", busy: "Occupato", unknown: "Non connesso" };
+      return { free: "Libero", busy: "Occupato", unknown: "Non connesso", until: "fino a" };
     default:
-      return { free: "Free", busy: "Busy", unknown: "Offline" };
+      return { free: "Free", busy: "Busy", unknown: "Offline", until: "until" };
   }
 }
 

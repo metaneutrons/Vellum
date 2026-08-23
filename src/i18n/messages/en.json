@@ -327,7 +327,10 @@
       "showStatusHint": "Calendar seats only. A fixed name has no state, so its line is left out rather than shown empty.",
       "maxSeatsHint": "Four seats at most, so the names stay readable from across the room.",
       "noEditorHint": "The layout is computed from the seat count and the display. There is nothing to position.",
-      "resource": "Resource (room / desk)"
+      "resource": "Resource (room / desk)",
+      "roomName": "Room (header)",
+      "roomNamePlaceholder": "1J.2.27",
+      "roomNameHint": "Shown across the top, the way the room-booking display does it. Left empty, the room the seats came from is used."
     }
   },
   "providers": {

@@ -327,7 +327,10 @@
       "showStatusHint": "Nur für Kalenderplätze. Ein fester Name hat keinen Zustand, seine Zeile entfällt statt leer zu bleiben.",
       "maxSeatsHint": "Höchstens vier Plätze, damit die Namen aus der Entfernung lesbar bleiben.",
       "noEditorHint": "Das Layout wird aus der Anzahl der Plätze und dem Display berechnet. Es gibt nichts zu positionieren.",
-      "resource": "Ressource (Raum/Arbeitsplatz)"
+      "resource": "Ressource (Raum/Arbeitsplatz)",
+      "roomName": "Raum (Kopfbereich)",
+      "roomNamePlaceholder": "1J.2.27",
+      "roomNameHint": "Steht oben über der Fläche, wie bei der Raumbelegung. Leer gelassen wird der Raum verwendet, aus dem die Plätze stammen."
     }
   },
   "providers": {

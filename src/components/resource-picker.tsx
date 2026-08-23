@@ -20,7 +20,17 @@ interface Props {
   providerId: string;
   resourceId: string;
   resourceName?: string;
-  onChange: (resourceId: string, resourceName: string, bookingUrl?: string) => void;
+  /**
+   * `parentName` is the room a seat sits in, when the provider reports one. The
+   * name plate stores it so its header can name the room without the operator
+   * typing it again.
+   */
+  onChange: (
+    resourceId: string,
+    resourceName: string,
+    bookingUrl?: string,
+    parentName?: string
+  ) => void;
 }
 
 /**
@@ -102,7 +112,7 @@ export function ResourcePicker({ providerId, resourceId, resourceName, onChange 
     setSelectedName(r.name);
     setSearch("");
     setOpen(false);
-    onChange(r.id, r.name, r.bookingUrl);
+    onChange(r.id, r.name, r.bookingUrl, r.parentName);
   }
 
   if (!supported) {

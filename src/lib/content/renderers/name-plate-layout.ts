@@ -29,12 +29,18 @@ export interface Rect {
  * It also means the only thing that changes between one seat and four is the
  * band height, which is a layout you can predict without running it.
  */
-export function seatBands(count: number, width: number, height: number, pad: number): Rect[] {
+export function seatBands(
+  count: number,
+  width: number,
+  height: number,
+  pad: number,
+  headerH = 0
+): Rect[] {
   const bands: Rect[] = [];
   if (count <= 0) return bands;
 
   const innerW = Math.max(0, width - pad * 2);
-  const innerH = Math.max(0, height - pad * 2);
+  const innerH = Math.max(0, height - headerH - pad * 2);
   /* Gaps BETWEEN bands only. Edge spacing is the padding's job, and counting it
    * twice is how a four-seat plate ends up with less room than a three-seat one
    * for no visible reason. */
@@ -44,7 +50,7 @@ export function seatBands(count: number, width: number, height: number, pad: num
   for (let i = 0; i < count; i++) {
     bands.push({
       x: pad,
-      y: Math.round(pad + i * (bandH + gap)),
+      y: Math.round(headerH + pad + i * (bandH + gap)),
       w: innerW,
       h: Math.round(bandH),
     });
@@ -54,29 +60,66 @@ export function seatBands(count: number, width: number, height: number, pad: num
 
 /** What a single band actually has to show. */
 export interface BandContent {
+  /** The seat itself: "Schreibtisch 1", or the resource's own name. */
   caption: string | null;
+  /** Who is there — or the word for nobody. Always present, always the payload. */
   name: string;
-  /** null when this seat cannot have a state, or the plate does not show one. */
+  /** Extra detail, such as how long the booking runs. */
   status: string | null;
+  /**
+   * The name line is a NOTICE, not a name.
+   *
+   * "Keine Verbindung" is not a person and must not be typeset like one: at name
+   * size it is the loudest thing on the wall, and because the type size is shared
+   * across bands, its length would shrink every real name beside it. Drawn small
+   * and muted, and excluded from the fit.
+   */
+  nameIsNotice?: boolean;
+}
+
+/** What a resolved seat can say. */
+export interface SeatState {
+  /** Who is there, or null when nobody is. */
+  occupant: string | null;
+  /** The seat's own name from the provider, for the caption fallback. */
+  placeLabel?: string;
+  /** "bis 12:00" and the like. Only shown when the plate shows status. */
+  detail?: string | null;
+  /** The provider could not be asked. */
+  unreachable?: boolean;
 }
 
 /**
  * Decide what a band shows, so the drawing code never asks "is this empty?".
  *
- * A static seat returns `status: null` even when the plate shows status, because
- * it has no booking to be free or busy. The band then composes two lines instead
- * of three rather than leaving a gap where the third would go.
+ * The roles are fixed and that is the whole point: the ROOM is in the header, the
+ * SEAT is the caption, and the big line is the person. Before this the resource
+ * name went into the big line whenever a seat was free, so an empty desk rendered
+ * as "Föhr 1 (1J.2.27)" in the slot meant for a person and read like one.
+ *
+ * With nobody there the big line says so. A calendar seat therefore always
+ * reveals free or occupied, and `showStatus` governs the DETAIL — the "until" —
+ * rather than whether the state is admitted. A plate that cannot say "free" is
+ * not a door sign, and it is indistinguishable from a lookup that failed.
+ *
+ * A static seat has no state to show at all, so it composes two lines instead of
+ * three rather than leaving a gap where the third would go.
  */
 export function bandContent(
   seat: Seat,
-  resolved: { name: string; status: string | null },
-  showStatus: boolean
+  state: SeatState,
+  showStatus: boolean,
+  labels: { free: string; unknown: string }
 ): BandContent {
-  const isCalendar = seat.occupant.kind === "calendar";
+  const caption = seat.caption.trim() || state.placeLabel?.trim() || "";
+  /* An unreachable provider is named whatever the operator asked for: a sign may
+   * withhold detail, but it may not present an unknown state as a current one. */
+  const name = state.unreachable ? labels.unknown : (state.occupant ?? labels.free);
   return {
-    caption: seat.caption.trim() ? seat.caption.trim() : null,
-    name: resolved.name,
-    status: showStatus && isCalendar ? resolved.status : null,
+    caption: caption || null,
+    name,
+    status: showStatus && !state.unreachable ? (state.detail ?? null) : null,
+    nameIsNotice: state.unreachable ? true : undefined,
   };
 }
 
