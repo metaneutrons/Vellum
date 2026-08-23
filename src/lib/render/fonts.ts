@@ -66,12 +66,29 @@ export function ensureRenderFonts(): string {
    * it, and the size search preferred that face because it happened to be 18 %
    * narrower than Inter. A plate would then have been set in whatever the host
    * machine had lying around. */
-  narrowAvailable = NARROW_FILES.every((file) =>
-    GlobalFonts.registerFromPath(path.join(FONT_DIR, file), NARROW_FONT_FAMILY)
+  narrowAvailable = narrowIsComplete(
+    /* `registerFromPath` returns a `FontKey` on success and a falsy value on
+     * failure, NOT a boolean and not an exception, which is the whole reason this
+     * went wrong once. Coerced here so the predicate reasons about booleans. */
+    NARROW_FILES.map((file) =>
+      Boolean(GlobalFonts.registerFromPath(path.join(FONT_DIR, file), NARROW_FONT_FAMILY))
+    )
   );
 
   registered = true;
   return RENDER_FONT_FAMILY;
+}
+
+/**
+ * Whether a set of registration results counts as a usable narrow family.
+ *
+ * Its own exported predicate because it holds the rule that was wrong, and the
+ * rule is worth a test that needs no filesystem: EVERY weight has to have landed,
+ * and an empty list is not success. `[].every(Boolean)` is true, which is exactly
+ * how "no files configured" could have reported itself as available.
+ */
+export function narrowIsComplete(results: boolean[]): boolean {
+  return results.length > 0 && results.every(Boolean);
 }
 
 /**
