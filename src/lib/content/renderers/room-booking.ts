@@ -57,7 +57,7 @@ import { ensureRenderFonts } from "@/lib/render/fonts";
 type FontSize = "sm" | "md" | "md-bold" | "lg-bold";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
-import type { Theme } from "@/lib/theme";
+import { readableOn, type Theme } from "@/lib/theme";
 import type { DisplayEvent, RoomPolicy } from "@/lib/types";
 import QRCode from "qrcode";
 import {
@@ -437,7 +437,8 @@ function renderHeader(h: HeaderCtx): void {
 
   const bw = textWidth(tc, badgeText, "md-bold");
   const badgeX = width - bw - Math.round(32 * scale);
-  ctx.fillStyle = busy ? T.busyBadge : T.freeBadge;
+  const badgeBg = busy ? T.busyBadge : T.freeBadge;
+  ctx.fillStyle = badgeBg;
   ctx.fillRect(badgeX, Math.round(20 * scale), bw + Math.round(16 * scale), Math.round(34 * scale));
   text(
     tc,
@@ -445,7 +446,10 @@ function renderHeader(h: HeaderCtx): void {
     Math.round(46 * scale),
     badgeText,
     "md-bold",
-    T.badgeText
+    /* One `badgeText` serves two grounds: on the two-colour panel the free badge is
+     * white and the busy one black, so whichever value the theme holds, one of the
+     * two states would draw its text on its own colour. */
+    readableOn(badgeBg, T.badgeText)
   );
 
   const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
@@ -581,7 +585,12 @@ export function renderToCanvas(
     const ew = colW - 2; /* 2px gap between columns */
     const pad = 8;
 
-    ctx.fillStyle = evt.isPrivate || evt.showLockIcon ? T.busyBadge : T.eventBg;
+    const blockBg = evt.isPrivate || evt.showLockIcon ? T.busyBadge : T.eventBg;
+    /* Same problem as the badge: the block's ground is one of two colours while
+     * `slotText` is one value. On the mono panel both grounds are black, so an
+     * unguarded black `slotText` drew every booking as a featureless bar. */
+    const blockText = readableOn(blockBg, T.slotText);
+    ctx.fillStyle = blockBg;
     /* Extend block 2px at bottom to fully cover the end grid line */
     ctx.fillRect(ex, y1, ew, blockH + 2);
 
@@ -595,7 +604,7 @@ export function renderToCanvas(
       const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
       const timeW = textWidth(tc, timeStr, fontSize);
       const textY = y1 + Math.min(lineH, blockH - 4);
-      text(tc, ex + ew - pad, textY, timeStr, fontSize, T.slotText, "right");
+      text(tc, ex + ew - pad, textY, timeStr, fontSize, blockText, "right");
 
       const label = evt.showLockIcon ? `🔒 ${evt.displaySubject}` : evt.displaySubject;
       const labelMaxW = ew - timeW - pad * 3;
@@ -609,13 +618,13 @@ export function renderToCanvas(
           textY,
           label,
           fontSizeBold,
-          T.slotText,
+          blockText,
           ew - pad * 2,
           lineH,
           availLines + 1
         );
       } else {
-        text(tc, ex + pad, textY, label, fontSizeBold, T.slotText, "left", labelMaxW);
+        text(tc, ex + pad, textY, label, fontSizeBold, blockText, "left", labelMaxW);
       }
     }
 
@@ -625,7 +634,7 @@ export function renderToCanvas(
       evt.organizer &&
       evt.organizer.trim() !== evt.displaySubject.trim()
     ) {
-      text(tc, ex + pad, y1 + lineH * 2, evt.organizer, fontSize, T.slotText, "left", ew - pad * 2);
+      text(tc, ex + pad, y1 + lineH * 2, evt.organizer, fontSize, blockText, "left", ew - pad * 2);
     }
   }
 
@@ -791,7 +800,10 @@ function renderStacked(
 
     // Event card
     const isNow = evt.startTime.getTime() <= now.getTime() && evt.endTime.getTime() > now.getTime();
-    ctx.fillStyle = isNow ? T.busyBadge : T.eventBg;
+    const cardBg = isNow ? T.busyBadge : T.eventBg;
+    const cardText = readableOn(cardBg, isNow ? T.badgeText : T.slotText);
+    const cardSecondary = readableOn(cardBg, isNow ? T.badgeText : T.slotSecondary);
+    ctx.fillStyle = cardBg;
     ctx.fillRect(padding, y, width - 2 * padding, cardH);
 
     // Time
@@ -802,7 +814,7 @@ function renderStacked(
       y + Math.round(26 * scale),
       timeStr,
       "md-bold",
-      isNow ? T.badgeText : T.slotText
+      cardText
     );
 
     // Subject
@@ -813,7 +825,7 @@ function renderStacked(
       y + Math.round(52 * scale),
       evt.displaySubject,
       "sm",
-      isNow ? T.badgeText : T.slotSecondary,
+      cardSecondary,
       "left",
       maxSubW
     );

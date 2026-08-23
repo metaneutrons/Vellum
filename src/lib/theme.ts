@@ -74,11 +74,67 @@ export const THEME_MONO: Theme = {
   busyBadge: "#000000",
   badgeText: "#FFFFFF",
   background: "#FFFFFF",
-  eventBg: "#444444",
+  /* Black, not a mid-grey: `#444444` snapped to black on this palette anyway, so the
+   * value said one thing and the panel showed another.
+   *
+   * The text colours stay BLACK, and that is deliberate. Every one of them is drawn
+   * on the white ground somewhere — `slotSecondary` labels the timeline's hours, and
+   * the name plate sets its captions in it — so tuning them for the filled blocks
+   * breaks them on the panel's own background. Flipping them for a filled ground is
+   * `readableOn`'s job, at the point of use, where the ground is known. Setting
+   * `slotSecondary` to white here did in fact erase the hour column, and would have
+   * erased the name plate's captions with it. */
   slotText: "#000000",
   slotSecondary: "#000000",
+  eventBg: "#000000",
   footerText: "#000000",
 };
+
+/** WCAG relative luminance of one 8-bit channel. */
+function channelLuminance(value: number): number {
+  const c = value / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function luminance(hex: string): number {
+  const r = channelLuminance(parseInt(hex.slice(1, 3), 16));
+  const g = channelLuminance(parseInt(hex.slice(3, 5), 16));
+  const b = channelLuminance(parseInt(hex.slice(5, 7), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG contrast ratio, 1 for identical colours and 21 for black on white. */
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * The preferred text colour, or black/white when it would be illegible.
+ *
+ * A theme holds ONE text colour for pairs of grounds that need opposite ones. The
+ * booking badge is the clearest case: its background is `busyBadge` or `freeBadge`,
+ * and a single `badgeText` has to sit on both. On the two-colour panel those are
+ * black and white, so whichever the operator picks, one of the two states renders
+ * text on its own colour and disappears. The same holds for `slotText` over an event
+ * block that may be `eventBg` or `busyBadge`.
+ *
+ * Widening the schema would fix it for the built-in themes and leave every
+ * operator-made theme able to reproduce it, so the repair belongs at the point of
+ * use. Intent is preserved wherever it works: the preferred colour is returned
+ * untouched above the threshold, and only replaced when it is genuinely unreadable.
+ *
+ * 3:1 is the WCAG AA floor for large text, which is what a wall display is. E-paper
+ * reaches roughly 10:1 in the first place, so demanding 4.5 would reject pairs that
+ * are perfectly legible on the panel.
+ */
+export function readableOn(background: string, preferred: string, minContrast = 3): string {
+  if (contrastRatio(background, preferred) >= minContrast) return preferred;
+  return contrastRatio(background, "#000000") >= contrastRatio(background, "#FFFFFF")
+    ? "#000000"
+    : "#FFFFFF";
+}
 
 export function resolveTheme(colorCount: number): Theme {
   return colorCount > 2 ? THEME_DEFAULT : THEME_MONO;

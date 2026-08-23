@@ -115,16 +115,32 @@ design calls:
       Both tokens are now `#000000`, because on a two-colour panel a secondary rank
       is a smaller size and a lighter weight, not a lighter tone.
 
-- [ ] **Two more mid-tones in `THEME_MONO` are the same defect and are NOT
-      fixed**, because each needs a design decision rather than a colour. `eventBg`
-      is `#444444`, which snaps to black, while `slotText` is black, so a
-      room-booking event block is black on black. And `badgeText` is white on a
-      `freeBadge` that is also white, so a FREE badge has invisible text. Both turn
-      on one question: how should a 1-bit panel distinguish a filled block from an
-      outlined one, given that a single `badgeText` serves both states? The name
-      plate answered it for itself, using the header pair for filled areas and
-      nothing at all for free ones; room-booking needs the same treatment or a
-      second text colour in the schema.
+- [x] **The mono theme's remaining mid-tones are gone, and the repair turned out to
+      belong at the point of USE rather than in the theme.** A theme holds one text
+      colour for pairs of grounds that need opposite ones: the badge's ground is
+      `busyBadge` or `freeBadge`, an event block's is `eventBg` or `busyBadge`, and a
+      single `badgeText` or `slotText` has to sit on both. Whatever the value, one of
+      the two states drew text on its own colour. `readableOn` in `lib/theme.ts` now
+      keeps the operator's choice above 3:1 (the WCAG floor for large text, and
+      e-paper only reaches about 10:1 to begin with) and substitutes black or white
+      below it. `THEME_MONO.eventBg` also stopped claiming `#444444` when the panel
+      showed black.
+  - It repaired defects on ALL FOUR panels, not only the mono one. E1001: free badge
+    white on white, both event blocks black on black, card subtitle black on black,
+    four pairs at exactly 1.00:1, which is why the whole booking list rendered as
+    featureless bars. E1002 and D1001: free badge white on bright green at 1.37:1,
+    card subtitle black on blue at 2.44:1. E1003: card subtitle at 2.82:1.
+  - Tuning the TOKENS instead was tried and is wrong: `slotSecondary` also labels the
+    timeline's hour column and sets the name plate's captions, both on the white
+    ground, so making it white for the blocks erased the hour column and would have
+    erased the captions. The ground is only known at the point of use.
+
+- [ ] **On the E1003 the badge colour says nothing.** `freeBadge` `#00FF00` and
+      `busyBadge` `#FF0000` both snap to `#555555` on a 16-grey palette, so free and
+      busy render identically and only the word distinguishes them. No contrast guard
+      can fix that; it needs the badge to carry a second signal on greyscale panels,
+      filled against outlined being the obvious one. Same question the name plate
+      answered for itself by using a filled area for occupied and nothing for free.
 
 - [x] **`/api/v1/admin/preview` now snaps the theme to the palette**, as the render
       route always did. Without it, preview and device disagreed by construction on
