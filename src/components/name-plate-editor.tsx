@@ -155,6 +155,61 @@ function CalendarSeatFields({
 }
 
 /**
+ * Where a seat's occupant comes from, plus the remove button.
+ *
+ * Split off SeatRow to keep both under the complexity gate. The calendar option is
+ * withheld without a provider: switching to it would produce an empty providerId,
+ * which the schema rightly refuses, and the operator would meet that as a failed
+ * save rather than as the missing prerequisite it is.
+ */
+function SeatSourceSwitch({
+  seat,
+  providers,
+  removable,
+  onChange,
+  onRemove,
+}: {
+  seat: Seat;
+  providers: Provider[];
+  removable: boolean;
+  onChange: (seat: Seat) => void;
+  onRemove: () => void;
+}) {
+  const t = useTranslations("content.namePlate");
+  const options =
+    providers.length > 0
+      ? [
+          { value: "static" as const, label: t("sourceStatic") },
+          { value: "calendar" as const, label: t("sourceCalendar") },
+        ]
+      : [{ value: "static" as const, label: t("sourceStatic") }];
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Segmented
+        ariaLabel={t("source")}
+        value={seat.occupant.kind}
+        options={options}
+        onChange={(kind) =>
+          onChange({
+            caption: seat.caption,
+            occupant:
+              kind === "static"
+                ? { kind: "static", name: "", unit: "", role: "" }
+                : { kind: "calendar", providerId: providers[0]?.id ?? "", resourceId: "" },
+          })
+        }
+      />
+      {removable && (
+        <Button variant="plain" onClick={onRemove}>
+          {t("removeSeat")}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
  * One seat: where it is, and who is there.
  *
  * Its own component because the row is the whole form: a source switch, a
@@ -178,46 +233,13 @@ function SeatRow({
   const t = useTranslations("content.namePlate");
   return (
     <div className="rounded-md border border-separator p-3 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <Segmented
-          ariaLabel={t("source")}
-          value={seat.occupant.kind}
-          /* The calendar option is withheld without a provider: switching to it
-           * would produce an empty providerId, which the schema rightly refuses,
-           * and the operator would meet that as a failed save rather than as the
-           * missing prerequisite it is. */
-          options={
-            providers.length > 0
-              ? [
-                  { value: "static" as const, label: t("sourceStatic") },
-                  { value: "calendar" as const, label: t("sourceCalendar") },
-                ]
-              : [{ value: "static" as const, label: t("sourceStatic") }]
-          }
-          onChange={(kind) =>
-            onChange(
-              kind === "static"
-                ? {
-                    caption: seat.caption,
-                    occupant: { kind: "static", name: "", unit: "", role: "" },
-                  }
-                : {
-                    caption: seat.caption,
-                    occupant: {
-                      kind: "calendar",
-                      providerId: providers[0]?.id ?? "",
-                      resourceId: "",
-                    },
-                  }
-            )
-          }
-        />
-        {removable && (
-          <Button variant="plain" onClick={onRemove}>
-            {t("removeSeat")}
-          </Button>
-        )}
-      </div>
+      <SeatSourceSwitch
+        seat={seat}
+        providers={providers}
+        removable={removable}
+        onChange={onChange}
+        onRemove={onRemove}
+      />
 
       <div>
         <label className="block text-[12px] text-label-secondary mb-1">{t("caption")}</label>
@@ -244,13 +266,179 @@ function SeatRow({
   );
 }
 
+/**
+ * The seat list, with its add button and its reach note.
+ *
+ * The reach note is the point of splitting this out rather than a nicety: the seat
+ * count decides how far the sign can be read, and that was the biggest decision an
+ * operator made blind.
+ */
+function SeatList({
+  seats,
+  providers,
+  onChange,
+}: {
+  seats: Seat[];
+  providers: Provider[];
+  onChange: (seats: Seat[]) => void;
+}) {
+  const t = useTranslations("content.namePlate");
+  const metres = (READING_DISTANCE_M[seats.length] ?? 0).toLocaleString("de-DE");
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <label className="block text-sm font-medium text-label-secondary">{t("seats")}</label>
+        <span className="text-[12px] text-label-tertiary">{t("maxSeatsHint")}</span>
+      </div>
+
+      {seats.map((seat, i) => (
+        <SeatRow
+          key={i}
+          seat={seat}
+          providers={providers}
+          removable={seats.length > 1}
+          onChange={(next) => onChange(seats.map((s, j) => (j === i ? next : s)))}
+          onRemove={() => onChange(seats.filter((_, j) => j !== i))}
+        />
+      ))}
+
+      {seats.length < MAX_SEATS && (
+        <Button variant="plain" onClick={() => onChange([...seats, emptyStaticSeat()])}>
+          {t("addSeat")}
+        </Button>
+      )}
+
+      <p className="text-[12px] text-label-secondary">
+        {t("reach", { metres })}
+        {seats.length >= 3 ? ` ${t("reachDense")}` : ""}
+      </p>
+    </div>
+  );
+}
+
+/** Whether calendar seats reveal the booking detail as well as the state. */
+function StatusToggle({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const t = useTranslations("content.namePlate");
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-[13px] text-label">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        {t("showStatus")}
+      </label>
+      <p className="mt-1 text-[12px] text-label-tertiary">{t("showStatusHint")}</p>
+    </div>
+  );
+}
+
+/** A select with its label and its explanatory line, since there are two alike. */
+function LabeledSelect({
+  label,
+  hint,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-label-secondary mb-1">{label}</label>
+      <select
+        className={`${selectCls} w-full`}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-[12px] text-label-tertiary">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * Whole-plate settings: booking state, header colour, booking code.
+ *
+ * Each control is withheld rather than offered-and-ignored where it cannot apply.
+ * A plate with no calendar seat has no state to show; a QR code needs exactly one
+ * seat, because one code cannot say which of four desks it books.
+ */
+function PlateOptions({
+  config,
+  seatCount,
+  anyCalendar,
+  onChange,
+}: {
+  config: Partial<NamePlateConfig>;
+  seatCount: number;
+  anyCalendar: boolean;
+  onChange: (next: Partial<NamePlateConfig>) => void;
+}) {
+  const t = useTranslations("content.namePlate");
+  return (
+    <>
+      <StatusToggle
+        checked={config.showStatus ?? false}
+        disabled={!anyCalendar}
+        onChange={(showStatus) => onChange({ showStatus })}
+      />
+
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+        <LabeledSelect
+          label={t("accentColor")}
+          hint={t("accentColorHint")}
+          value={config.accentColor ?? "none"}
+          options={(["none", "red", "blue", "green", "yellow"] as const).map((c) => ({
+            value: c,
+            label: t(`accent.${c}`),
+          }))}
+          onChange={(v) => onChange({ accentColor: v as NamePlateConfig["accentColor"] })}
+        />
+        <LabeledSelect
+          label={t("bookingQr")}
+          hint={t("bookingQrHint")}
+          value={config.bookingQr ?? "never"}
+          disabled={seatCount !== 1 || !anyCalendar}
+          options={(["never", "free", "always"] as const).map((v) => ({
+            value: v,
+            label: t(`qr.${v}`),
+          }))}
+          onChange={(v) => onChange({ bookingQr: v as NamePlateConfig["bookingQr"] })}
+        />
+      </div>
+    </>
+  );
+}
+
 export function NamePlateEditor({ config, onChange, providers }: Props) {
   const t = useTranslations("content.namePlate");
 
   /* A plate always has at least one seat, so an unconfigured instance opens with
    * one rather than an empty list the operator has to discover a button for. */
   const seats: Seat[] = config.seats?.length ? config.seats : [emptyStaticSeat()];
-  const showStatus = config.showStatus ?? false;
 
   /* Push that first seat into the config, so what is on screen is what would be
    * saved. Without it a brand-new plate looks configured but sends `{}`, and the
@@ -264,8 +452,6 @@ export function NamePlateEditor({ config, onChange, providers }: Props) {
   }, []);
 
   const update = (next: Partial<NamePlateConfig>) => onChange({ ...config, ...next });
-  const setSeat = (index: number, seat: Seat) =>
-    update({ seats: seats.map((s, i) => (i === index ? seat : s)) });
 
   /* Any calendar seat makes the status switch meaningful; with none, it would
    * offer to show a state that nothing on the plate has. */
@@ -287,90 +473,14 @@ export function NamePlateEditor({ config, onChange, providers }: Props) {
         <p className="mt-1 text-[12px] text-label-tertiary">{t("roomNameHint")}</p>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <label className="block text-sm font-medium text-label-secondary">{t("seats")}</label>
-          <span className="text-[12px] text-label-tertiary">{t("maxSeatsHint")}</span>
-        </div>
+      <SeatList seats={seats} providers={providers} onChange={(next) => update({ seats: next })} />
 
-        {seats.map((seat, i) => (
-          <SeatRow
-            key={i}
-            seat={seat}
-            providers={providers}
-            removable={seats.length > 1}
-            onChange={(next) => setSeat(i, next)}
-            onRemove={() => update({ seats: seats.filter((_, j) => j !== i) })}
-          />
-        ))}
-
-        {seats.length < MAX_SEATS && (
-          <Button variant="plain" onClick={() => update({ seats: [...seats, emptyStaticSeat()] })}>
-            {t("addSeat")}
-          </Button>
-        )}
-
-        {/* The seat count decides how far the sign can be read, and until now that
-            was invisible: four desks on one door is a legitimate choice, believing
-            it reads from down the corridor is not. */}
-        <p className="text-[12px] text-label-secondary">
-          {t("reach", { metres: (READING_DISTANCE_M[seats.length] ?? 0).toLocaleString("de-DE") })}
-          {seats.length >= 3 ? ` ${t("reachDense")}` : ""}
-        </p>
-      </div>
-
-      <div>
-        <label className="flex items-center gap-2 text-[13px] text-label">
-          <input
-            type="checkbox"
-            checked={showStatus}
-            disabled={!anyCalendar}
-            onChange={(e) => update({ showStatus: e.target.checked })}
-          />
-          {t("showStatus")}
-        </label>
-        <p className="mt-1 text-[12px] text-label-tertiary">{t("showStatusHint")}</p>
-      </div>
-
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-        <div>
-          <label className="block text-sm font-medium text-label-secondary mb-1">
-            {t("accentColor")}
-          </label>
-          <select
-            className={`${selectCls} w-full`}
-            value={config.accentColor ?? "none"}
-            onChange={(e) =>
-              update({ accentColor: e.target.value as NamePlateConfig["accentColor"] })
-            }
-          >
-            {(["none", "red", "blue", "green", "yellow"] as const).map((c) => (
-              <option key={c} value={c}>
-                {t(`accent.${c}`)}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[12px] text-label-tertiary">{t("accentColorHint")}</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-label-secondary mb-1">
-            {t("bookingQr")}
-          </label>
-          <select
-            className={`${selectCls} w-full`}
-            value={config.bookingQr ?? "never"}
-            disabled={seats.length !== 1 || !anyCalendar}
-            onChange={(e) => update({ bookingQr: e.target.value as NamePlateConfig["bookingQr"] })}
-          >
-            {(["never", "free", "always"] as const).map((v) => (
-              <option key={v} value={v}>
-                {t(`qr.${v}`)}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[12px] text-label-tertiary">{t("bookingQrHint")}</p>
-        </div>
-      </div>
+      <PlateOptions
+        config={config}
+        seatCount={seats.length}
+        anyCalendar={anyCalendar}
+        onChange={update}
+      />
     </div>
   );
 }

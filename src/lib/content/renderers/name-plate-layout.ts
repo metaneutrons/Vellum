@@ -140,22 +140,10 @@ export function bandContent(
    */
   placeFallback = true
 ): BandContent {
-  const caption = seat.caption.trim() || (placeFallback ? state.placeLabel?.trim() || "" : "");
-  /* Only a fixed occupant has this. A booking carries no unit or position, and
-   * that is a property of the sources rather than of this code: see the comment
-   * on `unit` in name-plate-types.ts.
-   *
-   * Position first, unit second, the way a business card sets them. The position
-   * is the more specific fact and the unit qualifies it. */
-  const affiliation =
-    seat.occupant.kind === "static"
-      ? [seat.occupant.role, seat.occupant.unit]
-          .map((v) => v.trim())
-          .filter(Boolean)
-          .join(" · ")
-      : "";
-
-  const base = { caption: caption || null, affiliation: affiliation || null };
+  const base = {
+    caption: captionOf(seat, state, placeFallback) || null,
+    affiliation: affiliationOf(seat) || null,
+  };
 
   /* An unreachable provider is named whatever the operator asked for: a sign may
    * withhold detail, but it may not present an unknown state as a current one. */
@@ -166,15 +154,54 @@ export function bandContent(
     return { ...base, ranks: null, notice: labels.free, pill: null };
   }
 
-  const isCalendar = seat.occupant.kind === "calendar";
   return {
     ...base,
     ranks: state.ranks ?? splitName(state.occupant),
     notice: null,
-    /* A static seat has no state to show at all, so it gets no pill rather than
-     * one that would always read the same. */
-    pill: isCalendar ? (showStatus ? state.detail || labels.busy : labels.busy) : null,
+    pill: pillFor(seat, state, showStatus, labels),
   };
+}
+
+/** The operator's own caption, else the provider's name for the place. */
+function captionOf(seat: Seat, state: SeatState, placeFallback: boolean): string {
+  const own = seat.caption.trim();
+  if (own) return own;
+  return placeFallback ? (state.placeLabel?.trim() ?? "") : "";
+}
+
+/**
+ * What an occupied seat's filled pill says, or null for no pill.
+ *
+ * A static seat has no state at all, so it gets no pill rather than one that would
+ * always read the same. `showStatus` decides only whether the pill carries the
+ * detail ("bis 12:00") or just the word.
+ */
+function pillFor(
+  seat: Seat,
+  state: SeatState,
+  showStatus: boolean,
+  labels: { busy: string }
+): string | null {
+  if (seat.occupant.kind !== "calendar") return null;
+  return showStatus ? state.detail || labels.busy : labels.busy;
+}
+
+/**
+ * Position and unit, joined, for a fixed occupant.
+ *
+ * Only a fixed occupant has these. A booking carries neither, and that is a
+ * property of the sources rather than of this code: see the comment on `unit` in
+ * name-plate-types.ts.
+ *
+ * Position first, unit second, the way a business card sets them. The position is
+ * the more specific fact and the unit qualifies it.
+ */
+function affiliationOf(seat: Seat): string {
+  if (seat.occupant.kind !== "static") return "";
+  return [seat.occupant.role, seat.occupant.unit]
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /**

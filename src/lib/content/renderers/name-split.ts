@@ -203,27 +203,44 @@ export function splitName(raw: string): NameRanks {
   }
   while (tokens.length > 1 && isSuffix(tokens[tokens.length - 1])) tokens.pop();
 
-  /* A single shouted token is the surname wherever it stands, which is how
-   * "SCHMIEDER Fabian" is meant to be read. Two of them means the whole name is
-   * upper-case and the position rule below applies as usual. */
-  const shouted = tokens.filter(isShout);
-  if (shouted.length === 1 && tokens.length > 1) {
+  const shouted = shoutedSurname(tokens);
+  const start = shouted === null ? surnameStart(tokens) : 0;
+  if (shouted !== null) {
     return {
       titles: titles.join(" "),
-      given: tokens.filter((t) => t !== shouted[0]).join(" "),
-      surname: shouted[0],
+      given: tokens.filter((tk) => tk !== shouted).join(" "),
+      surname: shouted,
     };
   }
-
-  /* Otherwise the surname is the last token, plus every particle in front of it.
-   * The walk may reach index 0, which is what makes "van der Berg" with no given
-   * name come out whole instead of losing "van" to the given rank. */
-  let start = tokens.length - 1;
-  while (start > 0 && PARTICLES.has(normalize(tokens[start - 1]))) start--;
 
   return {
     titles: titles.join(" "),
     given: tokens.slice(0, start).join(" "),
     surname: tokens.slice(start).join(" "),
   };
+}
+
+/**
+ * The one shouted token, when there is exactly one.
+ *
+ * A single upper-case token is the surname wherever it stands, which is how
+ * "SCHMIEDER Fabian" is meant to be read. Two of them means the whole name is
+ * upper-case, and then the position rule applies as usual, so this returns null.
+ */
+function shoutedSurname(tokens: string[]): string | null {
+  if (tokens.length < 2) return null;
+  const shouted = tokens.filter(isShout);
+  return shouted.length === 1 ? shouted[0] : null;
+}
+
+/**
+ * Where the surname begins: the last token, plus every particle in front of it.
+ *
+ * The walk may reach index 0, which is what makes "van der Berg" with no given
+ * name come out whole instead of losing "van" to the given rank.
+ */
+function surnameStart(tokens: string[]): number {
+  let start = tokens.length - 1;
+  while (start > 0 && PARTICLES.has(normalize(tokens[start - 1]))) start--;
+  return start;
 }
