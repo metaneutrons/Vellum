@@ -18,6 +18,18 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   assume the directory you are in is `main`, and do not assume `main` is in the
   clone with the plainest name. Many stale branches are already squash-merged;
   check a branch against merged PRs before assuming its work is unlanded.
+- **The branch can change UNDER a long session, so re-check it before every commit,
+  not only at the start.** This actually happened: a session working `feat/name-plate`
+  had the shared checkout switched to a new `test/mpll-state-dump` mid-flight, and its
+  next commit landed on that branch on top of unrelated firmware work. It went
+  unnoticed because `git push origin feat/name-plate` pushes the NAMED BRANCH rather
+  than HEAD, so the push reported "Everything up-to-date" and, by luck, did not carry
+  the firmware commit onto the PR. Recovery without disturbing whoever owns the shared
+  checkout: `git worktree add <tmp> <target-branch>`, cherry-pick the commit there,
+  push, remove the worktree. A temporary worktree has no `node_modules`, so the
+  `core.hooksPath` hooks cannot run; `git -c core.hooksPath=/dev/null` is the way past
+  them, and is only honest when the gates were already run on identical content in the
+  real checkout.
 
 ## Server (Next.js): build / test
 
