@@ -10,7 +10,7 @@
       "package-name": "vellum",
       "component": "server",
       "include-component-in-tag": false,
-      "exclude-paths": ["firmware"]
+      "exclude-paths": ["firmware", "docs", ".github", ".githooks", ".claude"]
     },
     "firmware": {
       "release-type": "simple",

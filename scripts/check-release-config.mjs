@@ -47,7 +47,26 @@ expect(server?.["release-type"] === "node", "server release type must be node");
 expect(server?.["package-name"] === "vellum", "server package name must be vellum");
 expect(server?.component === "server", "server component must be explicit");
 expect(server?.["include-component-in-tag"] === false, "server tags must remain vX.Y.Z");
-expect(server?.["exclude-paths"]?.includes("firmware"), "server releases must exclude firmware/**");
+/* The server component releases the container image and its deployment assets.
+ * Anything that cannot change what those contain has no business bumping its
+ * version, and release-please attributes a commit to EVERY component whose paths
+ * it touches -- so a firmware commit that also edited a doc used to ask for a
+ * server release carrying no server change at all. Two of those were closed
+ * unmerged (#304, #306) before this list grew.
+ *
+ * A commit drops out of a component only when ALL of its files are excluded
+ * (`commit-exclude.ts`, `.every(...)`), which is why these are listed rather than
+ * relied upon individually.
+ *
+ * deploy/ is deliberately NOT here: its compose file and env example ship as
+ * release assets, so a change there does belong to a server release. */
+const serverExcluded = ["firmware", "docs", ".github", ".githooks", ".claude"];
+for (const path of serverExcluded) {
+  expect(
+    server?.["exclude-paths"]?.includes(path),
+    `server releases must exclude ${path}/** — see the note above`
+  );
+}
 
 expect(firmware?.["release-type"] === "simple", "firmware release type must be simple");
 expect(
