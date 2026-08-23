@@ -11,6 +11,7 @@
  * this file is a form rather than an editor and has no canvas at all.
  */
 
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -129,10 +130,18 @@ function SeatRow({
         <Segmented
           ariaLabel={t("source")}
           value={seat.occupant.kind}
-          options={[
-            { value: "static", label: t("sourceStatic") },
-            { value: "calendar", label: t("sourceCalendar") },
-          ]}
+          /* The calendar option is withheld without a provider: switching to it
+           * would produce an empty providerId, which the schema rightly refuses,
+           * and the operator would meet that as a failed save rather than as the
+           * missing prerequisite it is. */
+          options={
+            providers.length > 0
+              ? [
+                  { value: "static" as const, label: t("sourceStatic") },
+                  { value: "calendar" as const, label: t("sourceCalendar") },
+                ]
+              : [{ value: "static" as const, label: t("sourceStatic") }]
+          }
           onChange={(kind) =>
             onChange(
               kind === "static"
@@ -193,6 +202,17 @@ export function NamePlateEditor({ config, onChange, providers }: Props) {
    * one rather than an empty list the operator has to discover a button for. */
   const seats: Seat[] = config.seats?.length ? config.seats : [emptyStaticSeat()];
   const showStatus = config.showStatus ?? false;
+
+  /* Push that first seat into the config, so what is on screen is what would be
+   * saved. Without it a brand-new plate looks configured but sends `{}`, and the
+   * server's schema check rejects it for a missing `seats` the operator can see
+   * right in front of them. */
+  useEffect(() => {
+    if (!config.seats?.length) onChange({ ...config, seats });
+    /* Once, on mount: re-running on every config change would fight the operator's
+     * own edits. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const update = (next: Partial<NamePlateConfig>) => onChange({ ...config, ...next });
   const setSeat = (index: number, seat: Seat) =>

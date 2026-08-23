@@ -21,13 +21,13 @@
  *   generator committed — a separate job, deliberately not done here.
  */
 
-import path from "node:path";
-import { createCanvas, GlobalFonts, type SKRSContext2D } from "@napi-rs/canvas";
+import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { TZDate } from "@date-fns/tz";
 import { getCalendarProvider } from "@/lib/calendar/registry";
 import { getProviderWithCredentials } from "@/lib/providers";
 import { TtlCache } from "@/lib/cache";
 import { drawBitmapText, measureBitmapText, type BitmapFontSize } from "@/lib/render/bitmap-text";
+import { ensureRenderFonts } from "@/lib/render/fonts";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
 import { namePlateConfigSchema, type NamePlateConfig, type Seat } from "./name-plate-types";
@@ -39,25 +39,6 @@ import {
   type BandContent,
   type Rect,
 } from "./name-plate-layout";
-
-/* ── Fonts ────────────────────────────────────────────────────── */
-
-const FONT_DIR = path.join(process.cwd(), "assets/fonts");
-let fontsRegistered = false;
-
-function ensureFonts(): string {
-  if (!fontsRegistered) {
-    try {
-      GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Regular.ttf"), "Inter");
-      GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Bold.ttf"), "Inter");
-      GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Medium.ttf"), "Inter");
-    } catch {
-      /* Not fatal: sans-serif still draws a name. */
-    }
-    fontsRegistered = true;
-  }
-  return "Inter";
-}
 
 /* The atlas sizes, largest last. The plate walks this backwards to find the
  * biggest one that fits, which is the indexed panel's version of fitting. */
@@ -198,11 +179,25 @@ function lineRatio(t: TypeCtx): number {
  * smallest step when even that is too big — a name has to be drawn somehow.
  */
 function atlasStep(size: number, bold: boolean): { key: BitmapFontSize; px: number } {
-  const usable = ATLAS_STEPS.filter((s) => (bold ? s.key.endsWith("bold") : true));
-  const pool = usable.length > 0 ? usable : ATLAS_STEPS;
-  let best = pool[0];
-  for (const s of pool) if (s.px <= size && s.px >= best.px) best = s;
-  return best;
+  const fitting = (pool: readonly { key: BitmapFontSize; px: number }[]) =>
+    pool.filter((s) => s.px <= size).sort((a, b) => b.px - a.px)[0];
+
+  if (bold) {
+    const boldFit = fitting(ATLAS_STEPS.filter((s) => s.key.endsWith("bold")));
+    if (boldFit) return boldFit;
+    /* No bold step is small enough. Prefer a LIGHTER weight at a size that fits
+     * over a bold one that gets clipped: the name is the payload, and the
+     * smallest bold variant is 24 px, so insisting on weight would cut long
+     * names on the indexed panel outright. */
+    const anyFit = fitting(ATLAS_STEPS);
+    if (anyFit) return anyFit;
+  } else {
+    const fit = fitting(ATLAS_STEPS);
+    if (fit) return fit;
+  }
+  /* Nothing fits at all; draw at the smallest the atlas has and let the width
+   * limit clip, which is still more legible than nothing. */
+  return ATLAS_STEPS.reduce((a, b) => (a.px <= b.px ? a : b));
 }
 
 /** Size a line will really be drawn at, which is what the layout must use. */
@@ -339,7 +334,7 @@ async function render(params: RenderParams): Promise<RenderResult> {
   const shortSide = Math.min(width, height);
   const pad = Math.round(shortSide * 0.06);
   const bands = seatBands(config.seats.length, width, height, pad);
-  const t: TypeCtx = { ctx, useBitmap, ff: ensureFonts() };
+  const t: TypeCtx = { ctx, useBitmap, ff: ensureRenderFonts() };
 
   /* Every band is the same height, so the tightest constraint is the band with
    * the MOST lines: sizing against the average would clip it. */

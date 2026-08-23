@@ -688,12 +688,43 @@ export async function deleteProvider(id: string) {
 
 /* ── Content Instances ────────────────────────────────────────── */
 
+/**
+ * Refuse a content config its own renderer cannot parse.
+ *
+ * Nothing checked this: the actions stored whatever JSONB they were handed, so a
+ * half-filled instance was accepted here and surfaced later as a broken display.
+ * The failure landed on a wall instead of in front of the person who caused it.
+ *
+ * Every instance in the development database satisfies its current schema, so
+ * this refuses new mistakes rather than existing data. It is deliberately the
+ * SERVER-side gate: a client that forgets a field must not be able to write one.
+ *
+ * The message names the offending path, which helps in the log. It does not reach
+ * the operator, because Next redacts server-action errors in production and the
+ * caller shows a generic failure — improving that means returning a typed result
+ * instead of throwing, which is a change to every caller's contract.
+ */
+async function assertValidContentConfig(typeSlug: string, config: unknown): Promise<void> {
+  /* Imported lazily, like the other use of the registry further down: it pulls in
+   * every renderer and with them canvas and the calendar providers, which the
+   * rest of this module has no reason to load. */
+  const { getContentRenderer } = await import("@/lib/content/registry");
+  const renderer = getContentRenderer(typeSlug);
+  if (!renderer) throw new Error(`content_unknown_type: ${typeSlug}`);
+  const result = renderer.configSchema.safeParse(config);
+  if (result.success) return;
+  const issue = result.error.issues[0];
+  const where = issue?.path.join(".") || "config";
+  throw new Error(`content_invalid_config: ${where}: ${issue?.message ?? "invalid"}`);
+}
+
 export async function createContentInstance(
   typeSlug: string,
   name: string,
   config: Record<string, unknown>
 ) {
   const actor = await requireAdmin("content.manage");
+  await assertValidContentConfig(typeSlug, config);
   await withAuditedTransaction(
     actor,
     (created: { id: string }[]) => ({
@@ -722,6 +753,16 @@ export async function updateContentInstance(
     actor,
     { action: "content.update", targetType: "content", targetId: id, metadata: { name } },
     async (tx) => {
+      /* The type is not a parameter, so it comes from the row -- which also means
+       * a caller cannot validate against a type the instance does not have. */
+      const [existing] = await tx
+        .select({ typeSlug: contentInstances.typeSlug })
+        .from(contentInstances)
+        .where(eq(contentInstances.id, id))
+        .limit(1);
+      if (!existing) throw new Error("content_not_found");
+      await assertValidContentConfig(existing.typeSlug, config);
+
       const updated = await tx
         .update(contentInstances)
         .set({ name, config, updatedAt: new Date() })

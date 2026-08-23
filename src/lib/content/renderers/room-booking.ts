@@ -8,7 +8,7 @@
  */
 
 import { z } from "zod";
-import { createCanvas, GlobalFonts, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
+import { createCanvas, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { format } from "date-fns";
 import { TZDate } from "@date-fns/tz";
 import { de, fr, it, es, enUS } from "date-fns/locale";
@@ -32,7 +32,6 @@ const UPDATED_TEXT: Record<string, string> = {
   es: "actualizado",
 };
 import { eq } from "drizzle-orm";
-import path from "path";
 import { db, withDbRead } from "@/db";
 import { dataProviders } from "@/db/schema";
 import { getCalendarProvider } from "@/lib/calendar/registry";
@@ -41,6 +40,7 @@ import { decryptCredentials } from "@/lib/encryption";
 import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
 import { drawBitmapText, measureBitmapText, type BitmapFontSize } from "@/lib/render/bitmap-text";
+import { ensureRenderFonts } from "@/lib/render/fonts";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
 import type { Theme } from "@/lib/theme";
@@ -55,25 +55,9 @@ import {
 
 /* ── Bitmap font registration for color e-paper ──────────────── */
 
-const FONT_DIR = path.join(process.cwd(), "assets/fonts");
-let fontsRegistered = false;
-
-function ensureFonts() {
-  if (fontsRegistered) return;
-  try {
-    GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Regular.ttf"), "Inter");
-    GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Bold.ttf"), "Inter");
-    GlobalFonts.registerFromPath(path.join(FONT_DIR, "Inter-Medium.ttf"), "Inter");
-  } catch {
-    /* fonts not available — fall back to sans-serif */
-  }
-  fontsRegistered = true;
-}
-
-/** Returns font family: always Inter (loaded from assets) */
+/** Returns font family: always Inter (loaded from assets). */
 function fontFamily(_colorCount: number): string {
-  ensureFonts();
-  return "Inter";
+  return ensureRenderFonts();
 }
 
 /** Map our logical font sizes to bitmap atlas keys */
