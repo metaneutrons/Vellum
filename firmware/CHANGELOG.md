@@ -2,6 +2,18 @@
 
 > Firmware history before the `firmware-v1.2.0` release-please anchor — including Improv/USB-serial provisioning and the E1001/E1003/D1001 panel drivers — is recorded in the root [`CHANGELOG.md`](../CHANGELOG.md); this file baselines at the anchor, so the sparse early history here is expected release-please behavior, not "firmware-v1.2.x shipped no features".
 
+## [1.11.0](https://github.com/metaneutrons/Vellum/compare/firmware-v1.10.1...firmware-v1.11.0) (2026-08-23)
+
+
+### Features
+
+* **firmware:** say something with the indicator LEDs, per board ([e535867](https://github.com/metaneutrons/Vellum/commit/e53586790f98896ba54fb68a0bfe859627676941))
+
+
+### Bug Fixes
+
+* **firmware:** initialise the indicators on every board, and drop a broken profile ([c71d3bb](https://github.com/metaneutrons/Vellum/commit/c71d3bb631b3be9a204aced6e065bc5fe5a44840))
+
 ## [1.10.1](https://github.com/metaneutrons/Vellum/compare/firmware-v1.10.0...firmware-v1.10.1) (2026-08-22)
 
 
