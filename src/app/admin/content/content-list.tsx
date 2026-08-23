@@ -48,6 +48,7 @@ interface Props {
 import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
 import { DoorSignMultiEditor } from "@/components/door-sign-multi-editor";
+import { NamePlateEditor } from "@/components/name-plate-editor";
 import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
 import { doorSignMultiConfigSchema } from "@/lib/content/renderers/door-sign-multi-types";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
@@ -697,6 +698,9 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
             providers={providers}
             knownDisplays={knownDisplays}
           />
+        )}
+        {typeSlug === "name-plate" && (
+          <NamePlateEditor config={config} onChange={setConfig} providers={providers} />
         )}
         {typeSlug === "door-sign-multi" && (
           <DoorSignMultiConfigEditor

@@ -311,7 +311,24 @@
     },
     "deleteMsg": "Eliminare questo contenuto? I dispositivi associati non mostreranno più nulla.",
     "emptyTitle": "Nessun contenuto",
-    "emptyDesc": "Crea un contenuto e assegnalo a un dispositivo."
+    "emptyDesc": "Crea un contenuto e assegnalo a un dispositivo.",
+    "namePlate": {
+      "seats": "Postazioni",
+      "addSeat": "Aggiungi postazione",
+      "removeSeat": "Rimuovi",
+      "caption": "Didascalia (opzionale)",
+      "captionPlaceholder": "Scrivania 1",
+      "source": "Origine",
+      "sourceStatic": "Nome fisso",
+      "sourceCalendar": "Dal calendario",
+      "staticName": "Nome",
+      "staticNamePlaceholder": "Rossi",
+      "resourceId": "ID risorsa",
+      "showStatus": "Mostra stato della prenotazione",
+      "showStatusHint": "Solo per le postazioni da calendario. Un nome fisso non ha stato, quindi la sua riga viene omessa invece di restare vuota.",
+      "maxSeatsHint": "Al massimo quattro postazioni, così i nomi restano leggibili da lontano.",
+      "noEditorHint": "La disposizione è calcolata dal numero di postazioni e dal display. Non c'è nulla da posizionare."
+    }
   },
   "providers": {
     "clearSearch": "Cancella ricerca",
@@ -696,8 +713,9 @@
   },
   "contentTypes": {
     "room-booking": "Prenotazione sala",
-    "door-sign": "Targhetta",
-    "door-sign-multi": "Targhetta (Multi)"
+    "door-sign": "Targhetta (editor)",
+    "door-sign-multi": "Targhetta (Multi)",
+    "name-plate": "Targhetta"
   },
   "error": {
     "dbUnavailable": "Database non disponibile",

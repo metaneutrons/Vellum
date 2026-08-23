@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 Fabian Schmieder. All rights reserved.
+/**
+ * Name plate — the door sign WITHOUT an editor.
+ *
+ * The operator names the seats and nothing else; the renderer decides the
+ * layout from the seat count and the panel it is drawing on. That is the whole
+ * difference from `door-sign`, which hands absolute box positions to the
+ * operator and then needs a separate hand-made design per display geometry to
+ * survive a change of aspect ratio.
+ *
+ * A seat carries two DIFFERENT pieces of text, and keeping them apart is the
+ * point of this shape:
+ *
+ *   caption  — the place. "Schreibtisch 1", "Platz A". Omitted on a single
+ *              office door, where the sign is only about the person.
+ *   occupant — who is there. Either a fixed name, which needs no calendar at
+ *              all, or a calendar resource whose current booking supplies it.
+ *
+ * An earlier draft had one `label` field serving both roles, which made the
+ * question "does the static name or the calendar name win?" look meaningful. It
+ * is not: they are different data, and a static seat has no calendar to lose to.
+ */
+
+import { z } from "zod";
+
+/**
+ * Four, deliberately.
+ *
+ * Beyond that a plate stops being readable from across a room: the name is the
+ * payload, and five bands on a 7.5" panel leave each one shorter than the type
+ * it needs. It also keeps the layout to a handful of cases that can be judged by
+ * eye rather than a formula that is mediocre at every count.
+ */
+export const MAX_SEATS = 4;
+
+export const seatOccupantSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("static"),
+    /** Shown verbatim. No provider, no lookup, no booking state. */
+    name: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal("calendar"),
+    providerId: z.string().uuid(),
+    resourceId: z.string().min(1),
+    /** Passed to the provider; some need it to resolve the resource. */
+    resourceName: z.string().optional(),
+  }),
+]);
+
+export type SeatOccupant = z.infer<typeof seatOccupantSchema>;
+
+export const seatSchema = z.object({
+  /** The place. Empty string means "no caption", not "caption is blank". */
+  caption: z.string().default(""),
+  occupant: seatOccupantSchema,
+});
+
+export type Seat = z.infer<typeof seatSchema>;
+
+export const namePlateConfigSchema = z.object({
+  seats: z.array(seatSchema).min(1).max(MAX_SEATS),
+  /**
+   * Whether calendar seats show free/occupied.
+   *
+   * One switch for the whole plate rather than one per seat: the operator should
+   * decide what KIND of sign this is once. A static seat shows no state either
+   * way — it has none — and its band simply omits the line rather than reserving
+   * an empty one, which would read as a fault beside three filled ones.
+   */
+  showStatus: z.boolean().default(false),
+  locale: z.string().default("de"),
+  /** Falls back to the display's zone, like every other renderer. */
+  timezone: z.string().optional(),
+});
+
+export type NamePlateConfig = z.infer<typeof namePlateConfigSchema>;
+
+/** True when anything on this plate can actually have a booking state. */
+export function hasCalendarSeat(config: NamePlateConfig): boolean {
+  return config.seats.some((s) => s.occupant.kind === "calendar");
+}

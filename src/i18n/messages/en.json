@@ -311,7 +311,24 @@
     },
     "deleteMsg": "Delete this content instance? Devices using it will show no content.",
     "emptyTitle": "No content instances",
-    "emptyDesc": "Create one and assign it to a device to display content."
+    "emptyDesc": "Create one and assign it to a device to display content.",
+    "namePlate": {
+      "seats": "Seats",
+      "addSeat": "Add seat",
+      "removeSeat": "Remove",
+      "caption": "Caption (optional)",
+      "captionPlaceholder": "Desk 1",
+      "source": "Source",
+      "sourceStatic": "Fixed name",
+      "sourceCalendar": "From calendar",
+      "staticName": "Name",
+      "staticNamePlaceholder": "Miller",
+      "resourceId": "Resource ID",
+      "showStatus": "Show booking state",
+      "showStatusHint": "Calendar seats only. A fixed name has no state, so its line is left out rather than shown empty.",
+      "maxSeatsHint": "Four seats at most, so the names stay readable from across the room.",
+      "noEditorHint": "The layout is computed from the seat count and the display. There is nothing to position."
+    }
   },
   "providers": {
     "clearSearch": "Clear search",
@@ -696,8 +713,9 @@
   },
   "contentTypes": {
     "room-booking": "Room Booking",
-    "door-sign": "Door Sign",
-    "door-sign-multi": "Door Sign (Multi)"
+    "door-sign": "Door Sign (Designer)",
+    "door-sign-multi": "Door Sign (Multi)",
+    "name-plate": "Door Sign"
   },
   "error": {
     "dbUnavailable": "Database Unavailable",

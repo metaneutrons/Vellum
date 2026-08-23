@@ -311,7 +311,24 @@
     },
     "deleteMsg": "Supprimer ce contenu ? Les appareils associés n afficheront plus rien.",
     "emptyTitle": "Aucun contenu",
-    "emptyDesc": "Créez un contenu et assignez-le à un appareil."
+    "emptyDesc": "Créez un contenu et assignez-le à un appareil.",
+    "namePlate": {
+      "seats": "Postes",
+      "addSeat": "Ajouter un poste",
+      "removeSeat": "Retirer",
+      "caption": "Libellé (facultatif)",
+      "captionPlaceholder": "Bureau 1",
+      "source": "Source",
+      "sourceStatic": "Nom fixe",
+      "sourceCalendar": "Depuis l'agenda",
+      "staticName": "Nom",
+      "staticNamePlaceholder": "Dupont",
+      "resourceId": "ID de ressource",
+      "showStatus": "Afficher l'état de réservation",
+      "showStatusHint": "Uniquement pour les postes liés à un agenda. Un nom fixe n'a pas d'état, sa ligne est donc omise plutôt que laissée vide.",
+      "maxSeatsHint": "Quatre postes au maximum, pour que les noms restent lisibles à distance.",
+      "noEditorHint": "La mise en page est calculée à partir du nombre de postes et de l'écran. Il n'y a rien à positionner."
+    }
   },
   "providers": {
     "clearSearch": "Effacer la recherche",
@@ -696,8 +713,9 @@
   },
   "contentTypes": {
     "room-booking": "Réservation de salle",
-    "door-sign": "Plaque de porte",
-    "door-sign-multi": "Plaque de porte (Multi)"
+    "door-sign": "Plaque de porte (éditeur)",
+    "door-sign-multi": "Plaque de porte (Multi)",
+    "name-plate": "Plaque de porte"
   },
   "error": {
     "dbUnavailable": "Base de données indisponible",

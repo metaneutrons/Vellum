@@ -311,7 +311,24 @@
     },
     "deleteMsg": "Diesen Inhalt löschen? Zugewiesene Geräte zeigen keinen Inhalt mehr.",
     "emptyTitle": "Keine Inhalte",
-    "emptyDesc": "Erstellen Sie einen Inhalt und weisen Sie ihn einem Gerät zu."
+    "emptyDesc": "Erstellen Sie einen Inhalt und weisen Sie ihn einem Gerät zu.",
+    "namePlate": {
+      "seats": "Plätze",
+      "addSeat": "Platz hinzufügen",
+      "removeSeat": "Entfernen",
+      "caption": "Bezeichnung (optional)",
+      "captionPlaceholder": "Schreibtisch 1",
+      "source": "Quelle",
+      "sourceStatic": "Fester Name",
+      "sourceCalendar": "Aus Kalender",
+      "staticName": "Name",
+      "staticNamePlaceholder": "Müller",
+      "resourceId": "Ressourcen-ID",
+      "showStatus": "Buchungszustand anzeigen",
+      "showStatusHint": "Nur für Kalenderplätze. Ein fester Name hat keinen Zustand, seine Zeile entfällt statt leer zu bleiben.",
+      "maxSeatsHint": "Höchstens vier Plätze, damit die Namen aus der Entfernung lesbar bleiben.",
+      "noEditorHint": "Das Layout wird aus der Anzahl der Plätze und dem Display berechnet. Es gibt nichts zu positionieren."
+    }
   },
   "providers": {
     "clearSearch": "Suche löschen",
@@ -696,8 +713,9 @@
   },
   "contentTypes": {
     "room-booking": "Raumbelegung",
-    "door-sign": "Türschild",
-    "door-sign-multi": "Türschild (Multi)"
+    "door-sign": "Türschild (erweitert)",
+    "door-sign-multi": "Türschild (Multi)",
+    "name-plate": "Türschild"
   },
   "error": {
     "dbUnavailable": "Datenbank nicht erreichbar",

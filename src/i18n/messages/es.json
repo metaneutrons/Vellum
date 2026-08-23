@@ -311,7 +311,24 @@
     "previewTitle": "Vista previa",
     "emptyTitle": "Sin contenidos",
     "emptyDesc": "Cree un contenido y asígnelo a un dispositivo.",
-    "noMatch": "Ningún contenido encontrado"
+    "noMatch": "Ningún contenido encontrado",
+    "namePlate": {
+      "seats": "Puestos",
+      "addSeat": "Añadir puesto",
+      "removeSeat": "Quitar",
+      "caption": "Rótulo (opcional)",
+      "captionPlaceholder": "Escritorio 1",
+      "source": "Origen",
+      "sourceStatic": "Nombre fijo",
+      "sourceCalendar": "Desde el calendario",
+      "staticName": "Nombre",
+      "staticNamePlaceholder": "Pérez",
+      "resourceId": "ID de recurso",
+      "showStatus": "Mostrar estado de reserva",
+      "showStatusHint": "Solo para puestos de calendario. Un nombre fijo no tiene estado, por lo que su línea se omite en lugar de quedar vacía.",
+      "maxSeatsHint": "Cuatro puestos como máximo, para que los nombres sigan siendo legibles a distancia.",
+      "noEditorHint": "La composición se calcula a partir del número de puestos y de la pantalla. No hay nada que colocar."
+    }
   },
   "providers": {
     "clearSearch": "Borrar búsqueda",
@@ -696,8 +713,9 @@
   },
   "contentTypes": {
     "room-booking": "Reserva de sala",
-    "door-sign": "Letrero de puerta",
-    "door-sign-multi": "Letrero de puerta (Multi)"
+    "door-sign": "Letrero de puerta (diseñador)",
+    "door-sign-multi": "Letrero de puerta (Multi)",
+    "name-plate": "Letrero de puerta"
   },
   "error": {
     "dbUnavailable": "Base de datos no disponible",
