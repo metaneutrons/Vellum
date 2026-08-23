@@ -89,6 +89,91 @@ function CalendarSeatFields({
   );
 }
 
+/**
+ * One seat: where it is, and who is there.
+ *
+ * Its own component because the row is the whole form: a source switch, a
+ * caption, and then either a name or a provider plus resource. Inlined in the
+ * `.map()` it ran past what the complexity gate allows, and this is also the
+ * place a resource picker will replace the raw id field.
+ */
+function SeatRow({
+  seat,
+  providers,
+  removable,
+  onChange,
+  onRemove,
+}: {
+  seat: Seat;
+  providers: Provider[];
+  removable: boolean;
+  onChange: (seat: Seat) => void;
+  onRemove: () => void;
+}) {
+  const t = useTranslations("content.namePlate");
+  return (
+    <div className="rounded-md border border-separator p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Segmented
+          ariaLabel={t("source")}
+          value={seat.occupant.kind}
+          options={[
+            { value: "static", label: t("sourceStatic") },
+            { value: "calendar", label: t("sourceCalendar") },
+          ]}
+          onChange={(kind) =>
+            onChange(
+              kind === "static"
+                ? { caption: seat.caption, occupant: { kind: "static", name: "" } }
+                : {
+                    caption: seat.caption,
+                    occupant: {
+                      kind: "calendar",
+                      providerId: providers[0]?.id ?? "",
+                      resourceId: "",
+                    },
+                  }
+            )
+          }
+        />
+        {removable && (
+          <Button variant="plain" onClick={onRemove}>
+            {t("removeSeat")}
+          </Button>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-[12px] text-label-secondary mb-1">{t("caption")}</label>
+        <Input
+          placeholder={t("captionPlaceholder")}
+          value={seat.caption}
+          onChange={(e) => onChange({ ...seat, caption: e.target.value })}
+        />
+      </div>
+
+      {seat.occupant.kind === "static" ? (
+        <div>
+          <label className="block text-[12px] text-label-secondary mb-1">{t("staticName")}</label>
+          <Input
+            placeholder={t("staticNamePlaceholder")}
+            value={seat.occupant.name}
+            onChange={(e) =>
+              onChange({ ...seat, occupant: { kind: "static", name: e.target.value } })
+            }
+          />
+        </div>
+      ) : (
+        <CalendarSeatFields
+          occupant={seat.occupant}
+          providers={providers}
+          onChange={(occupant) => onChange({ ...seat, occupant })}
+        />
+      )}
+    </div>
+  );
+}
+
 export function NamePlateEditor({ config, onChange, providers }: Props) {
   const t = useTranslations("content.namePlate");
 
@@ -116,71 +201,14 @@ export function NamePlateEditor({ config, onChange, providers }: Props) {
         </div>
 
         {seats.map((seat, i) => (
-          <div key={i} className="rounded-md border border-separator p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Segmented
-                ariaLabel={t("source")}
-                value={seat.occupant.kind}
-                options={[
-                  { value: "static", label: t("sourceStatic") },
-                  { value: "calendar", label: t("sourceCalendar") },
-                ]}
-                onChange={(kind) =>
-                  setSeat(
-                    i,
-                    kind === "static"
-                      ? { caption: seat.caption, occupant: { kind: "static", name: "" } }
-                      : {
-                          caption: seat.caption,
-                          occupant: {
-                            kind: "calendar",
-                            providerId: providers[0]?.id ?? "",
-                            resourceId: "",
-                          },
-                        }
-                  )
-                }
-              />
-              {seats.length > 1 && (
-                <Button
-                  variant="plain"
-                  onClick={() => update({ seats: seats.filter((_, j) => j !== i) })}
-                >
-                  {t("removeSeat")}
-                </Button>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-[12px] text-label-secondary mb-1">{t("caption")}</label>
-              <Input
-                placeholder={t("captionPlaceholder")}
-                value={seat.caption}
-                onChange={(e) => setSeat(i, { ...seat, caption: e.target.value })}
-              />
-            </div>
-
-            {seat.occupant.kind === "static" ? (
-              <div>
-                <label className="block text-[12px] text-label-secondary mb-1">
-                  {t("staticName")}
-                </label>
-                <Input
-                  placeholder={t("staticNamePlaceholder")}
-                  value={seat.occupant.name}
-                  onChange={(e) =>
-                    setSeat(i, { ...seat, occupant: { kind: "static", name: e.target.value } })
-                  }
-                />
-              </div>
-            ) : (
-              <CalendarSeatFields
-                occupant={seat.occupant}
-                providers={providers}
-                onChange={(occupant) => setSeat(i, { ...seat, occupant })}
-              />
-            )}
-          </div>
+          <SeatRow
+            key={i}
+            seat={seat}
+            providers={providers}
+            removable={seats.length > 1}
+            onChange={(next) => setSeat(i, next)}
+            onRemove={() => update({ seats: seats.filter((_, j) => j !== i) })}
+          />
         ))}
 
         {seats.length < MAX_SEATS && (
