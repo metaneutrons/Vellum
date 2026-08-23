@@ -94,6 +94,62 @@ void test_led_pattern_only_time_varying_patterns_need_the_tick(void)
     TEST_ASSERT_TRUE(board_led_pattern_needs_tick(BOARD_LED_FLASH_ONCE));
 }
 
+/* ── Brightness ──────────────────────────────────────────────────
+ *
+ * The inversion is the part worth pinning: on active-low wiring more duty means
+ * LESS light, so getting the sense backwards would light every indicator exactly
+ * when it is supposed to be dark. Both directions, both ends.
+ */
+
+void test_led_duty_active_low_is_inverted(void)
+{
+    /* Dark is FULL duty when the pin sinks the current. */
+    TEST_ASSERT_EQUAL_INT((int)BOARD_LED_DUTY_FULL,
+                          (int)board_led_duty_for(0, 20, false));
+    /* Lit at 20 % leaves 80 % of the scale. */
+    TEST_ASSERT_EQUAL_INT((int)(BOARD_LED_DUTY_FULL -
+                                (BOARD_LED_DUTY_FULL * 20u) / 100u),
+                          (int)board_led_duty_for(0, 20, true));
+}
+
+void test_led_duty_active_high_is_direct(void)
+{
+    TEST_ASSERT_EQUAL_INT(0, (int)board_led_duty_for(1, 20, false));
+    TEST_ASSERT_EQUAL_INT((int)((BOARD_LED_DUTY_FULL * 20u) / 100u),
+                          (int)board_led_duty_for(1, 20, true));
+}
+
+/* The vendor's own calibration for the D1001, which is what the board table
+ * carries: green 8 %, red 20 %, blue 50 %. Dimmer must mean nearer full duty on
+ * this wiring, so the ordering is the readable invariant. */
+void test_led_duty_dimmer_means_more_duty_when_active_low(void)
+{
+    const uint32_t green = board_led_duty_for(0, 8, true);
+    const uint32_t red   = board_led_duty_for(0, 20, true);
+    const uint32_t blue  = board_led_duty_for(0, 50, true);
+    TEST_ASSERT_TRUE(green > red);
+    TEST_ASSERT_TRUE(red > blue);
+}
+
+/* Full brightness on active-low wiring is duty zero, which is exactly what the
+ * vendor BSP's (100 - percent) formula yields at 100. */
+void test_led_duty_full_brightness_is_zero_duty_when_active_low(void)
+{
+    TEST_ASSERT_EQUAL_INT(0, (int)board_led_duty_for(0, 100, true));
+    TEST_ASSERT_EQUAL_INT((int)BOARD_LED_DUTY_FULL,
+                          (int)board_led_duty_for(0, 0, true));
+}
+
+/* A table with a nonsense percentage should clamp rather than wrap the duty into
+ * something that reads as its opposite. */
+void test_led_duty_clamps_an_out_of_range_percentage(void)
+{
+    TEST_ASSERT_EQUAL_INT((int)board_led_duty_for(0, 100, true),
+                          (int)board_led_duty_for(0, 250, true));
+    TEST_ASSERT_EQUAL_INT((int)board_led_duty_for(1, 100, true),
+                          (int)board_led_duty_for(1, 250, true));
+}
+
 void run_led_pattern_tests(void)
 {
     RUN_TEST(test_led_pattern_off_is_never_lit);
@@ -103,4 +159,9 @@ void run_led_pattern_tests(void)
     RUN_TEST(test_led_pattern_flash_once_lights_only_the_first_phase);
     RUN_TEST(test_led_pattern_every_lighting_pattern_is_lit_at_phase_zero);
     RUN_TEST(test_led_pattern_only_time_varying_patterns_need_the_tick);
+    RUN_TEST(test_led_duty_active_low_is_inverted);
+    RUN_TEST(test_led_duty_active_high_is_direct);
+    RUN_TEST(test_led_duty_dimmer_means_more_duty_when_active_low);
+    RUN_TEST(test_led_duty_full_brightness_is_zero_duty_when_active_low);
+    RUN_TEST(test_led_duty_clamps_an_out_of_range_percentage);
 }

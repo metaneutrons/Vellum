@@ -38,7 +38,20 @@
  * board.c. cppcheck sees one translation unit at a time, so analysing this header
  * on its own reports them all as unused; the per-member directives say so where
  * a reader will meet the claim. */
-/** One physical indicator: a pin and the level that lights it. */
+/** Channel is switched by plain GPIO rather than dimmed. */
+#define BOARD_LED_NO_LEDC ((int8_t)-1)
+
+/**
+ * One physical indicator: a pin, the level that lights it, and optionally how
+ * BRIGHTLY to light it.
+ *
+ * The brightness field exists because these LEDs are not interchangeable. On the
+ * D1001 the series resistors differ (1 kΩ for red and green, 499 Ω for blue) and
+ * the vendor BSP consequently drives each colour at its own duty — green 8 %, red
+ * 20 %, blue 50 %. Switching all three fully on, as a plain GPIO does, is both
+ * unbalanced and far brighter than intended, which is the wrong direction for a
+ * device that is supposed to stay unobtrusive in a room.
+ */
 typedef struct {
     gpio_num_t  gpio;
     /** Level that turns it ON. 0 for the usual active-low wiring. */
@@ -47,6 +60,12 @@ typedef struct {
     /** Colour or role, for logs only. Never parsed. */
     /* cppcheck-suppress unusedStructMember */
     const char *label;
+    /** LEDC channel to dim through, or BOARD_LED_NO_LEDC for on/off GPIO. */
+    /* cppcheck-suppress unusedStructMember */
+    int8_t      ledc_channel;
+    /** Brightness while lit, 1..100. Ignored without an LEDC channel. */
+    /* cppcheck-suppress unusedStructMember */
+    uint8_t     duty_percent;
 } board_led_channel_t;
 
 /* board_led_pattern_t and its arithmetic live in led_pattern.h. */

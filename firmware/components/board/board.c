@@ -367,15 +367,29 @@ esp_err_t board_set_utc_time(time_t value)
 #if CONFIG_VELLUM_PANEL_D1001
 
 /* An RGB indicator, and until now only the RED leg was ever driven — which meant
- * ordinary work was announced in the colour a person reads as a fault. Green and
- * blue are wired per d1001_board.h and are used here for the first time; their
- * polarity is ASSUMED to match red's and has not been confirmed on hardware. */
+ * ordinary work was announced in the colour a person reads as a fault.
+ *
+ * All three legs are active-low, established from Seeed's own BSP for this board
+ * rather than assumed: its commented-out GPIO writes use `cmd ? false : true`
+ * identically for R, G and B, and the PWM path it actually ships computes
+ * `duty = 1024 * (100 - percent) / 100`, so full brightness is duty zero. Both
+ * mean the pin sinks the current. */
 enum { D1001_RED, D1001_GREEN, D1001_BLUE };
 
+/* Dimmed rather than switched, at the vendor BSP's own per-colour duties. The
+ * three legs are not interchangeable: red and green sit behind 1 kΩ (R135, R132)
+ * while blue has 499 Ω (R133), so equal drive gives unequal light. Switching all
+ * three fully on is roughly an order of magnitude past what Seeed intends for
+ * green, which is the wrong direction for something meant to stay unobtrusive.
+ * LEDC channels 2-4 mirror the vendor's choice and leave channel 0 to the LCD
+ * backlight. */
 static const board_led_channel_t D1001_CHANNELS[] = {
-    [D1001_RED]   = { .gpio = D1001_LED_R, .on_level = 0, .label = "red" },
-    [D1001_GREEN] = { .gpio = D1001_LED_G, .on_level = 0, .label = "green" },
-    [D1001_BLUE]  = { .gpio = D1001_LED_B, .on_level = 0, .label = "blue" },
+    [D1001_RED]   = { .gpio = D1001_LED_R, .on_level = 0, .label = "red",
+                      .ledc_channel = 2, .duty_percent = 20 },
+    [D1001_GREEN] = { .gpio = D1001_LED_G, .on_level = 0, .label = "green",
+                      .ledc_channel = 3, .duty_percent = 8 },
+    [D1001_BLUE]  = { .gpio = D1001_LED_B, .on_level = 0, .label = "blue",
+                      .ledc_channel = 4, .duty_percent = 50 },
 };
 
 static const board_led_expression_t D1001_STATES[BOARD_LED_STATE_COUNT] = {
@@ -404,8 +418,11 @@ const board_led_profile_t *board_led_profile(void) { return &D1001_PROFILE; }
 enum { E_SERIES_GREEN };
 
 static const board_led_channel_t E_SERIES_CHANNELS[] = {
+    /* Switched, not dimmed: a single colour has nothing to balance against, and
+     * LEDC channel 0 on these boards is the buzzer. */
     [E_SERIES_GREEN] = { .gpio = (gpio_num_t)CONFIG_VELLUM_LED_GPIO,
-                         .on_level = 0, .label = "green" },
+                         .on_level = 0, .label = "green",
+                         .ledc_channel = BOARD_LED_NO_LEDC },
 };
 
 static const board_led_expression_t E_SERIES_STATES[BOARD_LED_STATE_COUNT] = {

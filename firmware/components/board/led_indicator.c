@@ -15,6 +15,7 @@
 
 #include <string.h>
 
+#include "driver/ledc.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
@@ -28,11 +29,35 @@ static board_led_state_t          s_state = BOARD_LED_STATE_IDLE;
 static board_led_expression_t     s_shown = { BOARD_LED_NO_CHANNEL, BOARD_LED_OFF };
 static uint32_t                   s_phase;
 static bool                       s_ready;
+/* Which channels genuinely came up on LEDC. The profile is const, so a channel
+ * that ASKED for dimming and did not get it cannot be edited -- and without this
+ * record write_channel() would keep addressing an LEDC channel that was never
+ * configured, leaving the indicator dark. One bit per channel. */
+static uint32_t                   s_ledc_ready;
+
+/* Resolution and the arithmetic live in led_pattern.h, where host tests reach
+ * them. Timer 1 because the backlight owns timer 0 on the D1001 and the buzzer
+ * owns it on the E-Series; indicators must not reach into either. */
+#define LEDC_BITS      LEDC_TIMER_10_BIT
+#define LEDC_TIMER_LED LEDC_TIMER_1
+#define LEDC_FREQ_HZ   5000
+
+static uint32_t duty_for(const board_led_channel_t *c, bool on)
+{
+    return board_led_duty_for(c->on_level, c->duty_percent, on);
+}
 
 static void write_channel(int8_t channel, bool on)
 {
     if (!s_profile || channel < 0 || channel >= s_profile->channel_count) return;
     const board_led_channel_t *c = &s_profile->channels[channel];
+
+    if (s_ledc_ready & (1u << channel)) {
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)c->ledc_channel,
+                      duty_for(c, on));
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)c->ledc_channel);
+        return;
+    }
     gpio_set_level(c->gpio, on ? c->on_level : (uint8_t)!c->on_level);
 }
 
@@ -78,8 +103,52 @@ void board_led_init(void)
     }
     s_profile = profile;
 
+    bool needs_ledc = false;
+    for (uint8_t i = 0; i < s_profile->channel_count; ++i) {
+        if (s_profile->channels[i].ledc_channel != BOARD_LED_NO_LEDC) {
+            needs_ledc = true;
+            break;
+        }
+    }
+    if (needs_ledc) {
+        const ledc_timer_config_t timer = {
+            .speed_mode      = LEDC_LOW_SPEED_MODE,
+            .duty_resolution = LEDC_BITS,
+            .timer_num       = LEDC_TIMER_LED,
+            .freq_hz         = LEDC_FREQ_HZ,
+            .clk_cfg         = LEDC_AUTO_CLK,
+        };
+        esp_err_t terr = ledc_timer_config(&timer);
+        if (terr != ESP_OK) {
+            /* Fall back to plain switching rather than leaving indicators dead:
+             * too bright beats invisible for something whose job is to be seen. */
+            ESP_LOGW(TAG, "No LEDC timer for indicators (%s); switching instead",
+                     esp_err_to_name(terr));
+            needs_ledc = false;
+        }
+    }
+
     for (uint8_t i = 0; i < s_profile->channel_count; ++i) {
         const board_led_channel_t *c = &s_profile->channels[i];
+        if (needs_ledc && c->ledc_channel != BOARD_LED_NO_LEDC) {
+            const ledc_channel_config_t ch = {
+                .gpio_num   = c->gpio,
+                .speed_mode = LEDC_LOW_SPEED_MODE,
+                .channel    = (ledc_channel_t)c->ledc_channel,
+                .timer_sel  = LEDC_TIMER_LED,
+                .duty       = duty_for(c, false),
+                .hpoint     = 0,
+            };
+            if (ledc_channel_config(&ch) == ESP_OK) {
+                s_ledc_ready |= (1u << i);
+                ESP_LOGD(TAG, "indicator %u: GPIO%d (%s) via LEDC%d at %u%%",
+                         i, (int)c->gpio, c->label ? c->label : "?",
+                         c->ledc_channel, c->duty_percent);
+                continue;
+            }
+            ESP_LOGW(TAG, "LEDC setup failed for %s; switching instead",
+                     c->label ? c->label : "?");
+        }
         gpio_set_direction(c->gpio, GPIO_MODE_OUTPUT);
         gpio_set_level(c->gpio, (uint8_t)!c->on_level);
         ESP_LOGD(TAG, "indicator %u: GPIO%d (%s), on=%u",

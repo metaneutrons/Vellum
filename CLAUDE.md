@@ -270,10 +270,25 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   board ports (`boards/seeed/reterminal_e100{1,2,3}`) are the authority for all of
   this, and they are worth reading before assuming any E-Series pin is uniform.
   **The D1001 has an RGB indicator** (R GPIO22, G GPIO36, B GPIO23,
-  `d1001_board.h`), all active-low. Only red was ever driven, which announced
-  ordinary work in the colour a person reads as a fault; green and blue are used
-  since the `board_led` rework and their polarity is **assumed** to match red's,
-  not yet confirmed on hardware.
+  `d1001_board.h`), and only red was ever driven, which announced ordinary work in
+  the colour a person reads as a fault.
+  - **All three legs are active-low, and this is established rather than
+    assumed.** Seeed publishes a BSP for this board
+    (`Seeed-Studio/reTerminal-D1001`, `components/esp32_p4_re_terminal_d1001`)
+    whose commented-out GPIO writes use `cmd ? false : true` identically for R, G
+    and B, and whose shipped PWM path computes
+    `duty = 1024 * (100 - percent) / 100` — full brightness is duty zero. Both
+    mean the pin sinks the current. That BSP is the reference for this board the
+    way the Zephyr ports are for the E-Series; there is no Zephyr port for the
+    D1001.
+  - **The three colours are NOT interchangeable and are dimmed per colour.** The
+    schematic gives red and green 1 kΩ (R135, R132) and blue 499 Ω (R133), and the
+    vendor accordingly drives green at 8 %, red at 20 %, blue at 50 %. Switching
+    all three fully on, which is what a plain GPIO does, puts green about an order
+    of magnitude past that. `board_led_channel_t` therefore carries an optional
+    LEDC channel plus duty, and the D1001 table uses the vendor's numbers on LEDC
+    channels 2-4. **Timer 1**, because timer 0 is the LCD backlight here and the
+    buzzer on the E-Series.
 - **Indicators are addressed by state rather than by pin or colour**
   (`board_led.h`, `led_indicator.c`). Reaching for a pin directly is for bring-up
   and hardware diagnostics; anything that ships names a state. A board supplies two tables — the channels it physically

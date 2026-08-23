@@ -67,3 +67,26 @@ static inline bool board_led_pattern_needs_tick(board_led_pattern_t pattern)
     return pattern == BOARD_LED_PULSE || pattern == BOARD_LED_BLINK ||
            pattern == BOARD_LED_FLASH_ONCE;
 }
+
+/** LEDC resolution the indicators run at, matching the D1001 backlight's. */
+#define BOARD_LED_DUTY_BITS 10
+#define BOARD_LED_DUTY_FULL ((1u << BOARD_LED_DUTY_BITS) - 1u)
+
+/**
+ * @brief Duty that expresses "lit at duty_percent" or "dark" for this wiring.
+ *
+ * The inversion is the whole reason this is a function. On active-low wiring the
+ * pin sinks the current, so more duty is LESS light and darkness is full duty --
+ * which is also what the vendor BSP's `(100 - percent)` computes. Getting the
+ * sense backwards would light every indicator exactly when it should be dark, so
+ * the two directions are pinned by host tests rather than reasoned about at each
+ * call.
+ */
+static inline uint32_t board_led_duty_for(uint8_t on_level, uint8_t duty_percent,
+                                          bool on)
+{
+    if (duty_percent > 100) duty_percent = 100;
+    const uint32_t scaled = (BOARD_LED_DUTY_FULL * (uint32_t)duty_percent) / 100u;
+    if (on_level) return on ? scaled : 0u;
+    return on ? (BOARD_LED_DUTY_FULL - scaled) : BOARD_LED_DUTY_FULL;
+}
