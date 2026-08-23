@@ -40,10 +40,61 @@ interface Props {
 }
 
 function emptyStaticSeat(): Seat {
-  return { caption: "", occupant: { kind: "static", name: "" } };
+  return { caption: "", occupant: { kind: "static", name: "", unit: "", role: "" } };
 }
 
 type CalendarOccupant = Extract<SeatOccupant, { kind: "calendar" }>;
+type StaticOccupant = Extract<SeatOccupant, { kind: "static" }>;
+
+/**
+ * Name, unit and position for a fixed occupant.
+ *
+ * Its own component for the same reason as `CalendarSeatFields`: inside a JSX
+ * ternary the union widens again by the time a change handler runs. Arriving
+ * already narrowed lets every handler SPREAD the occupant instead of rebuilding
+ * it, and that is what keeps the unit and the position from being discarded on
+ * each keystroke in the name field.
+ */
+function StaticSeatFields({
+  occupant,
+  onChange,
+}: {
+  occupant: StaticOccupant;
+  onChange: (next: StaticOccupant) => void;
+}) {
+  const t = useTranslations("content.namePlate");
+  return (
+    <div className="space-y-2">
+      <div>
+        <label className="block text-[12px] text-label-secondary mb-1">{t("staticName")}</label>
+        <Input
+          placeholder={t("staticNamePlaceholder")}
+          value={occupant.name}
+          onChange={(e) => onChange({ ...occupant, name: e.target.value })}
+        />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+        <div>
+          <label className="block text-[12px] text-label-secondary mb-1">{t("role")}</label>
+          <Input
+            placeholder={t("rolePlaceholder")}
+            value={occupant.role}
+            onChange={(e) => onChange({ ...occupant, role: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-[12px] text-label-secondary mb-1">{t("unit")}</label>
+          <Input
+            placeholder={t("unitPlaceholder")}
+            value={occupant.unit}
+            onChange={(e) => onChange({ ...occupant, unit: e.target.value })}
+          />
+        </div>
+      </div>
+      <p className="text-[12px] text-label-tertiary">{t("affiliationHint")}</p>
+    </div>
+  );
+}
 
 /**
  * Provider and resource for one calendar seat.
@@ -145,7 +196,10 @@ function SeatRow({
           onChange={(kind) =>
             onChange(
               kind === "static"
-                ? { caption: seat.caption, occupant: { kind: "static", name: "" } }
+                ? {
+                    caption: seat.caption,
+                    occupant: { kind: "static", name: "", unit: "", role: "" },
+                  }
                 : {
                     caption: seat.caption,
                     occupant: {
@@ -174,16 +228,10 @@ function SeatRow({
       </div>
 
       {seat.occupant.kind === "static" ? (
-        <div>
-          <label className="block text-[12px] text-label-secondary mb-1">{t("staticName")}</label>
-          <Input
-            placeholder={t("staticNamePlaceholder")}
-            value={seat.occupant.name}
-            onChange={(e) =>
-              onChange({ ...seat, occupant: { kind: "static", name: e.target.value } })
-            }
-          />
-        </div>
+        <StaticSeatFields
+          occupant={seat.occupant}
+          onChange={(occupant) => onChange({ ...seat, occupant })}
+        />
       ) : (
         <CalendarSeatFields
           occupant={seat.occupant}

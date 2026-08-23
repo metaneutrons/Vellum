@@ -75,6 +75,58 @@ design calls:
       voucher before it expires. A "revoke" action (delete-if-unclaimed) is a
       small follow-up; expiry covers the common case.
 
+## Content & displays
+
+- [ ] **Organisational unit and position have no data source.** A door sign should
+      be able to say "Präsidium" and "Vizepräsident", and both configured providers
+      were queried on 2026-08-23 to find out whether they can supply it. Neither
+      can. anny's customer object carries one free-text `company`, which reads
+      "Hochschule Hannover" on 130 of 168 records and therefore says nothing on an
+      internal door; `title` is empty throughout; `custom_entry_map` is empty on all
+      168 customers and all sampled bookings, and `/custom-fields` returns no
+      definitions; there are no `/teams`, `/groups` or `/departments` endpoints, so
+      anny models no organisational structure at all. In Microsoft 365 the app
+      already holds `User.Read.All`, so a lookup needs no new consent, but
+      `department` is unset on every human in the tenant (only four Teams service
+      principals carry it) and `jobTitle` is filled for 7 of 39 members. Worse for
+      the case that prompted this: the operator's own object in that tenant is a
+      GUEST (`…#EXT#@…onmicrosoft.com`), and a guest never carries its home tenant's
+      attributes, so an HS Hannover role cannot appear through that provider however
+      the code is written.
+
+      Shipped in the meantime: `unit` and `role` as optional fields on a STATIC
+              name-plate seat, rendered as one line below the name and costing no height when
+              empty. Deliberately not on calendar seats, because a booking carries neither
+              and a desk booked for an afternoon should not advertise a function title.
+
+              Two ways out, both organisational rather than technical. Either the university
+              defines an anny customer field, since the mechanism exists and is unused, or
+              Vellum gets its own app registration in the HS Hannover tenant and reads
+              `jobTitle`/`department` there. Revisit only when one of those is agreed; a
+              Graph enrichment built against today's fill rate would be blank for most
+              people.
+
+- [ ] **The built-in mono theme renders text invisible on the E1001.**
+      `resolveTheme(2)` returns `THEME_MONO`, whose `footerText` and `slotSecondary`
+      are `#888888`, and `snapThemeToPalette` maps mid-grey to WHITE on a two-colour
+      palette because white is the nearer of the two in RGB distance. The name plate
+      uses `footerText` for the occupant, so on a 7.5" panel it draws white on white:
+      a render counted **0** ink pixels below the header band against 28 884 on the
+      E1002. `room-booking` uses the same two colours and loses text there too. The
+      fix is small, namely no mid-tone in `THEME_MONO` (secondary rank is expressed
+      by size and weight, not tone), but it changes output for every mono device, so
+      it wants a deliberate decision plus a per-panel regression test.
+
+- [ ] **`/api/v1/admin/preview` does not snap the theme to the palette.** The render
+      route calls `snapThemeToPalette`; the preview route does not. Preview and
+      device therefore disagree by construction on any panel whose palette moves a
+      theme colour, which is why the mono defect above never showed up in a preview.
+      Fix alongside it, or the fix cannot be verified from the admin UI.
+
+- [ ] **Trim directory values before rendering them.** The lexICT tenant contains a
+      `jobTitle` of `"Consultant "` with a trailing space. Harmless today because
+      nothing renders it, and a trap the moment anything does.
+
 ## Server / API hardening
 
 - [ ] **Tighten the Content-Security-Policy.** `next.config.ts` sets a non-breaking

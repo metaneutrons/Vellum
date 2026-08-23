@@ -18,9 +18,6 @@
  * Floyd-Steinberg, so an antialiased grey edge snaps hard to black or white
  * instead of dithering. Rendered and quantised at 16, 28, 60 and 96 px, the
  * result is clean at all of them.
- *
- * room-booking still uses the atlas for that model. Whether it should is a
- * separate question about small text and is not answered here.
  */
 
 import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
@@ -203,20 +200,33 @@ function drawBand(
   } else {
     push(content.name, sizes.name, colors.name, true);
   }
+  /* Below the name, at caption size and in the caption colour: unit and position
+   * describe the occupant the same way the caption describes the place, so they
+   * are the same rank of information and are set alike. */
+  if (content.affiliation) push(content.affiliation, sizes.caption, colors.caption, false);
   if (content.status) push(content.status, sizes.status, colors.status, false);
 
-  /* Tight, because the caption and the status belong to the NAME between them,
-   * not to the neighbouring band. Proximity is the only thing grouping them, so
-   * this gap stays clearly smaller than the space between bands.
+  /* Tight, because the caption, the affiliation and the status all belong to the
+   * NAME they surround rather than to the neighbouring band. Proximity is the only
+   * thing grouping them, so these gaps stay clearly smaller than the space between
+   * bands.
    *
-   * Measured off the NAME rather than the caption, and large enough to clear a
-   * descender: the block is laid out in cap heights, so a caption ending in ")"
-   * or "," hangs below its own box and collided with the cap of the name below
-   * it. Visible immediately at full size on an 800x480 panel, invisible in the
-   * arithmetic. */
-  const gap = Math.round(sizes.name * 0.14);
+   * One gap PER PAIR, not one for the block. The base is measured off the name,
+   * which is large enough to clear a caption's descender: laid out in cap heights,
+   * a caption ending in ")" or "," hangs below its own box and used to collide
+   * with the cap of the name beneath it.
+   *
+   * That base is not enough UNDER the name. A descender reaches roughly 0.21 em
+   * below its baseline, which at 0.14 of the name is more than the whole gap, so a
+   * name like "Krüger" would have run into the unit line below it. Taking the
+   * larger of the two clearances fixes that pair and leaves every other pair
+   * exactly where it was, because 0.3 of a caption is smaller than 0.14 of the
+   * name it sits beside. */
+  const baseGap = Math.round(sizes.name * 0.14);
+  const gapAfter = (size: number) => Math.max(baseGap, Math.round(size * 0.3));
   const capHeights = lines.map((l) => l.size * CAP_RATIO);
-  const blockH = capHeights.reduce((a, b) => a + b, 0) + gap * Math.max(0, lines.length - 1);
+  const gaps = lines.slice(0, -1).map((l) => gapAfter(l.size));
+  const blockH = capHeights.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0);
 
   let y = band.y + (band.h - blockH) / 2;
   const cx = band.x + band.w / 2;
@@ -233,7 +243,7 @@ function drawBand(
       line.bold,
       band.w
     );
-    y += capHeights[i] + gap;
+    y += capHeights[i] + (gaps[i] ?? 0);
   });
 }
 
@@ -324,9 +334,14 @@ async function render(params: RenderParams): Promise<RenderResult> {
    * the MOST lines: sizing against the average would clip it. */
   const maxLines = Math.max(...contents.map(bandLineCount));
   const bandH = bands[0]?.h ?? height;
-  /* Caption and status are secondary and sized off the name, so only one search
-   * is needed. 0.62 keeps them clearly subordinate while staying legible. */
-  const nameShare = maxLines === 1 ? 0.72 : maxLines === 2 ? 0.5 : 0.4;
+  /* The name's share of its band, by how many lines the FULLEST band draws.
+   *
+   * A table rather than a chain of ternaries, because a band can now carry four
+   * lines: caption, name, affiliation, status. The shares fall away faster than
+   * 1/n on purpose — the name keeps more than its arithmetic share, since it is
+   * the only line that has to be readable from down the corridor. */
+  const NAME_SHARE = [0.72, 0.5, 0.4, 0.34];
+  const nameShare = NAME_SHARE[Math.min(maxLines, NAME_SHARE.length) - 1];
 
   /* Notices are excluded from the fit: "Keine Verbindung" is longer than any name
    * and would otherwise decide the size for every band, so one unreachable seat
@@ -347,21 +362,29 @@ async function render(params: RenderParams): Promise<RenderResult> {
     max: Math.round(shortSide * 0.5),
   });
 
-  /* The caption gets its own fit, bounded by a fraction of the name.
+  /* The secondary lines get their own fit, bounded by a fraction of the name.
    *
    * Deriving it from the name alone went wrong in the common single-seat case: a
    * short name like "Frei" allows a huge size, and a caption at a third of that
    * is "Föhr 1 (1J.2.27)" running nearly the full width while the name sits
    * compact in the middle. The longest string on the plate was the subordinate
    * one. Fitting it to the width it actually has, and never letting it past 34 %
-   * of the name, keeps the hierarchy the way round it is meant to be. */
-  const captions = contents.map((c) => c.caption).filter((c): c is string => !!c);
+   * of the name, keeps the hierarchy the way round it is meant to be.
+   *
+   * Captions and affiliations are measured TOGETHER because they are drawn at one
+   * size. The affiliation is usually the longer of the two, and a line that is
+   * drawn without being measured does not overflow — fillText squeezes it to the
+   * width it was given, which is worse, because condensed text among normal text
+   * looks like a rendering fault. */
+  const secondary = contents
+    .flatMap((c) => [c.caption, c.affiliation])
+    .filter((v): v is string => !!v);
   const captionCeiling = Math.round(nameSize * 0.34);
-  const captionSize = captions.length
+  const captionSize = secondary.length
     ? Math.min(
         captionCeiling,
         fitSharedSize({
-          texts: captions,
+          texts: secondary,
           maxWidth: (bands[0]?.w ?? width) * 0.9,
           maxHeight: captionCeiling,
           measure: (text, size) => measureAt(t, text, size),

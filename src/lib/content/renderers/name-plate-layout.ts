@@ -67,6 +67,15 @@ export interface BandContent {
   /** Extra detail, such as how long the booking runs. */
   status: string | null;
   /**
+   * Position and unit, joined, or null when the operator gave neither.
+   *
+   * Null rather than an empty string, because `bandLineCount` counts lines and
+   * `drawBand` pushes them: an empty affiliation has to be indistinguishable from
+   * an absent one, or a seat that names no unit reserves a blank row. On a door
+   * sign a reserved-but-blank row reads as a fault, not as spacing.
+   */
+  affiliation: string | null;
+  /**
    * The name line is a NOTICE, not a name.
    *
    * "Keine Verbindung" is not a person and must not be typeset like one: at name
@@ -112,6 +121,19 @@ export function bandContent(
   labels: { free: string; unknown: string }
 ): BandContent {
   const caption = seat.caption.trim() || state.placeLabel?.trim() || "";
+  /* Only a fixed occupant has this. A booking carries no unit or position, and
+   * that is a property of the sources rather than of this code: see the comment
+   * on `unit` in name-plate-types.ts.
+   *
+   * Position first, unit second, the way a business card sets them. The position
+   * is the more specific fact and the unit qualifies it. */
+  const affiliation =
+    seat.occupant.kind === "static"
+      ? [seat.occupant.role, seat.occupant.unit]
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(" · ")
+      : "";
   /* An unreachable provider is named whatever the operator asked for: a sign may
    * withhold detail, but it may not present an unknown state as a current one. */
   const name = state.unreachable ? labels.unknown : (state.occupant ?? labels.free);
@@ -119,13 +141,14 @@ export function bandContent(
     caption: caption || null,
     name,
     status: showStatus && !state.unreachable ? (state.detail ?? null) : null,
+    affiliation: affiliation || null,
     nameIsNotice: state.unreachable ? true : undefined,
   };
 }
 
 /** How many lines a band will draw. Drives the height split inside it. */
 export function bandLineCount(content: BandContent): number {
-  return 1 + (content.caption ? 1 : 0) + (content.status ? 1 : 0);
+  return 1 + (content.caption ? 1 : 0) + (content.affiliation ? 1 : 0) + (content.status ? 1 : 0);
 }
 
 export interface FitOptions {

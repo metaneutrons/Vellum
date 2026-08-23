@@ -20,6 +20,11 @@
  * An earlier draft had one `label` field serving both roles, which made the
  * question "does the static name or the calendar name win?" look meaningful. It
  * is not: they are different data, and a static seat has no calendar to lose to.
+ *
+ * A fixed occupant can also name a unit and a position. Those live on the STATIC
+ * variant only, and that asymmetry is a finding rather than an oversight: both
+ * configured providers were queried and neither carries the data. See the comment
+ * on `unit`.
  */
 
 import { z } from "zod";
@@ -39,6 +44,23 @@ export const seatOccupantSchema = z.discriminatedUnion("kind", [
     kind: z.literal("static"),
     /** Shown verbatim. No provider, no lookup, no booking state. */
     name: z.string().min(1),
+    /**
+     * Organisational unit, such as "Präsidium".
+     *
+     * The unit, deliberately, and not the employer. Both providers configured
+     * against this instance were queried before these fields were added and
+     * neither can supply them. anny's customer carries a single free-text
+     * `company` that reads "Hochschule Hannover" on 130 of 168 records, which
+     * says nothing on an internal door; its custom-field mechanism exists but has
+     * no definitions, and it models no teams, groups or departments at all. The
+     * Microsoft 365 tenant leaves `department` unset on every human and fills
+     * `jobTitle` for 7 of 39 members, and a guest object carries none of its home
+     * tenant's attributes in any case. A field the operator fills once beats a
+     * lookup that comes back blank.
+     */
+    unit: z.string().default(""),
+    /** Position within that unit, such as "Vizepräsident". */
+    role: z.string().default(""),
   }),
   z.object({
     kind: z.literal("calendar"),

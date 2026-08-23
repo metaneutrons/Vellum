@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { seatBands, bandContent, bandLineCount, fitSharedSize } from "../name-plate-layout";
 import { seatSchema, namePlateConfigSchema, resolveRoomName, MAX_SEATS } from "../name-plate-types";
 
-const staticSeat = (name: string, caption = "") =>
-  seatSchema.parse({ caption, occupant: { kind: "static", name } });
+const staticSeat = (name: string, caption = "", unit = "", role = "") =>
+  seatSchema.parse({ caption, occupant: { kind: "static", name, unit, role } });
 
 const calendarSeat = (caption = "", parentName?: string) =>
   seatSchema.parse({
@@ -161,6 +161,61 @@ describe("bandContent", () => {
     expect(off.name).not.toBe(
       bandContent(calendarSeat(), { occupant: null, placeLabel: "Föhr 1" }, false, LABELS).name
     );
+  });
+});
+
+describe("unit and position on a static seat", () => {
+  const state = { occupant: "Schmieder" };
+
+  it("sets the position before the unit, the way a business card does", () => {
+    const c = bandContent(
+      staticSeat("Schmieder", "", "Präsidium", "Vizepräsident"),
+      state,
+      false,
+      LABELS
+    );
+    expect(c.affiliation).toBe("Vizepräsident · Präsidium");
+  });
+
+  it("joins nothing when only one of the two is given", () => {
+    expect(bandContent(staticSeat("A", "", "Präsidium"), state, false, LABELS).affiliation).toBe(
+      "Präsidium"
+    );
+    expect(
+      bandContent(staticSeat("A", "", "", "Vizepräsident"), state, false, LABELS).affiliation
+    ).toBe("Vizepräsident");
+  });
+
+  /* The requirement, stated as an invariant: an empty field must be
+   * indistinguishable from an absent one. `bandLineCount` drives how the band's
+   * height is divided, so a line count that grew here would shrink the name to
+   * make room for nothing. */
+  it("reserves no line, and no height, when both are empty", () => {
+    const without = bandContent(staticSeat("Schmieder"), state, false, LABELS);
+    expect(without.affiliation).toBeNull();
+    expect(bandLineCount(without)).toBe(1);
+
+    const withCaption = bandContent(staticSeat("Schmieder", "Platz 1"), state, false, LABELS);
+    expect(bandLineCount(withCaption)).toBe(2);
+  });
+
+  it("treats whitespace as empty rather than as a value", () => {
+    const c = bandContent(staticSeat("Schmieder", "", "   ", "\t"), state, false, LABELS);
+    expect(c.affiliation).toBeNull();
+    expect(bandLineCount(c)).toBe(1);
+  });
+
+  it("costs exactly one line when either is given", () => {
+    const c = bandContent(staticSeat("Schmieder", "", "Präsidium"), state, false, LABELS);
+    expect(bandLineCount(c)).toBe(2);
+  });
+
+  /* A booking carries neither, so the line can never appear on a calendar seat.
+   * This is a property of the sources rather than of the layout: see the comment
+   * on `unit` in name-plate-types.ts. */
+  it("stays absent on a calendar seat", () => {
+    const c = bandContent(calendarSeat("Föhr 1"), { occupant: "Schmieder" }, false, LABELS);
+    expect(c.affiliation).toBeNull();
   });
 });
 
