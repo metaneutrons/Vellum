@@ -44,6 +44,28 @@ export const THEME_DEFAULT: Theme = {
   footerText: "#000000",
 };
 
+/**
+ * The built-in theme for a TWO-COLOUR panel, and the mid-tones are gone from it.
+ *
+ * `slotSecondary` and `footerText` were `#888888`, which reads as "secondary" on
+ * a screen and is unrepresentable on a 1-bit panel. `snapThemeToPalette` then
+ * resolved that grey to WHITE, because in RGB distance white is nearer to
+ * mid-grey than black is, so both landed on the background colour. The name plate
+ * draws the occupant in `footerText`, which made the whole plate blank below the
+ * header on an E1001: rendered and counted, zero ink pixels there against 28 884
+ * on the E1002. `room-booking` uses the same two tokens and lost text the same
+ * way.
+ *
+ * On a panel with two colours a secondary rank cannot be a lighter tone. It is a
+ * smaller size and a lighter WEIGHT, which is what the renderers now do.
+ *
+ * Two more mid-tones in here are the same class of defect and are NOT fixed,
+ * because each needs a design decision rather than a colour: `eventBg` at
+ * `#444444` snaps to black while `slotText` is black, and `badgeText` is white on
+ * a `freeBadge` that is also white. Both are room-booking's, both are on
+ * ROADMAP.md, and both turn on how a 1-bit panel should distinguish a filled
+ * block from an outlined one.
+ */
 export const THEME_MONO: Theme = {
   name: "Mono",
   headerBg: "#000000",
@@ -54,8 +76,8 @@ export const THEME_MONO: Theme = {
   background: "#FFFFFF",
   eventBg: "#444444",
   slotText: "#000000",
-  slotSecondary: "#888888",
-  footerText: "#888888",
+  slotSecondary: "#000000",
+  footerText: "#000000",
 };
 
 export function resolveTheme(colorCount: number): Theme {

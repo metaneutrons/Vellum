@@ -335,7 +335,25 @@
       "resource": "Risorsa (sala / scrivania)",
       "roomName": "Sala (intestazione)",
       "roomNamePlaceholder": "1J.2.27",
-      "roomNameHint": "Mostrata in alto, come nel display di prenotazione sala. Se lasciata vuota si usa la sala da cui provengono le postazioni."
+      "roomNameHint": "Mostrata in alto, come nel display di prenotazione sala. Se lasciata vuota si usa la sala da cui provengono le postazioni.",
+      "accentColor": "Colore dell'intestazione",
+      "accentColorHint": "Indica il tipo di stanza, sui pannelli con colori reali. Altrove senza effetto.",
+      "accent": {
+        "none": "Nero (predefinito)",
+        "red": "Rosso",
+        "blue": "Blu",
+        "green": "Verde",
+        "yellow": "Giallo"
+      },
+      "bookingQr": "Codice di prenotazione",
+      "bookingQrHint": "Solo con una postazione e solo con un link di prenotazione. Un codice non può dire quale di quattro postazioni prenota.",
+      "qr": {
+        "never": "Mai",
+        "free": "Solo se libera",
+        "always": "Sempre"
+      },
+      "reach": "Leggibile da circa {metres} m su un pannello da 7,5 pollici.",
+      "reachDense": "Da tre postazioni ciascuna occupa una riga, quindi titoli, posizione e unità non vengono mostrati."
     }
   },
   "providers": {

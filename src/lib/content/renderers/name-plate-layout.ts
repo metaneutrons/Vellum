@@ -8,6 +8,7 @@
  * names get. Text measurement is injected for the same reason.
  */
 
+import { splitName, type NameRanks } from "./name-split";
 import type { Seat } from "./name-plate-types";
 
 export interface Rect {
@@ -62,34 +63,47 @@ export function seatBands(
 export interface BandContent {
   /** The seat itself: "Schreibtisch 1", or the resource's own name. */
   caption: string | null;
-  /** Who is there — or the word for nobody. Always present, always the payload. */
-  name: string;
-  /** Extra detail, such as how long the booking runs. */
-  status: string | null;
   /**
-   * Position and unit, joined, or null when the operator gave neither.
+   * The occupant, taken apart into the three ranks the sign sets.
    *
-   * Null rather than an empty string, because `bandLineCount` counts lines and
-   * `drawBand` pushes them: an empty affiliation has to be indistinguishable from
-   * an absent one, or a seat that names no unit reserves a blank row. On a door
-   * sign a reserved-but-blank row reads as a fault, not as spacing.
+   * Null when the band has a notice instead of a person. Never both.
    */
+  ranks: NameRanks | null;
+  /**
+   * A statement about the SIGN rather than its content, such as "Frei" or
+   * "Keine Verbindung".
+   *
+   * Set small, in the light weight, and left out of the size search. Both
+   * reasons are the same one: it is not a name. At name size "Keine Verbindung"
+   * is the loudest thing on the wall, and because one size is shared across
+   * bands its length would shrink every real name beside it.
+   */
+  notice: string | null;
+  /** Position and unit, joined, or null when the operator gave neither. */
   affiliation: string | null;
   /**
-   * The name line is a NOTICE, not a name.
+   * What the filled state pill says, or null for no pill.
    *
-   * "Keine Verbindung" is not a person and must not be typeset like one: at name
-   * size it is the loudest thing on the wall, and because the type size is shared
-   * across bands, its length would shrink every real name beside it. Drawn small
-   * and muted, and excluded from the fit.
+   * Only an OCCUPIED seat gets one. A filled area is the one thing that carries
+   * across a corridor, so its presence means occupied and its absence means free.
+   * An outlined pill for "free" was the first draft and it earned nothing: at the
+   * distance where the outline is legible, so is the word inside it.
    */
-  nameIsNotice?: boolean;
+  pill: string | null;
 }
 
 /** What a resolved seat can say. */
 export interface SeatState {
   /** Who is there, or null when nobody is. */
   occupant: string | null;
+  /**
+   * The occupant's name as the PROVIDER structured it.
+   *
+   * Believed over `splitName`, because a source that separates given name from
+   * surname knows something no heuristic can recover. anny does; Microsoft Graph
+   * does not.
+   */
+  ranks?: NameRanks;
   /** The seat's own name from the provider, for the caption fallback. */
   placeLabel?: string;
   /** "bis 12:00" and the like. Only shown when the plate shows status. */
@@ -102,25 +116,31 @@ export interface SeatState {
  * Decide what a band shows, so the drawing code never asks "is this empty?".
  *
  * The roles are fixed and that is the whole point: the ROOM is in the header, the
- * SEAT is the caption, and the big line is the person. Before this the resource
+ * SEAT is the caption, and the big rank is the person. Before this the resource
  * name went into the big line whenever a seat was free, so an empty desk rendered
  * as "Föhr 1 (1J.2.27)" in the slot meant for a person and read like one.
  *
- * With nobody there the big line says so. A calendar seat therefore always
- * reveals free or occupied, and `showStatus` governs the DETAIL — the "until" —
- * rather than whether the state is admitted. A plate that cannot say "free" is
- * not a door sign, and it is indistinguishable from a lookup that failed.
- *
- * A static seat has no state to show at all, so it composes two lines instead of
- * three rather than leaving a gap where the third would go.
+ * With nobody there the band says so, as a notice rather than as a name. A
+ * calendar seat therefore always reveals free or occupied, and `showStatus`
+ * governs the DETAIL, the "until", rather than whether the state is admitted. A
+ * plate that cannot say "free" is not a door sign, and it is indistinguishable
+ * from a lookup that failed.
  */
 export function bandContent(
   seat: Seat,
   state: SeatState,
   showStatus: boolean,
-  labels: { free: string; unknown: string }
+  labels: { free: string; busy: string; unknown: string },
+  /**
+   * Whether an unlabelled seat may borrow the provider's name for the place.
+   *
+   * False on a single-seat plate, where the header already names the place and
+   * repeating it puts "Besprechungsraum" twice on the same sign. The operator's
+   * own caption is always honoured either way.
+   */
+  placeFallback = true
 ): BandContent {
-  const caption = seat.caption.trim() || state.placeLabel?.trim() || "";
+  const caption = seat.caption.trim() || (placeFallback ? state.placeLabel?.trim() || "" : "");
   /* Only a fixed occupant has this. A booking carries no unit or position, and
    * that is a property of the sources rather than of this code: see the comment
    * on `unit` in name-plate-types.ts.
@@ -130,25 +150,44 @@ export function bandContent(
   const affiliation =
     seat.occupant.kind === "static"
       ? [seat.occupant.role, seat.occupant.unit]
-          .map((s) => s.trim())
+          .map((v) => v.trim())
           .filter(Boolean)
           .join(" · ")
       : "";
+
+  const base = { caption: caption || null, affiliation: affiliation || null };
+
   /* An unreachable provider is named whatever the operator asked for: a sign may
    * withhold detail, but it may not present an unknown state as a current one. */
-  const name = state.unreachable ? labels.unknown : (state.occupant ?? labels.free);
+  if (state.unreachable) {
+    return { ...base, ranks: null, notice: labels.unknown, pill: null };
+  }
+  if (!state.occupant) {
+    return { ...base, ranks: null, notice: labels.free, pill: null };
+  }
+
+  const isCalendar = seat.occupant.kind === "calendar";
   return {
-    caption: caption || null,
-    name,
-    status: showStatus && !state.unreachable ? (state.detail ?? null) : null,
-    affiliation: affiliation || null,
-    nameIsNotice: state.unreachable ? true : undefined,
+    ...base,
+    ranks: state.ranks ?? splitName(state.occupant),
+    notice: null,
+    /* A static seat has no state to show at all, so it gets no pill rather than
+     * one that would always read the same. */
+    pill: isCalendar ? (showStatus ? state.detail || labels.busy : labels.busy) : null,
   };
 }
 
-/** How many lines a band will draw. Drives the height split inside it. */
+/**
+ * How many lines a band stacks. Drives the height split inside it.
+ *
+ * The pill is not a line: it sits beside the stack rather than in it, so counting
+ * it would shrink the name to make room for something that costs no height.
+ */
 export function bandLineCount(content: BandContent): number {
-  return 1 + (content.caption ? 1 : 0) + (content.affiliation ? 1 : 0) + (content.status ? 1 : 0);
+  const name = content.ranks
+    ? (content.ranks.titles ? 1 : 0) + (content.ranks.given ? 1 : 0) + 1
+    : 1;
+  return (content.caption ? 1 : 0) + name + (content.affiliation ? 1 : 0);
 }
 
 export interface FitOptions {

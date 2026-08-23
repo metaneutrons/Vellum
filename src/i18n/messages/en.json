@@ -335,7 +335,25 @@
       "resource": "Resource (room / desk)",
       "roomName": "Room (header)",
       "roomNamePlaceholder": "1J.2.27",
-      "roomNameHint": "Shown across the top, the way the room-booking display does it. Left empty, the room the seats came from is used."
+      "roomNameHint": "Shown across the top, the way the room-booking display does it. Left empty, the room the seats came from is used.",
+      "accentColor": "Header colour",
+      "accentColorHint": "Marks the kind of room, on panels that have real colours. Ignored elsewhere.",
+      "accent": {
+        "none": "Black (default)",
+        "red": "Red",
+        "blue": "Blue",
+        "green": "Green",
+        "yellow": "Yellow"
+      },
+      "bookingQr": "Booking code",
+      "bookingQrHint": "One seat only, and only with a booking link. One code cannot say which of four desks it books.",
+      "qr": {
+        "never": "Never",
+        "free": "Only when free",
+        "always": "Always"
+      },
+      "reach": "Readable from about {metres} m on a 7.5-inch panel.",
+      "reachDense": "From three seats each one takes a single line, so titles, position and unit are not shown."
     }
   },
   "providers": {

@@ -335,7 +335,25 @@
       "resource": "Ressource (Raum/Arbeitsplatz)",
       "roomName": "Raum (Kopfbereich)",
       "roomNamePlaceholder": "1J.2.27",
-      "roomNameHint": "Steht oben über der Fläche, wie bei der Raumbelegung. Leer gelassen wird der Raum verwendet, aus dem die Plätze stammen."
+      "roomNameHint": "Steht oben über der Fläche, wie bei der Raumbelegung. Leer gelassen wird der Raum verwendet, aus dem die Plätze stammen.",
+      "accentColor": "Farbe des Kopfbereichs",
+      "accentColorHint": "Kennzeichnet die Raumart, auf Panels mit echten Farben. Sonst ohne Wirkung.",
+      "accent": {
+        "none": "Schwarz (Standard)",
+        "red": "Rot",
+        "blue": "Blau",
+        "green": "Grün",
+        "yellow": "Gelb"
+      },
+      "bookingQr": "Buchungscode",
+      "bookingQrHint": "Nur bei einem Platz und nur mit Buchungslink. Ein Code kann nicht sagen, welchen von vier Plätzen er bucht.",
+      "qr": {
+        "never": "Nie",
+        "free": "Nur wenn frei",
+        "always": "Immer"
+      },
+      "reach": "Lesbar aus etwa {metres} m auf einem 7,5-Zoll-Panel.",
+      "reachDense": "Ab drei Plätzen bekommt jeder eine Zeile, Titel, Position und Einheit erscheinen dann nicht."
     }
   },
   "providers": {

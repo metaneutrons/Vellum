@@ -15,6 +15,23 @@ export interface CalendarEvent {
   startTime: Date;
   endTime: Date;
   isPrivate: boolean;
+  /**
+   * The organizer's given name and surname, when the SOURCE separates them.
+   *
+   * A door sign sets the surname several times larger than the rest of the name,
+   * because the surname alone decides how far away the sign can be read. Working
+   * that split out of one display string takes a heuristic (see
+   * `content/renderers/name-split.ts`), and a heuristic that a provider can make
+   * unnecessary should be made unnecessary: anny returns `given_name` and
+   * `family_name` as separate fields, so it fills these in and nothing has to be
+   * guessed. Microsoft Graph offers only `displayName` on a calendar event, so it
+   * leaves them unset and the heuristic runs.
+   *
+   * Both absent means "this provider does not know", never "this person has no
+   * surname".
+   */
+  organizerGiven?: string;
+  organizerSurname?: string;
 }
 
 /** One bookable thing a provider knows about: a room, a desk, a resource. */

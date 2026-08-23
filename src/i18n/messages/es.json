@@ -335,7 +335,25 @@
       "resource": "Recurso (sala / escritorio)",
       "roomName": "Sala (encabezado)",
       "roomNamePlaceholder": "1J.2.27",
-      "roomNameHint": "Se muestra en la parte superior, como en la pantalla de reserva de sala. Si se deja vacío se usa la sala de la que provienen los puestos."
+      "roomNameHint": "Se muestra en la parte superior, como en la pantalla de reserva de sala. Si se deja vacío se usa la sala de la que provienen los puestos.",
+      "accentColor": "Color del encabezado",
+      "accentColorHint": "Indica el tipo de sala, en paneles con colores reales. Sin efecto en los demás.",
+      "accent": {
+        "none": "Negro (predeterminado)",
+        "red": "Rojo",
+        "blue": "Azul",
+        "green": "Verde",
+        "yellow": "Amarillo"
+      },
+      "bookingQr": "Código de reserva",
+      "bookingQrHint": "Solo con un puesto y solo con enlace de reserva. Un código no puede indicar cuál de cuatro puestos reserva.",
+      "qr": {
+        "never": "Nunca",
+        "free": "Solo si está libre",
+        "always": "Siempre"
+      },
+      "reach": "Legible desde unos {metres} m en un panel de 7,5 pulgadas.",
+      "reachDense": "A partir de tres puestos cada uno ocupa una línea, por lo que no se muestran títulos, cargo ni unidad."
     }
   },
   "providers": {

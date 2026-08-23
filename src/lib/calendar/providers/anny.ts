@@ -305,12 +305,17 @@ export const annyProvider: CalendarProvider = {
     const bookings = result.data as AnnyBooking[];
     const included = (result.included ?? []) as AnnyIncluded[];
 
-    const customers = new Map<string, string>();
+    /* Kept apart rather than joined and re-split later. anny separates the two
+     * fields, so a consumer that needs the surname on its own (a name plate sets
+     * it several times larger than the given name) gets it exactly instead of
+     * from a heuristic. The joined form stays available as `organizer`, because
+     * every other consumer wants one string. */
+    const customers = new Map<string, { given: string; family: string; full: string }>();
     for (const inc of included) {
       if (inc.type === "customers") {
-        const first = (inc.attributes.given_name as string) ?? "";
-        const last = (inc.attributes.family_name as string) ?? "";
-        customers.set(inc.id, `${first} ${last}`.trim());
+        const given = ((inc.attributes.given_name as string) ?? "").trim();
+        const family = ((inc.attributes.family_name as string) ?? "").trim();
+        customers.set(inc.id, { given, family, full: `${given} ${family}`.trim() });
       }
     }
 
@@ -329,11 +334,16 @@ export const annyProvider: CalendarProvider = {
       if (end <= windowStart || start >= windowEnd) continue;
 
       const customerId = b.relationships?.customer?.data?.id;
-      const organizer = customerId ? (customers.get(customerId) ?? "Booked") : "Booked";
+      const customer = customerId ? customers.get(customerId) : undefined;
 
       events.push({
         subject: b.attributes.description || room.resourceName || "Booking",
-        organizer,
+        organizer: customer?.full || "Booked",
+        /* Only when anny actually gave a surname. An empty family_name must not
+         * become an empty surname downstream, or the largest rank on the sign
+         * would be blank. */
+        organizerGiven: customer?.family ? customer.given : undefined,
+        organizerSurname: customer?.family || undefined,
         startTime: start,
         endTime: end,
         isPrivate: false,

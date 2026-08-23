@@ -19,6 +19,7 @@ import { Segmented } from "@/components/ui/misc";
 import { ResourcePicker } from "@/components/resource-picker";
 import {
   MAX_SEATS,
+  READING_DISTANCE_M,
   type NamePlateConfig,
   type Seat,
   type SeatOccupant,
@@ -141,8 +142,8 @@ function CalendarSeatFields({
             /* The name is stored beside the id on purpose: the renderer falls back
              * to it when the provider is unreachable, so the band still says which
              * place it is instead of showing a bare identifier. */
-            onChange={(resourceId, resourceName, _bookingUrl, parentName) =>
-              onChange({ ...occupant, resourceId, resourceName, parentName })
+            onChange={(resourceId, resourceName, bookingUrl, parentName) =>
+              onChange({ ...occupant, resourceId, resourceName, bookingUrl, parentName })
             }
           />
         ) : (
@@ -308,6 +309,14 @@ export function NamePlateEditor({ config, onChange, providers }: Props) {
             {t("addSeat")}
           </Button>
         )}
+
+        {/* The seat count decides how far the sign can be read, and until now that
+            was invisible: four desks on one door is a legitimate choice, believing
+            it reads from down the corridor is not. */}
+        <p className="text-[12px] text-label-secondary">
+          {t("reach", { metres: (READING_DISTANCE_M[seats.length] ?? 0).toLocaleString("de-DE") })}
+          {seats.length >= 3 ? ` ${t("reachDense")}` : ""}
+        </p>
       </div>
 
       <div>
@@ -321,6 +330,46 @@ export function NamePlateEditor({ config, onChange, providers }: Props) {
           {t("showStatus")}
         </label>
         <p className="mt-1 text-[12px] text-label-tertiary">{t("showStatusHint")}</p>
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+        <div>
+          <label className="block text-sm font-medium text-label-secondary mb-1">
+            {t("accentColor")}
+          </label>
+          <select
+            className={`${selectCls} w-full`}
+            value={config.accentColor ?? "none"}
+            onChange={(e) =>
+              update({ accentColor: e.target.value as NamePlateConfig["accentColor"] })
+            }
+          >
+            {(["none", "red", "blue", "green", "yellow"] as const).map((c) => (
+              <option key={c} value={c}>
+                {t(`accent.${c}`)}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[12px] text-label-tertiary">{t("accentColorHint")}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-label-secondary mb-1">
+            {t("bookingQr")}
+          </label>
+          <select
+            className={`${selectCls} w-full`}
+            value={config.bookingQr ?? "never"}
+            disabled={seats.length !== 1 || !anyCalendar}
+            onChange={(e) => update({ bookingQr: e.target.value as NamePlateConfig["bookingQr"] })}
+          >
+            {(["never", "free", "always"] as const).map((v) => (
+              <option key={v} value={v}>
+                {t(`qr.${v}`)}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[12px] text-label-tertiary">{t("bookingQrHint")}</p>
+        </div>
       </div>
     </div>
   );

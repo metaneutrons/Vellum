@@ -93,35 +93,63 @@ design calls:
       GUEST (`…#EXT#@…onmicrosoft.com`), and a guest never carries its home tenant's
       attributes, so an HS Hannover role cannot appear through that provider however
       the code is written.
+  - Shipped in the meantime: `unit` and `role` as optional fields on a STATIC
+    name-plate seat, rendered as one line below the name and costing no height when
+    empty. Deliberately not on calendar seats, because a booking carries neither and
+    a desk booked for an afternoon should not advertise a function title. Note the
+    row layout used from two seats up does not draw them at all, since it has one
+    line per seat.
+  - Two ways out, both organisational rather than technical. Either the university
+    defines an anny customer field, since the mechanism exists and is unused, or
+    Vellum gets its own app registration in the HS Hannover tenant and reads
+    `jobTitle`/`department` there. Revisit only when one of those is agreed; a Graph
+    enrichment built against today's fill rate would be blank for most people.
 
-      Shipped in the meantime: `unit` and `role` as optional fields on a STATIC
-              name-plate seat, rendered as one line below the name and costing no height when
-              empty. Deliberately not on calendar seats, because a booking carries neither
-              and a desk booked for an afternoon should not advertise a function title.
+- [x] **The built-in mono theme rendered the name plate invisible on the E1001
+      (fixed for the two unambiguous tokens).** `resolveTheme(2)` returns
+      `THEME_MONO`, whose `footerText` and `slotSecondary` were `#888888`, and
+      `snapThemeToPalette` maps mid-grey to WHITE on a two-colour palette because
+      white is the nearer of the two in RGB distance. The name plate draws the
+      occupant in `footerText`, so a 7.5" panel drew white on white: a render
+      counted **0** ink pixels below the header band against 28 884 on the E1002.
+      Both tokens are now `#000000`, because on a two-colour panel a secondary rank
+      is a smaller size and a lighter weight, not a lighter tone.
 
-              Two ways out, both organisational rather than technical. Either the university
-              defines an anny customer field, since the mechanism exists and is unused, or
-              Vellum gets its own app registration in the HS Hannover tenant and reads
-              `jobTitle`/`department` there. Revisit only when one of those is agreed; a
-              Graph enrichment built against today's fill rate would be blank for most
-              people.
+- [ ] **Two more mid-tones in `THEME_MONO` are the same defect and are NOT
+      fixed**, because each needs a design decision rather than a colour. `eventBg`
+      is `#444444`, which snaps to black, while `slotText` is black, so a
+      room-booking event block is black on black. And `badgeText` is white on a
+      `freeBadge` that is also white, so a FREE badge has invisible text. Both turn
+      on one question: how should a 1-bit panel distinguish a filled block from an
+      outlined one, given that a single `badgeText` serves both states? The name
+      plate answered it for itself, using the header pair for filled areas and
+      nothing at all for free ones; room-booking needs the same treatment or a
+      second text colour in the schema.
 
-- [ ] **The built-in mono theme renders text invisible on the E1001.**
-      `resolveTheme(2)` returns `THEME_MONO`, whose `footerText` and `slotSecondary`
-      are `#888888`, and `snapThemeToPalette` maps mid-grey to WHITE on a two-colour
-      palette because white is the nearer of the two in RGB distance. The name plate
-      uses `footerText` for the occupant, so on a 7.5" panel it draws white on white:
-      a render counted **0** ink pixels below the header band against 28 884 on the
-      E1002. `room-booking` uses the same two colours and loses text there too. The
-      fix is small, namely no mid-tone in `THEME_MONO` (secondary rank is expressed
-      by size and weight, not tone), but it changes output for every mono device, so
-      it wants a deliberate decision plus a per-panel regression test.
+- [x] **`/api/v1/admin/preview` now snaps the theme to the palette**, as the render
+      route always did. Without it, preview and device disagreed by construction on
+      any panel whose palette moves a theme colour, which is why the mono defect
+      above showed up in no preview for months: every one of them drew the grey as
+      grey.
 
-- [ ] **`/api/v1/admin/preview` does not snap the theme to the palette.** The render
-      route calls `snapThemeToPalette`; the preview route does not. Preview and
-      device therefore disagree by construction on any panel whose palette moves a
-      theme colour, which is why the mono defect above never showed up in a preview.
-      Fix alongside it, or the fix cannot be verified from the admin UI.
+- [ ] **The QR matrix is drawn by two copies of the same arithmetic.**
+      `booking-qr.ts` now exports `drawQrMatrix`, used by the name plate;
+      `room-booking.ts` still has the same module-size and quiet-zone maths inline
+      in `renderBookingQr`, wrapped around that renderer's own panel layout and
+      label. Unify by having `renderBookingQr` call the shared function. Left alone
+      deliberately when the name plate was built, rather than refactoring a shipped
+      renderer as a side effect of a different change.
+
+- [ ] **The surname heuristic cannot detect surname-first order without a comma.**
+      `name-split.ts` reads "Ćurić Nikola" as given name "Ćurić", surname "Nikola",
+      and no rule fixes that without knowing the source's convention: a comma
+      ("Ćurić, Nikola") is honoured exactly, and so is a shouted surname
+      ("ĆURIĆ Nikola"), but bare surname-first order is genuinely ambiguous. The
+      limitation is asserted in `name-split.test.ts` so that a future change has to
+      confront it. Two ways out if it turns up in the field: a per-provider
+      name-order setting, or Microsoft Graph's `surname`/`givenName` from the
+      directory object rather than `displayName` from the event, which would need a
+      lookup per organizer and the `User.Read.All` grant that already exists.
 
 - [ ] **Trim directory values before rendering them.** The lexICT tenant contains a
       `jobTitle` of `"Consultant "` with a trailing space. Harmless today because

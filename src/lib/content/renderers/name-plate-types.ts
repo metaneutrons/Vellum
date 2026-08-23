@@ -28,6 +28,7 @@
  */
 
 import { z } from "zod";
+import { BOOKING_QR_VISIBILITIES } from "./booking-qr";
 
 /**
  * Four, deliberately.
@@ -76,6 +77,14 @@ export const seatOccupantSchema = z.discriminatedUnion("kind", [
      * the seats has already said which room this is.
      */
     parentName: z.string().optional(),
+    /**
+     * Public booking link for this resource, as the provider gave it.
+     *
+     * Stored so a plate can offer a QR code. Never derived from a name or an id:
+     * anny's resource id and its public slug are unrelated, so a guessed link
+     * leads somewhere wrong or nowhere.
+     */
+    bookingUrl: z.string().url().max(256).optional(),
   }),
 ]);
 
@@ -108,6 +117,24 @@ export const namePlateConfigSchema = z.object({
    * an empty one, which would read as a fault beside three filled ones.
    */
   showStatus: z.boolean().default(false),
+  /**
+   * Colour of the header bar, as a CLASS marker.
+   *
+   * Six-colour panels can distinguish a meeting room from an office at a glance,
+   * from further away than any text is legible. Restricted to the panel's own
+   * pigments and ignored on a panel without them, since a colour that is not in
+   * the palette snaps to whichever entry happens to be nearest and would put the
+   * header text on an unpredictable ground.
+   */
+  accentColor: z.enum(["none", "red", "blue", "green", "yellow"]).default("none"),
+  /**
+   * Whether to show a booking QR code, and when.
+   *
+   * Shown only for a plate with exactly ONE calendar seat that carries a booking
+   * link. A single code on a four-desk plate cannot say which desk it books, and
+   * an ambiguous action is worse than none.
+   */
+  bookingQr: z.enum(BOOKING_QR_VISIBILITIES).default("never"),
   locale: z.string().default("de"),
   /** Falls back to the display's zone, like every other renderer. */
   timezone: z.string().optional(),
@@ -139,3 +166,22 @@ export function resolveRoomName(config: NamePlateConfig): string | null {
   );
   return parents.size === 1 ? [...parents][0] : null;
 }
+
+/**
+ * How far a plate can be read, by seat count, on a 7.5" panel.
+ *
+ * Measured, not estimated: rendered through this renderer's own fit at
+ * 800 x 480 with a 0.204 mm pixel pitch, taking the surname rank's cap height and
+ * the distance at which it subtends 17 arcminutes (the signage rule of thumb,
+ * height = distance / 200).
+ *
+ * Shown in the editor because the seat count is the single biggest decision an
+ * operator makes about a plate, and today it is made blind. Four desks on one
+ * door is a legitimate choice; believing it reads from down the corridor is not.
+ */
+export const READING_DISTANCE_M: Record<number, number> = {
+  1: 3.7,
+  2: 2.7,
+  3: 2.0,
+  4: 1.4,
+};

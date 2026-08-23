@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, withDbRead } from "@/db";
 import { contentInstances, devices, themes } from "@/db/schema";
 import { getContentRenderer } from "@/lib/content";
-import { resolveTheme, parseTheme } from "@/lib/theme";
+import { resolveTheme, parseTheme, snapThemeToPalette } from "@/lib/theme";
 import { resolveDisplayCaps, DISPLAY_REGISTRY, type ResolvedDisplay } from "@/lib/display";
 import { requestHasPermission } from "@/lib/access";
 
@@ -92,6 +92,15 @@ export async function GET(request: NextRequest) {
     const parsed = parseTheme(dbTheme?.config);
     if (parsed) theme = parsed;
   }
+
+  /* Same snap as the render route, and it belongs here for the same reason it
+   * belongs there: a theme colour the panel cannot produce is resolved to one it
+   * can, and the renderers then get exact palette entries instead of values the
+   * quantiser will move underneath them. Without this the preview and the device
+   * disagreed by construction on any panel whose palette shifts a colour, which
+   * is how a mono theme that drew white on white went unnoticed for months: every
+   * preview showed it as grey on white. */
+  theme = snapThemeToPalette(theme, display.palette);
 
   const result = await renderer.render({
     config: instance.config,

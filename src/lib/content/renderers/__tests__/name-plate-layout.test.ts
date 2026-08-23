@@ -63,12 +63,12 @@ describe("seatBands", () => {
   });
 });
 
-const LABELS = { free: "Frei", unknown: "Keine Verbindung" };
+const LABELS = { free: "Frei", busy: "Belegt", unknown: "Keine Verbindung" };
 
 describe("bandContent", () => {
   /* The roles are fixed: the ROOM is in the header, the SEAT is the caption, the
-   * big line is the person. The bug this replaced put the resource name in the
-   * big line whenever a seat was free, so an empty desk rendered as
+   * big rank is the person. The bug this replaced put the resource name in the
+   * big rank whenever a seat was free, so an empty desk rendered as
    * "Föhr 1 (1J.2.27)" in the slot meant for a person and read like one. */
   it("says nobody is there instead of putting the place in the name slot", () => {
     const c = bandContent(
@@ -77,18 +77,48 @@ describe("bandContent", () => {
       false,
       LABELS
     );
-    expect(c.name).toBe("Frei");
+    expect(c.notice).toBe("Frei");
+    expect(c.ranks).toBeNull();
     expect(c.caption).toBe("Föhr 1 (1J.2.27)");
   });
 
-  it("puts the occupant in the name slot and the seat in the caption", () => {
+  /* A state is not a name, so it must not arrive as ranks: `drawBand` sets ranks
+   * bold at the largest size and a notice light at the smallest, and the branch is
+   * chosen here rather than there. */
+  it("never turns a state into ranks", () => {
+    for (const state of [
+      { occupant: null, placeLabel: "Föhr 1" },
+      { occupant: null, placeLabel: "Föhr 1", unreachable: true },
+    ]) {
+      expect(bandContent(calendarSeat(), state, false, LABELS).ranks).toBeNull();
+    }
+  });
+
+  it("puts the occupant in the ranks and the seat in the caption", () => {
     const c = bandContent(
       calendarSeat(),
-      { occupant: "Schmieder", placeLabel: "Föhr 1", detail: "bis 12:00" },
+      { occupant: "Fabian Schmieder", placeLabel: "Föhr 1", detail: "bis 12:00" },
       true,
       LABELS
     );
-    expect(c).toMatchObject({ caption: "Föhr 1", name: "Schmieder", status: "bis 12:00" });
+    expect(c.caption).toBe("Föhr 1");
+    expect(c.ranks).toEqual({ titles: "", given: "Fabian", surname: "Schmieder" });
+    expect(c.pill).toBe("bis 12:00");
+  });
+
+  /* A provider that separates the two knows something no heuristic can recover,
+   * so its split has to win. */
+  it("believes the provider's own split over the heuristic", () => {
+    const c = bandContent(
+      calendarSeat(),
+      {
+        occupant: "Nikola Ćurić",
+        ranks: { titles: "", given: "Nikola", surname: "Ćurić" },
+      },
+      false,
+      LABELS
+    );
+    expect(c.ranks).toEqual({ titles: "", given: "Nikola", surname: "Ćurić" });
   });
 
   /* showStatus governs the DETAIL, not whether the state is admitted: a plate that
@@ -96,19 +126,29 @@ describe("bandContent", () => {
    * lookup. */
   it("still reveals a free seat when the detail is switched off", () => {
     const c = bandContent(calendarSeat(), { occupant: null, placeLabel: "Föhr 1" }, false, LABELS);
-    expect(c.name).toBe("Frei");
-    expect(c.status).toBeNull();
+    expect(c.notice).toBe("Frei");
+    expect(c.pill).toBeNull();
   });
 
-  it("drops only the detail when status is switched off", () => {
+  it("keeps the pill but drops the detail when status is switched off", () => {
     const c = bandContent(
       calendarSeat(),
       { occupant: "Schmieder", placeLabel: "Föhr 1", detail: "bis 12:00" },
       false,
       LABELS
     );
-    expect(c.name).toBe("Schmieder");
-    expect(c.status).toBeNull();
+    expect(c.ranks?.surname).toBe("Schmieder");
+    expect(c.pill).toBe("Belegt");
+  });
+
+  /* A filled area means occupied and its absence means free, so a free seat and
+   * an unreachable one must both come back without a pill. */
+  it("gives a pill only to an occupied calendar seat", () => {
+    expect(bandContent(calendarSeat(), { occupant: null }, true, LABELS).pill).toBeNull();
+    expect(
+      bandContent(calendarSeat(), { occupant: null, unreachable: true }, true, LABELS).pill
+    ).toBeNull();
+    expect(bandContent(staticSeat("Müller"), { occupant: "Müller" }, true, LABELS).pill).toBeNull();
   });
 
   /* An operator's own caption beats the provider's name for the same seat. */
@@ -123,11 +163,48 @@ describe("bandContent", () => {
   });
 
   /* A static seat is always occupied by the person named, has no place label and
-   * no state, so it composes one line. */
+   * no state, so a one-word name composes one line. */
   it("gives a static seat its name and nothing else", () => {
     const c = bandContent(staticSeat("Müller"), { occupant: "Müller" }, true, LABELS);
-    expect(c).toMatchObject({ caption: null, name: "Müller", status: null });
+    expect(c).toMatchObject({ caption: null, pill: null });
+    expect(c.ranks).toEqual({ titles: "", given: "", surname: "Müller" });
     expect(bandLineCount(c)).toBe(1);
+  });
+
+  /* The line count is what divides the band's height, so each rank that is
+   * actually drawn has to be counted and nothing else. */
+  it("counts one line per rank it will draw", () => {
+    const one = bandContent(staticSeat("Müller"), { occupant: "Müller" }, false, LABELS);
+    expect(bandLineCount(one)).toBe(1);
+
+    const two = bandContent(
+      staticSeat("Fabian Müller"),
+      { occupant: "Fabian Müller" },
+      false,
+      LABELS
+    );
+    expect(bandLineCount(two)).toBe(2);
+
+    const three = bandContent(
+      staticSeat("Prof. Dr. Fabian Müller"),
+      { occupant: "Prof. Dr. Fabian Müller" },
+      false,
+      LABELS
+    );
+    expect(bandLineCount(three)).toBe(3);
+  });
+
+  /* The pill sits beside the stack, so it costs width and no height. Counting it
+   * would shrink the surname to make room for nothing. */
+  it("does not count the pill as a line", () => {
+    const withPill = bandContent(
+      calendarSeat(),
+      { occupant: "Müller", detail: "bis 12:00" },
+      true,
+      LABELS
+    );
+    expect(withPill.pill).toBe("bis 12:00");
+    expect(bandLineCount(withPill)).toBe(1);
   });
 
   it("keeps a caption on a static seat", () => {
@@ -157,9 +234,9 @@ describe("bandContent", () => {
       false,
       LABELS
     );
-    expect(off.name).toBe("Keine Verbindung");
-    expect(off.name).not.toBe(
-      bandContent(calendarSeat(), { occupant: null, placeLabel: "Föhr 1" }, false, LABELS).name
+    expect(off.notice).toBe("Keine Verbindung");
+    expect(off.notice).not.toBe(
+      bandContent(calendarSeat(), { occupant: null, placeLabel: "Föhr 1" }, false, LABELS).notice
     );
   });
 });
