@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import type { CalendarProvider, CalendarEvent } from "../types";
+import type { CalendarProvider, CalendarEvent, ResourceRef } from "../types";
 import { log } from "@/lib/logger";
 
 const ANNY_BASE = "https://b.anny.co/api/v1";
@@ -151,8 +151,86 @@ export async function fetchAnnyOrganizations(
   }));
 }
 
+interface AnnyResource {
+  id: string;
+  type?: string;
+  attributes: { name: string; description?: string; slug?: string; archived?: boolean };
+  relationships?: { children?: { data?: { id: string }[] } };
+}
+
+function toResourceRef(r: AnnyResource, parent?: AnnyResource): ResourceRef {
+  return {
+    id: r.id,
+    name: r.attributes.name,
+    description: r.attributes.description,
+    /* A resource ID and its public booking slug are unrelated. Only build a
+     * direct link when anny explicitly supplied the latter. */
+    bookingUrl: r.attributes.slug
+      ? `https://anny.co/b/book/${encodeURIComponent(r.attributes.slug)}`
+      : undefined,
+    parentId: parent?.id,
+    parentName: parent?.attributes.name,
+  };
+}
+
 /**
- * Fetch resources (rooms) from anny for a specific organization.
+ * Flatten anny's parent/child resources into one selectable list.
+ *
+ * Each seat follows its room directly, so a caller can indent by `parentId`
+ * without holding a tree. Archived resources are dropped at either level:
+ * offering one would set up a display that can never show a booking.
+ *
+ * Separated from the request so the ordering and the archived rule can be tested
+ * without the network.
+ */
+export function flattenAnnyResources(
+  data: AnnyResource[],
+  included: AnnyResource[]
+): ResourceRef[] {
+  const byId = new Map(
+    included.filter((i) => !i.type || i.type === "resources").map((i) => [i.id, i])
+  );
+
+  const out: ResourceRef[] = [];
+  for (const parent of data) {
+    if (parent.attributes.archived) continue;
+    out.push(toResourceRef(parent));
+    for (const ref of parent.relationships?.children?.data ?? []) {
+      const child = byId.get(ref.id);
+      if (!child || child.attributes.archived) continue;
+      out.push(toResourceRef(child, parent));
+    }
+  }
+  return out;
+}
+
+/**
+ * Fetch resources from anny, INCLUDING the seats inside a room.
+ *
+ * anny models a flex office as a parent resource with one child per desk, and
+ * each child is a first-class resource with its own id and its own bookings:
+ * "S1 3er Flexbüro Sylt (1J.2.24)" contains "Sylt 1", "Sylt2", "Sylt 3". The
+ * flat resource list returns PARENTS ONLY — 30 entries for an estate where 18 of
+ * them have children — so a picker built on it could not reach a single seat, and
+ * a name plate for a three-desk door had no way to name its three occupants.
+ *
+ * Two things about this are easy to get wrong and were verified against the live
+ * API rather than assumed:
+ *
+ *   `children` MUST appear in `fields[resources]`. JSON:API sparse fieldsets
+ *   limit relationships as well as attributes, so `include=children` alongside
+ *   the previous `name,description,slug` returned zero children — silently, with
+ *   a 200.
+ *
+ *   `filter[search]` matches PARENTS. Searching a room's name brings its seats
+ *   along through the include, which covers the ordinary case ("Sylt" → the room
+ *   and its three desks). A seat whose own name shares no word with its parent
+ *   cannot be found by that name alone; here "Sylt2" written without a space
+ *   returns nothing while "Sylt 2" would match. That is anny's filter, not ours,
+ *   and it is why the picker also matches locally over what came back.
+ *
+ * Returned flat, each seat directly after its room and carrying `parentName`, so
+ * a caller can indent without holding a tree.
  */
 export async function fetchAnnyResources(
   apiToken: string,
@@ -160,39 +238,28 @@ export async function fetchAnnyResources(
   search?: string,
   page = 1,
   perPage = 20
-): Promise<{
-  resources: { id: string; name: string; description?: string; bookingUrl?: string }[];
-  total: number;
-}> {
+): Promise<{ resources: ResourceRef[]; total: number }> {
   const params: Record<string, string> = {
     "page[number]": String(page),
     "page[size]": String(perPage),
-    "fields[resources]": "name,description,slug",
+    /* children and archived are load-bearing here; see the note above. */
+    "fields[resources]": "name,description,slug,children,archived",
+    include: "children",
   };
   if (search) {
     params["filter[search]"] = search;
   }
 
   const result = await annyFetch("/resources", apiToken, organizationId, params);
-
-  const resources = (
-    result.data as {
-      id: string;
-      attributes: { name: string; description?: string; slug?: string };
-    }[]
-  ).map((r) => ({
-    id: r.id,
-    name: r.attributes.name,
-    description: r.attributes.description,
-    // A resource ID and its public booking slug are unrelated. Only build a
-    // direct link when Anny explicitly supplied the latter.
-    bookingUrl: r.attributes.slug
-      ? `https://anny.co/b/book/${encodeURIComponent(r.attributes.slug)}`
-      : undefined,
-  }));
+  const resources = flattenAnnyResources(
+    result.data as AnnyResource[],
+    (result.included ?? []) as AnnyResource[]
+  );
 
   return {
     resources,
+    /* The page total counts PARENTS, which is what paging is over. Reporting the
+     * flattened length instead would make the last page look short. */
     total: (result.meta?.page?.total as number) ?? resources.length,
   };
 }

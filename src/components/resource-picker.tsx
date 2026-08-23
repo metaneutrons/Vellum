@@ -11,6 +11,9 @@ interface Resource {
   name: string;
   description?: string;
   bookingUrl?: string;
+  /** Set when this is a seat inside a room; see ResourceRef in calendar/types. */
+  parentId?: string;
+  parentName?: string;
 }
 
 interface Props {
@@ -83,6 +86,18 @@ export function ResourcePicker({ providerId, resourceId, resourceName, onChange 
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  /* anny's filter matches PARENTS, so a room's name brings its seats along but a
+   * seat's own name may not reach the server at all. Matching locally over what
+   * came back lets the operator narrow to one seat once the room is on screen. */
+  const needle = search.trim().toLowerCase();
+  const shown = needle
+    ? results.filter(
+        (r) =>
+          r.name.toLowerCase().includes(needle) ||
+          (r.parentName ?? "").toLowerCase().includes(needle)
+      )
+    : results;
+
   function select(r: Resource) {
     setSelectedName(r.name);
     setSearch("");
@@ -140,21 +155,28 @@ export function ResourcePicker({ providerId, resourceId, resourceName, onChange 
       {open && (
         <div className="absolute z-50 w-full mt-1 bg-surface border border-separator rounded-lg shadow-e3 max-h-64 overflow-y-auto">
           {loading && <div className="px-3 py-2 text-sm text-label-tertiary">{t("loading")}</div>}
-          {!loading && results.length === 0 && (
+          {!loading && shown.length === 0 && (
             <div className="px-3 py-2 text-sm text-label-tertiary">
               {search ? t("noResults") : t("noResources")}
             </div>
           )}
-          {results.map((r) => (
+          {shown.map((r) => (
             <button
               key={r.id}
               type="button"
               onClick={() => select(r)}
-              className={`w-full text-left px-3 py-2 hover:bg-surface-secondary focus-ring text-sm border-b border-separator last:border-0 ${r.id === resourceId ? "bg-accent-soft font-medium" : ""}`}
+              /* Seats are indented under their room. The provider returns them
+               * directly after it, so the order alone already groups them; the
+               * indent and the room name make that visible rather than implied. */
+              className={`w-full text-left py-2 pr-3 hover:bg-surface-secondary focus-ring text-sm border-b border-separator last:border-0 ${r.parentId ? "pl-7" : "pl-3"} ${r.id === resourceId ? "bg-accent-soft font-medium" : ""}`}
             >
               <div className="font-medium text-label">{r.name}</div>
-              {r.description && (
-                <div className="text-xs text-label-tertiary truncate">{r.description}</div>
+              {r.parentName ? (
+                <div className="text-xs text-label-tertiary truncate">{r.parentName}</div>
+              ) : (
+                r.description && (
+                  <div className="text-xs text-label-tertiary truncate">{r.description}</div>
+                )
               )}
             </button>
           ))}

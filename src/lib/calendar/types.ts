@@ -24,6 +24,17 @@ export interface ResourceRef {
   description?: string;
   /** Public booking link, when the provider exposes one for this resource. */
   bookingUrl?: string;
+  /**
+   * The resource this one sits inside, when it is a seat within a room.
+   *
+   * anny models a flex office as a parent resource with one child per desk, each
+   * a first-class resource with its own id and its own bookings — "S1 3er
+   * Flexbüro Sylt" contains "Sylt 1", "Sylt2", "Sylt 3". A name plate for that
+   * door wants one band per SEAT, so the seats have to be selectable, and a bare
+   * list of them would be unreadable without saying which room they belong to.
+   */
+  parentId?: string;
+  parentName?: string;
 }
 
 export interface CalendarProvider {
