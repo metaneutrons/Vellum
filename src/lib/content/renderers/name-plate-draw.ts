@@ -33,23 +33,33 @@ import {
  * on a wide panel no longer sits in the middle, which is the price of having one
  * layout instead of two.
  */
+/** How one line is set. Grouped, because nine positional arguments is not a call. */
+export interface TextStyle {
+  size: number;
+  color: string;
+  /** Default regular: only the surname and the header are set bold. */
+  bold?: boolean;
+  /** Overrides the body family, for the surname rank when it is set narrow. */
+  family?: string;
+  /**
+   * Passed to `fillText`, which SQUEEZES rather than clips. Every caller here has
+   * already fitted its text to this width, so it is a backstop and not the layout.
+   */
+  maxWidth: number;
+}
+
 export function drawLeft(
   t: TypeCtx,
   text: string,
   x: number,
   baseline: number,
-  size: number,
-  color: string,
-  bold: boolean,
-  maxWidth: number,
-  /** Overrides the body family, for the surname rank when it is set narrow. */
-  family = t.ff
+  style: TextStyle
 ): void {
-  t.ctx.font = `${bold ? "bold " : ""}${size}px "${family}"`;
-  t.ctx.fillStyle = color;
+  t.ctx.font = `${style.bold ? "bold " : ""}${style.size}px "${style.family ?? t.ff}"`;
+  t.ctx.fillStyle = style.color;
   t.ctx.textAlign = "left";
   t.ctx.textBaseline = "alphabetic";
-  t.ctx.fillText(text, x, baseline, maxWidth);
+  t.ctx.fillText(text, x, baseline, style.maxWidth);
 }
 
 /**
@@ -79,16 +89,12 @@ export function drawPill(
 
   t.ctx.fillStyle = colors.pillBg;
   t.ctx.fillRect(x, y, w, h);
-  drawLeft(
-    t,
-    text,
-    x + padX,
-    Math.round(y + padY + size * CAP_RATIO),
+  drawLeft(t, text, x + padX, Math.round(y + padY + size * CAP_RATIO), {
     size,
-    colors.pillText,
-    true,
-    w
-  );
+    color: colors.pillText,
+    bold: true,
+    maxWidth: w,
+  });
 }
 
 /**
@@ -107,9 +113,9 @@ export function drawStack(
   colors: BandColors,
   stackWidth: number
 ): void {
-  const lines: { text: string; size: number; color: string; bold: boolean; family: string }[] = [];
-  const push = (text: string, size: number, color: string, bold: boolean, family = t.ff) =>
-    lines.push({ text, size, color, bold, family });
+  const lines: { text: string; style: TextStyle }[] = [];
+  const push = (text: string, size: number, color: string, bold = false, family?: string) =>
+    lines.push({ text, style: { size, color, bold, family, maxWidth: 0 } });
 
   if (content.caption) push(content.caption, sizes.secondary, colors.secondary, false);
   if (content.ranks) {
@@ -145,24 +151,17 @@ export function drawStack(
    * it was, because 0.3 of a caption is smaller than 0.14 of the surname. */
   const baseGap = Math.round(sizes.surname * 0.14);
   const gapAfter = (size: number) => Math.max(baseGap, Math.round(size * 0.3));
-  const capHeights = lines.map((l) => l.size * CAP_RATIO);
-  const gaps = lines.slice(0, -1).map((l) => gapAfter(l.size));
+  const capHeights = lines.map((l) => l.style.size * CAP_RATIO);
+  const gaps = lines.slice(0, -1).map((l) => gapAfter(l.style.size));
   const blockH = capHeights.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0);
 
   let y = band.y + (band.h - blockH) / 2;
   lines.forEach((line, i) => {
     /* y is the cap TOP of this line, so the baseline sits one cap height below. */
-    drawLeft(
-      t,
-      line.text,
-      band.x,
-      Math.round(y + capHeights[i]),
-      line.size,
-      line.color,
-      line.bold,
-      stackWidth,
-      line.family
-    );
+    drawLeft(t, line.text, band.x, Math.round(y + capHeights[i]), {
+      ...line.style,
+      maxWidth: stackWidth,
+    });
     y += capHeights[i] + (gaps[i] ?? 0);
   });
 }
@@ -193,32 +192,22 @@ export function drawRow(
 ): void {
   const centerY = band.y + band.h / 2;
   if (content.caption && gutterW > 0) {
-    drawLeft(
-      t,
-      content.caption,
-      band.x,
-      Math.round(centerY + sizes.secondary * CAP_RATIO * 0.5),
-      sizes.secondary,
-      colors.secondary,
-      false,
-      gutterW
-    );
+    drawLeft(t, content.caption, band.x, Math.round(centerY + sizes.secondary * CAP_RATIO * 0.5), {
+      size: sizes.secondary,
+      color: colors.secondary,
+      maxWidth: gutterW,
+    });
   }
 
   const x = band.x + gutterW;
   if (content.ranks) {
     drawRowName(t, content.ranks, x, centerY, sizes, colors, nameWidth);
   } else if (content.notice) {
-    drawLeft(
-      t,
-      content.notice,
-      x,
-      Math.round(centerY + sizes.notice * CAP_RATIO * 0.5),
-      sizes.notice,
-      colors.secondary,
-      false,
-      nameWidth
-    );
+    drawLeft(t, content.notice, x, Math.round(centerY + sizes.notice * CAP_RATIO * 0.5), {
+      size: sizes.notice,
+      color: colors.secondary,
+      maxWidth: nameWidth,
+    });
   }
 }
 
@@ -233,17 +222,13 @@ export function drawRowName(
   nameWidth: number
 ): void {
   const baseline = Math.round(centerY + sizes.surname * CAP_RATIO * 0.5);
-  drawLeft(
-    t,
-    ranks.surname,
-    x,
-    baseline,
-    sizes.surname,
-    colors.name,
-    true,
-    nameWidth,
-    sizes.surnameFamily
-  );
+  drawLeft(t, ranks.surname, x, baseline, {
+    size: sizes.surname,
+    color: colors.name,
+    bold: true,
+    family: sizes.surnameFamily,
+    maxWidth: nameWidth,
+  });
   if (!ranks.given) return;
   /* The size search measured exactly this composition, surname plus gap plus
    * given name at its fraction, so the two cannot collide. */
@@ -251,16 +236,11 @@ export function drawRowName(
     x +
     measureAt(t, ranks.surname, sizes.surname, true, sizes.surnameFamily) +
     Math.round(sizes.surname * ROW_NAME_GAP);
-  drawLeft(
-    t,
-    ranks.given,
-    gx,
-    baseline,
-    sizes.given,
-    colors.name,
-    false,
-    Math.max(0, x + nameWidth - gx)
-  );
+  drawLeft(t, ranks.given, gx, baseline, {
+    size: sizes.given,
+    color: colors.name,
+    maxWidth: Math.max(0, x + nameWidth - gx),
+  });
 }
 
 /**
@@ -328,16 +308,12 @@ export function drawHeader(
     min: 12,
     max: Math.round(34 * scale),
   });
-  drawLeft(
-    t,
-    room,
-    pad,
-    Math.round(headerH / 2 + roomSize * CAP_RATIO * 0.5),
-    roomSize,
-    fg,
-    true,
-    roomWidth
-  );
+  drawLeft(t, room, pad, Math.round(headerH / 2 + roomSize * CAP_RATIO * 0.5), {
+    size: roomSize,
+    color: fg,
+    bold: true,
+    maxWidth: roomWidth,
+  });
 }
 
 /**
@@ -374,16 +350,11 @@ export function drawQrPanel(
   );
   t.ctx.font = `${labelSize}px ${t.ff}`;
   const labelW = t.ctx.measureText(label).width;
-  drawLeft(
-    t,
-    label,
-    x + Math.round((drawn - labelW) / 2),
-    height - footerH - pad,
-    labelSize,
-    labelColor,
-    false,
-    drawn
-  );
+  drawLeft(t, label, x + Math.round((drawn - labelW) / 2), height - footerH - pad, {
+    size: labelSize,
+    color: labelColor,
+    maxWidth: drawn,
+  });
 }
 
 /**
@@ -416,21 +387,16 @@ export function drawFooter(
   const baseline = (size: number) => Math.round(y + footerH / 2 + size * CAP_RATIO * 0.5);
   if (state) {
     const size = Math.max(11, Math.round(26 * scale));
-    drawLeft(t, state, pad, baseline(size), size, color, true, width / 2);
+    drawLeft(t, state, pad, baseline(size), { size, color, bold: true, maxWidth: width / 2 });
   }
 
   const markSize = Math.max(11, Math.round(20 * scale));
   t.ctx.font = `${markSize}px ${t.ff}`;
-  drawLeft(
-    t,
-    mark,
-    width - pad - t.ctx.measureText(mark).width,
-    baseline(markSize),
-    markSize,
+  drawLeft(t, mark, width - pad - t.ctx.measureText(mark).width, baseline(markSize), {
+    size: markSize,
     color,
-    false,
-    width / 2
-  );
+    maxWidth: width / 2,
+  });
 }
 
 /**

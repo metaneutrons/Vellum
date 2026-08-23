@@ -299,6 +299,44 @@ function drawBands(
 }
 
 /**
+ * The panel's fixed measurements, before a word is measured.
+ *
+ * The header's HEIGHT never depended on the face, so it is settled here even
+ * though the bar cannot be drawn until the face is chosen. The footer is
+ * unconditional, because the freshness mark is not optional: e-paper holds its
+ * image without power, so a frozen panel is indistinguishable from a current one,
+ * and that is the one hazard peculiar to this medium. Without a time on the sign
+ * nobody can decide whether to trust it.
+ */
+function plateFrame(
+  config: NamePlateConfig,
+  width: number,
+  height: number
+): { shortSide: number; pad: number; scale: number; headerH: number; footerH: number } {
+  const shortSide = Math.min(width, height);
+  const scale = shortSide / 480;
+  return {
+    shortSide,
+    pad: Math.round(shortSide * 0.06),
+    scale,
+    headerH: resolveRoomName(config) ? Math.round(75 * scale) : 0,
+    footerH: Math.round(60 * scale),
+  };
+}
+
+/**
+ * The faces to try for the surname, body family first.
+ *
+ * First wins a tie, which is what confines the narrow cut to the plates where it
+ * buys something: where the height binds, both reach the same size and the sign
+ * stays in one face.
+ */
+function surnameCandidates(bodyFamily: string): string[] {
+  const narrow = narrowFontFamily();
+  return narrow ? [bodyFamily, narrow] : [bodyFamily];
+}
+
+/**
  * Which theme colour each rank is drawn in.
  *
  * The filled areas take the HEADER pair rather than the body's, because that is
@@ -327,22 +365,7 @@ async function render(params: RenderParams): Promise<RenderResult> {
   const canvas = newPlateCanvas(width, height, T.background);
   const ctx = canvas.getContext("2d");
 
-  const shortSide = Math.min(width, height);
-  const pad = Math.round(shortSide * 0.06);
-  const scale = shortSide / 480;
-  /* The bar's HEIGHT never depended on the face, so it can be settled before the
-   * face is chosen; the drawing has to wait until it is. */
-  const headerH = resolveRoomName(config) ? Math.round(75 * scale) : 0;
-
-  /* The footer is always present, because the freshness mark is not optional.
-   * E-paper holds its image without power, so a frozen panel is indistinguishable
-   * from a current one, and that is the one hazard peculiar to this medium:
-   * without a time on the sign nobody can decide whether to trust it.
-   *
-   * On a single-seat plate the footer also carries that seat's state, which is
-   * where a filled area pays best: the strip spans the panel and the name keeps
-   * the whole width it would otherwise share with a pill. */
-  const footerH = Math.round(60 * scale);
+  const { shortSide, pad, scale, headerH, footerH } = plateFrame(config, width, height);
   const soleState = config.seats.length === 1 ? contents[0].pill : null;
 
   const bands = seatBands(config.seats.length, width, height - footerH, pad, headerH);
@@ -353,12 +376,9 @@ async function render(params: RenderParams): Promise<RenderResult> {
 
   const t: TypeCtx = { ctx, ff: ensureRenderFonts() };
 
-  /* The body family first, so it wins a tie: the narrow cut is then used only where
-   * it buys the surname something, which is exactly where the type ran out of width
-   * before it ran out of height. It is confined to that ONE rank, so a corridor
-   * never ends up holding two kinds of sign. */
-  const narrow = narrowFontFamily();
-  const plan = choosePlan(t, narrow ? [t.ff, narrow] : [t.ff], contents, {
+  /* The narrow cut is confined to the surname rank, so a corridor never ends up
+   * holding two kinds of sign. */
+  const plan = choosePlan(t, surnameCandidates(t.ff), contents, {
     bandW,
     bandH,
     shortSide,
