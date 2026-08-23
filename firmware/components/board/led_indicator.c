@@ -38,7 +38,12 @@ static uint32_t                   s_ledc_ready;
 /* Resolution and the arithmetic live in led_pattern.h, where host tests reach
  * them. Timer 1 because the backlight owns timer 0 on the D1001 and the buzzer
  * owns it on the E-Series; indicators must not reach into either. */
-#define LEDC_BITS      LEDC_TIMER_10_BIT
+/* Derived, not repeated: board_led_duty_for() scales against
+ * BOARD_LED_DUTY_FULL, so a resolution stated twice could drift and leave the
+ * arithmetic computing against a range the hardware does not have. The enum is
+ * numerically the bit count (LEDC_TIMER_1_BIT = 1, ascending), so the cast is
+ * exact rather than convenient. */
+#define LEDC_BITS      ((ledc_timer_bit_t)BOARD_LED_DUTY_BITS)
 #define LEDC_TIMER_LED LEDC_TIMER_1
 #define LEDC_FREQ_HZ   5000
 
