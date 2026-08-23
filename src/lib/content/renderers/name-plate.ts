@@ -24,7 +24,7 @@ import { TZDate } from "@date-fns/tz";
 import { getCalendarProvider } from "@/lib/calendar/registry";
 import { getProviderWithCredentials } from "@/lib/providers";
 import { TtlCache } from "@/lib/cache";
-import { ensureRenderFonts } from "@/lib/render/fonts";
+import { ensureRenderFonts, narrowFontFamily } from "@/lib/render/fonts";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Theme } from "@/lib/theme";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
@@ -270,13 +270,12 @@ function drawPlateHeader(
   T: Theme,
   geom: { width: number; pad: number; scale: number },
   accentable: boolean
-): number {
+): void {
   const room = resolveRoomName(config);
-  if (!room) return 0;
+  if (!room) return;
   const headerH = Math.round(75 * geom.scale);
   const accent = accentable ? ACCENTS[config.accentColor] : undefined;
   drawHeader(t, room, { ...geom, headerH }, accent?.bg ?? T.headerBg, accent?.fg ?? T.headerText);
-  return headerH;
 }
 
 /** Every band, in whichever composition the plan chose, plus its state pill. */
@@ -331,10 +330,9 @@ async function render(params: RenderParams): Promise<RenderResult> {
   const shortSide = Math.min(width, height);
   const pad = Math.round(shortSide * 0.06);
   const scale = shortSide / 480;
-  const t: TypeCtx = { ctx, ff: ensureRenderFonts() };
-
-  const accentable = colorCount > 2 && colorMode !== "grayscale";
-  const headerH = drawPlateHeader(t, config, T, { width, pad, scale }, accentable);
+  /* The bar's HEIGHT never depended on the face, so it can be settled before the
+   * face is chosen; the drawing has to wait until it is. */
+  const headerH = resolveRoomName(config) ? Math.round(75 * scale) : 0;
 
   /* The footer is always present, because the freshness mark is not optional.
    * E-paper holds its image without power, so a frozen panel is indistinguishable
@@ -353,13 +351,26 @@ async function render(params: RenderParams): Promise<RenderResult> {
 
   const budget = widthBudget(config, contents, labels, bands, scale);
 
-  const plan = choosePlan(t, contents, {
+  /* The normal cut first, so it wins a tie: the narrow one is then used only where
+   * it buys the surname something, which is exactly where the type ran out of width
+   * before it ran out of height. */
+  const narrow = narrowFontFamily();
+  const families = narrow ? [ensureRenderFonts(), narrow] : [ensureRenderFonts()];
+  const plan = choosePlan(ctx, families, contents, {
     bandW,
     bandH,
     shortSide,
     reserved: budget.reserved,
     scale,
   });
+
+  /* One face per sign. Everything from the room name to the freshness mark is set
+   * in whichever cut the plan chose, because two faces on one plate would read as
+   * a mistake rather than as a decision. */
+  const t: TypeCtx = { ctx, ff: plan.family };
+  const accentable = colorCount > 2 && colorMode !== "grayscale";
+  drawPlateHeader(t, config, T, { width, pad, scale }, accentable);
+
   const colors = plateColors(T);
 
   drawSeparators(ctx, bands, T.slotSecondary, scale);
