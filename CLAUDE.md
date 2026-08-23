@@ -59,6 +59,21 @@ socket`" does NOT apply to Vellum.
   63 / functions 67 / lines 70, enforced by the required CI "Test" job. Raise,
   never lower. Only modules the suite imports are measured, so `scripts/` is out
   of scope and adding an untested script cannot move the number.
+- **Codacy's complexity gate is Lizard, its limit is 50 NON-COMMENT lines per
+  function, and it fails the check on ANY issue ("≤ 0 issues of at least minor
+  severity"). Reproduce it locally before pushing rather than guessing:
+  `pip install lizard` in a venv, then
+  `lizard -l typescript <files>` — the NLOC column is what Codacy quotes, and its
+  own `length` column (which counts comments) is not.** Two traps cost a full
+  round trip each. Lizard **loses any function whose return type is a COMPOSED type
+  containing an object literal** (`X & { ... }`, `X | { ... }`; a bare `{ ... }` is
+  fine) and attributes its body to the neighbouring function, which is how a
+  10-line `choosePlan` was reported as 67 lines. Name such return types. It also
+  applies an NLOC ceiling per FILE; 739 tripped it, so a renderer that grows past a
+  few hundred lines wants splitting by concern (`name-plate.ts` became
+  `-scale`/`-draw`/`-sizes` plus the renderer). Note ESLint's own `complexity` and
+  `max-lines-per-function` rules are NOT enabled here, so `pnpm lint` says nothing
+  about either.
 - **Coverage is not reproducible to the last statement, so keep ~1pp of margin
   and calibrate against CI, never a local run.** CI runs Node 22 (`.nvmrc`) and v8
   counts statements differently per version (70.24 local vs 70.12 CI), and CI

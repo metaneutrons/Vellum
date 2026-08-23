@@ -9,7 +9,8 @@
 
 import { describe, it, expect } from "vitest";
 import { createCanvas } from "@napi-rs/canvas";
-import { planSizes, CAP_RATIO, type TypeCtx } from "../name-plate";
+import { CAP_RATIO, type TypeCtx } from "../name-plate-scale";
+import { choosePlan } from "../name-plate-sizes";
 import { bandContent, seatBands } from "../name-plate-layout";
 import { seatSchema, READING_DISTANCE_M } from "../name-plate-types";
 import { ensureRenderFonts } from "@/lib/render/fonts";
@@ -36,13 +37,16 @@ function reachMetres(n: number): { rowMode: boolean; metres: number } {
   /* Mirrors the renderer's own geometry: 6 % padding, a 75 px header and the
    * 60 px footer that carries the freshness mark. */
   const bands = seatBands(n, 800, 480 - 60, 29, 75);
-  const geom = { bandW: bands[0].w, bandH: bands[0].h, shortSide: 480, reserved: 0, scale: 1 };
-  const stacked = planSizes(t, contents, { ...geom, rowMode: false });
-  const rowed = planSizes(t, contents, { ...geom, rowMode: true });
-  const rowMode = rowed.sizes.surname > stacked.sizes.surname;
-  const capMm = (rowMode ? rowed : stacked).sizes.surname * CAP_RATIO * PITCH_MM;
+  const plan = choosePlan(t, contents, {
+    bandW: bands[0].w,
+    bandH: bands[0].h,
+    shortSide: 480,
+    reserved: 0,
+    scale: 1,
+  });
+  const capMm = plan.sizes.surname * CAP_RATIO * PITCH_MM;
   return {
-    rowMode,
+    rowMode: plan.rowMode,
     metres: capMm / Math.tan((COMFORT_ARCMIN / 60) * (Math.PI / 180)) / 1000,
   };
 }
