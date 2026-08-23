@@ -178,10 +178,14 @@ export function resolveRoomName(config: NamePlateConfig): string | null {
  * Shown in the editor because the seat count is the single biggest decision an
  * operator makes about a plate, and today it is made blind. Four desks on one
  * door is a legitimate choice; believing it reads from down the corridor is not.
+ *
+ * The two-seat figure includes the narrow cut, which wins there because the width
+ * binds. At three and four seats the HEIGHT binds and the narrow cut buys nothing,
+ * which is why those two numbers did not move when it was installed.
  */
 export const READING_DISTANCE_M: Record<number, number> = {
   1: 3.7,
-  2: 2.7,
+  2: 3.0,
   3: 2.0,
   4: 1.4,
 };

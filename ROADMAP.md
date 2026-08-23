@@ -140,29 +140,36 @@ design calls:
       deliberately when the name plate was built, rather than refactoring a shipped
       renderer as a side effect of a different change.
 
-- [ ] **The narrow cut has its mechanism but no face.** `fonts.ts` registers an
-      optional second family, `choosePlan` compares faces as well as compositions and
-      keeps whichever yields the larger surname, and with no files installed every
-      sign renders byte-identical to before. What is missing is two static TTFs in
-      `assets/fonts`, which is a download and therefore the operator's call.
-  - Static, not variable, and this is settled rather than assumed: measured on this
-    canvas, asking a VARIABLE font for `bold` produces identical ink (ratio 1.000)
-    while static regular plus bold gives 1.52. Skia does not instance the `wght`
-    axis here, and the surname is bold, so the 93 KB `ArchivoNarrow[wght].ttf` and
-    the 372 KB `RobotoCondensed[wght].ttf` are both unusable on their own. Google
-    Fonts no longer ships statics for either.
-  - The candidate is IBM Plex Sans Condensed from `IBM/plex`
-    (`packages/plex-sans-condensed/fonts/complete/ttf/`), Regular 200 448 B and Bold
-    201 156 B, OFL 1.1. First-party, so the bytes are verifiable against the vendor.
-  - One policy question goes with it. The renderer currently sets a whole plate in
-    one face, so a corridor could hold some signs in Inter and some in the narrow
-    cut. The alternative is to condense the SURNAME rank only and keep Inter for
-    everything else, which trades within-sign consistency for across-corridor
-    consistency. Decide before the face lands, because it changes where the family
-    is threaded.
-  - While adding a font: `assets/fonts` ships Inter and PixelOperator with NO licence
-    text, which OFL requires to accompany the font. Add the three licence files in
-    the same change.
+- [x] **The narrow cut is installed, confined to the surname rank.** IBM Plex Sans
+      Condensed Regular and Bold from `IBM/plex`, OFL 1.1, with the licence text in
+      `assets/fonts/licenses`. Static cuts because a variable font is unusable here:
+      measured on this canvas, asking one for `bold` gives identical ink (ratio
+      1.000) since Skia does not instance the `wght` axis, while these two give 1.74.
+      `choosePlan` offers the body family first and keeps whichever candidate yields
+      the larger surname, so the narrow cut is used only where the width binds. Only
+      that one rank changes face; a whole plate in the narrow cut would leave a
+      corridor holding two kinds of sign.
+  - Measured gain, 17 arcminutes as the threshold: it wins 5 of 9 panel-and-seat
+    combinations at 12 to 16 %. D1001 portrait 1 and 2 seats 2.55 → 2.96 m, E1003 1
+    seat 5.17 → 6.00 m and 2 seats 3.38 → 3.77 m, E1001 2 seats 2.67 → 3.00 m. The
+    artifact's "about 20 %" was optimistic; 16 % is the honest figure.
+
+- [ ] **`ROW_SHARE` is far too conservative, and it costs more than the narrow cut
+      gains.** In row mode a band draws ONE line, so the surname could be up to
+      `bandH / 0.72` ≈ 1.39 × bandH; the constant is 0.8. That is why the narrow cut
+      wins nothing at four seats on any panel: the HEIGHT binds, not the width. On the
+      E1001 at four seats the surname sits at 48 px where roughly 84 px would fit,
+      which is 1.43 m of reading distance against about 2.5 m. Raising it is a visual
+      change, since the rows tighten towards the separators, so it wants an eye on a
+      rendered frame rather than only arithmetic. Likely the single largest remaining
+      win for crowded plates.
+
+- [ ] **Inter and PixelOperator still ship without licence text.** OFL requires the
+      licence to accompany the font, and `assets/fonts` carries neither. Plex's is
+      there now; Inter's is OFL 1.1 (`rsms/inter`, `LICENSE.txt`) and PixelOperator's
+      terms come from its author's own page. Two more small files, deliberately not
+      fetched with the Plex ones because that download was approved and these were
+      not.
 
 - [ ] **The surname heuristic cannot detect surname-first order without a comma.**
       `name-split.ts` reads "Ćurić Nikola" as given name "Ćurić", surname "Nikola",

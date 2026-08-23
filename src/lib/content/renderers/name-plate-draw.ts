@@ -41,9 +41,11 @@ export function drawLeft(
   size: number,
   color: string,
   bold: boolean,
-  maxWidth: number
+  maxWidth: number,
+  /** Overrides the body family, for the surname rank when it is set narrow. */
+  family = t.ff
 ): void {
-  t.ctx.font = `${bold ? "bold " : ""}${size}px ${t.ff}`;
+  t.ctx.font = `${bold ? "bold " : ""}${size}px "${family}"`;
   t.ctx.fillStyle = color;
   t.ctx.textAlign = "left";
   t.ctx.textBaseline = "alphabetic";
@@ -105,9 +107,9 @@ export function drawStack(
   colors: BandColors,
   stackWidth: number
 ): void {
-  const lines: { text: string; size: number; color: string; bold: boolean }[] = [];
-  const push = (text: string, size: number, color: string, bold: boolean) =>
-    lines.push({ text, size, color, bold });
+  const lines: { text: string; size: number; color: string; bold: boolean; family: string }[] = [];
+  const push = (text: string, size: number, color: string, bold: boolean, family = t.ff) =>
+    lines.push({ text, size, color, bold, family });
 
   if (content.caption) push(content.caption, sizes.secondary, colors.secondary, false);
   if (content.ranks) {
@@ -115,7 +117,9 @@ export function drawStack(
      * width; the titles and the given name are what used to consume it. */
     if (content.ranks.titles) push(content.ranks.titles, sizes.secondary, colors.secondary, false);
     if (content.ranks.given) push(content.ranks.given, sizes.given, colors.name, false);
-    push(content.ranks.surname, sizes.surname, colors.name, true);
+    /* The one rank that may change face. Everything around it stays in the body
+     * family, so the shift reads as hierarchy rather than as a second design. */
+    push(content.ranks.surname, sizes.surname, colors.name, true, sizes.surnameFamily);
   } else if (content.notice) {
     /* Light weight, never bold: a statement about the sign is not a name, and the
      * weight is what says so before the size does. */
@@ -156,7 +160,8 @@ export function drawStack(
       line.size,
       line.color,
       line.bold,
-      stackWidth
+      stackWidth,
+      line.family
     );
     y += capHeights[i] + (gaps[i] ?? 0);
   });
@@ -228,12 +233,24 @@ export function drawRowName(
   nameWidth: number
 ): void {
   const baseline = Math.round(centerY + sizes.surname * CAP_RATIO * 0.5);
-  drawLeft(t, ranks.surname, x, baseline, sizes.surname, colors.name, true, nameWidth);
+  drawLeft(
+    t,
+    ranks.surname,
+    x,
+    baseline,
+    sizes.surname,
+    colors.name,
+    true,
+    nameWidth,
+    sizes.surnameFamily
+  );
   if (!ranks.given) return;
   /* The size search measured exactly this composition, surname plus gap plus
    * given name at its fraction, so the two cannot collide. */
   const gx =
-    x + measureAt(t, ranks.surname, sizes.surname) + Math.round(sizes.surname * ROW_NAME_GAP);
+    x +
+    measureAt(t, ranks.surname, sizes.surname, true, sizes.surnameFamily) +
+    Math.round(sizes.surname * ROW_NAME_GAP);
   drawLeft(
     t,
     ranks.given,

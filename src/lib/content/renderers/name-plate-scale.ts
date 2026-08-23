@@ -56,6 +56,15 @@ export interface BandSizes {
   secondary: number;
   /** Notices are subordinate to a name but must still be legible. See `planSizes`. */
   notice: number;
+  /**
+   * The family the SURNAME is set in, which may differ from the rest of the plate.
+   *
+   * Only that one rank changes face. A whole plate in the narrow cut would leave a
+   * corridor holding two kinds of sign, whereas a condensed surname above a
+   * normal-width given name reads as the rank shift it is. Everything else, down to
+   * the freshness mark, stays in the body family.
+   */
+  surnameFamily: string;
 }
 
 export interface BandColors {
@@ -65,7 +74,14 @@ export interface BandColors {
   pillText: string;
 }
 
-export function measureAt(t: TypeCtx, text: string, size: number, bold = true): number {
-  t.ctx.font = `${bold ? "bold " : ""}${size}px ${t.ff}`;
+export function measureAt(
+  t: TypeCtx,
+  text: string,
+  size: number,
+  bold = true,
+  /** Overrides the body family, for the surname rank when it is set narrow. */
+  family = t.ff
+): number {
+  t.ctx.font = `${bold ? "bold " : ""}${size}px "${family}"`;
   return t.ctx.measureText(text).width;
 }

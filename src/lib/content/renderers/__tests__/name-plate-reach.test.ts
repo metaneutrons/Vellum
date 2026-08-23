@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import { createCanvas } from "@napi-rs/canvas";
-import { CAP_RATIO } from "../name-plate-scale";
+import { CAP_RATIO, type TypeCtx } from "../name-plate-scale";
 import { choosePlan } from "../name-plate-sizes";
 import { bandContent, seatBands } from "../name-plate-layout";
 import { seatSchema, READING_DISTANCE_M } from "../name-plate-types";
@@ -24,8 +24,8 @@ const COMFORT_ARCMIN = 17;
 /** What the renderer would choose for `n` seats of a full academic name. */
 function reachMetres(n: number): { rowMode: boolean; metres: number } {
   const canvas = createCanvas(800, 480);
-  const ctx = canvas.getContext("2d");
-  const families = [ensureRenderFonts(), narrowFontFamily()].filter((f): f is string => !!f);
+  const t: TypeCtx = { ctx: canvas.getContext("2d"), ff: ensureRenderFonts() };
+  const narrow = narrowFontFamily();
   const seats = Array.from({ length: n }, (_, i) =>
     seatSchema.parse({
       caption: `Platz ${i + 1}`,
@@ -38,7 +38,7 @@ function reachMetres(n: number): { rowMode: boolean; metres: number } {
   /* Mirrors the renderer's own geometry: 6 % padding, a 75 px header and the
    * 60 px footer that carries the freshness mark. */
   const bands = seatBands(n, 800, 480 - 60, 29, 75);
-  const plan = choosePlan(ctx, families, contents, {
+  const plan = choosePlan(t, narrow ? [t.ff, narrow] : [t.ff], contents, {
     bandW: bands[0].w,
     bandH: bands[0].h,
     shortSide: 480,

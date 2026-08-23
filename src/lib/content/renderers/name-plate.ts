@@ -351,12 +351,14 @@ async function render(params: RenderParams): Promise<RenderResult> {
 
   const budget = widthBudget(config, contents, labels, bands, scale);
 
-  /* The normal cut first, so it wins a tie: the narrow one is then used only where
+  const t: TypeCtx = { ctx, ff: ensureRenderFonts() };
+
+  /* The body family first, so it wins a tie: the narrow cut is then used only where
    * it buys the surname something, which is exactly where the type ran out of width
-   * before it ran out of height. */
+   * before it ran out of height. It is confined to that ONE rank, so a corridor
+   * never ends up holding two kinds of sign. */
   const narrow = narrowFontFamily();
-  const families = narrow ? [ensureRenderFonts(), narrow] : [ensureRenderFonts()];
-  const plan = choosePlan(ctx, families, contents, {
+  const plan = choosePlan(t, narrow ? [t.ff, narrow] : [t.ff], contents, {
     bandW,
     bandH,
     shortSide,
@@ -364,10 +366,6 @@ async function render(params: RenderParams): Promise<RenderResult> {
     scale,
   });
 
-  /* One face per sign. Everything from the room name to the freshness mark is set
-   * in whichever cut the plan chose, because two faces on one plate would read as
-   * a mistake rather than as a decision. */
-  const t: TypeCtx = { ctx, ff: plan.family };
   const accentable = colorCount > 2 && colorMode !== "grayscale";
   drawPlateHeader(t, config, T, { width, pad, scale }, accentable);
 

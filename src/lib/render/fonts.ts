@@ -31,8 +31,19 @@ export const RENDER_FONT_FAMILY = "Inter";
  */
 export const NARROW_FONT_FAMILY = "Vellum Narrow";
 
-/** The narrow faces, in the order they are tried. Regular first: it must exist. */
-const NARROW_FILES = ["VellumNarrow-Regular.ttf", "VellumNarrow-Bold.ttf"];
+/**
+ * The two files behind the narrow family. Swap these to swap the face.
+ *
+ * IBM Plex Sans Condensed, OFL 1.1, from IBM's own repository, with its licence
+ * text beside it in `assets/fonts/licenses`. Static cuts rather than the variable
+ * font, and that is measured rather than assumed: asked for `bold`, a variable font
+ * produced identical ink here (ratio 1.000) because Skia does not instance the
+ * `wght` axis, while these two give 1.74. The surname is bold, so a variable file
+ * would have been useless.
+ *
+ * Measured gain over Inter Bold on real names: 11 to 18 %, about 16 % on average.
+ */
+const NARROW_FILES = ["IBMPlexSansCondensed-Regular.ttf", "IBMPlexSansCondensed-Bold.ttf"];
 
 let registered = false;
 let narrowAvailable = false;
