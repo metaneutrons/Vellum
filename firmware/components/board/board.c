@@ -6,6 +6,7 @@
  */
 
 #include "board.h"
+#include "board_led.h"
 #include "sy6974b_power.h"
 
 #include "freertos/FreeRTOS.h"
@@ -352,38 +353,86 @@ esp_err_t board_set_utc_time(time_t value)
     return ESP_OK;
 }
 
-/* ── Status LED (active-low) ──────────────────────────────────── */
+/* ── Indicator LEDs ───────────────────────────────────────────────
+ *
+ * Two tables per board and nothing else. The engine in led_indicator.c drives
+ * them and knows no colours; call sites name a state and never a pin. Adding a
+ * board means adding a channel list and a state row here.
+ *
+ * Both boards wire their indicators active-low, so on_level is 0 throughout. A
+ * board that wires them the other way says so in its own table rather than
+ * teaching the engine about polarity.
+ */
 
-static void led_init(void)
-{
 #if CONFIG_VELLUM_PANEL_D1001
-    gpio_set_direction(D1001_LED_R, GPIO_MODE_OUTPUT);
-    gpio_set_level(D1001_LED_R, 1);
-#else
-    gpio_set_direction(CONFIG_VELLUM_LED_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(CONFIG_VELLUM_LED_GPIO, 1);
-#endif
-}
 
-void board_led_on(void)
-{
-#if CONFIG_VELLUM_PANEL_D1001
-    /* GPIO6 is the D1001 C6 SDIO command line, not a status LED. */
-    gpio_set_direction(D1001_LED_R, GPIO_MODE_OUTPUT);
-    gpio_set_level(D1001_LED_R, 0);
-#else
-    gpio_set_level(CONFIG_VELLUM_LED_GPIO, 0);
-#endif
-}
+/* An RGB indicator, and until now only the RED leg was ever driven — which meant
+ * ordinary work was announced in the colour a person reads as a fault. Green and
+ * blue are wired per d1001_board.h and are used here for the first time; their
+ * polarity is ASSUMED to match red's and has not been confirmed on hardware. */
+enum { D1001_RED, D1001_GREEN, D1001_BLUE };
 
-void board_led_off(void)
-{
-#if CONFIG_VELLUM_PANEL_D1001
-    gpio_set_level(D1001_LED_R, 1);
+static const board_led_channel_t D1001_CHANNELS[] = {
+    [D1001_RED]   = { .gpio = D1001_LED_R, .on_level = 0, .label = "red" },
+    [D1001_GREEN] = { .gpio = D1001_LED_G, .on_level = 0, .label = "green" },
+    [D1001_BLUE]  = { .gpio = D1001_LED_B, .on_level = 0, .label = "blue" },
+};
+
+static const board_led_expression_t D1001_STATES[BOARD_LED_STATE_COUNT] = {
+    [BOARD_LED_STATE_IDLE]  = { BOARD_LED_NO_CHANNEL, BOARD_LED_OFF },
+    [BOARD_LED_STATE_SETUP] = { D1001_BLUE,  BOARD_LED_PULSE },
+    [BOARD_LED_STATE_BUSY]  = { D1001_GREEN, BOARD_LED_STEADY },
+    /* Mains-oriented and never asleep, so this board CAN hold a fault colour
+     * until somebody deals with it. That is the one thing an E-Series display
+     * cannot do, and the reason the two tables differ at all. */
+    [BOARD_LED_STATE_FAULT] = { D1001_RED,   BOARD_LED_STEADY },
+    [BOARD_LED_STATE_BATTERY_CRITICAL] = { D1001_RED, BOARD_LED_BLINK },
+};
+
+static const board_led_profile_t D1001_PROFILE = {
+    .channels      = D1001_CHANNELS,
+    .channel_count = sizeof(D1001_CHANNELS) / sizeof(D1001_CHANNELS[0]),
+    .states        = D1001_STATES,
+};
+
+const board_led_profile_t *board_led_profile(void) { return &D1001_PROFILE; }
+
 #else
-    gpio_set_level(CONFIG_VELLUM_LED_GPIO, 1);
+
+/* One green LED. GPIO6 on E1001/E1002, GPIO16 on E1003 — the Kconfig default
+ * carries that difference, so this table does not have to. */
+enum { E_SERIES_GREEN };
+
+static const board_led_channel_t E_SERIES_CHANNELS[] = {
+    [E_SERIES_GREEN] = { .gpio = (gpio_num_t)CONFIG_VELLUM_LED_GPIO,
+                         .on_level = 0, .label = "green" },
+};
+
+static const board_led_expression_t E_SERIES_STATES[BOARD_LED_STATE_COUNT] = {
+    [BOARD_LED_STATE_IDLE]  = { BOARD_LED_NO_CHANNEL, BOARD_LED_OFF },
+    /* The device holds a captive portal open here, so it is awake for as long as
+     * setup takes and the pulse is actually visible. */
+    [BOARD_LED_STATE_SETUP] = { E_SERIES_GREEN, BOARD_LED_PULSE },
+    [BOARD_LED_STATE_BUSY]  = { E_SERIES_GREEN, BOARD_LED_STEADY },
+    /* Deliberately dark. This board sleeps through nearly all of its life, where
+     * no core runs to blink and a held light would spend the standby budget the
+     * product is built around. It does not need to either: a failed render left a
+     * status screen on the panel, and e-paper keeps showing it. */
+    [BOARD_LED_STATE_FAULT] = { BOARD_LED_NO_CHANNEL, BOARD_LED_OFF },
+    /* One blip on the way into sleep. Cheap enough to afford, and the panel
+     * carries the "connect USB power" message that explains it. */
+    [BOARD_LED_STATE_BATTERY_CRITICAL] = { E_SERIES_GREEN, BOARD_LED_FLASH_ONCE },
+};
+
+static const board_led_profile_t E_SERIES_PROFILE = {
+    .channels      = E_SERIES_CHANNELS,
+    .channel_count = sizeof(E_SERIES_CHANNELS) / sizeof(E_SERIES_CHANNELS[0]),
+    .states        = E_SERIES_STATES,
+};
+
+const board_led_profile_t *board_led_profile(void) { return &E_SERIES_PROFILE; }
+
 #endif
-}
 
 /* ── Buzzer ───────────────────────────────────────────────────── */
 
@@ -435,7 +484,7 @@ void board_init(void)
      * cable/charger from an ADC or low-battery-gate problem. */
     (void)charger_reports_usb_power();
 #endif
-    led_init();
+    board_led_init();
     buzzer_init();
     ESP_LOGI(TAG, "Board peripherals initialized (battery, LED, buzzer)");
 }

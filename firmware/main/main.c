@@ -43,6 +43,7 @@
 #include "vellum_serial.h"
 #include "mdns.h"
 #include "board.h"
+#include "board_led.h"
 #include "secure_channel.h"
 #include "security_posture.h"
 #include "ota_manager.h"
@@ -951,7 +952,11 @@ void app_main(void)
     if (wake == WAKE_REASON_POWER_ON) {
         display_show_boot(firmware_version);
     }
-    board_led_on();
+    /* Somebody is present for a button wake and for a cold boot, and the
+      * indicator is for them. A timer wake is the display working on its own, so
+      * it stays dark: see board_led.h on why dark is the normal state. */
+    board_led_indicate(wake == WAKE_REASON_TIMER ? BOARD_LED_STATE_IDLE
+                                                 : BOARD_LED_STATE_BUSY);
 #if !defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001 has one power button handled by d1001_button_task above. The
      * generic three-button map includes GPIO4/5, which are other board signals. */
@@ -1048,6 +1053,7 @@ void app_main(void)
         !board_is_usb_powered()) {
         ESP_LOGW(TAG, "CRITICAL: Battery below %d%% — shutting down",
                  CONFIG_VELLUM_BATTERY_CRITICAL_PERCENT);
+        board_led_indicate(BOARD_LED_STATE_BATTERY_CRITICAL);
         display_show_status_message(VD_ICON_BATTERY, "Low battery",
                                     "Connect USB power to continue");
         display_sleep_unless_usb_powered();
@@ -1096,6 +1102,7 @@ void app_main(void)
          * somebody to walk over and provision the display. Rebooting on a timer
          * would drop the portal mid-setup. */
         app_stall_disarm();
+        board_led_indicate(BOARD_LED_STATE_SETUP);
         wifi_manager_start_softap();
         /* does not return — restarts after provisioning */
     }
@@ -1248,7 +1255,10 @@ void app_main(void)
         sleep_duration = perform_render(&render_ok);
         if (render_ok) ota_manager_mark_valid();
     }
-    board_led_off();
+    /* The last word before sleeping. A board that can hold a fault colour does
+      * (D1001); one that would pay for it in standby stays dark and leaves the
+      * explanation on its panel, which e-paper keeps showing while asleep. */
+    board_led_indicate(render_ok ? BOARD_LED_STATE_IDLE : BOARD_LED_STATE_FAULT);
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* LCD: poll loop instead of deep sleep */

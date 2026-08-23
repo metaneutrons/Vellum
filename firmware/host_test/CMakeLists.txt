@@ -38,6 +38,7 @@ add_executable(host_tests
   test_epaper_contrast.c
   test_display_cache.c
   test_log_ring.c
+  test_led_pattern.c
   version_compare.c
   revocation.c
   ../components/board/sy6974b_power.c

@@ -1,4 +1,8 @@
-set(board_requires esp_adc esp_driver_ledc esp_driver_gpio esp_driver_i2c esp_driver_usb_serial_jtag)
+set(board_requires esp_adc esp_driver_ledc esp_driver_gpio esp_driver_i2c
+    esp_driver_usb_serial_jtag
+    # esp_timer: led_indicator.c ticks its patterns from a periodic timer.
+    # Not part of the implicit common requirements, despite being ubiquitous.
+    esp_timer)
 if("${IDF_TARGET}" STREQUAL "esp32p4")
     # D1001 (ESP32-P4): the board_* battery/USB accessors delegate to the P4
     # board support (d1001_board), which owns the P4 ADC. esp_io_expander is
@@ -10,7 +14,7 @@ if("${IDF_TARGET}" STREQUAL "esp32p4")
 endif()
 
 idf_component_register(
-    SRCS "board.c" "sy6974b_power.c"
+    SRCS "board.c" "led_indicator.c" "sy6974b_power.c"
     INCLUDE_DIRS "include"
     REQUIRES ${board_requires}
 )

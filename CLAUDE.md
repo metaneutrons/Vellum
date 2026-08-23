@@ -269,6 +269,34 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   `VELLUM_BATTERY_EN_GPIO` exception (21 vs 40) directly above it. Seeed's Zephyr
   board ports (`boards/seeed/reterminal_e100{1,2,3}`) are the authority for all of
   this, and they are worth reading before assuming any E-Series pin is uniform.
+  **The D1001 has an RGB indicator** (R GPIO22, G GPIO36, B GPIO23,
+  `d1001_board.h`), all active-low. Only red was ever driven, which announced
+  ordinary work in the colour a person reads as a fault; green and blue are used
+  since the `board_led` rework and their polarity is **assumed** to match red's,
+  not yet confirmed on hardware.
+- **Indicators are addressed by STATE, never by pin or colour** (`board_led.h`,
+  `led_indicator.c`). A board supplies two tables — the channels it physically
+  carries, and one row per `board_led_state_t` mapping that state to a channel
+  plus a pattern — and a new board needs to add nothing else. `board_led_on()` /
+  `board_led_off()` are gone with the scheme that lit the LED for every awake
+  moment, which conveyed nothing.
+  - **Dark is the normal state**, same reasoning as the audio policy: a wall
+    display should not blink at the room, so light means somebody is working on
+    the device or something wants attention. Widening that is a product call
+    worth raising rather than settling in passing.
+  - **A state may map to no channel, and that is an answer.** The E-Series map
+    `FAULT` to nothing: the board sleeps through nearly all its life, no core runs
+    to blink, and a held light would spend the standby budget the product is built
+    around. It also does not need one — a failed render leaves a status screen and
+    e-paper keeps showing it, so the panel is that board's persistent indicator.
+    The D1001 is mains-oriented and always awake, so it holds red instead.
+  - Pattern arithmetic lives in `led_pattern.h` as pure inlines (the
+    `lcd_rotation.h` shape) and is covered by `host_test/test_led_pattern.c`. Two
+    properties there are load-bearing: every lighting pattern is lit at phase 0,
+    so a state change shows at once instead of up to a period later; and only
+    time-varying patterns request the tick, since an idle timer costs current for
+    nothing. `esp_timer` had to be added to the board component's `REQUIRES` —
+    it is not one of the implicit common requirements.
 - Panel-capability inconsistencies — **unresolved, do not "fix" one side blindly;
   confirm against the physical panel first**:
   - E1003: code and server use **1872×1404** (landscape) while
