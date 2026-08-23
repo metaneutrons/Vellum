@@ -37,6 +37,19 @@ export interface RenderResult {
 export interface ContentRenderer {
   slug: string;
   name: string;
+  /**
+   * Retired: still RENDERS, cannot be CREATED.
+   *
+   * The two halves are the point. Removing a renderer outright is a breaking
+   * change for any instance that still names it, because `getContentRenderer`
+   * returns undefined and the render route answers 500, which on a wall is a
+   * display that stops updating. So a type on its way out keeps rendering
+   * indefinitely and merely disappears from the list an operator can pick from.
+   *
+   * Enforced in `createContentInstance`, not only hidden in the UI: a hidden
+   * option is a suggestion, and this is a rule.
+   */
+  deprecated?: boolean;
   configSchema: z.ZodType;
 
   /** Fetch live data + render to canvas */

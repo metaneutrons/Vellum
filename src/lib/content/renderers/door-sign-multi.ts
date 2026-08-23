@@ -76,6 +76,9 @@ async function fetchEventsForResource(
 
 export const doorSignMultiRenderer: ContentRenderer = {
   slug: "door-sign-multi",
+  /* Retired in favour of `name-plate`, which lays a multi-seat plate out by itself.
+   * No instance of this type was ever created. See `docs/door-sign-retirement.md`. */
+  deprecated: true,
   name: "Türschild (Multi)",
   configSchema: doorSignMultiConfigSchema,
 

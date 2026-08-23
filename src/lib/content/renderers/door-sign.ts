@@ -76,6 +76,10 @@ async function fetchEventsFromProvider(
 
 export const doorSignRenderer: ContentRenderer = {
   slug: "door-sign",
+  /* Retired in favour of `name-plate`, and kept rather than deleted because the
+   * free-positioning editor is the obvious starting point for a future free-form
+   * sign. See `docs/door-sign-retirement.md`. */
+  deprecated: true,
   name: "Türschild",
   configSchema: doorSignConfigSchema,
 

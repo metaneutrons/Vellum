@@ -154,6 +154,21 @@ design calls:
     seat 5.17 → 6.00 m and 2 seats 3.38 → 3.77 m, E1001 2 seats 2.67 → 3.00 m. The
     artifact's "about 20 %" was optimistic; 16 % is the honest figure.
 
+- [ ] **Finish retiring `door-sign` and `door-sign-multi`.** Both are marked
+      `deprecated`, gone from the create menu, refused by `createContentInstance` and
+      labelled "stillgelegt"; they still render, so nothing broke. See
+      `docs/door-sign-retirement.md` for the evidence, including that
+      `door-sign-multi` has never had an instance and the single `door-sign` uses none
+      of what the type is for while rendering a blank panel when the room is free.
+  - Blocked on ONE thing: `SELECT type_slug, count(*) FROM content_instances GROUP BY
+1` against PRODUCTION. Only the development database was visible, and removing a
+    slug while any instance still names it makes the render route answer 500, which
+    on a wall is a display that quietly stops updating.
+  - Then migrate (`door-sign` → `name-plate` is mechanical), verify, and only then move
+    the code. It is being kept rather than deleted because the free-positioning editor
+    is most of a future free-form sign type; `KNOWN_DISPLAYS` should move to
+    `lib/display.ts` rather than travel with it.
+
 - [ ] **`ROW_SHARE` is far too conservative, and it costs more than the narrow cut
       gains.** In row mode a band draws ONE line, so the surname could be up to
       `bandH / 0.72` ≈ 1.39 × bandH; the constant is 0.8. That is why the narrow cut

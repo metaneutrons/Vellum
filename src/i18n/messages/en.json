@@ -739,8 +739,8 @@
   },
   "contentTypes": {
     "room-booking": "Room Booking",
-    "door-sign": "Door Sign (Designer)",
-    "door-sign-multi": "Door Sign (Multi)",
+    "door-sign": "Door Sign (Designer, retired)",
+    "door-sign-multi": "Door Sign (Multi, retired)",
     "name-plate": "Door Sign"
   },
   "error": {

@@ -739,8 +739,8 @@
   },
   "contentTypes": {
     "room-booking": "Reserva de sala",
-    "door-sign": "Letrero de puerta (diseñador)",
-    "door-sign-multi": "Letrero de puerta (Multi)",
+    "door-sign": "Cartel de puerta (diseñador, retirado)",
+    "door-sign-multi": "Cartel de puerta (múltiple, retirado)",
     "name-plate": "Letrero de puerta"
   },
   "error": {

@@ -739,8 +739,8 @@
   },
   "contentTypes": {
     "room-booking": "Prenotazione sala",
-    "door-sign": "Targhetta (editor)",
-    "door-sign-multi": "Targhetta (Multi)",
+    "door-sign": "Targa (editor, ritirata)",
+    "door-sign-multi": "Targa (multipla, ritirata)",
     "name-plate": "Targhetta"
   },
   "error": {

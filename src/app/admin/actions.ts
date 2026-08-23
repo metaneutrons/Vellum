@@ -718,12 +718,28 @@ async function assertValidContentConfig(typeSlug: string, config: unknown): Prom
   throw new Error(`content_invalid_config: ${where}: ${issue?.message ?? "invalid"}`);
 }
 
+/**
+ * Refuse to create a NEW instance of a retired type.
+ *
+ * `getAllContentTypes` already leaves those out of the menu, but a hidden option is
+ * a suggestion and this is a rule: server actions are a public surface, and the
+ * whole point of retiring a type is that the estate stops growing instances of it
+ * while the ones that exist keep rendering.
+ */
+async function assertNotRetired(typeSlug: string): Promise<void> {
+  const { getContentRenderer } = await import("@/lib/content/registry");
+  if (getContentRenderer(typeSlug)?.deprecated) {
+    throw new Error(`content_type_retired: ${typeSlug}`);
+  }
+}
+
 export async function createContentInstance(
   typeSlug: string,
   name: string,
   config: Record<string, unknown>
 ) {
   const actor = await requireAdmin("content.manage");
+  await assertNotRetired(typeSlug);
   await assertValidContentConfig(typeSlug, config);
   await withAuditedTransaction(
     actor,
@@ -851,7 +867,12 @@ export async function getAllContentInstances() {
 export async function getAllContentTypes() {
   await requireAdmin("content.read");
   const { getAllContentRenderers } = await import("@/lib/content/registry");
-  return getAllContentRenderers().map((r) => ({ slug: r.slug, name: r.name }));
+  /* Retired types are omitted, which is what takes them out of the "new content"
+   * menu. Existing instances of them keep their editor, because that is chosen from
+   * the instance's own slug rather than from this list. */
+  return getAllContentRenderers()
+    .filter((r) => !r.deprecated)
+    .map((r) => ({ slug: r.slug, name: r.name }));
 }
 
 export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string }> {

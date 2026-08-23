@@ -739,8 +739,8 @@
   },
   "contentTypes": {
     "room-booking": "Raumbelegung",
-    "door-sign": "Türschild (erweitert)",
-    "door-sign-multi": "Türschild (Multi)",
+    "door-sign": "Türschild (erweitert, stillgelegt)",
+    "door-sign-multi": "Türschild (Multi, stillgelegt)",
     "name-plate": "Türschild"
   },
   "error": {
