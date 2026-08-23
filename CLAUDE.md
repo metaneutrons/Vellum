@@ -488,7 +488,21 @@ container or firmware assets).
   provenance, uploads `firmware-manifest.json` **last** so a device polling
   mid-publish never sees a manifest before its assets).
 - release-please routes each commit by path: `firmware/**` → firmware component;
-  everything else → server. A server `fix:` does NOT rebuild firmware and vice
+  everything else → server. **A commit is attributed to EVERY component whose
+  paths it touches**, and it drops out of one only when ALL of its files there are
+  excluded (`commit-exclude.ts`, `.every(...)`). A `feat(firmware)` that also
+  edited a repo-root doc therefore asked for a server release carrying no server
+  change; two such PRs were closed unmerged (#304, #306) before the exclusion list
+  below existed.
+- **The server component excludes `docs`, `.github`, `.githooks` and `.claude`
+  besides `firmware`**, asserted by `pnpm release:check`, because none of them can
+  change what the image or the deployment assets contain. `deploy/` is
+  deliberately NOT excluded: its compose file and env example ship as release
+  assets. **`exclude-paths` matches DIRECTORY prefixes only** — the check is
+  `file.indexOf(path + "/") === 0`, so a root-level file such as `CLAUDE.md`,
+  `README.md` or `ROADMAP.md` cannot be excluded at all. Keep edits to those in
+  their own `docs:` commit when the rest of the branch is firmware; a `docs:`
+  commit bumps nothing, so attribution to the server then costs nothing. A server `fix:` does NOT rebuild firmware and vice
   versa. The two components are independent in what they _release_, but **not
   independent when two release PRs are open at once** — see the manifest note
   below. That line used to claim "no merge order is required"; two incidents
