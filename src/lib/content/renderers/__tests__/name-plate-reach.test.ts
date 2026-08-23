@@ -35,9 +35,10 @@ function reachMetres(n: number): { rowMode: boolean; metres: number } {
   const contents = seats.map((s) =>
     bandContent(s, { occupant: "Prof. Dr. Fabian Schmieder" }, false, LABELS, n > 1)
   );
-  /* Mirrors the renderer's own geometry: 6 % padding, a 75 px header and the
-   * 60 px footer that carries the freshness mark. */
-  const bands = seatBands(n, 800, 480 - 60, 29, 75);
+  /* Mirrors the renderer's own geometry: 6 % padding, a 75 px header, and the
+   * footer sized to what it carries. These seats are static, so no band has a state
+   * and the strip holds only the freshness mark, which is the 34 px form. */
+  const bands = seatBands(n, 800, 480 - 34, 29, 75);
   const plan = choosePlan(t, narrow ? [t.ff, narrow] : [t.ff], contents, {
     bandW: bands[0].w,
     bandH: bands[0].h,

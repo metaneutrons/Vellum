@@ -169,15 +169,21 @@ design calls:
     is most of a future free-form sign type; `KNOWN_DISPLAYS` should move to
     `lib/display.ts` rather than travel with it.
 
-- [ ] **`ROW_SHARE` is far too conservative, and it costs more than the narrow cut
-      gains.** In row mode a band draws ONE line, so the surname could be up to
-      `bandH / 0.72` ≈ 1.39 × bandH; the constant is 0.8. That is why the narrow cut
-      wins nothing at four seats on any panel: the HEIGHT binds, not the width. On the
-      E1001 at four seats the surname sits at 48 px where roughly 84 px would fit,
-      which is 1.43 m of reading distance against about 2.5 m. Raising it is a visual
-      change, since the rows tighten towards the separators, so it wants an eye on a
-      rendered frame rather than only arithmetic. Likely the single largest remaining
-      win for crowded plates.
+- [x] **`ROW_SHARE` was NOT too conservative; the earlier note here was wrong.** It
+      claimed a row could reach `bandH / 0.72` because one line needs only its cap
+      height. Measured, a row's ink spans **1.20 x the type size**, not 0.72: ascenders
+      and accents rise above the cap and descenders fall below the baseline. At
+      `ROW_SHARE = 0.8` a four-seat band of 61 px already carries 58 px of ink, 95 % of
+      the band, and at size 55 the ink overruns it by 5 px and would strike the
+      separators. The true ceiling is 0.833, so the constant sits at 96 % of it.
+- [x] **The slack was the footer, and it has been reclaimed.** On a four-seat 7.5"
+      plate half the panel went to furniture: header 75, footer 60, padding 58, gaps 45. Only a single-seat plate puts a state in the footer; with more seats each
+      band carries its own pill and the strip holds one 20 px freshness line, for
+      which 60 px was 13 % of the panel. The footer is now sized to what it carries,
+      60 px with a state and 34 px without, and the bands get the difference:
+      1 seat 3.74 -> 4.07 m, 3 seats 2.02 -> 2.23 m, 4 seats 1.43 -> 1.57 m. Two seats
+      are unchanged because the width binds there. Ink still fits every band, checked
+      per band rather than assumed.
 
 - [x] **Every font in `assets/fonts` now carries its licence text**, and the
       declarations were read out of each font's own `name` table rather than copied

@@ -311,7 +311,9 @@ function drawBands(
 function plateFrame(
   config: NamePlateConfig,
   width: number,
-  height: number
+  height: number,
+  /** True when the footer carries a state as well as the freshness mark. */
+  footerCarriesState: boolean
 ): { shortSide: number; pad: number; scale: number; headerH: number; footerH: number } {
   const shortSide = Math.min(width, height);
   const scale = shortSide / 480;
@@ -320,7 +322,13 @@ function plateFrame(
     pad: Math.round(shortSide * 0.06),
     scale,
     headerH: resolveRoomName(config) ? Math.round(75 * scale) : 0,
-    footerH: Math.round(60 * scale),
+    /* Sized to what it carries, because on a crowded plate this strip is the
+     * largest piece of slack on the panel. With a state it holds 26 px bold text,
+     * whose ink runs about 31 px, so it needs the full 60. With only the freshness
+     * mark it holds one 20 px line, and spending 60 px on that costs the four bands
+     * 26 px of the height they are starved of. At 34 px the mark still has five
+     * pixels of air above and below. */
+    footerH: Math.round((footerCarriesState ? 60 : 34) * scale),
   };
 }
 
@@ -365,8 +373,16 @@ async function render(params: RenderParams): Promise<RenderResult> {
   const canvas = newPlateCanvas(width, height, T.background);
   const ctx = canvas.getContext("2d");
 
-  const { shortSide, pad, scale, headerH, footerH } = plateFrame(config, width, height);
+  /* Only a single-seat plate puts its state in the footer; with more seats each band
+   * carries its own pill, so the strip holds nothing but the freshness mark and can
+   * be shorter. Settled before the frame, because it decides the frame. */
   const soleState = config.seats.length === 1 ? contents[0].pill : null;
+  const { shortSide, pad, scale, headerH, footerH } = plateFrame(
+    config,
+    width,
+    height,
+    !!soleState
+  );
 
   const bands = seatBands(config.seats.length, width, height - footerH, pad, headerH);
   const bandW = bands[0]?.w ?? width;

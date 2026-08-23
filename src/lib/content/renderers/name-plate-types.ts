@@ -182,10 +182,15 @@ export function resolveRoomName(config: NamePlateConfig): string | null {
  * The two-seat figure includes the narrow cut, which wins there because the width
  * binds. At three and four seats the HEIGHT binds and the narrow cut buys nothing,
  * which is why those two numbers did not move when it was installed.
+ *
+ * Measured for a plate of STATIC seats, which is the office-door case and the one an
+ * operator setting a plate up is usually looking at. A plate whose single seat is an
+ * occupied calendar resource puts its state in the footer, which then needs the tall
+ * form and costs that plate about a tenth of its reach.
  */
 export const READING_DISTANCE_M: Record<number, number> = {
-  1: 3.7,
+  1: 4.1,
   2: 3.0,
-  3: 2.0,
-  4: 1.4,
+  3: 2.2,
+  4: 1.6,
 };
