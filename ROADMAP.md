@@ -140,6 +140,30 @@ design calls:
       deliberately when the name plate was built, rather than refactoring a shipped
       renderer as a side effect of a different change.
 
+- [ ] **The narrow cut has its mechanism but no face.** `fonts.ts` registers an
+      optional second family, `choosePlan` compares faces as well as compositions and
+      keeps whichever yields the larger surname, and with no files installed every
+      sign renders byte-identical to before. What is missing is two static TTFs in
+      `assets/fonts`, which is a download and therefore the operator's call.
+  - Static, not variable, and this is settled rather than assumed: measured on this
+    canvas, asking a VARIABLE font for `bold` produces identical ink (ratio 1.000)
+    while static regular plus bold gives 1.52. Skia does not instance the `wght`
+    axis here, and the surname is bold, so the 93 KB `ArchivoNarrow[wght].ttf` and
+    the 372 KB `RobotoCondensed[wght].ttf` are both unusable on their own. Google
+    Fonts no longer ships statics for either.
+  - The candidate is IBM Plex Sans Condensed from `IBM/plex`
+    (`packages/plex-sans-condensed/fonts/complete/ttf/`), Regular 200 448 B and Bold
+    201 156 B, OFL 1.1. First-party, so the bytes are verifiable against the vendor.
+  - One policy question goes with it. The renderer currently sets a whole plate in
+    one face, so a corridor could hold some signs in Inter and some in the narrow
+    cut. The alternative is to condense the SURNAME rank only and keep Inter for
+    everything else, which trades within-sign consistency for across-corridor
+    consistency. Decide before the face lands, because it changes where the family
+    is threaded.
+  - While adding a font: `assets/fonts` ships Inter and PixelOperator with NO licence
+    text, which OFL requires to accompany the font. Add the three licence files in
+    the same change.
+
 - [ ] **The surname heuristic cannot detect surname-first order without a comma.**
       `name-split.ts` reads "Ćurić Nikola" as given name "Ćurić", surname "Nikola",
       and no rule fixes that without knowing the source's convention: a comma
