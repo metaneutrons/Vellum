@@ -39,8 +39,22 @@ import { applyRoomPolicy } from "@/lib/calendar/policy";
 import { decryptCredentials } from "@/lib/encryption";
 import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
-import { drawBitmapText, measureBitmapText, type BitmapFontSize } from "@/lib/render/bitmap-text";
 import { ensureRenderFonts } from "@/lib/render/fonts";
+
+/**
+ * The renderer's size vocabulary.
+ *
+ * Was the key set of a pre-rasterised bitmap atlas, which is gone: it covered 105
+ * characters, so "Françoise" drew as "Fran?oise" on the six-colour E1002, and its
+ * wider advances truncated a room name that fits perfectly in vector type. The
+ * atlas existed to avoid dithered edges, but `canvasToPixelBuffer` quantises
+ * indexed output with nearestColorQuantize rather than Floyd-Steinberg, so an
+ * antialiased edge snaps hard to black or white and there was nothing to avoid.
+ * Verified by rendering the same timeline both ways and quantising both.
+ *
+ * The four steps are kept as they were so nothing about the layout moves.
+ */
+type FontSize = "sm" | "md" | "md-bold" | "lg-bold";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
 import type { Theme } from "@/lib/theme";
@@ -60,33 +74,25 @@ function fontFamily(_colorCount: number): string {
   return ensureRenderFonts();
 }
 
-/** Map our logical font sizes to bitmap atlas keys */
+/** Everything the renderer needs to set a line of text. */
 interface TextCtx {
   ctx: SKRSContext2D;
-  useBitmap: boolean;
   ff: string;
   scale: number;
 }
 
-/** Draw text — bitmap for color e-paper, vector for everything else */
+/** Draw text. One path now, for every panel. */
 function text(
   t: TextCtx,
   x: number,
   y: number,
   str: string,
-  font: BitmapFontSize,
+  font: FontSize,
   color: string,
   align: "left" | "right" = "left",
   maxWidth?: number
 ): number {
-  if (t.useBitmap) {
-    if (align === "right") {
-      const w = measureBitmapText(str, font);
-      return drawBitmapText(t.ctx, str, x - w, y, font, color, maxWidth);
-    }
-    return drawBitmapText(t.ctx, str, x, y, font, color, maxWidth);
-  }
-  const sizeMap: Record<BitmapFontSize, string> = {
+  const sizeMap: Record<FontSize, string> = {
     sm: `${Math.round(16 * t.scale)}px ${t.ff}`,
     md: `${Math.round(24 * t.scale)}px ${t.ff}`,
     "md-bold": `bold ${Math.round(24 * t.scale)}px ${t.ff}`,
@@ -101,9 +107,8 @@ function text(
 }
 
 /** Measure text width */
-function textWidth(t: TextCtx, str: string, font: BitmapFontSize): number {
-  if (t.useBitmap) return measureBitmapText(str, font);
-  const sizeMap: Record<BitmapFontSize, string> = {
+function textWidth(t: TextCtx, str: string, font: FontSize): number {
+  const sizeMap: Record<FontSize, string> = {
     sm: `${Math.round(16 * t.scale)}px ${t.ff}`,
     md: `${Math.round(24 * t.scale)}px ${t.ff}`,
     "md-bold": `bold ${Math.round(24 * t.scale)}px ${t.ff}`,
@@ -119,7 +124,7 @@ function textWrap(
   x: number,
   y: number,
   str: string,
-  font: BitmapFontSize,
+  font: FontSize,
   color: string,
   maxWidth: number,
   lineH: number,
@@ -510,7 +515,7 @@ export function renderToCanvas(
   ctx.fillRect(0, 0, width, height);
 
   // Header (shared with stacked layout)
-  const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
+  const tc: TextCtx = { ctx, ff, scale };
   renderHeader({
     ctx,
     tc,
@@ -734,7 +739,7 @@ function renderStacked(
   ctx.fillRect(0, 0, width, height);
 
   // Shared header (same as timeline)
-  const tc: TextCtx = { ctx, useBitmap: colorMode === "indexed", ff, scale };
+  const tc: TextCtx = { ctx, ff, scale };
   renderHeader({
     ctx,
     tc,
