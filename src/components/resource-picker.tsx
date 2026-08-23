@@ -21,9 +21,19 @@ interface Props {
 }
 
 /**
- * Searchable room picker — fetches resources from anny via provider credentials.
+ * Searchable resource picker, for any provider that can enumerate.
+ *
+ * Was anny-specific in both name and endpoint, which is why two of the three
+ * places asking for a resource fell back to a raw identifier field. It now talks
+ * to `/provider-resources` and the capability lives on the provider, so a
+ * provider that gains enumeration needs no change here.
+ *
+ * When the provider cannot enumerate — an iCal feed, whose URL *is* its resource
+ * — this shows a plain field for the identifier and says so, rather than an empty
+ * search box that would look broken.
  */
-export function AnnyResourcePicker({ providerId, resourceId, resourceName, onChange }: Props) {
+export function ResourcePicker({ providerId, resourceId, resourceName, onChange }: Props) {
+  const [supported, setSupported] = useState(true);
   const t = useTranslations("resourcePicker");
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<Resource[]>([]);
@@ -40,8 +50,14 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
       try {
         const params = new URLSearchParams({ providerId });
         if (q) params.set("search", q);
-        const res = await fetch(`/api/v1/admin/anny-resources?${params}`);
-        if (res.ok) setResults((await res.json()).resources ?? []);
+        const res = await fetch(`/api/v1/admin/provider-resources?${params}`);
+        if (res.ok) {
+          const body = (await res.json()) as { supported?: boolean; resources?: Resource[] };
+          setSupported(body.supported !== false);
+          setResults(body.resources ?? []);
+        } else {
+          setResults([]);
+        }
       } catch {
         setResults([]);
       }
@@ -72,6 +88,20 @@ export function AnnyResourcePicker({ providerId, resourceId, resourceName, onCha
     setSearch("");
     setOpen(false);
     onChange(r.id, r.name, r.bookingUrl);
+  }
+
+  if (!supported) {
+    return (
+      <div>
+        <input
+          className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label placeholder:text-label-tertiary focus-ring"
+          value={resourceId}
+          onChange={(e) => onChange(e.target.value, e.target.value)}
+          aria-label={t("identifier")}
+        />
+        <p className="mt-1 text-[12px] text-label-tertiary">{t("notListable")}</p>
+      </div>
+    );
   }
 
   return (

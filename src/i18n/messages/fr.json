@@ -323,11 +323,11 @@
       "sourceCalendar": "Depuis l'agenda",
       "staticName": "Nom",
       "staticNamePlaceholder": "Dupont",
-      "resourceId": "ID de ressource",
       "showStatus": "Afficher l'état de réservation",
       "showStatusHint": "Uniquement pour les postes liés à un agenda. Un nom fixe n'a pas d'état, sa ligne est donc omise plutôt que laissée vide.",
       "maxSeatsHint": "Quatre postes au maximum, pour que les noms restent lisibles à distance.",
-      "noEditorHint": "La mise en page est calculée à partir du nombre de postes et de l'écran. Il n'y a rien à positionner."
+      "noEditorHint": "La mise en page est calculée à partir du nombre de postes et de l'écran. Il n'y a rien à positionner.",
+      "resource": "Ressource (salle / bureau)"
     }
   },
   "providers": {
@@ -766,7 +766,9 @@
     "search": "Rechercher des salles…",
     "loading": "Chargement…",
     "noResults": "Aucune salle trouvée",
-    "noResources": "Aucune ressource"
+    "noResources": "Aucune ressource",
+    "identifier": "Identifiant de ressource",
+    "notListable": "Ce fournisseur ne peut pas lister les ressources ; pour un flux iCal, l'URL est elle-même la ressource. Saisis l'identifiant utilisé par le fournisseur."
   },
   "provision": {
     "title": "Provisionner par USB",

@@ -323,11 +323,11 @@
       "sourceCalendar": "Dal calendario",
       "staticName": "Nome",
       "staticNamePlaceholder": "Rossi",
-      "resourceId": "ID risorsa",
       "showStatus": "Mostra stato della prenotazione",
       "showStatusHint": "Solo per le postazioni da calendario. Un nome fisso non ha stato, quindi la sua riga viene omessa invece di restare vuota.",
       "maxSeatsHint": "Al massimo quattro postazioni, così i nomi restano leggibili da lontano.",
-      "noEditorHint": "La disposizione è calcolata dal numero di postazioni e dal display. Non c'è nulla da posizionare."
+      "noEditorHint": "La disposizione è calcolata dal numero di postazioni e dal display. Non c'è nulla da posizionare.",
+      "resource": "Risorsa (sala / scrivania)"
     }
   },
   "providers": {
@@ -766,7 +766,9 @@
     "search": "Cerca sale…",
     "loading": "Caricamento…",
     "noResults": "Nessuna sala trovata",
-    "noResources": "Nessuna risorsa"
+    "noResources": "Nessuna risorsa",
+    "identifier": "Identificativo risorsa",
+    "notListable": "Questo fornitore non può elencare le risorse; in un feed iCal l'URL è essa stessa la risorsa. Inserisci l'identificativo usato dal fornitore."
   },
   "provision": {
     "title": "Provisiona via USB",

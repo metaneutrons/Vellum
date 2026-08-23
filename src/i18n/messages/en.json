@@ -323,11 +323,11 @@
       "sourceCalendar": "From calendar",
       "staticName": "Name",
       "staticNamePlaceholder": "Miller",
-      "resourceId": "Resource ID",
       "showStatus": "Show booking state",
       "showStatusHint": "Calendar seats only. A fixed name has no state, so its line is left out rather than shown empty.",
       "maxSeatsHint": "Four seats at most, so the names stay readable from across the room.",
-      "noEditorHint": "The layout is computed from the seat count and the display. There is nothing to position."
+      "noEditorHint": "The layout is computed from the seat count and the display. There is nothing to position.",
+      "resource": "Resource (room / desk)"
     }
   },
   "providers": {
@@ -766,7 +766,9 @@
     "search": "Search rooms…",
     "loading": "Loading…",
     "noResults": "No rooms found",
-    "noResources": "No resources"
+    "noResources": "No resources",
+    "identifier": "Resource identifier",
+    "notListable": "This provider cannot list resources — an iCal feed's URL is itself the resource. Enter the identifier the provider uses."
   },
   "provision": {
     "title": "Provision over USB",

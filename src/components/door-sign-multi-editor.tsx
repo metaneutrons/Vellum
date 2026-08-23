@@ -35,8 +35,10 @@ interface Props {
 
 export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays }: Props) {
   const t = useTranslations("content.doorSign");
+  const tr = useTranslations("resourcePicker");
   const [activeDisplay, setActiveDisplay] = useState<string>("default");
   const [availableResources, setAvailableResources] = useState<{ id: string; name: string }[]>([]);
+  const [resourceSearch, setResourceSearch] = useState("");
   const [selectedProvider, setSelectedProvider] = useState(
     config.resources[0]?.providerId ?? providers[0]?.id ?? ""
   );
@@ -47,14 +49,26 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
       ? displays[0]
       : (displays.find((d) => `${d.width}x${d.height}` === activeDisplay) ?? displays[0]);
 
-  // Fetch available resources when provider changes
+  /* Two defects lived here. The response is `{ resources, total }`, and the whole
+   * object was put into state typed as an array, so `.map()` over it never
+   * rendered anything and the operator saw "loading" for good. And the endpoint
+   * accepts a `search` it was never given, so only the first page was reachable —
+   * useless against a directory of any size.
+   *
+   * `resourceSearch` is debounced and passed through to the provider, and the
+   * generic endpoint replaces the anny-only one. */
   useEffect(() => {
     if (!selectedProvider) return;
-    fetch(`/api/v1/admin/anny-resources?providerId=${selectedProvider}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setAvailableResources)
-      .catch(() => setAvailableResources([]));
-  }, [selectedProvider]);
+    const handle = setTimeout(() => {
+      const params = new URLSearchParams({ providerId: selectedProvider });
+      if (resourceSearch) params.set("search", resourceSearch);
+      fetch(`/api/v1/admin/provider-resources?${params}`)
+        .then((r) => (r.ok ? r.json() : { resources: [] }))
+        .then((body) => setAvailableResources(body.resources ?? []))
+        .catch(() => setAvailableResources([]));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [selectedProvider, resourceSearch]);
 
   const toggleResource = useCallback(
     (resourceId: string, resourceName: string) => {
@@ -128,6 +142,13 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
             </option>
           ))}
         </select>
+        <input
+          className="w-full min-h-8 px-2.5 mb-2 rounded-md bg-surface-secondary border border-separator text-[13px] text-label placeholder:text-label-tertiary focus-ring"
+          placeholder={tr("search")}
+          value={resourceSearch}
+          onChange={(e) => setResourceSearch(e.target.value)}
+          aria-label={tr("search")}
+        />
         <div className="max-h-48 overflow-y-auto space-y-1">
           {availableResources.map((r) => {
             const checked = config.resources.some(

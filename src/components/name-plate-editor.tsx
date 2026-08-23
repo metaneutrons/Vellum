@@ -15,6 +15,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Segmented } from "@/components/ui/misc";
+import { ResourcePicker } from "@/components/resource-picker";
 import {
   MAX_SEATS,
   type NamePlateConfig,
@@ -62,7 +63,7 @@ function CalendarSeatFields({
   const t = useTranslations("content.namePlate");
   const tc = useTranslations("content");
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2">
       <div>
         <label className="block text-[12px] text-label-secondary mb-1">{tc("provider")}</label>
         <select
@@ -79,11 +80,22 @@ function CalendarSeatFields({
         </select>
       </div>
       <div>
-        <label className="block text-[12px] text-label-secondary mb-1">{t("resourceId")}</label>
-        <Input
-          value={occupant.resourceId}
-          onChange={(e) => onChange({ ...occupant, resourceId: e.target.value })}
-        />
+        <label className="block text-[12px] text-label-secondary mb-1">{t("resource")}</label>
+        {occupant.providerId ? (
+          <ResourcePicker
+            providerId={occupant.providerId}
+            resourceId={occupant.resourceId}
+            resourceName={occupant.resourceName}
+            /* The name is stored beside the id on purpose: the renderer falls back
+             * to it when the provider is unreachable, so the band still says which
+             * place it is instead of showing a bare identifier. */
+            onChange={(resourceId, resourceName) =>
+              onChange({ ...occupant, resourceId, resourceName })
+            }
+          />
+        ) : (
+          <p className="text-[12px] text-label-tertiary">{tc("selectProvider")}</p>
+        )}
       </div>
     </div>
   );

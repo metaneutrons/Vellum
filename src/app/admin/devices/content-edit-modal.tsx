@@ -10,7 +10,7 @@ import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { DoorSignEditor } from "@/components/door-sign-editor";
-import { AnnyResourcePicker } from "@/components/anny-resource-picker";
+import { ResourcePicker } from "@/components/resource-picker";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
 import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
 
@@ -114,7 +114,7 @@ export function ContentEditModal({
               <label className="block text-sm font-medium text-label-secondary mb-1">
                 {td("resource")}
               </label>
-              <AnnyResourcePicker
+              <ResourcePicker
                 providerId={config.providerId as string}
                 resourceId={(config.resourceId as string) ?? ""}
                 resourceName={config.resourceName as string | undefined}

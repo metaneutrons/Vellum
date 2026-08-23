@@ -203,6 +203,13 @@ export const annyProvider: CalendarProvider = {
   credentialSchema: annyCredentialSchema,
   roomConfigSchema: annyRoomConfigSchema,
 
+  async listResources({ credentials, search, page }) {
+    const creds = annyCredentialSchema.parse(credentials);
+    const orgId = creds.organizationId || extractOrgFromToken(creds.apiToken) || "";
+    if (!orgId) throw new Error("Cannot determine anny organization ID");
+    return fetchAnnyResources(creds.apiToken, orgId, search, page ?? 1);
+  },
+
   getBookingUrl({ roomConfig }) {
     const room = annyRoomConfigSchema.parse(roomConfig);
     return room.bookingUrl ?? null;

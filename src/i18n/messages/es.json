@@ -323,11 +323,11 @@
       "sourceCalendar": "Desde el calendario",
       "staticName": "Nombre",
       "staticNamePlaceholder": "Pérez",
-      "resourceId": "ID de recurso",
       "showStatus": "Mostrar estado de reserva",
       "showStatusHint": "Solo para puestos de calendario. Un nombre fijo no tiene estado, por lo que su línea se omite en lugar de quedar vacía.",
       "maxSeatsHint": "Cuatro puestos como máximo, para que los nombres sigan siendo legibles a distancia.",
-      "noEditorHint": "La composición se calcula a partir del número de puestos y de la pantalla. No hay nada que colocar."
+      "noEditorHint": "La composición se calcula a partir del número de puestos y de la pantalla. No hay nada que colocar.",
+      "resource": "Recurso (sala / escritorio)"
     }
   },
   "providers": {
@@ -766,7 +766,9 @@
     "search": "Buscar salas…",
     "loading": "Cargando…",
     "noResults": "No se encontraron salas",
-    "noResources": "Sin recursos"
+    "noResources": "Sin recursos",
+    "identifier": "Identificador de recurso",
+    "notListable": "Este proveedor no puede listar recursos; en una fuente iCal la propia URL es el recurso. Introduce el identificador que usa el proveedor."
   },
   "provision": {
     "title": "Configurar por USB",

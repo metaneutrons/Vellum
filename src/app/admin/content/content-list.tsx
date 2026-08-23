@@ -45,7 +45,7 @@ interface Props {
   initialEditId?: string | null;
 }
 
-import { AnnyResourcePicker } from "@/components/anny-resource-picker";
+import { ResourcePicker } from "@/components/resource-picker";
 import { DoorSignEditor } from "@/components/door-sign-editor";
 import { DoorSignMultiEditor } from "@/components/door-sign-multi-editor";
 import { NamePlateEditor } from "@/components/name-plate-editor";
@@ -140,7 +140,7 @@ function DoorSignConfigEditor({
             {td("resource")}
           </label>
           <div className="mb-3">
-            <AnnyResourcePicker
+            <ResourcePicker
               providerId={config.providerId as string}
               resourceId={(config.resourceId as string) ?? ""}
               resourceName={config.resourceName as string | undefined}
@@ -317,7 +317,7 @@ function RoomBookingEditor({
       </label>
       {isAnny && config.providerId ? (
         <div className="mb-3">
-          <AnnyResourcePicker
+          <ResourcePicker
             providerId={config.providerId as string}
             resourceId={roomConfig.resourceId ?? ""}
             resourceName={roomConfig.resourceName}

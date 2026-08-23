@@ -11,7 +11,11 @@ import { requestHasPermission } from "@/lib/access";
  * Called at config time (editor save), not at render time.
  */
 export async function GET(request: NextRequest) {
-  if (!(await requestHasPermission(request, "providers.manage_secrets")))
+  /* content.manage, not providers.manage_secrets: resolving a room's properties is
+   * a content task, and the old gate is held by no role but owner and
+   * administrator — so the content manager whose job this is got a 403. Same
+   * correction as on /provider-resources. */
+  if (!(await requestHasPermission(request, "content.manage")))
     return Response.json({ error: "Forbidden" }, { status: 403 });
   const providerId = request.nextUrl.searchParams.get("providerId");
   const resourceId = request.nextUrl.searchParams.get("resourceId");

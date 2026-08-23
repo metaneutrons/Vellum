@@ -323,11 +323,11 @@
       "sourceCalendar": "Aus Kalender",
       "staticName": "Name",
       "staticNamePlaceholder": "Müller",
-      "resourceId": "Ressourcen-ID",
       "showStatus": "Buchungszustand anzeigen",
       "showStatusHint": "Nur für Kalenderplätze. Ein fester Name hat keinen Zustand, seine Zeile entfällt statt leer zu bleiben.",
       "maxSeatsHint": "Höchstens vier Plätze, damit die Namen aus der Entfernung lesbar bleiben.",
-      "noEditorHint": "Das Layout wird aus der Anzahl der Plätze und dem Display berechnet. Es gibt nichts zu positionieren."
+      "noEditorHint": "Das Layout wird aus der Anzahl der Plätze und dem Display berechnet. Es gibt nichts zu positionieren.",
+      "resource": "Ressource (Raum/Arbeitsplatz)"
     }
   },
   "providers": {
@@ -766,7 +766,9 @@
     "search": "Räume suchen…",
     "loading": "Laden…",
     "noResults": "Keine Räume gefunden",
-    "noResources": "Keine Ressourcen"
+    "noResources": "Keine Ressourcen",
+    "identifier": "Ressourcen-Kennung",
+    "notListable": "Dieser Anbieter kann keine Ressourcen auflisten; bei einem iCal-Abruf ist die URL selbst die Ressource. Gib die Kennung ein, die der Anbieter verwendet."
   },
   "provision": {
     "title": "Über USB provisionieren",
