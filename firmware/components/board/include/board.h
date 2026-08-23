@@ -43,8 +43,9 @@ bool board_is_usb_powered(void);
 esp_err_t board_set_utc_time(time_t value);
 
 /** Status LED (active-low). */
-void board_led_on(void);
-void board_led_off(void);
+/* Indicators are named by STATE, not by pin or colour: see board_led.h.
+ * board_led_on()/board_led_off() are gone with the scheme that lit the LED for
+ * every awake moment, which said nothing and, on the D1001, said it in red. */
 
 /** Drive the buzzer at @p freq Hz for @p ms milliseconds (blocking). */
 void board_buzzer_beep(uint32_t freq, uint32_t ms);
