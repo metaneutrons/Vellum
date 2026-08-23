@@ -484,7 +484,8 @@ void board_init(void)
      * cable/charger from an ADC or low-battery-gate problem. */
     (void)charger_reports_usb_power();
 #endif
-    board_led_init();
+    /* Indicators are initialised by the caller, outside the model split: this
+     * function does not run on every board. See main.c. */
     buzzer_init();
     ESP_LOGI(TAG, "Board peripherals initialized (battery, LED, buzzer)");
 }

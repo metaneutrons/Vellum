@@ -29,16 +29,23 @@
  */
 #pragma once
 
+
 #include <stdint.h>
 #include "driver/gpio.h"
 #include "led_pattern.h"
 
+/* Every member below is read by led_indicator.c and by each board's tables in
+ * board.c. cppcheck sees one translation unit at a time, so analysing this header
+ * on its own reports them all as unused; the per-member directives say so where
+ * a reader will meet the claim. */
 /** One physical indicator: a pin and the level that lights it. */
 typedef struct {
     gpio_num_t  gpio;
     /** Level that turns it ON. 0 for the usual active-low wiring. */
+    /* cppcheck-suppress unusedStructMember */
     uint8_t     on_level;
     /** Colour or role, for logs only. Never parsed. */
+    /* cppcheck-suppress unusedStructMember */
     const char *label;
 } board_led_channel_t;
 
@@ -63,14 +70,19 @@ typedef enum {
 
 typedef struct {
     /** Index into the profile's channel list, or BOARD_LED_NO_CHANNEL. */
+    /* cppcheck-suppress unusedStructMember */
     int8_t              channel;
+    /* cppcheck-suppress unusedStructMember */
     board_led_pattern_t pattern;
 } board_led_expression_t;
 
 typedef struct {
+    /* cppcheck-suppress unusedStructMember */
     const board_led_channel_t    *channels;
+    /* cppcheck-suppress unusedStructMember */
     uint8_t                       channel_count;
     /** Exactly BOARD_LED_STATE_COUNT entries, indexed by board_led_state_t. */
+    /* cppcheck-suppress unusedStructMember */
     const board_led_expression_t *states;
 } board_led_profile_t;
 

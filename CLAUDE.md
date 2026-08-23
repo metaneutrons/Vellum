@@ -274,8 +274,9 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   ordinary work in the colour a person reads as a fault; green and blue are used
   since the `board_led` rework and their polarity is **assumed** to match red's,
   not yet confirmed on hardware.
-- **Indicators are addressed by STATE, never by pin or colour** (`board_led.h`,
-  `led_indicator.c`). A board supplies two tables — the channels it physically
+- **Indicators are addressed by state rather than by pin or colour**
+  (`board_led.h`, `led_indicator.c`). Reaching for a pin directly is for bring-up
+  and hardware diagnostics; anything that ships names a state. A board supplies two tables — the channels it physically
   carries, and one row per `board_led_state_t` mapping that state to a channel
   plus a pattern — and a new board needs to add nothing else. `board_led_on()` /
   `board_led_off()` are gone with the scheme that lit the LED for every awake
@@ -289,7 +290,8 @@ source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
     to blink, and a held light would spend the standby budget the product is built
     around. It also does not need one — a failed render leaves a status screen and
     e-paper keeps showing it, so the panel is that board's persistent indicator.
-    The D1001 is mains-oriented and always awake, so it holds red instead.
+    The D1001 is mains-oriented and stays awake between polls, so it can afford
+    to hold red instead.
   - Pattern arithmetic lives in `led_pattern.h` as pure inlines (the
     `lcd_rotation.h` shape) and is covered by `host_test/test_led_pattern.c`. Two
     properties there are load-bearing: every lighting pattern is lit at phase 0,
