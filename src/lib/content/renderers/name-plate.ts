@@ -9,16 +9,18 @@
  * `door-sign`: a fraction-of-width layout cannot survive a change of aspect
  * ratio, and `door-sign`'s answer to that is a hand-made design per display size.
  *
- * Two typography paths, because the panels differ in kind:
+ * Type is fitted to the longest name on EVERY panel, including the six-colour
+ * E1002. An earlier version drew that model from the pre-generated bitmap atlas,
+ * on the assumption that vector antialiasing dithers badly on six colours — and
+ * the atlas stops at 32 px, so a name plate there used a fraction of its panel.
+ * The assumption does not hold for the path this actually goes through:
+ * `canvasToPixelBuffer` quantises indexed output with nearestColorQuantize, not
+ * Floyd-Steinberg, so an antialiased grey edge snaps hard to black or white
+ * instead of dithering. Rendered and quantised at 16, 28, 60 and 96 px, the
+ * result is clean at all of them.
  *
- *   VECTOR panels (mono e-paper, 16-gray, LCD) get a size fitted to the longest
- *   name, which is what makes a plate readable across a room.
- *
- *   The INDEXED panel (E1002, six colours) cannot: vector antialiasing dithers
- *   badly on a six-colour palette, so it draws from a pre-generated bitmap atlas
- *   that has four fixed sizes. The plate picks the largest that fits and stops
- *   there. Raising that ceiling means extending the atlas, which has no
- *   generator committed — a separate job, deliberately not done here.
+ * room-booking still uses the atlas for that model. Whether it should is a
+ * separate question about small text and is not answered here.
  */
 
 import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
@@ -26,7 +28,6 @@ import { TZDate } from "@date-fns/tz";
 import { getCalendarProvider } from "@/lib/calendar/registry";
 import { getProviderWithCredentials } from "@/lib/providers";
 import { TtlCache } from "@/lib/cache";
-import { drawBitmapText, measureBitmapText, type BitmapFontSize } from "@/lib/render/bitmap-text";
 import { ensureRenderFonts } from "@/lib/render/fonts";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, RenderParams, RenderResult } from "../types";
@@ -45,15 +46,6 @@ import {
   type BandContent,
   type Rect,
 } from "./name-plate-layout";
-
-/* The atlas sizes, largest last. The plate walks this backwards to find the
- * biggest one that fits, which is the indexed panel's version of fitting. */
-const ATLAS_STEPS: readonly { key: BitmapFontSize; px: number }[] = [
-  { key: "sm", px: 16 },
-  { key: "md", px: 24 },
-  { key: "md-bold", px: 24 },
-  { key: "lg-bold", px: 32 },
-] as const;
 
 /* ── Occupancy ────────────────────────────────────────────────── */
 
@@ -149,67 +141,19 @@ async function resolveSeat(
 
 interface TypeCtx {
   ctx: SKRSContext2D;
-  useBitmap: boolean;
   ff: string;
 }
 
 /**
- * How much vertical room one line occupies, as a fraction of its size.
+ * Vertical room one line occupies, as a fraction of its size.
  *
- * This is not one number, because the two drawing paths place a glyph
- * differently and laying out in the wrong unit makes lines collide.
- *
- * VECTOR text is drawn from its alphabetic baseline, so a line occupies about
- * its cap height and centring on the em would push the block down by the
- * descender — visible on a single large name.
- *
- * BITMAP text takes `y` as a baseline too, but `drawBitmapText` then positions
- * the glyph box by the FULL em (`baseY = y - variant.size`). A cap-height layout
- * therefore reserves less than the atlas actually draws, and on a two-line band
- * the name climbed into the caption above it. Measured, not reasoned: the first
- * indexed render showed the two overlapping.
+ * Cap height, because vector text is drawn from its alphabetic baseline: centring
+ * on the em would push a block down by the descender, which on a single large
+ * name is visible.
  */
-function lineRatio(t: TypeCtx): number {
-  return t.useBitmap ? 1 : 0.72;
-}
-
-/**
- * The atlas step a requested size actually becomes on the indexed panel.
- *
- * The layout must then use `px`, not what it asked for: the atlas has four sizes,
- * so a request for 13 px is DRAWN at 16, and spacing computed from 13 leaves the
- * lines too close. Returns the largest step not exceeding the request, or the
- * smallest step when even that is too big — a name has to be drawn somehow.
- */
-function atlasStep(size: number, bold: boolean): { key: BitmapFontSize; px: number } {
-  const fitting = (pool: readonly { key: BitmapFontSize; px: number }[]) =>
-    pool.filter((s) => s.px <= size).sort((a, b) => b.px - a.px)[0];
-
-  if (bold) {
-    const boldFit = fitting(ATLAS_STEPS.filter((s) => s.key.endsWith("bold")));
-    if (boldFit) return boldFit;
-    /* No bold step is small enough. Prefer a LIGHTER weight at a size that fits
-     * over a bold one that gets clipped: the name is the payload, and the
-     * smallest bold variant is 24 px, so insisting on weight would cut long
-     * names on the indexed panel outright. */
-    const anyFit = fitting(ATLAS_STEPS);
-    if (anyFit) return anyFit;
-  } else {
-    const fit = fitting(ATLAS_STEPS);
-    if (fit) return fit;
-  }
-  /* Nothing fits at all; draw at the smallest the atlas has and let the width
-   * limit clip, which is still more legible than nothing. */
-  return ATLAS_STEPS.reduce((a, b) => (a.px <= b.px ? a : b));
-}
-
-/** Size a line will really be drawn at, which is what the layout must use. */
-function effectiveSize(t: TypeCtx, size: number, bold: boolean): number {
-  return t.useBitmap ? atlasStep(size, bold).px : size;
-}
+const CAP_RATIO = 0.72;
 
 function measureAt(t: TypeCtx, text: string, size: number): number {
-  if (t.useBitmap) return measureBitmapText(text, atlasStep(size, true).key);
   t.ctx.font = `bold ${size}px ${t.ff}`;
   return t.ctx.measureText(text).width;
 }
@@ -225,12 +169,6 @@ function drawCentred(
   bold: boolean,
   maxWidth: number
 ): void {
-  if (t.useBitmap) {
-    const step = atlasStep(size, bold);
-    const w = measureBitmapText(text, step.key);
-    drawBitmapText(t.ctx, text, cx - w / 2, baseline, step.key, color, maxWidth);
-    return;
-  }
   t.ctx.font = `${bold ? "bold " : ""}${size}px ${t.ff}`;
   t.ctx.fillStyle = color;
   t.ctx.textAlign = "center";
@@ -254,9 +192,9 @@ function drawBand(
   sizes: { name: number; caption: number; status: number },
   colors: { name: string; caption: string; status: string }
 ): void {
-  const lines: { text: string; size: number; drawn: number; color: string; bold: boolean }[] = [];
+  const lines: { text: string; size: number; color: string; bold: boolean }[] = [];
   const push = (text: string, size: number, color: string, bold: boolean) =>
-    lines.push({ text, size, drawn: effectiveSize(t, size, bold), color, bold });
+    lines.push({ text, size, color, bold });
 
   if (content.caption) push(content.caption, sizes.caption, colors.caption, false);
   if (content.nameIsNotice) {
@@ -269,11 +207,15 @@ function drawBand(
 
   /* Tight, because the caption and the status belong to the NAME between them,
    * not to the neighbouring band. Proximity is the only thing grouping them, so
-   * this gap has to stay clearly smaller than the space between bands. */
-  const gap = Math.round(sizes.caption * 0.22);
-  /* Whatever unit this drawing path actually consumes; see lineRatio(). */
-  const ratio = lineRatio(t);
-  const capHeights = lines.map((l) => l.drawn * ratio);
+   * this gap stays clearly smaller than the space between bands.
+   *
+   * Measured off the NAME rather than the caption, and large enough to clear a
+   * descender: the block is laid out in cap heights, so a caption ending in ")"
+   * or "," hangs below its own box and collided with the cap of the name below
+   * it. Visible immediately at full size on an 800x480 panel, invisible in the
+   * arithmetic. */
+  const gap = Math.round(sizes.name * 0.14);
+  const capHeights = lines.map((l) => l.size * CAP_RATIO);
   const blockH = capHeights.reduce((a, b) => a + b, 0) + gap * Math.max(0, lines.length - 1);
 
   let y = band.y + (band.h - blockH) / 2;
@@ -335,8 +277,10 @@ async function render(params: RenderParams): Promise<RenderResult> {
 
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
-  const useBitmap = colorMode === "indexed";
-  ctx.imageSmoothingEnabled = !useBitmap;
+  /* Mirrors room-booking. This governs IMAGE scaling, not text antialiasing, and
+   * this renderer draws no images -- kept only so the two behave alike if one
+   * ever does. */
+  ctx.imageSmoothingEnabled = colorMode !== "indexed";
 
   ctx.fillStyle = T.background;
   ctx.fillRect(0, 0, width, height);
@@ -344,7 +288,7 @@ async function render(params: RenderParams): Promise<RenderResult> {
   const shortSide = Math.min(width, height);
   const pad = Math.round(shortSide * 0.06);
   const scale = shortSide / 480;
-  const t: TypeCtx = { ctx, useBitmap, ff: ensureRenderFonts() };
+  const t: TypeCtx = { ctx, ff: ensureRenderFonts() };
 
   /* A door sign says WHERE it is before it says who is inside, and it says it the
    * way the room-booking display does: same bar, same height, same weight, so a
@@ -366,7 +310,7 @@ async function render(params: RenderParams): Promise<RenderResult> {
       t,
       room,
       width / 2,
-      Math.round(headerH / 2 + roomSize * lineRatio(t) * 0.5),
+      Math.round(headerH / 2 + roomSize * CAP_RATIO * 0.5),
       roomSize,
       T.headerText,
       true,
@@ -400,13 +344,37 @@ async function render(params: RenderParams): Promise<RenderResult> {
     maxHeight: Math.floor(bandH * nameShare),
     measure: (text, size) => measureAt(t, text, size),
     min: Math.max(12, Math.round(shortSide * 0.03)),
-    max: useBitmap ? 32 : Math.round(shortSide * 0.5),
+    max: Math.round(shortSide * 0.5),
   });
+
+  /* The caption gets its own fit, bounded by a fraction of the name.
+   *
+   * Deriving it from the name alone went wrong in the common single-seat case: a
+   * short name like "Frei" allows a huge size, and a caption at a third of that
+   * is "Föhr 1 (1J.2.27)" running nearly the full width while the name sits
+   * compact in the middle. The longest string on the plate was the subordinate
+   * one. Fitting it to the width it actually has, and never letting it past 34 %
+   * of the name, keeps the hierarchy the way round it is meant to be. */
+  const captions = contents.map((c) => c.caption).filter((c): c is string => !!c);
+  const captionCeiling = Math.round(nameSize * 0.34);
+  const captionSize = captions.length
+    ? Math.min(
+        captionCeiling,
+        fitSharedSize({
+          texts: captions,
+          maxWidth: (bands[0]?.w ?? width) * 0.9,
+          maxHeight: captionCeiling,
+          measure: (text, size) => measureAt(t, text, size),
+          min: 11,
+          max: captionCeiling,
+        })
+      )
+    : captionCeiling;
 
   const sizes = {
     name: nameSize,
-    caption: Math.max(11, Math.round(nameSize * 0.36)),
-    status: Math.max(11, Math.round(nameSize * 0.36)),
+    caption: Math.max(11, captionSize),
+    status: Math.max(11, captionSize),
   };
   const colors = {
     name: T.footerText,
