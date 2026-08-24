@@ -30,6 +30,15 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   `core.hooksPath` hooks cannot run; `git -c core.hooksPath=/dev/null` is the way past
   them, and is only honest when the gates were already run on identical content in the
   real checkout.
+- **Never symlink `node_modules` into a worktree and then `git add -A`.** Until
+  2026-08-24 `.gitignore` said `node_modules/`, and a trailing slash matches
+  DIRECTORIES only, so the symlink was a file that git happily tracked. Every CI job
+  then died in `pnpm install` with `ENOTDIR: not a directory, mkdir .../node_modules`,
+  and the branch stayed red for three commits while every local gate passed. The
+  pattern is now `node_modules` without the slash, which covers both. The wider lesson:
+  **local gates green is not CI green** — check `gh pr view <n> --json statusCheckRollup`
+  after pushing, because a whole class of failure lives in the checkout rather than the
+  code.
 
 ## Server (Next.js): build / test
 
