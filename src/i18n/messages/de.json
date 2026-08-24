@@ -252,7 +252,8 @@
       "stable": "stable",
       "beta": "beta",
       "dev": "dev"
-    }
+    },
+    "renameLabel": "Diesem Display einen Namen geben"
   },
   "content": {
     "removeProperty": "Eigenschaft entfernen",

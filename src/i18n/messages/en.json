@@ -252,7 +252,8 @@
       "stable": "stable",
       "beta": "beta",
       "dev": "dev"
-    }
+    },
+    "renameLabel": "Name this display"
   },
   "content": {
     "removeProperty": "Remove property",

@@ -488,6 +488,7 @@ export async function cancelDeviceConfigurationCommand(macInput: string, command
 export async function updateDevice(
   mac: string,
   data: {
+    label?: string | null;
     contentInstanceId?: string | null;
     themeId?: string | null;
     refreshProfileId?: string | null;

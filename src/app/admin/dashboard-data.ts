@@ -28,6 +28,7 @@ const CHECKIN_DAYS = 14;
 
 interface DeviceRow {
   mac: string;
+  label: string | null;
   status: string;
   content_instance_id: string | null;
   last_seen: string | null;
@@ -42,6 +43,7 @@ export type AttentionReason = "offline" | "lowBattery" | "weakSignal" | "noConte
 
 export interface AttentionDevice {
   mac: string;
+  label: string | null;
   reasons: AttentionReason[];
   batteryLevel: number | null;
   wifiRssi: number | null;
@@ -51,6 +53,7 @@ export interface AttentionDevice {
 
 export interface RecentDevice {
   mac: string;
+  label: string | null;
   status: string;
   lastSeen: string | null;
   batteryLevel: number | null;
@@ -126,7 +129,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       withDbRead(
         () =>
           db.execute(sql`
-        SELECT d.mac, d.status, d.content_instance_id, d.last_seen, d.expected_interval_s,
+        SELECT d.mac, d.label, d.status, d.content_instance_id, d.last_seen, d.expected_interval_s,
                t.battery_level, t.battery_voltage, t.wifi_rssi, t.firmware_version
         FROM devices d
         LEFT JOIN LATERAL (
@@ -213,6 +216,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       if (isApproved && !d.content_instance_id) reasons.push("noContent");
       return {
         mac: d.mac,
+        label: d.label,
         reasons,
         batteryLevel: d.battery_level,
         wifiRssi: d.wifi_rssi,
@@ -227,6 +231,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   // ── Recent check-ins ───────────────────────────────────────────
   const recent: RecentDevice[] = deviceRows.slice(0, 6).map((d) => ({
     mac: d.mac,
+    label: d.label,
     status: d.status,
     lastSeen: d.last_seen,
     batteryLevel: d.battery_level,

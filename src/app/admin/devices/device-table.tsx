@@ -13,6 +13,7 @@ import { BatteryChartModal } from "./battery-chart-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
+import { deviceName, hasOwnName } from "@/lib/device-name";
 import { EmptyState } from "@/components/ui/misc";
 import { deviceConnectivity, connectivityTone } from "@/lib/connectivity";
 import { parseDeviceTs } from "../dashboard/ts";
@@ -31,6 +32,7 @@ import { useDeviceLiveUpdates, type LiveDeviceRow } from "./use-device-live-upda
 
 interface Device {
   mac: string;
+  label: string | null;
   status: string;
   content_instance_id: string | null;
   theme_id: string | null;
@@ -134,6 +136,7 @@ export function DeviceTable({
     const q = search.toLowerCase();
     return (
       d.mac.toLowerCase().includes(q) ||
+      (d.label ?? "").toLowerCase().includes(q) ||
       (d.firmware_version ?? "").toLowerCase().includes(q) ||
       ((d.display_caps as { model?: string })?.model ?? "").includes(q)
     );
@@ -267,10 +270,15 @@ export function DeviceTable({
                         page, so the list an operator actually uses was a dead end. */}
                     <Link
                       href={`/admin/devices/${d.mac}`}
-                      className="focus-ring rounded font-mono text-sm font-semibold tracking-tight text-label hover:text-accent hover:underline"
+                      className={`focus-ring rounded text-sm font-semibold tracking-tight text-label hover:text-accent hover:underline ${
+                        hasOwnName(d) ? "" : "font-mono"
+                      }`}
                     >
-                      {d.mac}
+                      {deviceName(d)}
                     </Link>
+                    {hasOwnName(d) && (
+                      <span className="font-mono text-xs text-label-tertiary">{d.mac}</span>
+                    )}
                     <StatusPill tone={statusTone} dot>
                       {d.status}
                     </StatusPill>

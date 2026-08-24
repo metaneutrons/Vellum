@@ -252,7 +252,8 @@
       "stable": "stable",
       "beta": "beta",
       "dev": "dev"
-    }
+    },
+    "renameLabel": "Poner nombre a esta pantalla"
   },
   "content": {
     "removeProperty": "Eliminar propiedad",

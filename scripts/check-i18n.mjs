@@ -237,7 +237,8 @@ for (const relativeFile of guardedUiFiles) {
  * `undefined` is the correct argument for "use the runtime's locale"; a view with
  * a `useLocale()` in hand should pass that instead.
  */
-const LOCALE_ARGUMENT = /\.toLocale(?:Date|Time)?String\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']|\bIntl\.[A-Za-z]+Format\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']/g;
+const LOCALE_ARGUMENT =
+  /\.toLocale(?:Date|Time)?String\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']|\bIntl\.[A-Za-z]+Format\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']/g;
 for (const file of sourceFiles(sourceDir)) {
   const relative = path.relative(process.cwd(), file);
   if (!/\.tsx$/.test(relative) || relative.includes("__tests__")) continue;

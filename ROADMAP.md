@@ -440,24 +440,26 @@ design calls:
       an argument rather than a string a reader sees. `check-i18n.mjs` now refuses one,
       and the message says what to pass instead.
 
-- [ ] **A device has no name.** It is identified by its MAC everywhere, and the only
-      human handle is the content it happens to carry, which changes when the
-      assignment changes. Proposed and ready to execute:
-  - `devices.label text` — nullable, no default, additive. Migration
-    `ALTER TABLE "devices" ADD COLUMN IF NOT EXISTS "label" text;` in the next free
-    `drizzle/00NN_device_label.sql`, plus the schema snapshot that `pnpm db:check`
-    requires.
-  - `updateDevice` already takes a partial, so it needs one field added and no new
-    action. The audit entry records the field name as it does today.
-  - Display rule, one place: `label ?? content name ?? mac`. The MAC stays visible in
-    the heading, because it is what the sticker on the back says and what an operator
-    matches against when standing in front of the thing.
-  - Touchpoints: the device table's search and column, the detail heading, the
-    assignment pickers on the content and theme pages, and the preview route's
-    device chooser.
-  - Deliberately NOT unique and NOT required: two rooms may both hold a "Foyer" sign,
-    and forcing a name at enrolment would put a dialogue in front of a display that
-    is otherwise provisioned by voucher without one.
+- [x] **A device has a name now.** It was identified by its MAC everywhere, and the
+      only human handle was the content it happened to carry, which changes whenever
+      the assignment does.
+  - `devices.label`, nullable, `drizzle/0029_device_label.sql`, additive and
+    forward-only. Not unique and not required, deliberately: two floors may each hold
+    a sign called "Foyer", and demanding a name at enrolment would put a dialogue in
+    front of a display that is otherwise provisioned by voucher with nobody present.
+  - One fallback chain, in `lib/device-name.ts`: the operator's name, else the
+    assigned content, else the address. A view showing "Foyer" in the list and a MAC
+    on the detail page would be worse than no name at all, so every caller goes
+    through the same function and it has its own tests.
+  - The MAC is never hidden, only moved: a named display shows the address beside the
+    name, because that is what the sticker on the back says and what somebody matches
+    against while holding the thing. An unnamed one keeps the monospace address it
+    always had.
+  - Renaming happens in the heading of the detail page, saved on blur, cleared by
+    emptying the field. `updateDevice` already took a partial, so it needed one field
+    and no new action, and the audit entry records it like any other.
+  - Reached: the device list and its search, the detail heading, the dashboard's
+    attention list and activity feed.
 
 - [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
       header band and 32 px type at fixed offsets, so on an E1003 the room name sits

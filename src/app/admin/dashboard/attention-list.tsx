@@ -16,6 +16,7 @@ import { DashCard } from "./card";
 import { relativeTime, shortMac, batteryTone, signalTone, ATTENTION_LABELS } from "./util";
 import type { AttentionDevice } from "../dashboard-data";
 import { useTranslations } from "next-intl";
+import { deviceName, hasOwnName } from "@/lib/device-name";
 
 /** Per-reason chip styling + icon, keyed to the data layer's reason strings. */
 const REASON_STYLE: Record<string, { chip: string; Icon: typeof WifiOff }> = {
@@ -63,8 +64,11 @@ export function AttentionList({ devices, now }: { devices: AttentionDevice[]; no
               >
                 {/* Identity + reasons */}
                 <div className="min-w-0 flex-1">
-                  <span className="font-mono text-[13px] text-label truncate block" title={d.mac}>
-                    {shortMac(d.mac)}
+                  <span
+                    className={`block truncate text-[13px] text-label ${hasOwnName(d) ? "" : "font-mono"}`}
+                    title={d.mac}
+                  >
+                    {hasOwnName(d) ? deviceName(d) : shortMac(d.mac)}
                   </span>
                   <div className="flex flex-wrap items-center gap-1 mt-1.5">
                     {d.reasons.map((reason) => {

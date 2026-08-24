@@ -9,6 +9,7 @@ import { StatusPill } from "@/components/ui/badge";
 import type { DashboardData, RecentDevice } from "../dashboard-data";
 import type { Connectivity } from "@/lib/connectivity";
 import { useTranslations } from "next-intl";
+import { deviceName, hasOwnName } from "@/lib/device-name";
 
 /** Authorization status → StatusPill tone. Green is reserved for connectivity,
  *  so "approved" is a neutral accent, not green. */
@@ -81,11 +82,15 @@ export function ActivityFeed({
                         aria-label={CONN_LABEL[d.connectivity]}
                         title={CONN_LABEL[d.connectivity]}
                       />
+                      {/* A named display shows its name; an unnamed one keeps the
+                          short address, and the full one stays in the tooltip. */}
                       <span
-                        className="font-mono text-[13px] font-medium text-label tracking-tight shrink-0"
+                        className={`shrink-0 text-[13px] font-medium tracking-tight text-label ${
+                          hasOwnName(d) ? "truncate" : "font-mono"
+                        }`}
                         title={d.mac}
                       >
-                        {shortMac(d.mac)}
+                        {hasOwnName(d) ? deviceName(d) : shortMac(d.mac)}
                       </span>
                       <StatusPill tone={statusTone(d.status)}>{d.status}</StatusPill>
                       {d.batteryLevel !== null && (

@@ -21,6 +21,7 @@ import { StatusPill } from "@/components/ui/badge";
 import { OtaEventList, type OtaEvent } from "@/components/ota-event-list";
 import { deviceConnectivity } from "@/lib/connectivity";
 import { fmtInterval } from "@/lib/duration";
+import { deviceName } from "@/lib/device-name";
 import { assessSecurityPosture } from "@/lib/security-posture";
 
 /**
@@ -33,6 +34,7 @@ import { assessSecurityPosture } from "@/lib/security-posture";
 interface Device {
   mac: string;
   status: string;
+  label: string | null;
   displayCaps: unknown;
   orientationOverride: string | null;
   firmwareChannel: string | null;
@@ -225,7 +227,15 @@ export function DeviceDetail({
     never: { label: t("connectivity.never"), tone: "neutral" as const },
   }[connState];
 
+  /** Empty means "no name": the fallback chain in `deviceName` takes over. */
+  function renameDevice(value: string) {
+    const label = value.trim() || null;
+    if (label === (device.label ?? null)) return;
+    handleUpdate({ label });
+  }
+
   function handleUpdate(data: {
+    label?: string | null;
     contentInstanceId?: string | null;
     themeId?: string | null;
     refreshProfileId?: string | null;
@@ -364,16 +374,38 @@ export function DeviceDetail({
 
   return (
     <div className={pending ? "opacity-60 pointer-events-none" : ""}>
-      {/* Header */}
-      {/* A device has no name of its own, so the content it carries is the only
-          human handle on this page. Until it gets one, showing the assigned room
-          in the heading is what tells an operator which display this is. */}
+      {/* Header. The name an operator gave it leads, the address stays beside it
+          because that is what the sticker on the back says, and the assigned room
+          is underneath because it is what the display is FOR. */}
       <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <h1 className="font-mono text-2xl font-bold">{device.mac}</h1>
-          <p className="text-sm text-label-secondary">
-            {contentInstances.find((c) => c.id === effective.values.contentInstanceId)?.name ??
-              t("noContent")}
+          {canProvision ? (
+            <input
+              className="-mx-1 w-full min-w-0 rounded border border-transparent bg-transparent px-1 text-2xl font-bold text-label hover:border-separator focus:border-separator focus-ring"
+              defaultValue={device.label ?? ""}
+              placeholder={device.mac}
+              aria-label={t("renameLabel")}
+              maxLength={64}
+              onBlur={(e) => renameDevice(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") {
+                  e.currentTarget.value = device.label ?? "";
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          ) : (
+            <h1 className={`text-2xl font-bold ${device.label ? "" : "font-mono"}`}>
+              {deviceName(device)}
+            </h1>
+          )}
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-label-secondary">
+            {device.label && <span className="font-mono text-label-tertiary">{device.mac}</span>}
+            <span>
+              {contentInstances.find((c) => c.id === effective.values.contentInstanceId)?.name ??
+                t("noContent")}
+            </span>
           </p>
         </div>
         <StatusPill
