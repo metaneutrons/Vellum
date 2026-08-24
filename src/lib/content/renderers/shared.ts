@@ -4,7 +4,7 @@
  * Shared utilities for door-sign renderers.
  */
 
-import { loadImage, type SKRSContext2D } from "@napi-rs/canvas";
+import { loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { eq } from "drizzle-orm";
 import { db, withDbRead } from "@/db";
 import { assets } from "@/db/schema";
@@ -116,6 +116,45 @@ export function renderTextBoxes(
 }
 
 /* ── Draw background (color + optional image) ─────────────────── */
+
+/**
+ * The background of a sign, with the asset already fetched.
+ *
+ * Split from `drawBackground` so that painting can be synchronous and offline: the
+ * asset comes out of the database, which is `load`'s business, and a `draw` that
+ * awaited a query would not be a deterministic function of its model.
+ */
+export function paintBackground(
+  c: SKRSContext2D,
+  design: Design,
+  width: number,
+  height: number,
+  image: Image | null
+): void {
+  c.fillStyle = design.backgroundColor;
+  c.fillRect(0, 0, width, height);
+  if (image) c.drawImage(image, 0, 0, width, height);
+}
+
+/**
+ * Fetch and decode a design's background, or null when it has none.
+ *
+ * Never throws: a sign with an unreadable background is still a sign, and the two
+ * devices this runs on are on a wall.
+ */
+export async function loadBackgroundImage(design: Design): Promise<Image | null> {
+  if (!design.backgroundAssetId) return null;
+  try {
+    const buf = await loadBackgroundAsset(design.backgroundAssetId);
+    return buf ? await loadImage(buf) : null;
+  } catch (err) {
+    log.warn("door-sign: failed to load background image", {
+      assetId: design.backgroundAssetId,
+      error: String(err),
+    });
+    return null;
+  }
+}
 
 export async function drawBackground(
   c: SKRSContext2D,

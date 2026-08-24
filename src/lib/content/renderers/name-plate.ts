@@ -27,7 +27,7 @@ import { TtlCache } from "@/lib/cache";
 import { ensureRenderFonts, narrowFontFamily } from "@/lib/render/fonts";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Theme } from "@/lib/theme";
-import type { ContentRenderer, RenderParams, RenderResult } from "../types";
+import type { ContentRenderer, DrawParams, DrawResult, LoadParams } from "../types";
 import {
   namePlateConfigSchema,
   resolveRoomName,
@@ -369,18 +369,64 @@ function plateColors(T: Theme): BandColors {
   };
 }
 
-async function render(params: RenderParams): Promise<RenderResult> {
+/**
+ * Everything a plate needs in order to be drawn.
+ *
+ * `bands` is the only part that took I/O to obtain, and it is the reason this type
+ * exists: with it, a free seat, a taken seat and an unreachable provider are three
+ * objects a test can write down, instead of three states that needed a calendar.
+ *
+ * `now` is data, not a clock read. It is here so that `drawPlate` is deterministic
+ * and so that the freshness mark says what the frame depicts rather than when it
+ * happened to be painted.
+ */
+export interface PlateModel {
+  config: NamePlateConfig;
+  bands: BandContent[];
+  now: Date;
+  timezone: string;
+}
+
+async function load(params: LoadParams): Promise<PlateModel> {
   const config: NamePlateConfig = namePlateConfigSchema.parse(params.config);
-  const { width, height, colorMode, colorCount } = params.display;
-  const T = params.theme;
   const timezone = config.timezone ?? params.timezone ?? "UTC";
-  const locale = config.locale;
+  const labels = statusLabels(config.locale);
+  return {
+    config,
+    bands: await resolveContents(config, params.now, timezone, config.locale, labels),
+    now: params.now,
+    timezone,
+  };
+}
 
-  const labels = statusLabels(locale);
-  const contents = await resolveContents(config, params.now, timezone, locale, labels);
+/**
+ * Every measurement a plate needs, settled before anything is painted.
+ *
+ * Separated from the painting for the same reason `load` is separated from `draw`:
+ * these are the decisions, and decisions are what a test can check cheaply. The
+ * modules this leans on, `name-plate-layout` and `name-plate-sizes`, sit at 100 %
+ * of statements precisely because they were split out this way.
+ */
+interface PlateLayout {
+  pad: number;
+  scale: number;
+  headerH: number;
+  footerH: number;
+  bands: Rect[];
+  budget: WidthBudget;
+  plan: ChosenPlan;
+  /** The footer's state pill on a single-seat plate, else null. */
+  soleState: string | null;
+}
 
-  const { canvas, ctx } = newPlateCanvas(width, height, T.background, params.surface);
-
+function planPlate(
+  t: TypeCtx,
+  config: NamePlateConfig,
+  contents: BandContent[],
+  labels: StatusLabels,
+  width: number,
+  height: number
+): PlateLayout {
   /* Only a single-seat plate puts its state in the footer; with more seats each band
    * carries its own pill, so the strip holds nothing but the freshness mark and can
    * be shorter. Settled before the frame, because it decides the frame. */
@@ -393,22 +439,38 @@ async function render(params: RenderParams): Promise<RenderResult> {
   );
 
   const bands = seatBands(config.seats.length, width, height - footerH, pad, headerH);
-  const bandW = bands[0]?.w ?? width;
-  const bandH = bands[0]?.h ?? height;
-
   const budget = widthBudget(config, contents, labels, bands, scale);
-
-  const t: TypeCtx = { ctx, ff: ensureRenderFonts() };
 
   /* The narrow cut is confined to the surname rank, so a corridor never ends up
    * holding two kinds of sign. */
   const plan = choosePlan(t, surnameCandidates(t.ff), contents, {
-    bandW,
-    bandH,
+    bandW: bands[0]?.w ?? width,
+    bandH: bands[0]?.h ?? height,
     shortSide,
     reserved: budget.reserved,
     scale,
   });
+
+  return { pad, scale, headerH, footerH, bands, budget, plan, soleState };
+}
+
+export function drawPlate(model: PlateModel, params: DrawParams): DrawResult {
+  const { config, bands: contents, now, timezone } = model;
+  const { width, height, colorMode, colorCount } = params.display;
+  const T = params.theme;
+  const locale = config.locale;
+  const labels = statusLabels(locale);
+
+  const { canvas, ctx } = newPlateCanvas(width, height, T.background, params.surface);
+  const t: TypeCtx = { ctx, ff: ensureRenderFonts() };
+  const { pad, scale, footerH, bands, budget, plan, soleState } = planPlate(
+    t,
+    config,
+    contents,
+    labels,
+    width,
+    height
+  );
 
   /* Greyscale is no longer excluded: it carries an accent as a LEVEL. Two colours
    * still cannot, because black is already the unaccented header. */
@@ -417,16 +479,11 @@ async function render(params: RenderParams): Promise<RenderResult> {
     config,
     T,
     { width, pad, scale },
-    {
-      accentable: colorCount > 2,
-      greyscale: colorMode === "grayscale",
-    }
+    { accentable: colorCount > 2, greyscale: colorMode === "grayscale" }
   );
 
-  const colors = plateColors(T);
-
   drawSeparators(ctx, bands, T.slotSecondary, scale);
-  drawBands(t, bands, contents, plan, colors, budget.usesPills);
+  drawBands(t, bands, contents, plan, plateColors(T), budget.usesPills);
 
   if (budget.qrUrl) {
     const qr = { width, height, pad, footerH, qrBox: budget.qrBox, scale };
@@ -436,7 +493,7 @@ async function render(params: RenderParams): Promise<RenderResult> {
     t,
     { width, height, pad, footerH, scale },
     soleState,
-    freshnessMark(params.now, timezone, locale, labels),
+    freshnessMark(now, timezone, locale, labels),
     T
   );
 
@@ -510,9 +567,10 @@ function statusLabels(locale: string): StatusLabels {
   return LABELS_BY_LANG[locale.slice(0, 2).toLowerCase()] ?? LABELS_BY_LANG.en;
 }
 
-export const namePlateRenderer: ContentRenderer = {
+export const namePlateRenderer: ContentRenderer<PlateModel> = {
   slug: "name-plate",
   name: "Name plate",
   configSchema: namePlateConfigSchema,
-  render,
+  load,
+  draw: drawPlate,
 };

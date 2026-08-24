@@ -227,6 +227,35 @@ design calls:
     signs (wired for the seam, not swept), and room-booking's stacked layout beyond its
     offline fallback.
 
+- [x] **A renderer is two steps now: `load` fetches, `draw` paints.** Stage 2. The
+      interface enforces it rather than recommending it, because `DrawParams` carries
+      no clock and no timezone: anything that depends on the moment has to be put in
+      the model by `load`. A frame's instant is DATA; reading the wall clock while
+      painting is not.
+  - What it bought, measured rather than asserted. `room-booking.ts` went from 51.9
+    to 68.8 % of statements and 38.6 to 57.6 % of branches, `name-plate.ts`'s branches
+    from 31.6 to 43.4 %. Nobody wrote a test for either file. The code simply became
+    reachable without a database, which is the same effect that had already put
+    `name-plate-layout` and `name-plate-sizes` at 100 %: coverage follows
+    decomposition, not diligence.
+  - The three cases stage 1 could not reach are swept: a plate's "Frei", its "Belegt"
+    and its "Keine Verbindung" on all four panels, and room-booking's stacked layout
+    against every booking shape. 128 cases in the sweep, up from 100.
+  - Mutation-tested like stage 1. Making a free band say nothing fails four cases with
+    "no state label appears". Without that check the free state was untestable and, on
+    the retired door sign, still is broken.
+  - Two findings from writing the sweep, both mine rather than the renderers'. Hand-built
+    seat objects bypassed zod, so `role` and `unit` were undefined where the code trims
+    them; the sweep now parses its configs through the real schema. And the occupied
+    state's wording depends on `showStatus`, by design, because the pill carries the
+    DETAIL ("bis 12:00") when there is one: each case therefore brings its own set of
+    mutually exclusive wordings instead of the assertion being loosened to fit.
+  - `drawPlate` and `drawRoom` were kept under the complexity limit by pulling the
+    plate's measurements into a pure `planPlate`, which is the same move again.
+  - Not done here, deliberately: `renderContent` composes the two halves in one place
+    so that caching `load` per content instance rather than per device is a one-line
+    change, but the cache itself is stage 4. Today N displays on one room each fetch.
+
 - [ ] **The stacked layout never names the occupant at all.** `renderStacked` draws
       time and `displaySubject` per card and no organizer line, so on a stacked room
       display the person is visible only when the provider happens to put the name in

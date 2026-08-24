@@ -59,14 +59,21 @@ export default defineConfig({
       // functions 68.04, lines 73.11. Raise these only against CI numbers, never
       // a local run, and keep the margin.
       thresholds: {
-        // Raised with the frame-invariant sweep (2026-08-24), measured at
-        // 75.21 / 68.25 / 76.01 / 77.75. The margin below each is deliberate;
-        // see the note above on why a threshold set flush against a measurement
-        // is a gate that fails at random.
-        statements: 74,
-        branches: 67,
+        // Raised per refactor stage. The frame-invariant sweep (stage 1) took
+        // this to 75.21 / 68.25 / 76.01 / 77.75; splitting load from draw
+        // (stage 2) to 75.91 / 68.76 / 75.24 / 78.54, and it moved the two
+        // renderers that matter: room-booking from 51.9 to 68.8 statements and
+        // 38.6 to 57.6 branches, name-plate's branches from 31.6 to 43.4. Nobody
+        // wrote a test for either; they became reachable without a database.
+        // Functions dipped a point because the split exports small functions
+        // faster than the sweep exercises every one of them, so that floor stays
+        // where stage 1 put it. The margin below each is deliberate; see the note
+        // above on why a threshold set flush against a measurement is a gate that
+        // fails at random.
+        statements: 75,
+        branches: 68,
         functions: 74,
-        lines: 76,
+        lines: 77,
       },
     },
   },

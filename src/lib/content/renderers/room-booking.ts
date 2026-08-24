@@ -56,7 +56,7 @@ import { ensureRenderFonts } from "@/lib/render/fonts";
  */
 type FontSize = "sm" | "md" | "md-bold" | "lg-bold";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import type { ContentRenderer, RenderParams, RenderResult } from "../types";
+import type { ContentRenderer, DrawParams, DrawResult, LoadParams } from "../types";
 import { readableOn, type Theme } from "@/lib/theme";
 import type { DisplayEvent, RoomPolicy } from "@/lib/types";
 import QRCode from "qrcode";
@@ -187,6 +187,8 @@ export const roomBookingConfigSchema = z.object({
   timelineShiftH: z.number().int().min(1).max(8).default(2),
   bookingQr: bookingQrConfigSchema.default({ visibility: "never", source: "provider" }),
 });
+
+export type RoomBookingConfig = z.infer<typeof roomBookingConfigSchema>;
 
 const eventsCache = new TtlCache<CalendarEvent[]>(Infinity); // TTL managed per-entry
 
@@ -899,97 +901,167 @@ function renderStacked(
   return canvas;
 }
 
-export const roomBookingRenderer: ContentRenderer = {
+/**
+ * Everything a room display needs in order to be drawn.
+ *
+ * Two fields are here because they are facts about the MOMENT rather than about
+ * the panel, and resolving them needs the raw fetch that `draw` no longer has.
+ * `isRoomFree` cannot be recovered from `events`, because the "Hide All" policy
+ * returns an empty list for a room that is fully booked. `offline` records that
+ * the provider could not be reached, which used to be an early return in the
+ * middle of the render.
+ */
+export interface RoomModel {
+  config: RoomBookingConfig;
+  /** The room's own zone if it names one, else the display's. */
+  timezone: string;
+  /** The instant the frame depicts. Data, not a clock read. */
+  now: Date;
+  events: DisplayEvent[];
+  bookingUrl: string | null;
+  isRoomFree: boolean;
+  offline: boolean;
+}
+
+export async function loadRoomModel(params: LoadParams): Promise<RoomModel> {
+  const cfg = roomBookingConfigSchema.parse(params.config);
+
+  /* The room's own zone wins when it is set; otherwise the display's zone, from
+   * its device override or its site. Read from the RAW config rather than the
+   * parsed one, because the schema defaults timezone to "UTC" and a parsed value
+   * can no longer tell "unset" from "explicitly UTC". Without this the clock on
+   * screen could disagree with the schedule that decided when to draw it. */
+  const rawTimezone = (params.config as { timezone?: unknown } | null)?.timezone;
+  const timezone =
+    typeof rawTimezone === "string" && rawTimezone.trim()
+      ? rawTimezone
+      : (params.timezone ?? cfg.timezone);
+
+  const base = { config: cfg, timezone, now: params.now, bookingUrl: null };
+
+  let events: CalendarEvent[];
+  try {
+    events = await fetchEvents(cfg);
+  } catch (err) {
+    log.warn("Room-booking fetch failed", { error: String(err) });
+    return { ...base, events: [], isRoomFree: false, offline: true };
+  }
+
+  let bookingUrl: string | null = null;
+  try {
+    bookingUrl = await resolveBookingUrl(cfg);
+  } catch (err) {
+    // A missing public booking link must never take the room display offline.
+    log.warn("Room-booking QR URL resolution failed", { error: String(err) });
+  }
+
+  return {
+    ...base,
+    bookingUrl,
+    events: applyRoomPolicy(events, cfg.policy as RoomPolicy, cfg.locale),
+    isRoomFree: !events.some(
+      (e) =>
+        e.startTime.getTime() <= params.now.getTime() && e.endTime.getTime() > params.now.getTime()
+    ),
+    offline: false,
+  };
+}
+
+/**
+ * The timeline, with the model's fields spread over the layout's parameters.
+ *
+ * Its own function purely so that `drawRoom` stays readable: `renderToCanvas` takes
+ * fourteen positional arguments, which is a smell this change makes more visible
+ * rather than less. Collapsing both layouts onto one options object belongs with
+ * extracting their shared chrome; see ROADMAP.
+ */
+function drawTimeline(
+  model: RoomModel,
+  params: DrawParams,
+  bookingQr: BookingQrRenderOptions | undefined
+): Canvas {
+  const { config: cfg } = model;
+  return renderToCanvas(
+    model.events,
+    cfg.roomName,
+    model.timezone,
+    model.now,
+    params.theme,
+    params.display.width,
+    params.display.height,
+    params.display.colorCount,
+    params.display.colorMode,
+    cfg.timelineShiftH,
+    cfg.locale,
+    cfg.dateFormat,
+    bookingQr,
+    params.surface
+  );
+}
+
+/** The stacked layout, same arrangement as `drawTimeline`. */
+function drawStackedRoom(
+  model: RoomModel,
+  params: DrawParams,
+  bookingQr: BookingQrRenderOptions | undefined
+): Canvas {
+  const { config: cfg } = model;
+  return renderStacked(
+    model.events,
+    cfg.roomName,
+    model.timezone,
+    model.now,
+    params.theme,
+    params.display.width,
+    params.display.height,
+    params.display.colorCount,
+    params.display.colorMode,
+    cfg.locale,
+    cfg.dateFormat,
+    bookingQr,
+    params.surface
+  );
+}
+
+export function drawRoom(model: RoomModel, params: DrawParams): DrawResult {
+  const { config: cfg } = model;
+  const { theme, display, surface } = params;
+
+  if (model.offline) {
+    return {
+      canvas: renderOffline(
+        cfg.roomName,
+        model.now,
+        theme,
+        display.width,
+        display.height,
+        cfg.locale,
+        surface
+      ),
+    };
+  }
+
+  const bookingQr: BookingQrRenderOptions | undefined = model.bookingUrl
+    ? {
+        url: model.bookingUrl,
+        visibility: cfg.bookingQr.visibility,
+        isRoomFree: model.isRoomFree,
+      }
+    : undefined;
+
+  return {
+    canvas:
+      cfg.layout === "stacked"
+        ? drawStackedRoom(model, params, bookingQr)
+        : drawTimeline(model, params, bookingQr),
+  };
+}
+
+export const roomBookingRenderer: ContentRenderer<RoomModel> = {
   slug: "room-booking",
   name: "Room Booking",
   configSchema: roomBookingConfigSchema,
 
-  async render({
-    config,
-    theme,
-    display,
-    now,
-    timezone,
-    surface,
-  }: RenderParams): Promise<RenderResult> {
-    const cfg = roomBookingConfigSchema.parse(config);
-
-    /* The room's own zone wins when it is set; otherwise the display's zone, from
-     * its device override or its site. Read from the RAW config rather than the
-     * parsed one, because the schema defaults timezone to "UTC" and a parsed value
-     * can no longer tell "unset" from "explicitly UTC". Without this the clock on
-     * screen could disagree with the schedule that decided when to draw it. */
-    const rawTimezone = (config as { timezone?: unknown } | null)?.timezone;
-    const tz =
-      typeof rawTimezone === "string" && rawTimezone.trim()
-        ? rawTimezone
-        : (timezone ?? cfg.timezone);
-    const { width, height, colorCount } = display;
-
-    let events: CalendarEvent[];
-    try {
-      events = await fetchEvents(cfg);
-    } catch (err) {
-      log.warn("Room-booking fetch failed", { error: String(err) });
-      return {
-        canvas: renderOffline(cfg.roomName, now, theme, width, height, cfg.locale, surface),
-      };
-    }
-
-    const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy, cfg.locale);
-    let bookingUrl: string | null = null;
-    try {
-      bookingUrl = await resolveBookingUrl(cfg);
-    } catch (err) {
-      // A missing public booking link must never take the room display offline.
-      log.warn("Room-booking QR URL resolution failed", { error: String(err) });
-    }
-    const bookingQr: BookingQrRenderOptions | undefined = bookingUrl
-      ? {
-          url: bookingUrl,
-          visibility: cfg.bookingQr.visibility,
-          isRoomFree: !events.some(
-            (event) =>
-              event.startTime.getTime() <= now.getTime() && event.endTime.getTime() > now.getTime()
-          ),
-        }
-      : undefined;
-    if (cfg.layout === "stacked") {
-      return {
-        canvas: renderStacked(
-          displayEvents,
-          cfg.roomName,
-          tz,
-          now,
-          theme,
-          width,
-          height,
-          colorCount,
-          display.colorMode,
-          cfg.locale,
-          cfg.dateFormat,
-          bookingQr,
-          surface
-        ),
-      };
-    }
-    return {
-      canvas: renderToCanvas(
-        displayEvents,
-        cfg.roomName,
-        tz,
-        now,
-        theme,
-        width,
-        height,
-        colorCount,
-        display.colorMode,
-        cfg.timelineShiftH,
-        cfg.locale,
-        cfg.dateFormat,
-        bookingQr,
-        surface
-      ),
-    };
-  },
+  load: loadRoomModel,
+  draw: drawRoom,
 };

@@ -4,19 +4,21 @@
  * Door-sign content renderer — configurable name plate for a single room/desk.
  */
 
+import type { Image } from "@napi-rs/canvas";
 import { canvasSurface } from "@/lib/render/surface";
 import { TZDate } from "@date-fns/tz";
 import { getCalendarProvider } from "@/lib/calendar/registry";
 import { getProviderWithCredentials } from "@/lib/providers";
 import { TtlCache } from "@/lib/cache";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import type { ContentRenderer, RenderParams, RenderResult } from "../types";
+import type { ContentRenderer, DrawParams, DrawResult, LoadParams } from "../types";
 import { doorSignConfigSchema, type DoorSignConfig } from "./door-sign-types";
 import {
   renderTextBoxes,
   selectDesign,
   formatTime,
-  drawBackground,
+  loadBackgroundImage,
+  paintBackground,
   type TemplateContext,
 } from "./shared";
 
@@ -74,7 +76,68 @@ async function fetchEventsFromProvider(
 
 /* ── Renderer ─────────────────────────────────────────────────── */
 
-export const doorSignRenderer: ContentRenderer = {
+/**
+ * A door sign's frame: which boxes to draw, with what substituted into them.
+ *
+ * The template context is built by `load` because filling it needs the booking and
+ * the clock. `occupied` decides which set of boxes applies, and the background is
+ * carried as a decoded image so that painting needs no database.
+ */
+export interface DoorSignModel {
+  config: DoorSignConfig;
+  context: TemplateContext;
+  occupied: boolean;
+  background: Image | null;
+}
+
+async function loadDoorSignModel(params: LoadParams): Promise<DoorSignModel> {
+  const config = doorSignConfigSchema.parse(params.config);
+  const event = await fetchCurrentBooking(config, params.now);
+
+  const context: TemplateContext = {
+    resource_name: config.resourceName ?? "",
+    ...config.cachedProperties,
+  };
+  if (event) {
+    context.full_name = event.organizer;
+    context.booking_description = event.subject;
+    context.start = formatTime(event.startTime, config.locale, config.timezone);
+    context.end = formatTime(event.endTime, config.locale, config.timezone);
+    context.date = event.startTime.toLocaleDateString(config.locale, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: config.timezone,
+    });
+  }
+
+  /* Resolved against the DEFAULT design's asset. A per-geometry override may name
+   * a different one, which this does not follow; the one live instance overrides
+   * only box positions, and the type is on its way out. Recorded rather than
+   * fixed. */
+  const background = await loadBackgroundImage(config.design);
+  return { config, context, occupied: event !== null, background };
+}
+
+export function drawDoorSign(model: DoorSignModel, params: DrawParams): DrawResult {
+  const { config, context, occupied } = model;
+  const { width, height } = params.display;
+  const design = selectDesign(config, width, height);
+
+  const { canvas, ctx: c } = (params.surface ?? canvasSurface)(width, height);
+  paintBackground(c, design, width, height, model.background);
+
+  const boxes = occupied
+    ? design.textBoxes
+    : design.freeTextBoxes.length > 0
+      ? design.freeTextBoxes
+      : design.textBoxes;
+  renderTextBoxes(c, boxes, context, width, height);
+
+  return { canvas };
+}
+
+export const doorSignRenderer: ContentRenderer<DoorSignModel> = {
   slug: "door-sign",
   /* Retired in favour of `name-plate`, and kept rather than deleted because the
    * free-positioning editor is the obvious starting point for a future free-form
@@ -83,44 +146,8 @@ export const doorSignRenderer: ContentRenderer = {
   name: "Türschild",
   configSchema: doorSignConfigSchema,
 
-  async render(params: RenderParams): Promise<RenderResult> {
-    const config = doorSignConfigSchema.parse(params.config);
-    const { width, height } = params.display;
-    const design = selectDesign(config, width, height);
-
-    const event = await fetchCurrentBooking(config, params.now);
-    const isOccupied = event !== null;
-
-    const ctx: TemplateContext = {
-      resource_name: config.resourceName ?? "",
-      ...config.cachedProperties,
-    };
-
-    if (event) {
-      ctx.full_name = event.organizer;
-      ctx.booking_description = event.subject;
-      ctx.start = formatTime(event.startTime, config.locale, config.timezone);
-      ctx.end = formatTime(event.endTime, config.locale, config.timezone);
-      ctx.date = event.startTime.toLocaleDateString(config.locale, {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        timeZone: config.timezone,
-      });
-    }
-
-    const { canvas, ctx: c } = (params.surface ?? canvasSurface)(width, height);
-    await drawBackground(c, design, width, height);
-
-    const boxes = isOccupied
-      ? design.textBoxes
-      : design.freeTextBoxes.length > 0
-        ? design.freeTextBoxes
-        : design.textBoxes;
-    renderTextBoxes(c, boxes, ctx, width, height);
-
-    return { canvas };
-  },
+  load: loadDoorSignModel,
+  draw: drawDoorSign,
 };
 
 // Re-export shared utilities for use by other renderers
@@ -129,5 +156,6 @@ export {
   renderTextBoxes,
   selectDesign,
   formatTime,
-  drawBackground,
+  loadBackgroundImage,
+  paintBackground,
 } from "./shared";

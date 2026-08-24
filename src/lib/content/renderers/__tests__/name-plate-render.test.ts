@@ -12,6 +12,7 @@
 
 import { describe, it, expect } from "vitest";
 import { namePlateRenderer } from "../name-plate";
+import { renderContent } from "../../render";
 import { resolveTheme, snapThemeToPalette } from "@/lib/theme";
 import { DISPLAY_REGISTRY } from "@/lib/display";
 import type { RenderParams } from "../../types";
@@ -47,7 +48,7 @@ async function render(occupant: Record<string, unknown>): Promise<Buffer> {
     now: new Date(Date.UTC(2026, 7, 23, 11, 42)),
     timezone: "Europe/Berlin",
   };
-  const { canvas } = await namePlateRenderer.render(params);
+  const { canvas } = await renderContent(namePlateRenderer, params);
   return canvas.toBuffer("image/png");
 }
 

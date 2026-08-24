@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, withDbRead } from "@/db";
 import { contentInstances, devices, themes } from "@/db/schema";
-import { getContentRenderer } from "@/lib/content";
+import { getContentRenderer, renderContent } from "@/lib/content";
 import { resolveTheme, parseTheme, snapThemeToPalette } from "@/lib/theme";
 import { resolveDisplayCaps, DISPLAY_REGISTRY, type ResolvedDisplay } from "@/lib/display";
 import { requestHasPermission } from "@/lib/access";
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
    * preview showed it as grey on white. */
   theme = snapThemeToPalette(theme, display.palette);
 
-  const result = await renderer.render({
+  const result = await renderContent(renderer, {
     config: instance.config,
     theme,
     display,

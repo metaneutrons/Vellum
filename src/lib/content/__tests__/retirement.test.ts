@@ -20,7 +20,8 @@ describe("retired content types", () => {
     for (const slug of RETIRED) {
       const renderer = getContentRenderer(slug);
       expect(renderer, `${slug} must stay registered`).toBeDefined();
-      expect(typeof renderer?.render).toBe("function");
+      expect(typeof renderer?.load, `${slug} must still fetch`).toBe("function");
+      expect(typeof renderer?.draw, `${slug} must still paint`).toBe("function");
     }
   });
 
