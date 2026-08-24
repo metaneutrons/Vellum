@@ -364,11 +364,25 @@ design calls:
     carry two letters and are words by the crude test, but a unit is a unit in every
     locale.
 
-- [ ] **The remaining 108 hard-coded strings and 53 palette classes.** The two gates
-      now measure both; neither can grow. Worst first: `simulator/client.tsx` (21
-      strings), `content-list.tsx` (9), `fleet-status.tsx` (8), `firmware-page.tsx` (7)
-      for i18n; `sites/site-list.tsx` (13) and `db-disconnect-overlay.tsx` (12) for the
-      palette. Each is a small, self-contained job.
+- [x] **The palette debt is gone.** All 53 raw classes across the remaining 11 views
+      are on the Aurora tokens, and `scripts/check-theme-tokens.mjs` carries an empty
+      budget table.
+  - One more instance of the log block's defect turned up on the way, in the view the
+    refresh profiles are edited in: `schedule-timeline`'s legend sits on the PAGE, not
+    on its dark bar, and marked the active rule with `text-white`. White on white in
+    light mode. It uses `text-label` now, which is the page's own foreground by
+    definition, so it cannot be wrong the way a fixed colour can.
+  - The gate learned to separate DEBT from DECISION. `db-disconnect-overlay` keeps 9
+    classes and is listed under `DELIBERATE` with its reason: a blocking full-viewport
+    alert over a blurred backdrop is dark in both themes on purpose. Its
+    meaning-carrying colours (fault icon, circuit state, failure count) still moved to
+    the tokens, because those have to stay recognisable across the admin.
+  - A `dark:` variant on a token is dead weight and reintroduces the raw palette;
+    `admin/error.tsx` had one.
+
+- [ ] **The remaining hard-coded strings.** The i18n gate measures them and they
+      cannot grow. Worst first: `simulator/client.tsx` (21), `content-list.tsx` (9),
+      `fleet-status.tsx` (8), `firmware-page.tsx` (7).
 
 - [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
       header band and 32 px type at fixed offsets, so on an E1003 the room name sits

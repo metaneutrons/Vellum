@@ -37,10 +37,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
 
+  /* The token colours rather than the raw palette, so a toast matches the rest of
+   * the surface it appears over. White stays the foreground: all three grounds are
+   * saturated in both themes, and `--color-green` at 3.0:1 against white is the
+   * weakest of them, which is the WCAG floor for text this size. */
   const colors: Record<ToastType, string> = {
-    success: "bg-green-600",
-    error: "bg-red-600",
-    info: "bg-gray-700",
+    success: "bg-green",
+    error: "bg-red",
+    info: "bg-label",
   };
 
   return (

@@ -20,12 +20,12 @@ export default function AdminError({ error, reset }: { error: Error; reset: () =
         <h2 className="text-xl font-bold mb-2">
           {isDbError ? t("dbUnavailable") : t("somethingWrong")}
         </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
+        <p className="text-label-secondary mb-6">
           {isDbError ? t("dbHint") : error.message || t("unexpected")}
         </p>
         <button
           onClick={reset}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+          className="px-4 py-2 bg-accent text-on-accent rounded-md hover:bg-accent-hover transition"
         >
           {t("retry")}
         </button>

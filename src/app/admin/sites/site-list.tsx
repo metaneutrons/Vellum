@@ -129,7 +129,7 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-label">{t("title")}</h2>
-          <p className="mt-1 text-xs text-gray-500">{t("hint")}</p>
+          <p className="mt-1 text-xs text-label-secondary">{t("hint")}</p>
         </div>
         <Button onClick={() => open()}>
           <Plus className="mr-1.5 h-4 w-4" />
@@ -148,9 +148,9 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
             >
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-label">{site.name}</div>
-                <div className="mt-0.5 font-mono text-xs text-gray-500">{site.timezone}</div>
+                <div className="mt-0.5 font-mono text-xs text-label-secondary">{site.timezone}</div>
               </div>
-              <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
+              <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-label-secondary">
                 <div>
                   <dt className="inline">{t("profile")}: </dt>
                   <dd className="inline text-label">{nameOf(profiles, site.refreshProfileId)}</dd>
@@ -171,7 +171,7 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
                   type="button"
                   aria-label={t("edit")}
                   onClick={() => open(site)}
-                  className="focus-ring rounded p-2 text-gray-500 hover:text-label"
+                  className="focus-ring rounded p-2 text-label-secondary hover:text-label"
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
@@ -179,7 +179,7 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
                   type="button"
                   aria-label={t("delete")}
                   onClick={() => setDeleting(site)}
-                  className="focus-ring rounded p-2 text-gray-500 hover:text-red-600"
+                  className="focus-ring rounded p-2 text-label-secondary hover:text-red"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -197,7 +197,7 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
         >
           <div className="space-y-4">
             <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">{t("name")}</span>
+              <span className="mb-1 block text-xs text-label-secondary">{t("name")}</span>
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -206,7 +206,7 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">{t("timezone")}</span>
+              <span className="mb-1 block text-xs text-label-secondary">{t("timezone")}</span>
               <Input
                 value={form.timezone}
                 onChange={(e) => setForm({ ...form, timezone: e.target.value })}
@@ -218,13 +218,13 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
                   <option key={z} value={z} />
                 ))}
               </datalist>
-              <span className="mt-1 block text-xs text-gray-500">{t("timezoneHint")}</span>
+              <span className="mt-1 block text-xs text-label-secondary">{t("timezoneHint")}</span>
             </label>
 
-            <p className="text-xs text-gray-500">{t("defaultsHint")}</p>
+            <p className="text-xs text-label-secondary">{t("defaultsHint")}</p>
 
             <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">{t("profile")}</span>
+              <span className="mb-1 block text-xs text-label-secondary">{t("profile")}</span>
               <select
                 className={`${selectCls} w-full`}
                 value={form.refreshProfileId}
@@ -240,7 +240,7 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">{t("theme")}</span>
+              <span className="mb-1 block text-xs text-label-secondary">{t("theme")}</span>
               <select
                 className={`${selectCls} w-full`}
                 value={form.themeId}
@@ -256,7 +256,7 @@ export function SiteList({ sites, themes, profiles, contentInstances }: Props) {
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs text-gray-500">{t("content")}</span>
+              <span className="mb-1 block text-xs text-label-secondary">{t("content")}</span>
               <select
                 className={`${selectCls} w-full`}
                 value={form.contentInstanceId}

@@ -15,8 +15,8 @@ export function EmptyState({ icon = "📭", title, description, action }: EmptyS
   return (
     <div className="px-4 py-16 text-center">
       <div className="text-4xl mb-3">{icon}</div>
-      <p className="font-medium text-gray-400 mb-1">{title}</p>
-      {description && <p className="text-xs text-gray-500 mb-4">{description}</p>}
+      <p className="font-medium text-label-tertiary mb-1">{title}</p>
+      {description && <p className="text-xs text-label-secondary mb-4">{description}</p>}
       {action}
     </div>
   );

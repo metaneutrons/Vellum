@@ -89,10 +89,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
 
   return (
     <div>
-      <Link
-        href="/admin/devices"
-        className="text-sm text-blue-600 hover:underline mb-4 inline-block"
-      >
+      <Link href="/admin/devices" className="text-sm text-accent hover:underline mb-4 inline-block">
         ← Back to Devices
       </Link>
       <DeviceDetail

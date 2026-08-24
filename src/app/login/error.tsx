@@ -8,10 +8,10 @@ export default function LoginError({ error, reset }: { error: Error; reset: () =
       <div className="text-center max-w-md">
         <div className="text-5xl mb-4">⚠️</div>
         <h2 className="text-xl font-bold mb-2">Service Unavailable</h2>
-        <p className="text-gray-600 mb-6">{error.message || "Please try again later."}</p>
+        <p className="text-label-secondary mb-6">{error.message || "Please try again later."}</p>
         <button
           onClick={reset}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-4 py-2 bg-accent text-on-accent rounded-md hover:bg-accent-hover"
         >
           Retry
         </button>

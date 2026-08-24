@@ -788,7 +788,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                       type="button"
                       aria-label={t("brightness.removeRule")}
                       onClick={() => setDimRules(dimRules.filter((_, j) => j !== i))}
-                      className="focus-ring rounded p-2 text-label-tertiary hover:text-red-600"
+                      className="focus-ring rounded p-2 text-label-tertiary hover:text-red"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

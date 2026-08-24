@@ -29,26 +29,27 @@ import process from "node:process";
 const viewDirs = ["src/app", "src/components"];
 
 /**
+ * Surfaces that are deliberately NOT adaptive, each with the reason.
+ *
+ * Distinct from a budget: a budget is debt and is meant to reach zero, while
+ * these are decisions. The count is still pinned, so the exception cannot quietly
+ * grow into a licence for the whole file.
+ */
+const DELIBERATE = {
+  "src/components/db-disconnect-overlay.tsx": {
+    count: 9,
+    why: "a blocking full-viewport alert over a blurred backdrop, dark in both themes on purpose; the colours that carry meaning already use the tokens",
+  },
+};
+
+/**
  * Files still painting from the raw palette, with what they hold today.
  *
  * Every entry is a debt, not a permission. The intent is that this table only
  * ever shrinks; deleting an entry once a file is clean is the last step of
- * cleaning it.
+ * cleaning it. It is empty, and the aim is to keep it that way.
  */
-const BUDGET = {
-  "src/app/admin/sites/site-list.tsx": 13,
-  "src/components/db-disconnect-overlay.tsx": 12,
-  "src/components/schedule-timeline.tsx": 8,
-  "src/app/admin/error.tsx": 4,
-  "src/components/search-input.tsx": 4,
-  "src/app/login/error.tsx": 3,
-  "src/components/toast.tsx": 3,
-  "src/components/empty-state.tsx": 2,
-  "src/app/admin/devices/[mac]/page.tsx": 1,
-  "src/app/admin/profiles/profile-list.tsx": 1,
-  "src/components/form.tsx": 1,
-  "src/components/page-header.tsx": 1,
-};
+const BUDGET = {};
 
 const PALETTE =
   /\b(?:text|bg|border|ring|divide|from|to|via|outline|shadow|accent|caret|fill|stroke)-(?:gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b/g;
@@ -71,9 +72,11 @@ for (const dir of viewDirs) {
   }
 }
 
+const allowanceOf = (file) => BUDGET[file] ?? DELIBERATE[file]?.count ?? 0;
+
 let failed = false;
 for (const [file, hits] of [...counts].sort()) {
-  const allowed = BUDGET[file] ?? 0;
+  const allowed = allowanceOf(file);
   if (hits > allowed) {
     failed = true;
     console.error(
@@ -86,7 +89,10 @@ for (const [file, hits] of [...counts].sort()) {
 
 /* A budget for a file that no longer needs one is stale bookkeeping, and stale
  * bookkeeping is how an allowlist quietly becomes permanent. */
-for (const [file, allowed] of Object.entries(BUDGET)) {
+for (const [file, allowed] of [
+  ...Object.entries(BUDGET),
+  ...Object.entries(DELIBERATE).map(([f, d]) => [f, d.count]),
+]) {
   const hits = counts.get(file) ?? 0;
   if (hits < allowed) {
     failed = true;
@@ -101,6 +107,11 @@ if (failed) {
   console.error("\nAurora tokens live in src/app/globals.css and adapt to dark mode; the raw");
   console.error("Tailwind palette does not. See scripts/check-theme-tokens.mjs for the why.");
 } else {
-  const total = [...counts.values()].reduce((a, b) => a + b, 0);
-  console.log(`Views use the Aurora tokens; ${total} budgeted raw palette classes remain.`);
+  const debt = Object.keys(BUDGET).length;
+  const kept = Object.values(DELIBERATE).reduce((a, d) => a + d.count, 0);
+  console.log(
+    debt === 0
+      ? `Views use the Aurora tokens. No debt; ${kept} class(es) kept deliberately on non-adaptive surfaces.`
+      : `Views use the Aurora tokens; ${debt} file(s) still carry a budget.`
+  );
 }
