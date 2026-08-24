@@ -16,7 +16,7 @@
     "dev": "node --env-file-if-exists=.env scripts/check-pending-migrations.mjs && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --max-warnings 0 && pnpm brand:check",
+    "lint": "eslint . --max-warnings 0 && pnpm brand:check && node scripts/check-theme-tokens.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "brand:check": "node scripts/check-brand-assets.mjs",

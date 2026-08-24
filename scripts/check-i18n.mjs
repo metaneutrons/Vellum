@@ -9,7 +9,17 @@ import ts from "typescript";
 const messagesDir = path.resolve("src/i18n/messages");
 const sourceDir = path.resolve("src");
 const canonicalFile = "en.json";
+/**
+ * Views whose human-facing literals are guarded.
+ *
+ * An ALLOWLIST, and its narrowness is a known weakness rather than a design: a
+ * sweep on 2026-08-25 found 108 hard-coded strings across 26 view files, none of
+ * them here, which is how the device detail page shipped eight English toasts and
+ * four English connectivity labels while this check passed on every commit. Add a
+ * file here the moment it is clean; the list only grows.
+ */
 const guardedUiFiles = [
+  "src/app/admin/devices/[mac]/detail.tsx",
   "src/app/admin/profiles/profile-list.tsx",
   "src/app/admin/themes/theme-editor.tsx",
   "src/components/schedule-timeline.tsx",
@@ -101,7 +111,19 @@ if (missingUsages.size) {
 // literals despite having complete locale schemas. Guard the human-facing
 // literal shapes that schema parity cannot detect.
 const hardcodedUiText = [];
-const containsWords = (value) => /\p{L}{2}/u.test(value);
+/**
+ * Prose, as opposed to a unit or a URL.
+ *
+ * "dBm", "1min" and "https://vellum.example.com" carry two letters and are
+ * therefore words by the crude test, but none of them is translatable: a unit is
+ * a unit in every locale here, and an example URL is a placeholder.
+ */
+const UNIT = /^\d*\s*(?:min|sec|s|h|ms|px|B|KB|MB|GB|V|mV|mA|dBm|%|°C)$/i;
+const containsWords = (value) => {
+  const text = value.trim();
+  if (!/\p{L}{2}/u.test(text)) return false;
+  return !UNIT.test(text) && !/^https?:\/\//i.test(text);
+};
 for (const relativeFile of guardedUiFiles) {
   const file = path.resolve(relativeFile);
   const sourceText = fs.readFileSync(file, "utf8");
@@ -133,6 +155,17 @@ for (const relativeFile of guardedUiFiles) {
     if (ts.isJsxExpression(node) && node.expression) {
       const value = literal(node.expression);
       if (value && containsWords(value)) report(node.expression, value);
+    }
+    /* `{ label: "Online" }` in a lookup table is neither JSX nor an attribute, so
+     * every shape above walked past it. That is exactly how four connectivity
+     * labels stayed English next to a locale file that already translated them. */
+    if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      humanFacingAttributes.has(node.name.text)
+    ) {
+      const value = literal(node.initializer);
+      if (value && containsWords(value)) report(node.initializer, value);
     }
     if (
       ts.isCallExpression(node) &&

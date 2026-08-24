@@ -223,6 +223,15 @@
       "followProfile": "Follow the profile",
       "fromProfile": "Following the profile: resolved from the schedule and the power source.",
       "overridden": "Set for this display, so the profile's schedule no longer applies here."
+    },
+    "toast": {
+      "updated": "Device updated",
+      "updateFailed": "Update failed"
+    },
+    "status": {
+      "approved": "Approved",
+      "pending": "Pending",
+      "rejected": "Rejected"
     }
   },
   "content": {

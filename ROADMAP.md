@@ -332,6 +332,44 @@ design calls:
     around it, including the case-insensitive address match and the "(+2)" suffix.
     Mutation-tested: letting the room name itself fails four of them.
 
+- [x] **The device detail view was not on the design system, and its logs were
+      unreadable.** Reported from use: grey text on a light ground, and nothing
+      matching the rest of the admin. Measured against the real built CSS, the log
+      block reached **1.05:1** in dark mode — white text on `bg-gray-50` — against
+      12.90:1 after. It named a background and no foreground at all, so the text took
+      whatever it inherited, which `body` sets to `--color-label`.
+  - The view held **66 of the 119** raw Tailwind palette classes in the whole UI. It
+    predates the Aurora tokens: a local `Card` on `bg-white`, a local `Badge` painted
+    by hand, `text-gray-500` throughout, and nine borders with no colour at all, which
+    Tailwind resolves to `currentColor`. None of it adapts, and the theme toggle
+    defaults to `system`, so most operators see the dark set.
+  - It now uses the kit: `Card` from `components/ui/card`, `StatusPill` for all six
+    status chips, and tokens everywhere. Zero raw palette classes remain in it.
+  - `scripts/check-theme-tokens.mjs` is new and runs inside `pnpm lint`, which is
+    already a required check, so no workflow or branch-protection change was needed.
+    It is a BUDGET rather than a ban, like the coverage floors: 53 occurrences remain
+    across 12 other views, each file may keep what it has and no more, and the gate
+    also fails when a count drops below its budget so that a gain gets locked in.
+
+- [x] **The i18n gate could not see the page that needed it.** Its third part, the
+      hard-coded-text check, ran against an allowlist of THREE files, so 108 literals
+      across 26 views were never looked at. The detail view had eight English toasts
+      and four English connectivity labels sitting next to a locale file that already
+      translated all four.
+  - Two fixes. The view joins the allowlist now that it is clean, and the checker
+    learned the shape it was blind to: a string in an object-literal property named
+    `label`, `title`, `message` and so on. That shape is neither JSX nor an attribute,
+    which is precisely how `{ label: "Online" }` passed on every commit.
+  - Units and example URLs are exempt, with the reason in the code: "dBm" and "1min"
+    carry two letters and are words by the crude test, but a unit is a unit in every
+    locale.
+
+- [ ] **The remaining 108 hard-coded strings and 53 palette classes.** The two gates
+      now measure both; neither can grow. Worst first: `simulator/client.tsx` (21
+      strings), `content-list.tsx` (9), `fleet-status.tsx` (8), `firmware-page.tsx` (7)
+      for i18n; `sites/site-list.tsx` (13) and `db-disconnect-overlay.tsx` (12) for the
+      palette. Each is a small, self-contained job.
+
 - [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
       header band and 32 px type at fixed offsets, so on an E1003 the room name sits
       small in the corner of a 1872 px panel. The frame invariants cannot see it: the

@@ -223,6 +223,15 @@
       "followProfile": "Suivre le profil",
       "fromProfile": "Suit le profil : résolu depuis l'horaire et la source d'alimentation.",
       "overridden": "Défini pour cet écran, l'horaire du profil ne s'applique plus ici."
+    },
+    "toast": {
+      "updated": "Appareil mis à jour",
+      "updateFailed": "Échec de la mise à jour"
+    },
+    "status": {
+      "approved": "Approuvé",
+      "pending": "En attente",
+      "rejected": "Refusé"
     }
   },
   "content": {

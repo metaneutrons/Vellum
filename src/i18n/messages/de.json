@@ -223,6 +223,15 @@
       "followProfile": "Dem Profil folgen",
       "fromProfile": "Folgt dem Profil: aufgelöst aus Zeitplan und Stromquelle.",
       "overridden": "Für dieses Display gesetzt, der Zeitplan des Profils greift hier nicht mehr."
+    },
+    "toast": {
+      "updated": "Gerät aktualisiert",
+      "updateFailed": "Aktualisierung fehlgeschlagen"
+    },
+    "status": {
+      "approved": "Genehmigt",
+      "pending": "Ausstehend",
+      "rejected": "Abgelehnt"
     }
   },
   "content": {
