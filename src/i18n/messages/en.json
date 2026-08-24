@@ -139,7 +139,6 @@
     },
     "model": "Model",
     "resolution": "Resolution",
-    "quantize": "Quantize",
     "recentReports": "Recent reports",
     "connectivity": {
       "online": "Online",
@@ -233,7 +232,27 @@
       "pending": "Pending",
       "rejected": "Rejected"
     },
-    "backToDevices": "Back to devices"
+    "backToDevices": "Back to devices",
+    "firmwareHistory": "Firmware history",
+    "colorMode": "Colour mode",
+    "colors": "Colours",
+    "backlightSupported": "Adjustable",
+    "nextExpected": "Next contact expected",
+    "checkInEvery": "Checks in every",
+    "nvsEncryption": "NVS encryption",
+    "colorModes": {
+      "fullcolor": "Full colour",
+      "indexed": "Indexed",
+      "grayscale": "Greyscale",
+      "mono": "Black and white"
+    },
+    "version": "Version",
+    "pinnedTo": "Pinned to",
+    "channels": {
+      "stable": "stable",
+      "beta": "beta",
+      "dev": "dev"
+    }
   },
   "content": {
     "removeProperty": "Remove property",
@@ -677,7 +696,17 @@
     "retryOtaSuccess": "Firmware {version} will be offered again",
     "retryOtaFailed": "Firmware retry could not be enabled",
     "pollHourly": "1 hour",
-    "rolloutOn": "{count} on"
+    "rolloutOn": "{count} on",
+    "otaPhase": {
+      "applied": "applied",
+      "verify_fail": "verification failed",
+      "rolled_back": "rolled back",
+      "deferred": "deferred",
+      "started": "started",
+      "downloaded": "downloaded",
+      "confirmed": "confirmed",
+      "failed": "failed"
+    }
   },
   "flash": {
     "title": "Flash Firmware",

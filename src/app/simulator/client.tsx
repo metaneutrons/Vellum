@@ -71,7 +71,7 @@ export function SimulatorClient() {
   const baseUrl = config.serverUrl || (typeof window !== "undefined" ? window.location.origin : "");
 
   const appendLog = useCallback((msg: string) => {
-    const ts = new Date().toLocaleTimeString("de-DE", { hour12: false });
+    const ts = new Date().toLocaleTimeString(undefined, { hour12: false });
     setLog((prev) => [...prev.slice(-200), `[${ts}] ${msg}`]);
   }, []);
 

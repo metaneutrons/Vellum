@@ -3,7 +3,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,13 +18,26 @@ import {
 import { useToast } from "@/components/toast";
 import { Card as UiCard } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
+import { OtaEventList, type OtaEvent } from "@/components/ota-event-list";
 import { deviceConnectivity } from "@/lib/connectivity";
+import { fmtInterval } from "@/lib/duration";
 import { assessSecurityPosture } from "@/lib/security-posture";
 
+/**
+ * Four columns were missing from this type, and that is why the view never
+ * showed them: `orientationOverride`, `firmwareChannel`, `firmwarePinVersion` and
+ * `timezone` are all per-device settings that `updateDevice` already accepts. The
+ * page loads the whole row, so they were present at runtime the entire time and
+ * simply invisible to the component.
+ */
 interface Device {
   mac: string;
   status: string;
   displayCaps: unknown;
+  orientationOverride: string | null;
+  firmwareChannel: string | null;
+  firmwarePinVersion: string | null;
+  timezone: string | null;
   contentInstanceId: string | null;
   themeId: string | null;
   refreshProfileId: string | null;
@@ -57,8 +70,8 @@ interface TelemetryEntry {
   partitionTableOffset: number | null;
   layoutVerified: boolean | null;
   secureBootEnabled: boolean | null;
-  flashEncryptionEnabled: boolean | null;
   nvsEncryptionEnabled: boolean | null;
+  flashEncryptionEnabled: boolean | null;
   timestamp: Date;
 }
 
@@ -104,6 +117,7 @@ interface Props {
     byteLen: number;
     receivedAt: Date;
   }[];
+  otaEvents: OtaEvent[];
   canProvision: boolean;
 }
 
@@ -147,9 +161,11 @@ export function DeviceDetail({
   sites,
   effective,
   logBatches,
+  otaEvents,
   canProvision,
 }: Props) {
   const t = useTranslations("devices");
+  const locale = useLocale();
   const nameFor = (list: { id: string; name: string }[], id: string | null) =>
     id ? (list.find((x) => x.id === id)?.name ?? id) : t("site.notSet");
   const { toast } = useToast();
@@ -163,11 +179,20 @@ export function DeviceDetail({
     typeof reportedModel === "string" && reportedModel.length > 0
       ? reportedModel.toLowerCase()
       : "<model>";
+  /* `quantize` is the LEGACY shape, migrated to format + colorMode in
+   * lib/display.ts. No device in the estate reports it, so the card's "Quantize"
+   * row read "—" on every single display while the panel's colour mode, palette
+   * size, orientation and backlight sat unread in the same object. */
   const caps = device.displayCaps as {
     model?: string;
     width?: number;
     height?: number;
-    quantize?: string;
+    format?: string;
+    colorMode?: string;
+    palette?: unknown[];
+    orientation?: string;
+    orientations?: string[];
+    backlight?: boolean;
   } | null;
   const latest = telemetryHistory[0];
   const securityAssessment = latest
@@ -340,8 +365,17 @@ export function DeviceDetail({
   return (
     <div className={pending ? "opacity-60 pointer-events-none" : ""}>
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold font-mono">{device.mac}</h1>
+      {/* A device has no name of its own, so the content it carries is the only
+          human handle on this page. Until it gets one, showing the assigned room
+          in the heading is what tells an operator which display this is. */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h1 className="font-mono text-2xl font-bold">{device.mac}</h1>
+          <p className="text-sm text-label-secondary">
+            {contentInstances.find((c) => c.id === effective.values.contentInstanceId)?.name ??
+              t("noContent")}
+          </p>
+        </div>
         <StatusPill
           tone={
             device.status === "approved" ? "accent" : device.status === "pending" ? "orange" : "red"
@@ -395,6 +429,18 @@ export function DeviceDetail({
                 value={latest.nvsIntegrity ? t(`security.integrity.${latest.nvsIntegrity}`) : "—"}
                 warn={latest.nvsIntegrity === "invalid"}
               />
+              {/* Collected all along, and the only one of the three encryption
+                  facts the card did not print. */}
+              <Stat
+                label={t("nvsEncryption")}
+                value={
+                  latest.nvsEncryptionEnabled === null
+                    ? "—"
+                    : latest.nvsEncryptionEnabled
+                      ? t("security.enabled")
+                      : t("security.disabled")
+                }
+              />
               <Stat label={t("security.chip")} value={latest.chipModel ?? "—"} />
               <Stat
                 label={t("security.flashSize")}
@@ -445,11 +491,51 @@ export function DeviceDetail({
                 label={t("resolution")}
                 value={caps.width && caps.height ? `${caps.width}×${caps.height}` : "—"}
               />
-              <Stat label={t("quantize")} value={caps.quantize ?? "—"} />
+              <Stat
+                label={t("colorMode")}
+                value={caps.colorMode ? t(`colorModes.${caps.colorMode}`) : "—"}
+              />
+              <Stat
+                label={t("colors")}
+                value={caps.palette?.length ? String(caps.palette.length) : "—"}
+              />
+              <Stat
+                label={t("orientation")}
+                value={
+                  device.orientationOverride
+                    ? t(
+                        `orientation${device.orientationOverride === "portrait" ? "Portrait" : "Landscape"}`
+                      )
+                    : caps.orientation
+                      ? t(
+                          `orientation${caps.orientation === "portrait" ? "Portrait" : "Landscape"}`
+                        )
+                      : "—"
+                }
+              />
+              {caps.backlight && (
+                <Stat label={t("backlight.label")} value={t("backlightSupported")} />
+              )}
             </div>
           ) : (
             <p className="text-sm text-label-tertiary">{t("noDisplayCaps")}</p>
           )}
+        </Card>
+
+        {/* Firmware. Both of these are per-device columns that `updateDevice`
+            already accepts, and neither had ever been rendered, so the channel a
+            display follows was invisible from the display's own page. */}
+        <Card title={t("firmware")}>
+          <div className="grid grid-cols-2 gap-4">
+            <Stat
+              label={t("channel")}
+              value={device.firmwareChannel ? t(`channels.${device.firmwareChannel}`) : "—"}
+            />
+            <Stat label={t("version")} value={latest?.firmwareVersion ?? "—"} />
+            {device.firmwarePinVersion && (
+              <Stat label={t("pinnedTo")} value={device.firmwarePinVersion} warn />
+            )}
+          </div>
         </Card>
 
         {/* Timestamps */}
@@ -457,18 +543,36 @@ export function DeviceDetail({
           <div className="space-y-2 text-sm">
             <div>
               <span className="text-label-secondary">{t("registered")}:</span>{" "}
-              {new Date(device.createdAt).toLocaleString("de-DE")}
+              {new Date(device.createdAt).toLocaleString(locale)}
             </div>
             {device.approvedAt && (
               <div>
                 <span className="text-label-secondary">{t("approvedAt")}:</span>{" "}
-                {new Date(device.approvedAt).toLocaleString("de-DE")}
+                {new Date(device.approvedAt).toLocaleString(locale)}
               </div>
             )}
             <div>
               <span className="text-label-secondary">{t("lastSeen")}:</span>{" "}
-              {device.lastSeen ? new Date(device.lastSeen).toLocaleString("de-DE") : "—"}
+              {device.lastSeen ? new Date(device.lastSeen).toLocaleString(locale) : "—"}
             </div>
+            {/* "Last seen two weeks ago" is unreadable as a health signal without
+                the cadence beside it: this display sleeps for 20 575 s between
+                calls, so two weeks may be perfectly healthy or long dead. Both
+                numbers were already on the page; only their difference was. */}
+            {device.expectedIntervalS !== null && (
+              <div>
+                <span className="text-label-secondary">{t("checkInEvery")}:</span>{" "}
+                {fmtInterval(device.expectedIntervalS)}
+              </div>
+            )}
+            {device.lastSeen && device.expectedIntervalS !== null && (
+              <div>
+                <span className="text-label-secondary">{t("nextExpected")}:</span>{" "}
+                {new Date(
+                  new Date(device.lastSeen).getTime() + device.expectedIntervalS * 1000
+                ).toLocaleString(locale)}
+              </div>
+            )}
           </div>
         </Card>
       </div>
@@ -805,7 +909,7 @@ export function DeviceDetail({
             {logBatches.map((batch) => (
               <details key={batch.id} className="rounded border border-separator">
                 <summary className="cursor-pointer px-3 py-2 text-xs text-label-secondary">
-                  {new Date(batch.receivedAt).toLocaleString("de-DE")} · #{batch.seq} ·{" "}
+                  {new Date(batch.receivedAt).toLocaleString(locale)} · #{batch.seq} ·{" "}
                   {batch.byteLen} B
                 </summary>
                 {/* Ground AND foreground. This block used to name only the
@@ -824,6 +928,15 @@ export function DeviceDetail({
       </Card>
 
       {/* Telemetry History */}
+      {/* Firmware history. Above the telemetry table on purpose: when a display
+          misbehaves, "which update did it take, and did it stick" is the first
+          question, and it used to be answerable only from the firmware page. */}
+      <Card title={`${t("firmwareHistory")} (${otaEvents.length})`}>
+        <div className="-mx-5 -mb-5 divide-y divide-separator border-t border-separator">
+          <OtaEventList events={otaEvents} />
+        </div>
+      </Card>
+
       <Card title={`${t("telemetryHistory")} (${telemetryHistory.length})`}>
         {telemetryHistory.length > 0 ? (
           <div className="overflow-x-auto">
@@ -844,7 +957,7 @@ export function DeviceDetail({
                 {telemetryHistory.map((entry) => (
                   <tr key={entry.id}>
                     <td className="pr-4 py-1 text-label-secondary">
-                      {new Date(entry.timestamp).toLocaleString("de-DE")}
+                      {new Date(entry.timestamp).toLocaleString(locale)}
                     </td>
                     <td
                       className={`pr-4 py-1 ${(entry.batteryLevel ?? 100) < 20 ? "text-red font-medium" : ""}`}
@@ -888,7 +1001,7 @@ export function DeviceDetail({
                 <div key={r.id} className="flex justify-between text-sm border-b pb-2">
                   <span>{r.issue ?? "—"}</span>
                   <span className="text-xs text-label-tertiary">
-                    {new Date(r.timestamp).toLocaleString("de-DE")}
+                    {new Date(r.timestamp).toLocaleString(locale)}
                   </span>
                 </div>
               ))}

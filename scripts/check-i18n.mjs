@@ -228,6 +228,29 @@ for (const relativeFile of guardedUiFiles) {
   visit(source);
 }
 
+/**
+ * A hard-coded LOCALE is invisible to every check above, because it is an
+ * argument rather than a string a reader sees. It is the same defect all the same:
+ * `toLocaleString("de-DE")` shows an English operator German dates. The device
+ * detail page had six of them, the repository ten.
+ *
+ * `undefined` is the correct argument for "use the runtime's locale"; a view with
+ * a `useLocale()` in hand should pass that instead.
+ */
+const LOCALE_ARGUMENT = /\.toLocale(?:Date|Time)?String\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']|\bIntl\.[A-Za-z]+Format\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']/g;
+for (const file of sourceFiles(sourceDir)) {
+  const relative = path.relative(process.cwd(), file);
+  if (!/\.tsx$/.test(relative) || relative.includes("__tests__")) continue;
+  const matches = fs.readFileSync(file, "utf8").match(LOCALE_ARGUMENT) ?? [];
+  if (matches.length > 0) {
+    process.exitCode = 1;
+    console.error(
+      `\n${relative}: ${matches.length} hard-coded locale(s) in date formatting: ${matches.join(", ")}`
+    );
+    console.error("  Pass the operator's locale from useLocale(), or undefined.");
+  }
+}
+
 /* An exemption without a reason is an allowlist wearing a disguise. */
 for (const [file, why] of Object.entries(EXEMPT)) {
   if (!why || why.length < 40) {

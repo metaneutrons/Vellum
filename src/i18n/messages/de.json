@@ -139,7 +139,6 @@
     },
     "model": "Modell",
     "resolution": "Auflösung",
-    "quantize": "Quantisierung",
     "recentReports": "Letzte Meldungen",
     "connectivity": {
       "online": "Online",
@@ -233,7 +232,27 @@
       "pending": "Ausstehend",
       "rejected": "Abgelehnt"
     },
-    "backToDevices": "Zurück zu den Geräten"
+    "backToDevices": "Zurück zu den Geräten",
+    "firmwareHistory": "Firmware-Verlauf",
+    "colorMode": "Farbmodus",
+    "colors": "Farben",
+    "backlightSupported": "regelbar",
+    "nextExpected": "Nächster Kontakt erwartet",
+    "checkInEvery": "Meldet sich alle",
+    "nvsEncryption": "NVS-Verschlüsselung",
+    "colorModes": {
+      "fullcolor": "Vollfarbe",
+      "indexed": "indiziert",
+      "grayscale": "Graustufen",
+      "mono": "Schwarzweiß"
+    },
+    "version": "Version",
+    "pinnedTo": "Festgesetzt auf",
+    "channels": {
+      "stable": "stable",
+      "beta": "beta",
+      "dev": "dev"
+    }
   },
   "content": {
     "removeProperty": "Eigenschaft entfernen",
@@ -677,7 +696,17 @@
     "retryOtaSuccess": "Firmware {version} wird erneut angeboten",
     "retryOtaFailed": "Firmware-Wiederholung konnte nicht aktiviert werden",
     "pollHourly": "1 Stunde",
-    "rolloutOn": "{count} darauf"
+    "rolloutOn": "{count} darauf",
+    "otaPhase": {
+      "applied": "eingespielt",
+      "verify_fail": "Prüfung fehlgeschlagen",
+      "rolled_back": "zurückgerollt",
+      "deferred": "zurückgestellt",
+      "started": "gestartet",
+      "downloaded": "heruntergeladen",
+      "confirmed": "bestätigt",
+      "failed": "fehlgeschlagen"
+    }
   },
   "flash": {
     "title": "Firmware flashen",

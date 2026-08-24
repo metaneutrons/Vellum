@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 import { useTranslations } from "next-intl";
+import { fmtInterval } from "@/lib/duration";
 
 interface ScheduleRule {
   name: string;
@@ -21,12 +22,6 @@ const COLORS = [
   "#6366f1",
   "#14b8a6",
 ];
-
-function fmtInterval(s: number): string {
-  if (s >= 3600) return `${(s / 3600).toFixed(s % 3600 ? 1 : 0)}h`;
-  if (s >= 60) return `${Math.round(s / 60)}m`;
-  return `${s}s`;
-}
 
 function isOvernight(r: ScheduleRule): boolean {
   return r.startHour > r.endHour;

@@ -12,7 +12,7 @@
  */
 
 import { useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Segmented } from "@/components/ui/misc";
@@ -283,7 +283,8 @@ function SeatList({
   onChange: (seats: Seat[]) => void;
 }) {
   const t = useTranslations("content.namePlate");
-  const metres = (READING_DISTANCE_M[seats.length] ?? 0).toLocaleString("de-DE");
+  const locale = useLocale();
+  const metres = (READING_DISTANCE_M[seats.length] ?? 0).toLocaleString(locale);
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between">

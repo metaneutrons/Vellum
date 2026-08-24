@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/modal";
 import { TrendingDown } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 interface DataPoint {
   voltage: number | null;
@@ -27,6 +27,7 @@ const selectCls =
 
 export function BatteryChartModal({ mac, open, onClose }: Props) {
   const t = useTranslations("devices");
+  const locale = useLocale();
   const [data, setData] = useState<DataPoint[]>([]);
   const [metric, setMetric] = useState<Metric>("voltage");
   const [range, setRange] = useState<TimeRange>("30");
@@ -97,7 +98,7 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
     const t = tMin + (tRange * (i + 1)) / (xSteps + 1);
     return {
       t,
-      label: new Date(t).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
+      label: new Date(t).toLocaleDateString(locale, { day: "2-digit", month: "2-digit" }),
     };
   });
 

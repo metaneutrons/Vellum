@@ -139,7 +139,6 @@
     },
     "model": "Modello",
     "resolution": "Risoluzione",
-    "quantize": "Quantizzazione",
     "recentReports": "Rapporti recenti",
     "connectivity": {
       "online": "Online",
@@ -233,7 +232,27 @@
       "pending": "In attesa",
       "rejected": "Rifiutato"
     },
-    "backToDevices": "Torna ai dispositivi"
+    "backToDevices": "Torna ai dispositivi",
+    "firmwareHistory": "Cronologia del firmware",
+    "colorMode": "Modalità colore",
+    "colors": "Colori",
+    "backlightSupported": "regolabile",
+    "nextExpected": "Prossimo contatto previsto",
+    "checkInEvery": "Si annuncia ogni",
+    "nvsEncryption": "Crittografia NVS",
+    "colorModes": {
+      "fullcolor": "Colori pieni",
+      "indexed": "indicizzato",
+      "grayscale": "Scala di grigi",
+      "mono": "Bianco e nero"
+    },
+    "version": "Versione",
+    "pinnedTo": "Bloccato su",
+    "channels": {
+      "stable": "stable",
+      "beta": "beta",
+      "dev": "dev"
+    }
   },
   "content": {
     "removeProperty": "Rimuovi proprietà",
@@ -677,7 +696,17 @@
     "retryOtaSuccess": "Il firmware {version} verrà proposto di nuovo",
     "retryOtaFailed": "Impossibile abilitare il nuovo tentativo del firmware",
     "pollHourly": "1 ora",
-    "rolloutOn": "{count} su questa"
+    "rolloutOn": "{count} su questa",
+    "otaPhase": {
+      "applied": "applicato",
+      "verify_fail": "verifica non riuscita",
+      "rolled_back": "ripristinato",
+      "deferred": "rinviato",
+      "started": "avviato",
+      "downloaded": "scaricato",
+      "confirmed": "confermato",
+      "failed": "non riuscito"
+    }
   },
   "flash": {
     "title": "Flash firmware",

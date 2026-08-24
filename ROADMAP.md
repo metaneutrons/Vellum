@@ -406,6 +406,59 @@ design calls:
     metadata description became `generateMetadata`, so it follows the operator's
     language like everything else.
 
+- [x] **The device detail view was missing what an operator most needs to know.**
+      A pass over the page against what the database actually holds, prompted by
+      asking whether it shows everything it could.
+  - **The firmware history was absent entirely.** The page loaded the device,
+    telemetry, reports, configuration commands and logs, but not `ota_events`. The
+    estate holds a `rolled_back` with `error_code = boot_health_check` and a
+    `verify_fail` for one wall-mounted panel, and its own page said nothing about
+    either. The row renderer already existed on the firmware page, so it moved to
+    `components/ota-event-list.tsx` and both callers use it; the phases are words
+    now rather than identifiers.
+  - **The display card printed a dead field.** `caps.quantize` is the LEGACY shape,
+    migrated to `format` + `colorMode` in `lib/display.ts`, and no device in the
+    estate reports it, so "Quantize" read "—" on every display. It shows colour
+    mode, palette size, orientation and backlight capability instead — all of which
+    were sitting unread in the same object.
+  - **Four columns were invisible because the component's own prop type omitted
+    them**: `orientationOverride`, `firmwareChannel`, `firmwarePinVersion` and
+    `timezone`. All four are per-device settings `updateDevice` already accepts. The
+    channel and the pin have a card now.
+  - **"Last seen" was unreadable as a health signal.** A display that sleeps 20 575 s
+    between calls can be two weeks quiet and perfectly healthy. The cadence and the
+    next expected contact are shown beside it; both numbers were already on the page
+    and only their difference was missing.
+  - NVS encryption is collected and was the only one of the three encryption facts
+    the security card did not print.
+  - The heading names the room the display carries. A device has no name of its own,
+    which is the next item below.
+
+- [x] **Hard-coded locales in date formatting, and a gate against them.** Ten across
+      the repository, six on the device page: `toLocaleString("de-DE")` shows an
+      English operator German dates. Invisible to the text check, because a locale is
+      an argument rather than a string a reader sees. `check-i18n.mjs` now refuses one,
+      and the message says what to pass instead.
+
+- [ ] **A device has no name.** It is identified by its MAC everywhere, and the only
+      human handle is the content it happens to carry, which changes when the
+      assignment changes. Proposed and ready to execute:
+  - `devices.label text` — nullable, no default, additive. Migration
+    `ALTER TABLE "devices" ADD COLUMN IF NOT EXISTS "label" text;` in the next free
+    `drizzle/00NN_device_label.sql`, plus the schema snapshot that `pnpm db:check`
+    requires.
+  - `updateDevice` already takes a partial, so it needs one field added and no new
+    action. The audit entry records the field name as it does today.
+  - Display rule, one place: `label ?? content name ?? mac`. The MAC stays visible in
+    the heading, because it is what the sticker on the back says and what an operator
+    matches against when standing in front of the thing.
+  - Touchpoints: the device table's search and column, the detail heading, the
+    assignment pickers on the content and theme pages, and the preview route's
+    device chooser.
+  - Deliberately NOT unique and NOT required: two rooms may both hold a "Foyer" sign,
+    and forcing a name at enrolment would put a dialogue in front of a display that
+    is otherwise provisioned by voucher without one.
+
 - [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
       header band and 32 px type at fixed offsets, so on an E1003 the room name sits
       small in the corner of a 1872 px panel. The frame invariants cannot see it: the
