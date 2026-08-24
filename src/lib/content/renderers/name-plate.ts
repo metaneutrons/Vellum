@@ -42,6 +42,7 @@ import {
   type Rect,
 } from "./name-plate-layout";
 import { shouldShowBookingQr } from "./booking-qr";
+import { readableOn } from "@/lib/theme";
 import type { BandColors, TypeCtx } from "./name-plate-scale";
 import {
   ACCENTS,
@@ -269,13 +270,21 @@ function drawPlateHeader(
   config: NamePlateConfig,
   T: Theme,
   geom: { width: number; pad: number; scale: number },
-  accentable: boolean
+  panel: { accentable: boolean; greyscale: boolean }
 ): void {
   const room = resolveRoomName(config);
   if (!room) return;
   const headerH = Math.round(75 * geom.scale);
-  const accent = accentable ? ACCENTS[config.accentColor] : undefined;
-  drawHeader(t, room, { ...geom, headerH }, accent?.bg ?? T.headerBg, accent?.fg ?? T.headerText);
+  const accent = panel.accentable ? ACCENTS[config.accentColor] : undefined;
+  if (!accent) {
+    drawHeader(t, room, { ...geom, headerH }, T.headerBg, T.headerText);
+    return;
+  }
+  /* Derived on grey, declared on hue. See the note on ACCENTS: a grey's code is its
+   * appearance, a Spectra pigment's is not. */
+  const bg = panel.greyscale ? accent.grey : accent.hue;
+  const fg = panel.greyscale ? readableOn(bg, T.headerText) : accent.hueText;
+  drawHeader(t, room, { ...geom, headerH }, bg, fg);
 }
 
 /** Every band, in whichever composition the plan chose, plus its state pill. */
@@ -402,8 +411,18 @@ async function render(params: RenderParams): Promise<RenderResult> {
     scale,
   });
 
-  const accentable = colorCount > 2 && colorMode !== "grayscale";
-  drawPlateHeader(t, config, T, { width, pad, scale }, accentable);
+  /* Greyscale is no longer excluded: it carries an accent as a LEVEL. Two colours
+   * still cannot, because black is already the unaccented header. */
+  drawPlateHeader(
+    t,
+    config,
+    T,
+    { width, pad, scale },
+    {
+      accentable: colorCount > 2,
+      greyscale: colorMode === "grayscale",
+    }
+  );
 
   const colors = plateColors(T);
 

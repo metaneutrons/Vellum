@@ -281,11 +281,39 @@ export function drawSeparators(
  * holds on both even though `#00FF00` in a preview suggests otherwise. Yellow is
  * light as a code AND as a pigment, so it is the one accent that takes dark text.
  */
-export const ACCENTS: Record<string, { bg: string; fg: string }> = {
-  red: { bg: "#FF0000", fg: "#FFFFFF" },
-  blue: { bg: "#0000FF", fg: "#FFFFFF" },
-  green: { bg: "#00FF00", fg: "#FFFFFF" },
-  yellow: { bg: "#FFFF00", fg: "#000000" },
+/**
+ * Header accents: the pixel code on a panel with hue, and a grey LEVEL on one
+ * without.
+ *
+ * The hue values are the panel's codes rather than what the eye sees. A Spectra 6
+ * panel renders "green" as a mid-dark pigment and "red" as a brick, so `#00FF00`
+ * in a preview says little about the wall.
+ *
+ * The greys are CHOSEN, not derived, and the reason is worth keeping. Mapping each
+ * hue to its own perceived lightness is the right instinct, and it puts green at
+ * 87 % and yellow at 97 %; as a full-width bar on a white panel those reach 1.4:1
+ * and 1.0:1 against the page, which is a bar nobody can see. The usable band for a
+ * bar on white ends around `#888888`, at 3.5:1, so the four accents are spread
+ * evenly inside it while keeping the hues' lightness ORDER, which is the part an
+ * operator's expectation actually rests on.
+ *
+ * Honest limitation: four grey levels are told apart side by side, not from down a
+ * corridor. On the E1003 an accent is a marker for someone standing at the door,
+ * where on a six-colour panel it works at any distance. Two or three classes carry
+ * reliably in grey; four is the most the palette holds at all.
+ *
+ * `hueText` is DECLARED while the grey's text is derived, and the asymmetry is the
+ * point. On a grey panel the code is the appearance, so measuring its contrast
+ * answers the question. On Spectra the code is a stand-in for a pigment: the panel
+ * renders `#00FF00` as a mid-dark green on which white text holds easily, while
+ * measuring `#00FF00` itself returns 1.4:1 and would demand black. Deriving it
+ * there would take the preview's word over the wall's.
+ */
+export const ACCENTS: Record<string, { hue: string; hueText: string; grey: string }> = {
+  blue: { hue: "#0000FF", hueText: "#FFFFFF", grey: "#222222" },
+  red: { hue: "#FF0000", hueText: "#FFFFFF", grey: "#444444" },
+  green: { hue: "#00FF00", hueText: "#FFFFFF", grey: "#666666" },
+  yellow: { hue: "#FFFF00", hueText: "#000000", grey: "#888888" },
 };
 
 /** The header bar: the place, and optionally its class as a colour. */

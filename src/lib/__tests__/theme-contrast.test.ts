@@ -13,6 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { contrastRatio, readableOn, resolveTheme, snapThemeToPalette, THEME_MONO } from "../theme";
 import { DISPLAY_REGISTRY } from "../display";
+import { ACCENTS } from "../content/renderers/name-plate-draw";
 
 describe("contrastRatio", () => {
   it("spans 1 to 21", () => {
@@ -94,5 +95,97 @@ describe("the built-in themes, per panel", () => {
       if (key === "name") continue;
       expect(["#000000", "#FFFFFF"], `${key} = ${value}`).toContain(value);
     }
+  });
+});
+
+describe("snapping onto a greyscale palette", () => {
+  const grey = DISPLAY_REGISTRY.e1003.palette;
+  const colour = DISPLAY_REGISTRY.e1002.palette;
+
+  /* The defect this replaced: Euclidean distance to a grey ramp depends only on the
+   * SUM of the channels, and pure red, green and blue all share it, so all three
+   * landed on one grey. Of the E1003's sixteen levels the theme reached two, and a
+   * free badge was indistinguishable from a busy one. */
+  it("gives the three primaries three different greys", () => {
+    const t = snapThemeToPalette(
+      {
+        ...THEME_MONO,
+        name: "probe",
+        freeBadge: "#00FF00",
+        busyBadge: "#FF0000",
+        eventBg: "#0000FF",
+      },
+      grey
+    );
+    expect(new Set([t.freeBadge, t.busyBadge, t.eventBg]).size).toBe(3);
+  });
+
+  it("orders them by perceived lightness, green above red above blue", () => {
+    const t = snapThemeToPalette(
+      {
+        ...THEME_MONO,
+        name: "probe",
+        freeBadge: "#00FF00",
+        busyBadge: "#FF0000",
+        eventBg: "#0000FF",
+      },
+      grey
+    );
+    expect(contrastRatio(t.freeBadge, "#000000")).toBeGreaterThan(
+      contrastRatio(t.busyBadge, "#000000")
+    );
+    expect(contrastRatio(t.busyBadge, "#000000")).toBeGreaterThan(
+      contrastRatio(t.eventBg, "#000000")
+    );
+  });
+
+  it("leaves black and white exactly where they are", () => {
+    const t = snapThemeToPalette(THEME_MONO, grey);
+    expect(t.headerBg).toBe("#000000");
+    expect(t.headerText).toBe("#FFFFFF");
+    expect(t.background).toBe("#FFFFFF");
+  });
+
+  /* A palette with hue keeps the Euclidean match, where it is the right question. */
+  it("does not touch a palette that has hue", () => {
+    const t = snapThemeToPalette(resolveTheme(colour.length), colour);
+    expect(t.freeBadge).toBe("#00FF00");
+    expect(t.busyBadge).toBe("#FF0000");
+    expect(t.eventBg).toBe("#0000FF");
+  });
+});
+
+describe("header accents", () => {
+  it("gives every accent its own grey level", () => {
+    const greys = Object.values(ACCENTS).map((a) => a.grey);
+    expect(new Set(greys).size).toBe(greys.length);
+  });
+
+  /* A bar that cannot be told from the page is not a marker. Deriving each grey from
+   * its hue's lightness put green at 87 % and yellow at 97 %, or 1.4:1 and 1.0:1
+   * against white, which is why the levels are chosen instead. */
+  it("keeps every accent visible as a bar on white, and its text readable", () => {
+    for (const [name, accent] of Object.entries(ACCENTS)) {
+      expect(contrastRatio(accent.grey, "#FFFFFF"), `${name} bar on white`).toBeGreaterThanOrEqual(
+        3
+      );
+      expect(
+        contrastRatio(accent.grey, readableOn(accent.grey, "#FFFFFF")),
+        `${name} header text`
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("keeps the hues' lightness order, so an operator's expectation survives", () => {
+    const order = ["blue", "red", "green", "yellow"];
+    const lightness = order.map((k) => contrastRatio(ACCENTS[k].grey, "#000000"));
+    for (let i = 1; i < lightness.length; i++) {
+      expect(lightness[i], order[i]).toBeGreaterThan(lightness[i - 1]);
+    }
+  });
+
+  /* Black is the unaccented header, so no accent may collide with it. */
+  it("never proposes the unaccented black", () => {
+    for (const accent of Object.values(ACCENTS)) expect(accent.grey).not.toBe("#000000");
   });
 });

@@ -135,12 +135,25 @@ design calls:
     ground, so making it white for the blocks erased the hour column and would have
     erased the captions. The ground is only known at the point of use.
 
-- [ ] **On the E1003 the badge colour says nothing.** `freeBadge` `#00FF00` and
-      `busyBadge` `#FF0000` both snap to `#555555` on a 16-grey palette, so free and
-      busy render identically and only the word distinguishes them. No contrast guard
-      can fix that; it needs the badge to carry a second signal on greyscale panels,
-      filled against outlined being the obvious one. Same question the name plate
-      answered for itself by using a filled area for occupied and nothing for free.
+- [x] **The E1003 can carry colour after all; the projection was wrong.** Both badge
+      colours snapped to the same grey, and so did the accents, but not because a grey
+      ramp cannot hold the distinction: Euclidean distance to a ramp depends only on
+      the SUM of the channels, and pure red, green and blue share it. Of sixteen levels
+      the theme reached two. `snapThemeToPalette` now matches a greyscale palette by
+      perceived LIGHTNESS, which is the only thing such a panel can carry of a colour,
+      so free `#DDDDDD` and busy `#777777` now sit 3.3:1 apart with opposite text
+      polarity. Palettes with hue keep the Euclidean match.
+  - The name plate's accent is no longer switched off on greyscale. Its four levels are
+    CHOSEN rather than derived, because deriving them puts green at 87 % lightness and
+    yellow at 97 %, which as a full-width bar on a white panel reach 1.4:1 and 1.0:1
+    against the page. They are spread across the usable band instead, keeping the hues'
+    lightness order: blue `#222222`, red `#444444`, green `#666666`, yellow `#888888`.
+  - Honest limit, recorded in the code: four grey levels are told apart side by side,
+    not from down a corridor. On the E1003 an accent is a marker for someone at the
+    door. Two or three classes carry reliably in grey.
+  - The header's text colour stays DECLARED on hue panels and is derived only on grey.
+    A Spectra pigment is mid-dark where its code `#00FF00` measures 1.4:1 against
+    white, so deriving there would take the preview's word over the wall's.
 
 - [x] **`/api/v1/admin/preview` now snaps the theme to the palette**, as the render
       route always did. Without it, preview and device disagreed by construction on
