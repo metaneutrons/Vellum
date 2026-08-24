@@ -4,7 +4,7 @@
  * Door-sign content renderer — configurable name plate for a single room/desk.
  */
 
-import { createCanvas } from "@napi-rs/canvas";
+import { canvasSurface } from "@/lib/render/surface";
 import { TZDate } from "@date-fns/tz";
 import { getCalendarProvider } from "@/lib/calendar/registry";
 import { getProviderWithCredentials } from "@/lib/providers";
@@ -109,8 +109,7 @@ export const doorSignRenderer: ContentRenderer = {
       });
     }
 
-    const canvas = createCanvas(width, height);
-    const c = canvas.getContext("2d");
+    const { canvas, ctx: c } = (params.surface ?? canvasSurface)(width, height);
     await drawBackground(c, design, width, height);
 
     const boxes = isOccupied

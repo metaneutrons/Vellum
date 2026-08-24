@@ -8,7 +8,8 @@
  * what a sign says; it is handed strings, sizes and colours.
  */
 
-import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
+import { type SKRSContext2D } from "@napi-rs/canvas";
+import { canvasSurface, type Surface, type SurfaceFactory } from "@/lib/render/surface";
 import type { Theme } from "@/lib/theme";
 import { drawQrMatrix } from "./booking-qr";
 import type { NameRanks } from "./name-split";
@@ -434,11 +435,15 @@ export function drawFooter(
  * QR matrix, and a scanner reading an e-paper panel at an angle has no margin for
  * interpolated module edges.
  */
-export function newPlateCanvas(width: number, height: number, background: string) {
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = background;
-  ctx.fillRect(0, 0, width, height);
-  return canvas;
+export function newPlateCanvas(
+  width: number,
+  height: number,
+  background: string,
+  surface: SurfaceFactory = canvasSurface
+): Surface {
+  const s = surface(width, height);
+  s.ctx.imageSmoothingEnabled = false;
+  s.ctx.fillStyle = background;
+  s.ctx.fillRect(0, 0, width, height);
+  return s;
 }

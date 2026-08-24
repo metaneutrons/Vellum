@@ -59,10 +59,14 @@ export default defineConfig({
       // functions 68.04, lines 73.11. Raise these only against CI numbers, never
       // a local run, and keep the margin.
       thresholds: {
-        statements: 69,
-        branches: 63,
-        functions: 67,
-        lines: 70,
+        // Raised with the frame-invariant sweep (2026-08-24), measured at
+        // 75.21 / 68.25 / 76.01 / 77.75. The margin below each is deliberate;
+        // see the note above on why a threshold set flush against a measurement
+        // is a gate that fails at random.
+        statements: 74,
+        branches: 67,
+        functions: 74,
+        lines: 76,
       },
     },
   },

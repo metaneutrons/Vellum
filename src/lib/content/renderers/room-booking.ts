@@ -8,7 +8,7 @@
  */
 
 import { z } from "zod";
-import { createCanvas, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
+import { type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { format } from "date-fns";
 import { TZDate } from "@date-fns/tz";
 import { de, fr, it, es, enUS } from "date-fns/locale";
@@ -67,6 +67,7 @@ import {
   type BookingQrVisibility,
 } from "./booking-qr";
 import { blockCapacity, planBlockText } from "./room-booking-blocks";
+import { canvasSurface, type SurfaceFactory } from "@/lib/render/surface";
 
 /* ── Bitmap font registration for color e-paper ──────────────── */
 
@@ -576,10 +577,10 @@ export function renderToCanvas(
   timelineShiftH: number = 2,
   locale: string = "en",
   dateFormat: string = "PPPP",
-  bookingQr?: BookingQrRenderOptions
+  bookingQr?: BookingQrRenderOptions,
+  surface: SurfaceFactory = canvasSurface
 ): Canvas {
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
+  const { canvas, ctx } = surface(width, height);
 
   /* Enable anti-aliasing for grayscale displays (smooth fonts) */
   ctx.imageSmoothingEnabled = colorMode !== "indexed";
@@ -715,10 +716,10 @@ export function renderOffline(
   T: Theme,
   width: number,
   height: number,
-  locale: string = "en"
+  locale: string = "en",
+  surface: SurfaceFactory = canvasSurface
 ): Canvas {
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
+  const { canvas, ctx } = surface(width, height);
   ctx.imageSmoothingEnabled = false;
 
   ctx.fillStyle = T.background;
@@ -774,10 +775,10 @@ function renderStacked(
   colorMode: string = "indexed",
   locale: string = "en",
   dateFormat: string = "PPPP",
-  bookingQr?: BookingQrRenderOptions
+  bookingQr?: BookingQrRenderOptions,
+  surface: SurfaceFactory = canvasSurface
 ): Canvas {
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext("2d");
+  const { canvas, ctx } = surface(width, height);
   ctx.imageSmoothingEnabled = colorMode !== "indexed";
 
   const shortSide = Math.min(width, height);
@@ -903,7 +904,14 @@ export const roomBookingRenderer: ContentRenderer = {
   name: "Room Booking",
   configSchema: roomBookingConfigSchema,
 
-  async render({ config, theme, display, now, timezone }: RenderParams): Promise<RenderResult> {
+  async render({
+    config,
+    theme,
+    display,
+    now,
+    timezone,
+    surface,
+  }: RenderParams): Promise<RenderResult> {
     const cfg = roomBookingConfigSchema.parse(config);
 
     /* The room's own zone wins when it is set; otherwise the display's zone, from
@@ -923,7 +931,9 @@ export const roomBookingRenderer: ContentRenderer = {
       events = await fetchEvents(cfg);
     } catch (err) {
       log.warn("Room-booking fetch failed", { error: String(err) });
-      return { canvas: renderOffline(cfg.roomName, now, theme, width, height, cfg.locale) };
+      return {
+        canvas: renderOffline(cfg.roomName, now, theme, width, height, cfg.locale, surface),
+      };
     }
 
     const displayEvents = applyRoomPolicy(events, cfg.policy as RoomPolicy, cfg.locale);
@@ -958,7 +968,8 @@ export const roomBookingRenderer: ContentRenderer = {
           display.colorMode,
           cfg.locale,
           cfg.dateFormat,
-          bookingQr
+          bookingQr,
+          surface
         ),
       };
     }
@@ -976,7 +987,8 @@ export const roomBookingRenderer: ContentRenderer = {
         cfg.timelineShiftH,
         cfg.locale,
         cfg.dateFormat,
-        bookingQr
+        bookingQr,
+        surface
       ),
     };
   },

@@ -191,6 +191,42 @@ design calls:
     is opened, the panel shows the frame from its last poll, and two moments in
     different two-hour buckets disagree about the same booking.
 
+- [x] **Frames are now observable, and five invariants hold across renderers,
+      panels, clocks and booking shapes.** Stage 1 of the renderer refactor. A
+      renderer asks a `SurfaceFactory` for somewhere to draw instead of calling
+      `createCanvas`, so a test can hand it a canvas that also RECORDS every piece of
+      text and every filled rectangle (`lib/render/surface.ts`). The seam wraps the
+      CONTEXT rather than the drawing helpers, because renderers reach for
+      `ctx.fillText` directly in several places and the offline screen does nothing
+      else, so a helper-level seam would be blind exactly where the least-tested code
+      is.
+  - The five, in `lib/render/frame-invariants.ts`: every string the model owes is
+    drawn (READS), exactly one state label appears (STATE), no text below 3:1 against
+    the ground it sits on (CONTRAST), no ink outside the panel (BOUNDS), nothing
+    condensed past 0.8 of its width (LEGIBLE). The ground comes from a painter's-
+    algorithm walk of the recorded fills, sampled at three points across the ink; over
+    a QR code or a background image there is no resolvable ground and the check
+    ABSTAINS rather than guessing, with the bitmap count kept so the abstention stays
+    visible.
+  - Why relations and not stored pixels: a hash of a frame breaks on a Skia or font
+    update that changes nothing anyone cares about, and then gets updated without
+    being read. A claim about what the frame SAYS survives both.
+  - The sweep (`renderers/__tests__/frame-sweep.test.ts`, 100 cases) is factored, not
+    exhaustive: the clock is swept on the two 800x480 panels and the geometry on all
+    four at three times, because clipping is scale-invariant and geometry does not
+    depend on the clock. Full multiplication would mean 500 renders of a 1872x1404
+    surface in a suite that has to run on every commit.
+  - Both invariants that matter were mutation-tested rather than assumed. Reverting
+    `planBlockText` to put the subject on a one-line block fails 12 cases; removing
+    `readableOn` from the event block fails 13 with CONTRAST. A green invariant suite
+    that cannot fail is worse than none, because it reads as coverage.
+  - Coverage 75.2 / 68.3 / 76.1 / 77.8, floors raised to 74 / 67 / 74 / 76.
+  - Three things stage 1 could NOT reach, all waiting on the fetch seam of stage 2:
+    a name plate's "Frei" and "Belegt" (a static seat may not be nameless, so only the
+    unreachable-provider state is drivable without a database), the two retired door
+    signs (wired for the seam, not swept), and room-booking's stacked layout beyond its
+    offline fallback.
+
 - [ ] **The stacked layout never names the occupant at all.** `renderStacked` draws
       time and `displaySubject` per card and no organizer line, so on a stacked room
       display the person is visible only when the provider happens to put the name in

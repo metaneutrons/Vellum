@@ -379,8 +379,7 @@ async function render(params: RenderParams): Promise<RenderResult> {
   const labels = statusLabels(locale);
   const contents = await resolveContents(config, params.now, timezone, locale, labels);
 
-  const canvas = newPlateCanvas(width, height, T.background);
-  const ctx = canvas.getContext("2d");
+  const { canvas, ctx } = newPlateCanvas(width, height, T.background, params.surface);
 
   /* Only a single-seat plate puts its state in the footer; with more seats each band
    * carries its own pill, so the strip holds nothing but the freshness mark and can

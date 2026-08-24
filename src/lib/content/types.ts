@@ -11,6 +11,7 @@ import type { Canvas } from "@napi-rs/canvas";
 import type { z } from "zod";
 import type { Theme } from "@/lib/theme";
 import type { ResolvedDisplay } from "@/lib/display";
+import type { SurfaceFactory } from "@/lib/render/surface";
 
 export interface RenderParams {
   config: unknown;
@@ -26,6 +27,19 @@ export interface RenderParams {
    * disagree about what time it was at the display.
    */
   timezone?: string;
+  /**
+   * Where to draw. Defaults to a plain canvas, which is what the render route and
+   * the preview both want.
+   *
+   * A renderer must create its canvases through this rather than calling
+   * `createCanvas`, so that a test can pass a surface which records what was
+   * drawn and then assert properties of the finished frame. See
+   * `lib/render/surface.ts` and `lib/render/frame-invariants.ts`. The alternative,
+   * reading the properties back out of pixels, needs OCR; the alternative of
+   * asserting them inside the renderers needs the assertions written once per
+   * renderer and gets them written nowhere.
+   */
+  surface?: SurfaceFactory;
 }
 
 export interface RenderResult {
