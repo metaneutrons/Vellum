@@ -256,11 +256,36 @@ design calls:
     so that caching `load` per content instance rather than per device is a one-line
     change, but the cache itself is stage 4. Today N displays on one room each fetch.
 
-- [ ] **The stacked layout never names the occupant at all.** `renderStacked` draws
-      time and `displaySubject` per card and no organizer line, so on a stacked room
-      display the person is visible only when the provider happens to put the name in
-      the subject. anny does, Microsoft 365 does not, since there the subject is the
-      meeting title. Give the card the same priority fill as the timeline block.
+- [x] **The two layouts share their frame, and the stacked layout names the
+      occupant.** Stage 3. `renderToCanvas` (115 NLOC, 14 positional parameters) and
+      `renderStacked` (114 NLOC, 13) opened with the same twenty lines and closed with
+      the same eight. Both now take ONE `FrameSpec` and call `openFrame` and
+      `closeFrame`; the timeline is 18 lines of its own, the stacked layout 20.
+  - The extraction is pixel-neutral for the timeline, checked rather than assumed: the
+    same inputs rendered before and after produce a **byte-identical** PNG.
+  - Two drifts surfaced while merging the two openings, neither intended. The timeline
+    computed a `footerH` the stacked layout did not, and the stacked layout skipped the
+    alignment reset before its footer.
+  - The stacked CARD now fills its two lines with `planBlockText`, the same rule the
+    timeline block uses, so a room display naming nobody is no longer possible in one
+    layout while being impossible in the other. The time moves to the right end of line
+    one, where the timeline has always kept it, and costs no line. This is the fix for
+    the item that stood open here: on Microsoft 365 the subject is the meeting title, so
+    the card used to show no person at all.
+  - The sweep demands the occupant on the stacked layout from now on, over two clock
+    positions so that most shapes actually owe something. 148 cases, up from 128, and
+    721 tests. Mutation-tested: restoring the old card text fails 16 cases with
+    "is on no line of the frame".
+  - Left standing on purpose: `renderBookingQr` (57 NLOC) and `renderHeader` (54) are
+    the only two functions still over the complexity limit in this file, neither
+    introduced nor touched here. The first is the QR-duplication item below.
+
+- [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
+      header band and 32 px type at fixed offsets, so on an E1003 the room name sits
+      small in the corner of a 1872 px panel. The frame invariants cannot see it: the
+      text is inside the panel and the room name is present, it is merely tiny. Worth
+      fixing when the offline screen next gets attention; it is the one frame a wall
+      shows when everything else has failed.
 
 - [ ] **The preview still resolves three things differently from `/render`.** Beyond
       the theme snap below, `/api/v1/admin/preview` (a) picks the device by

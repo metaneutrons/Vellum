@@ -89,7 +89,12 @@ socket`" does NOT apply to Vellum.
   round trip each. Lizard **loses any function whose return type is a COMPOSED type
   containing an object literal** (`X & { ... }`, `X | { ... }`; a bare `{ ... }` is
   fine) and attributes its body to the neighbouring function, which is how a
-  10-line `choosePlan` was reported as 67 lines. Name such return types. It also
+  10-line `choosePlan` was reported as 67 lines. Name such return types. It loses the
+  boundary the same way at a **template literal nested inside a template literal**
+  (`` `${a}: ${cond ? `${b} Uhr` : b}` ``), which made a 15-line `closeFrame` report
+  201 lines at CCN 27; hoist the inner one into a variable. Both traps are the same
+  class, so when a warning names a function whose body is obviously short, suspect
+  the tokenizer before rewriting the code. It also
   applies an NLOC ceiling per FILE; 739 tripped it, so a renderer that grows past a
   few hundred lines wants splitting by concern (`name-plate.ts` became
   `-scale`/`-draw`/`-sizes` plus the renderer). Note ESLint's own `complexity` and

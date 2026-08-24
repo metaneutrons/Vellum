@@ -566,56 +566,74 @@ function drawEventBlock(b: EventBlockCtx): void {
   }
 }
 
-export function renderToCanvas(
-  events: DisplayEvent[],
-  roomName: string,
-  timezone: string,
-  now: Date,
-  T: Theme,
-  width: number,
-  height: number,
-  colorCount: number,
-  colorMode: string = "indexed",
-  timelineShiftH: number = 2,
-  locale: string = "en",
-  dateFormat: string = "PPPP",
-  bookingQr?: BookingQrRenderOptions,
-  surface: SurfaceFactory = canvasSurface
-): Canvas {
-  const { canvas, ctx } = surface(width, height);
+/* ── The frame both layouts share ─────────────────────────────── */
 
-  /* Enable anti-aliasing for grayscale displays (smooth fonts) */
-  ctx.imageSmoothingEnabled = colorMode !== "indexed";
+/**
+ * One room frame's inputs.
+ *
+ * An object rather than the fourteen and thirteen positional arguments the two
+ * layouts used to take. That was not merely ugly: `colorMode`, `timelineShiftH`,
+ * `locale` and `dateFormat` all sat in the middle with defaults, so adding one
+ * meant counting commas at every call site, and the two signatures had drifted
+ * apart by one parameter for no reason anybody could name.
+ */
+export interface FrameSpec {
+  events: DisplayEvent[];
+  roomName: string;
+  timezone: string;
+  /** The instant the frame depicts. */
+  now: Date;
+  theme: Theme;
+  width: number;
+  height: number;
+  colorCount: number;
+  colorMode?: string;
+  locale?: string;
+  dateFormat?: string;
+  /** Hours the timeline window steps by. Ignored by the stacked layout. */
+  timelineShiftH?: number;
+  bookingQr?: BookingQrRenderOptions;
+  surface?: SurfaceFactory;
+}
 
-  /* Scale based on shorter dimension (480px reference) for consistent proportions */
-  const shortSide = Math.min(width, height);
-  const scale = shortSide / 480;
+/** What `openFrame` settles once, so neither layout settles it twice. */
+interface Frame {
+  canvas: Canvas;
+  ctx: SKRSContext2D;
+  tc: TextCtx;
+  scale: number;
+  headerH: number;
+  locale: string;
+  dateLocale: DateLocale;
+}
 
+/**
+ * The surface, the metrics, the ground and the header.
+ *
+ * Both layouts opened with the same twenty lines, and one of them had drifted:
+ * the timeline computed a `footerH` the stacked layout did not, and the stacked
+ * layout skipped the alignment reset before its footer. Neither difference was
+ * intended.
+ */
+function openFrame(spec: FrameSpec): Frame {
+  const { width, height, theme: T } = spec;
+  const { canvas, ctx } = (spec.surface ?? canvasSurface)(width, height);
+
+  /* Anti-aliasing everywhere except the indexed panel, whose quantiser snaps a
+   * grey edge hard to black or white. */
+  ctx.imageSmoothingEnabled = (spec.colorMode ?? "indexed") !== "indexed";
+
+  /* Scale from the shorter dimension (480px reference) so that proportions hold
+   * on every panel. This is why the timeline's clipping cliff lands at the same
+   * fraction of a booking everywhere. */
+  const scale = Math.min(width, height) / 480;
   const headerH = Math.round(75 * scale);
-  const footerH = Math.round(44 * scale);
-  const gutterW = Math.round(90 * scale);
-  const ff = fontFamily(colorCount);
-  const areaTop = headerH + Math.round(24 * scale);
-  const areaH = height - headerH - footerH - Math.round(8 * scale);
-  const eventLeft = gutterW + Math.round(4 * scale);
-  const qrReservation =
-    bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
-      ? Math.max(Math.round(206 * scale), 138)
-      : 0;
-  const eventW = width - eventLeft - Math.round(16 * scale) - qrReservation;
-  const nowMs = now.getTime();
-  /* Round to timelineShiftH blocks — timeline only shifts every N hours */
-  const blockMs = timelineShiftH * 3600_000;
-  const roundedNowMs = Math.floor(nowMs / blockMs) * blockMs;
-  const windowStart = roundedNowMs;
-  const windowEnd = roundedNowMs + 8 * 3600_000;
+  const locale = spec.locale ?? "en";
+  const tc: TextCtx = { ctx, ff: fontFamily(spec.colorCount), scale };
 
-  // Background
   ctx.fillStyle = T.background;
   ctx.fillRect(0, 0, width, height);
 
-  // Header (shared with stacked layout)
-  const tc: TextCtx = { ctx, ff, scale };
   renderHeader({
     ctx,
     tc,
@@ -623,105 +641,89 @@ export function renderToCanvas(
     headerH,
     scale,
     T,
-    roomName,
-    timezone,
-    now,
+    roomName: spec.roomName,
+    timezone: spec.timezone,
+    now: spec.now,
     locale,
-    dateFormat,
-    events,
+    dateFormat: spec.dateFormat ?? "PPPP",
+    events: spec.events,
   });
 
-  // Date locale for midnight separator
-  const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
-
-  // Hour grid
-  // Hour grid — iterate over each hour in the window
-  for (let h = 0; h <= 8; h++) {
-    const hourMs = windowStart + h * 3600_000;
-    const hourDate = new TZDate(new Date(hourMs), timezone);
-    const hour = hourDate.getHours();
-    const y = timeToY(hourMs, windowStart, windowEnd, areaTop, areaH);
-    if (y < areaTop || y > areaTop + areaH) continue;
-
-    /* Midnight separator: show next day label only if hours follow after 0:00 */
-    if (hour === 0 && h > 0 && h < 8) {
-      const dayLabel = format(hourDate, "EEEE, d. MMM", { locale: dfLocale });
-      ctx.fillStyle = T.slotSecondary;
-      ctx.fillRect(gutterW, y - 1, width - Math.round(8 * scale) - gutterW, 1);
-      const labelW = textWidth(tc, dayLabel, "sm");
-      const labelX = gutterW + (width - Math.round(8 * scale) - gutterW - labelW) / 2;
-      text(tc, labelX, y - Math.round(4 * scale), dayLabel, "sm", T.slotSecondary);
-      ctx.fillRect(gutterW, y + 1, width - Math.round(8 * scale) - gutterW, 1);
-    }
-
-    text(
-      tc,
-      gutterW - Math.round(8 * scale),
-      y + Math.round(8 * scale),
-      fmtHour(hour),
-      "md",
-      T.slotSecondary,
-      "right"
-    );
-
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(gutterW, y, width - Math.round(8 * scale) - gutterW, Math.round(2 * scale));
-  }
-
-  // Event blocks — detect overlaps and arrange side by side
-  const visible = events.filter(
-    (e) => e.endTime.getTime() > windowStart && e.startTime.getTime() < windowEnd
-  );
-  const eventLayout = computeTimelineLayout(visible, windowStart, windowEnd, areaTop, areaH);
-
-  for (const { evt, y1, y2, col, totalCols } of eventLayout) {
-    const colW = eventW / Math.max(totalCols, 1);
-    drawEventBlock({
-      tc,
-      T,
-      evt,
-      timezone,
-      scale,
-      ex: eventLeft + col * colW,
-      ew: colW - 2 /* 2px gap between columns */,
-      y1,
-      blockH: Math.max(y2 - y1, 5) /* minimum 5px visible */,
-    });
-  }
-
-  // Reset alignment
-  ctx.textAlign = "left";
-
-  // Footer
-  const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
-  const timeStr = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
-  text(
+  return {
+    canvas,
+    ctx,
     tc,
-    width - Math.round(12 * scale),
-    height - Math.round(10 * scale),
-    `${updatedLabel}: ${timeStr}`,
+    scale,
+    headerH,
+    locale,
+    dateLocale: DATE_LOCALES[locale] ?? DATE_LOCALES.en,
+  };
+}
+
+/** The freshness line and the booking QR, over whatever the layout drew. */
+function closeFrame(spec: FrameSpec, f: Frame): Canvas {
+  f.ctx.textAlign = "left";
+  const updatedLabel = UPDATED_TEXT[f.locale] ?? UPDATED_TEXT.en;
+  const stamp = fmtTime(spec.now, spec.timezone);
+  /* Two statements rather than a template literal nested inside a template
+   * literal: Lizard's TypeScript tokenizer loses the function boundary at nested
+   * backticks and then attributes the next 200 lines to this function, which trips
+   * the complexity gate on code that is fifteen lines long. Second instance of the
+   * same class of parser confusion; see CLAUDE.md. */
+  const stampText = f.locale === "de" ? `${stamp} Uhr` : stamp;
+  text(
+    f.tc,
+    spec.width - Math.round(12 * f.scale),
+    spec.height - Math.round(10 * f.scale),
+    `${updatedLabel}: ${stampText}`,
     "sm",
-    T.footerText,
+    spec.theme.footerText,
     "right"
   );
-  renderBookingQr(ctx, tc, T, width, height, scale, locale, bookingQr);
+  renderBookingQr(
+    f.ctx,
+    f.tc,
+    spec.theme,
+    spec.width,
+    spec.height,
+    f.scale,
+    f.locale,
+    spec.bookingQr
+  );
+  return f.canvas;
+}
 
-  return canvas;
+/** Whether the booking QR will be drawn, and therefore has to be made room for. */
+function qrShown(spec: FrameSpec): boolean {
+  const qr = spec.bookingQr;
+  return !!qr && shouldShowBookingQr(qr.visibility, qr.isRoomFree, qr.url);
 }
 
 /* ── Offline fallback ─────────────────────────────────────────── */
 
-/** Render offline fallback. Exported for testing. */
-export function renderOffline(
-  roomName: string,
-  now: Date,
-  T: Theme,
-  width: number,
-  height: number,
-  locale: string = "en",
-  surface: SurfaceFactory = canvasSurface
-): Canvas {
-  const { canvas, ctx } = surface(width, height);
+export interface OfflineSpec {
+  roomName: string;
+  now: Date;
+  theme: Theme;
+  width: number;
+  height: number;
+  locale?: string;
+  surface?: SurfaceFactory;
+}
+
+/**
+ * What a display shows when the provider could not be reached.
+ *
+ * Deliberately NOT built on `openFrame`: this screen must work when nothing else
+ * does, so it carries its own minimal drawing and asks nothing of the calendar.
+ * It also ignores `scale` entirely, which is a defect rather than a decision, and
+ * is recorded in the ROADMAP: on an E1003 the room name sits at 32 px in the
+ * corner of a 1872 px panel.
+ */
+export function renderOffline(spec: OfflineSpec): Canvas {
+  const { roomName, now, theme: T, width, height } = spec;
+  const locale = spec.locale ?? "en";
+  const { canvas, ctx } = (spec.surface ?? canvasSurface)(width, height);
   ctx.imageSmoothingEnabled = false;
 
   ctx.fillStyle = T.background;
@@ -761,144 +763,221 @@ export function renderOffline(
   return canvas;
 }
 
-/* ── Exported renderer ────────────────────────────────────────── */
+/* ── Timeline layout ──────────────────────────────────────────── */
 
-/* ── Stacked Layout ────────────────────────────────────────────── */
+interface TimelineWindow {
+  startMs: number;
+  endMs: number;
+  areaTop: number;
+  areaH: number;
+}
 
-function renderStacked(
-  events: DisplayEvent[],
-  roomName: string,
-  timezone: string,
-  now: Date,
-  T: Theme,
-  width: number,
-  height: number,
-  colorCount: number,
-  colorMode: string = "indexed",
-  locale: string = "en",
-  dateFormat: string = "PPPP",
-  bookingQr?: BookingQrRenderOptions,
-  surface: SurfaceFactory = canvasSurface
-): Canvas {
-  const { canvas, ctx } = surface(width, height);
-  ctx.imageSmoothingEnabled = colorMode !== "indexed";
+/**
+ * The eight hours on screen, and where they land.
+ *
+ * The start is rounded down to `timelineShiftH`, so the view shifts every N hours
+ * rather than sliding continuously and redrawing an e-paper panel for nothing.
+ * The consequence to keep in mind is that a RUNNING booking gets clipped at the
+ * top as the day passes; `room-booking-blocks.ts` records what that cost once.
+ */
+function timelineWindow(spec: FrameSpec, f: Frame): TimelineWindow {
+  const blockMs = (spec.timelineShiftH ?? 2) * 3600_000;
+  const startMs = Math.floor(spec.now.getTime() / blockMs) * blockMs;
+  const footerH = Math.round(44 * f.scale);
+  return {
+    startMs,
+    endMs: startMs + 8 * 3600_000,
+    areaTop: f.headerH + Math.round(24 * f.scale),
+    areaH: spec.height - f.headerH - footerH - Math.round(8 * f.scale),
+  };
+}
 
-  const shortSide = Math.min(width, height);
-  const scale = shortSide / 480;
-  const ff = fontFamily(colorCount);
-  const dfLocale = DATE_LOCALES[locale] ?? DATE_LOCALES.en;
+/** The hour rules, their labels, and a separator where a new day begins. */
+function drawHourGrid(spec: FrameSpec, f: Frame, w: TimelineWindow, gutterW: number): void {
+  const { ctx, tc, scale } = f;
+  const T = spec.theme;
+  const right = spec.width - Math.round(8 * scale) - gutterW;
 
-  const headerH = Math.round(75 * scale);
-  const padding = Math.round(16 * scale);
-  const cardH = Math.round(70 * scale);
-  const cardGap = Math.round(10 * scale);
-  const sepH = Math.round(30 * scale);
+  for (let h = 0; h <= 8; h++) {
+    const hourMs = w.startMs + h * 3600_000;
+    const hourDate = new TZDate(new Date(hourMs), spec.timezone);
+    const hour = hourDate.getHours();
+    const y = timeToY(hourMs, w.startMs, w.endMs, w.areaTop, w.areaH);
+    if (y < w.areaTop || y > w.areaTop + w.areaH) continue;
 
-  // Background
-  ctx.fillStyle = T.background;
-  ctx.fillRect(0, 0, width, height);
-
-  // Shared header (same as timeline)
-  const tc: TextCtx = { ctx, ff, scale };
-  renderHeader({
-    ctx,
-    tc,
-    width,
-    headerH,
-    scale,
-    T,
-    roomName,
-    timezone,
-    now,
-    locale,
-    dateFormat,
-    events,
-  });
-
-  // Filter upcoming events
-  const upcoming = events
-    .filter((e) => e.endTime.getTime() > now.getTime())
-    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-
-  let y = headerH + Math.round(24 * scale);
-  let lastDateStr = "";
-
-  const qrReservedHeight =
-    bookingQr && shouldShowBookingQr(bookingQr.visibility, bookingQr.isRoomFree, bookingQr.url)
-      ? Math.max(Math.round(234 * scale), 158)
-      : 0;
-  for (const evt of upcoming) {
-    if (y + cardH > height - Math.round(40 * scale) - qrReservedHeight) break;
-
-    // Day separator
-    const evtDate = format(new TZDate(evt.startTime, timezone), "yyyy-MM-dd");
-    if (evtDate !== lastDateStr && lastDateStr !== "") {
-      const dayLabel = format(new TZDate(evt.startTime, timezone), "EEEE, d. MMM", {
-        locale: dfLocale,
-      });
+    /* Midnight separator: show next day label only if hours follow after 0:00 */
+    if (hour === 0 && h > 0 && h < 8) {
+      const dayLabel = format(hourDate, "EEEE, d. MMM", { locale: f.dateLocale });
       ctx.fillStyle = T.slotSecondary;
+      ctx.fillRect(gutterW, y - 1, right, 1);
       const labelW = textWidth(tc, dayLabel, "sm");
-      text(tc, padding, y + Math.round(12 * scale), dayLabel, "sm", T.slotSecondary);
-      ctx.fillRect(
-        padding + labelW + Math.round(8 * scale),
-        y + Math.round(8 * scale),
-        width - 2 * padding - labelW - Math.round(8 * scale),
-        1
+      text(
+        tc,
+        gutterW + (right - labelW) / 2,
+        y - Math.round(4 * scale),
+        dayLabel,
+        "sm",
+        T.slotSecondary
       );
-      y += sepH;
+      ctx.fillRect(gutterW, y + 1, right, 1);
     }
-    lastDateStr = evtDate;
 
-    // Event card
-    const isNow = evt.startTime.getTime() <= now.getTime() && evt.endTime.getTime() > now.getTime();
-    const cardBg = isNow ? T.busyBadge : T.eventBg;
-    const cardText = readableOn(cardBg, isNow ? T.badgeText : T.slotText);
-    const cardSecondary = readableOn(cardBg, isNow ? T.badgeText : T.slotSecondary);
-    ctx.fillStyle = cardBg;
-    ctx.fillRect(padding, y, width - 2 * padding, cardH);
-
-    // Time
-    const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
     text(
       tc,
-      padding + Math.round(12 * scale),
-      y + Math.round(26 * scale),
-      timeStr,
-      "md-bold",
-      cardText
+      gutterW - Math.round(8 * scale),
+      y + Math.round(8 * scale),
+      fmtHour(hour),
+      "md",
+      T.slotSecondary,
+      "right"
     );
 
-    // Subject
-    const maxSubW = width - 2 * padding - Math.round(24 * scale);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(gutterW, y, right, Math.round(2 * scale));
+  }
+}
+
+/** The day view: an hour grid with bookings placed on it. */
+export function renderTimeline(spec: FrameSpec): Canvas {
+  const f = openFrame(spec);
+  const { scale } = f;
+  const gutterW = Math.round(90 * scale);
+  const w = timelineWindow(spec, f);
+
+  drawHourGrid(spec, f, w, gutterW);
+
+  const eventLeft = gutterW + Math.round(4 * scale);
+  const reserved = qrShown(spec) ? Math.max(Math.round(206 * scale), 138) : 0;
+  const eventW = spec.width - eventLeft - Math.round(16 * scale) - reserved;
+
+  // Event blocks — detect overlaps and arrange side by side
+  const visible = spec.events.filter(
+    (e) => e.endTime.getTime() > w.startMs && e.startTime.getTime() < w.endMs
+  );
+  for (const { evt, y1, y2, col, totalCols } of computeTimelineLayout(
+    visible,
+    w.startMs,
+    w.endMs,
+    w.areaTop,
+    w.areaH
+  )) {
+    const colW = eventW / Math.max(totalCols, 1);
+    drawEventBlock({
+      tc: f.tc,
+      T: spec.theme,
+      evt,
+      timezone: spec.timezone,
+      scale,
+      ex: eventLeft + col * colW,
+      ew: colW - 2 /* 2px gap between columns */,
+      y1,
+      blockH: Math.max(y2 - y1, 5) /* minimum 5px visible */,
+    });
+  }
+
+  return closeFrame(spec, f);
+}
+
+/* ── Stacked layout ───────────────────────────────────────────── */
+
+/** The rule at the head of a run of cards on a new day. Returns the new y. */
+function drawDaySeparator(
+  spec: FrameSpec,
+  f: Frame,
+  evt: DisplayEvent,
+  y: number,
+  pad: number
+): number {
+  const { ctx, tc, scale } = f;
+  const label = format(new TZDate(evt.startTime, spec.timezone), "EEEE, d. MMM", {
+    locale: f.dateLocale,
+  });
+  const labelW = textWidth(tc, label, "sm");
+  text(tc, pad, y + Math.round(12 * scale), label, "sm", spec.theme.slotSecondary);
+  ctx.fillStyle = spec.theme.slotSecondary;
+  ctx.fillRect(
+    pad + labelW + Math.round(8 * scale),
+    y + Math.round(8 * scale),
+    spec.width - 2 * pad - labelW - Math.round(8 * scale),
+    1
+  );
+  return y + Math.round(30 * scale);
+}
+
+/**
+ * One booking as a card.
+ *
+ * Two lines, filled by the SAME rule the timeline block uses, which is the point
+ * of this change. Before it, a card drew the time on line one and the subject on
+ * line two and never named the occupant at all, so on a stacked room display the
+ * person was visible only when the provider happened to put the name in the
+ * subject: anny does, Microsoft 365 does not, because there the subject is the
+ * meeting's title.
+ *
+ * The time therefore moves to the right end of line one, where the timeline block
+ * has always kept it, and costs no line of its own.
+ */
+function drawCard(spec: FrameSpec, f: Frame, evt: DisplayEvent, y: number, pad: number): void {
+  const { ctx, tc, scale } = f;
+  const T = spec.theme;
+  const cardH = Math.round(70 * scale);
+  const inner = pad + Math.round(12 * scale);
+
+  const isNow =
+    evt.startTime.getTime() <= spec.now.getTime() && evt.endTime.getTime() > spec.now.getTime();
+  const cardBg = isNow ? T.busyBadge : T.eventBg;
+  const cardText = readableOn(cardBg, isNow ? T.badgeText : T.slotText);
+  const cardSecondary = readableOn(cardBg, isNow ? T.badgeText : T.slotSecondary);
+  ctx.fillStyle = cardBg;
+  ctx.fillRect(pad, y, spec.width - 2 * pad, cardH);
+
+  const timeStr = `${fmtTime(evt.startTime, spec.timezone)} – ${fmtTime(evt.endTime, spec.timezone)}`;
+  const timeW = textWidth(tc, timeStr, "md");
+  const firstLine = y + Math.round(26 * scale);
+  text(tc, spec.width - inner, firstLine, timeStr, "md", cardText, "right");
+
+  const plan = planBlockText(evt.displaySubject, evt.organizer, 2);
+  const primaryMaxW = spec.width - 2 * inner - timeW - Math.round(12 * scale);
+  text(tc, inner, firstLine, plan.primary, "md-bold", cardText, "left", primaryMaxW);
+  if (plan.secondary) {
     text(
       tc,
-      padding + Math.round(12 * scale),
+      inner,
       y + Math.round(52 * scale),
-      evt.displaySubject,
+      plan.secondary,
       "sm",
       cardSecondary,
       "left",
-      maxSubW
+      spec.width - 2 * inner
     );
+  }
+}
 
-    y += cardH + cardGap;
+/** The agenda view: the next bookings as cards, newest first. */
+export function renderStacked(spec: FrameSpec): Canvas {
+  const f = openFrame(spec);
+  const { scale } = f;
+  const pad = Math.round(16 * scale);
+  const cardH = Math.round(70 * scale);
+  const reserved = qrShown(spec) ? Math.max(Math.round(234 * scale), 158) : 0;
+  const bottom = spec.height - Math.round(40 * scale) - reserved;
+
+  const upcoming = spec.events
+    .filter((e) => e.endTime.getTime() > spec.now.getTime())
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+  let y = f.headerH + Math.round(24 * scale);
+  let lastDay = "";
+  for (const evt of upcoming) {
+    if (y + cardH > bottom) break;
+    const day = format(new TZDate(evt.startTime, spec.timezone), "yyyy-MM-dd");
+    if (day !== lastDay && lastDay !== "") y = drawDaySeparator(spec, f, evt, y, pad);
+    lastDay = day;
+    drawCard(spec, f, evt, y, pad);
+    y += cardH + Math.round(10 * scale);
   }
 
-  // Footer
-  const updatedLabel = UPDATED_TEXT[locale] ?? UPDATED_TEXT.en;
-  const footerTime = locale === "de" ? `${fmtTime(now, timezone)} Uhr` : fmtTime(now, timezone);
-  text(
-    tc,
-    width - Math.round(12 * scale),
-    height - Math.round(10 * scale),
-    `${updatedLabel}: ${footerTime}`,
-    "sm",
-    T.footerText,
-    "right"
-  );
-  renderBookingQr(ctx, tc, T, width, height, scale, locale, bookingQr);
-
-  return canvas;
+  return closeFrame(spec, f);
 }
 
 /**
@@ -967,77 +1046,45 @@ export async function loadRoomModel(params: LoadParams): Promise<RoomModel> {
   };
 }
 
-/**
- * The timeline, with the model's fields spread over the layout's parameters.
- *
- * Its own function purely so that `drawRoom` stays readable: `renderToCanvas` takes
- * fourteen positional arguments, which is a smell this change makes more visible
- * rather than less. Collapsing both layouts onto one options object belongs with
- * extracting their shared chrome; see ROADMAP.
- */
-function drawTimeline(
+/** The model, arranged as a frame the layouts understand. */
+function frameSpecOf(
   model: RoomModel,
   params: DrawParams,
   bookingQr: BookingQrRenderOptions | undefined
-): Canvas {
+): FrameSpec {
   const { config: cfg } = model;
-  return renderToCanvas(
-    model.events,
-    cfg.roomName,
-    model.timezone,
-    model.now,
-    params.theme,
-    params.display.width,
-    params.display.height,
-    params.display.colorCount,
-    params.display.colorMode,
-    cfg.timelineShiftH,
-    cfg.locale,
-    cfg.dateFormat,
+  return {
+    events: model.events,
+    roomName: cfg.roomName,
+    timezone: model.timezone,
+    now: model.now,
+    theme: params.theme,
+    width: params.display.width,
+    height: params.display.height,
+    colorCount: params.display.colorCount,
+    colorMode: params.display.colorMode,
+    locale: cfg.locale,
+    dateFormat: cfg.dateFormat,
+    timelineShiftH: cfg.timelineShiftH,
     bookingQr,
-    params.surface
-  );
-}
-
-/** The stacked layout, same arrangement as `drawTimeline`. */
-function drawStackedRoom(
-  model: RoomModel,
-  params: DrawParams,
-  bookingQr: BookingQrRenderOptions | undefined
-): Canvas {
-  const { config: cfg } = model;
-  return renderStacked(
-    model.events,
-    cfg.roomName,
-    model.timezone,
-    model.now,
-    params.theme,
-    params.display.width,
-    params.display.height,
-    params.display.colorCount,
-    params.display.colorMode,
-    cfg.locale,
-    cfg.dateFormat,
-    bookingQr,
-    params.surface
-  );
+    surface: params.surface,
+  };
 }
 
 export function drawRoom(model: RoomModel, params: DrawParams): DrawResult {
   const { config: cfg } = model;
-  const { theme, display, surface } = params;
 
   if (model.offline) {
     return {
-      canvas: renderOffline(
-        cfg.roomName,
-        model.now,
-        theme,
-        display.width,
-        display.height,
-        cfg.locale,
-        surface
-      ),
+      canvas: renderOffline({
+        roomName: cfg.roomName,
+        now: model.now,
+        theme: params.theme,
+        width: params.display.width,
+        height: params.display.height,
+        locale: cfg.locale,
+        surface: params.surface,
+      }),
     };
   }
 
@@ -1049,12 +1096,8 @@ export function drawRoom(model: RoomModel, params: DrawParams): DrawResult {
       }
     : undefined;
 
-  return {
-    canvas:
-      cfg.layout === "stacked"
-        ? drawStackedRoom(model, params, bookingQr)
-        : drawTimeline(model, params, bookingQr),
-  };
+  const spec = frameSpecOf(model, params, bookingQr);
+  return { canvas: cfg.layout === "stacked" ? renderStacked(spec) : renderTimeline(spec) };
 }
 
 export const roomBookingRenderer: ContentRenderer<RoomModel> = {

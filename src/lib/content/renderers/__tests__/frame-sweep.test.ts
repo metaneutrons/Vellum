@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { renderToCanvas, drawRoom, type RoomModel } from "../room-booking";
+import { renderTimeline, drawRoom, type RoomModel } from "../room-booking";
 import { drawPlate, type PlateModel } from "../name-plate";
 import { bandContent, type SeatState } from "../name-plate-layout";
 import { namePlateConfigSchema, type Seat } from "../name-plate-types";
@@ -127,6 +127,20 @@ function owed(events: CalendarEvent[], now: Date, shiftH = 2): string[] {
     .map((e) => e.organizer);
 }
 
+/**
+ * The name a STACKED frame owes: the first booking still to come.
+ *
+ * Cards are drawn until the panel runs out, and deriving how many fit would
+ * restate the renderer's arithmetic. One card always fits on every panel here, so
+ * the first upcoming booking is a claim that is both safe and not circular.
+ */
+function owedStacked(events: CalendarEvent[], now: Date): string[] {
+  const upcoming = events
+    .filter((e) => e.endTime > now)
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  return upcoming.length > 0 ? [upcoming[0].organizer] : [];
+}
+
 /* Every two hours of the working day, which is also every position a booking can
  * take relative to the eight-hour window at a two-hour shift. */
 const CLOCK = ["06:30", "08:30", "10:30", "12:30", "14:30", "16:30"];
@@ -136,22 +150,21 @@ const STATE_LABELS = ["FREI", "BELEGT"];
 
 function timelineFrame(events: DisplayEvent[], display: ResolvedDisplay, now: Date): Recording {
   const { factory, recordings } = recordingFactory();
-  renderToCanvas(
+  renderTimeline({
     events,
-    ROOM,
-    "Europe/Berlin",
+    roomName: ROOM,
+    timezone: "Europe/Berlin",
     now,
-    themeFor(display),
-    display.width,
-    display.height,
-    display.colorCount,
-    display.colorMode,
-    2,
-    "de",
-    "PPP",
-    undefined,
-    factory
-  );
+    theme: themeFor(display),
+    width: display.width,
+    height: display.height,
+    colorCount: display.colorCount,
+    colorMode: display.colorMode,
+    timelineShiftH: 2,
+    locale: "de",
+    dateFormat: "PPP",
+    surface: factory,
+  });
   expect(recordings).toHaveLength(1);
   return recordings[0];
 }
@@ -249,25 +262,30 @@ describe("room booking, offline screen", () => {
 describe("room booking, stacked layout", () => {
   for (const p of ALL_PANELS)
     for (const shape of SHAPES)
-      it(`${p} / ${shape.name}`, () => {
-        const display = panel(p);
-        const now = at("10:30");
-        const model = roomModel({
-          config: { ...ROOM_CONFIG, layout: "stacked" },
-          now,
-          events: applyRoomPolicy(shape.events, "Show All", "de"),
-          isRoomFree: !shape.events.some((e) => e.startTime <= now && e.endTime > now),
+      /* Two moments, because at half past ten most of these bookings are over and a
+       * frame owing nothing proves nothing. At half past six they are all still to
+       * come. */
+      for (const hhmm of ["06:30", "10:30"])
+        it(`${p} / ${shape.name} / ${hhmm}Z`, () => {
+          const display = panel(p);
+          const now = at(hhmm);
+          const model = roomModel({
+            config: { ...ROOM_CONFIG, layout: "stacked" },
+            now,
+            events: applyRoomPolicy(shape.events, "Show All", "de"),
+            isRoomFree: !shape.events.some((e) => e.startTime <= now && e.endTime > now),
+          });
+          const rec = frameOf((surface) =>
+            drawRoom(model, { theme: themeFor(display), display, surface })
+          );
+          /* The card names the occupant since stage 3, by the same rule the
+           * timeline block uses, so the name is owed here now. */
+          expectSound(
+            rec,
+            { mustRead: [ROOM, ...owedStacked(shape.events, now)], exactlyOneOf: STATE_LABELS },
+            `stacked ${shape.name} at ${hhmm}Z on ${p}`
+          );
         });
-        const rec = frameOf((surface) =>
-          drawRoom(model, { theme: themeFor(display), display, surface })
-        );
-        /* Cards, unlike timeline blocks, carry only time and subject. The
-         * occupant is therefore NOT owed here, and that gap is a recorded item
-         * rather than a licence: see ROADMAP, "the stacked layout never names the
-         * occupant at all". When it does, `owed(...)` belongs in this expectation
-         * and this comment goes. */
-        expectSound(rec, { mustRead: [ROOM] }, `stacked ${shape.name} on ${p}`);
-      });
 });
 
 describe("name plate", () => {
