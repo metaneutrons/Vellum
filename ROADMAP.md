@@ -164,10 +164,14 @@ design calls:
 - [x] **A clipped timeline block kept the time range and dropped the occupant.** The
       eight-hour window clips a booking at `areaTop`, so a RUNNING meeting shrinks in
       two-hour steps as the day passes, and the occupant's line was gated on that
-      clipped height. Measured on an E1003: a 10:00-13:00 booking rendered at 10:30
-      had 132 px of visible block and printed "Maria Warnking", the same booking at
-      12:30 had 44 px against a 48 px threshold and printed only "Projektbesprechung
-      10:00 - 13:00". So the line that says WHO is in the room was the first to go,
+      clipped height. Measured on an E1003 in landscape, where a line is 70 px and
+      the threshold is therefore 140: a 10:00-13:00 booking rendered at 10:30 had
+      387 px of visible block and printed "Maria Warnking", the same booking at
+      12:30 had 129 px and printed only "Projektbesprechung 10:00 - 13:00". The
+      800x480 panels reach the same cliff at 132 px against 48, since `scale` moves
+      line height and drawing area together and the threshold lands at about 1.08 h
+      of visible booking on every panel. So the line saying WHO is in the room went
+      first,
       and it went precisely while the meeting ran, since only a running booking is
       clipped at the top.
   - `planBlockText` in `room-booking-blocks.ts` now fills the available lines by

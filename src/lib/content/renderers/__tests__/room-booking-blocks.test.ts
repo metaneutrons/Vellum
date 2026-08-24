@@ -107,8 +107,10 @@ describe("blockCapacity", () => {
     expect(blockCapacity(132, 24)).toBe(5);
   });
 
-  /* The measured case: a 10:00-13:00 booking on an E1003 has 132 px of visible
-   * block at 10:30 and 44 px at 12:30, once the window start has moved to 12:00. */
+  /* The measured case at 24 px lines, which is the 800x480 panels: a 10:00-13:00
+   * booking has 132 px of visible block at 10:30 and 44 px at 12:30, once the
+   * window start has moved to 12:00. The E1003 hits the same cliff at 70 px lines,
+   * 387 px against 129. */
   it("drops to one line for the clipped hour of a running booking", () => {
     expect(blockCapacity(44, 24)).toBe(1);
   });
