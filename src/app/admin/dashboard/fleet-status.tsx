@@ -135,7 +135,7 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
                 <span className="text-xl align-top">%</span>
               </span>
               <span className="text-[11px] font-medium uppercase tracking-wide text-label-tertiary mt-1">
-                online
+                {t("online")}
               </span>
             </div>
           </div>
@@ -148,7 +148,7 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
                 style={{ backgroundColor: healthStroke }}
                 aria-hidden="true"
               />
-              <span className="font-medium text-label tabular-nums">{online}</span> online
+              <span className="font-medium text-label tabular-nums">{online}</span> {t("online")}
             </span>
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
               <span
@@ -156,7 +156,7 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
                 style={{ backgroundColor: "var(--color-orange)" }}
                 aria-hidden="true"
               />
-              <span className="font-medium text-label tabular-nums">{late}</span> late
+              <span className="font-medium text-label tabular-nums">{late}</span> {t("late")}
             </span>
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
               <span
@@ -164,7 +164,7 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
                 style={{ backgroundColor: "var(--color-red)" }}
                 aria-hidden="true"
               />
-              <span className="font-medium text-label tabular-nums">{offline}</span> offline
+              <span className="font-medium text-label tabular-nums">{offline}</span> {t("offline")}
             </span>
             <span className="inline-flex items-center gap-1.5 text-label-secondary">
               <span
@@ -172,7 +172,7 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
                 style={{ backgroundColor: "var(--color-separator)" }}
                 aria-hidden="true"
               />
-              <span className="font-medium text-label tabular-nums">{never}</span> never seen
+              <span className="font-medium text-label tabular-nums">{never}</span> {t("neverSeen")}
             </span>
           </div>
 
@@ -180,19 +180,19 @@ export function FleetStatus({ fleet }: { fleet: DashboardData["fleet"] }) {
           <div className="mt-5 grid w-full grid-cols-3 gap-2.5">
             <MiniStat
               icon={<Battery size={16} aria-hidden="true" />}
-              label="Avg battery"
+              label={t("averageBattery")}
               value={avgBattery === null ? "—" : `${avgBattery}%`}
               tone={batteryTone}
             />
             <MiniStat
               icon={<BatteryLow size={16} aria-hidden="true" />}
-              label="Low battery"
+              label={t("lowBattery")}
               value={lowBattery}
               tone={lowBattery > 0 ? "orange" : "green"}
             />
             <MiniStat
               icon={<WifiOff size={16} aria-hidden="true" />}
-              label="Weak signal"
+              label={t("weakSignal")}
               value={weakSignal}
               tone={weakSignal > 0 ? "orange" : "green"}
             />

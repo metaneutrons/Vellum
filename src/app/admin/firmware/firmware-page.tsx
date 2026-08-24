@@ -108,7 +108,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
               <option value={300}>5 min</option>
               <option value={900}>15 min</option>
               <option value={1800}>30 min</option>
-              <option value={3600}>1 hour</option>
+              <option value={3600}>{t("pollHourly")}</option>
             </select>
           </label>
         )}
@@ -168,7 +168,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
                 <select className={selectCls} aria-label={t("pinVersion")}
                   value={d.firmwarePinVersion ?? ""}
                   onChange={(e) => pinVersion(d.mac, e.target.value || null)}>
-                  <option value="">— latest —</option>
+                  <option value="">{t("latestVersion")}</option>
                   {channelVersions.map((v) => (
                     <option key={v.version} value={v.version}>
                       v{v.version} ({v.channel})

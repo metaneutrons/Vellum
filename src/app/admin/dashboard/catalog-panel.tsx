@@ -1,4 +1,6 @@
 "use client";
+
+import { useTranslations } from "next-intl";
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 
@@ -41,16 +43,18 @@ function Tile({ href, icon: Icon, label, value, children }: TileProps) {
  * zero renders cleanly as "0".
  */
 export function CatalogPanel({ catalog }: { catalog: DashboardData["catalog"] }) {
+  const t = useTranslations("dashboard");
+  const tNav = useTranslations("nav");
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <Tile
         href="/admin/content"
         icon={FileText}
-        label="Content instances"
+        label={t("contentInstances")}
         value={catalog.contentInstances}
       />
 
-      <Tile href="/admin/providers" icon={Plug} label="Providers" value={catalog.providers}>
+      <Tile href="/admin/providers" icon={Plug} label={tNav("providers")} value={catalog.providers}>
         {catalog.providersByType.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {catalog.providersByType.map((p) => (
@@ -65,9 +69,14 @@ export function CatalogPanel({ catalog }: { catalog: DashboardData["catalog"] })
         )}
       </Tile>
 
-      <Tile href="/admin/themes" icon={Palette} label="Themes" value={catalog.themes} />
+      <Tile href="/admin/themes" icon={Palette} label={tNav("themes")} value={catalog.themes} />
 
-      <Tile href="/admin/profiles" icon={Timer} label="Refresh profiles" value={catalog.profiles} />
+      <Tile
+        href="/admin/profiles"
+        icon={Timer}
+        label={t("refreshProfiles")}
+        value={catalog.profiles}
+      />
     </div>
   );
 }

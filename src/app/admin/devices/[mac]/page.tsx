@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { db, withDbRead } from "@/db";
 import { deviceConfigurationCommands, deviceLogs, devices, telemetry, reports } from "@/db/schema";
@@ -86,11 +87,12 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
   /* Resolved with the workspace defaults included, so the page can name where
      each value comes from instead of leaving an operator to infer it. */
   const effective = await explainDeviceSettings(device);
+  const t = await getTranslations("devices");
 
   return (
     <div>
       <Link href="/admin/devices" className="text-sm text-accent hover:underline mb-4 inline-block">
-        ← Back to Devices
+        ← {t("backToDevices")}
       </Link>
       <DeviceDetail
         device={device}

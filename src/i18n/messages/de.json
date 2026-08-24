@@ -232,7 +232,8 @@
       "approved": "Genehmigt",
       "pending": "Ausstehend",
       "rejected": "Abgelehnt"
-    }
+    },
+    "backToDevices": "Zurück zu den Geräten"
   },
   "content": {
     "removeProperty": "Eigenschaft entfernen",
@@ -363,7 +364,10 @@
       },
       "reach": "Lesbar aus etwa {metres} m auf einem 7,5-Zoll-Panel.",
       "reachDense": "Ab drei Plätzen bekommt jeder eine Zeile, Titel, Position und Einheit erscheinen dann nicht."
-    }
+    },
+    "fieldCalendarId": "Kalender-ID",
+    "fieldRoomEmail": "Adresse des Raumpostfachs",
+    "fieldResource": "Ressource"
   },
   "providers": {
     "clearSearch": "Suche löschen",
@@ -403,7 +407,14 @@
     },
     "deleteMsg": "Diesen Anbieter löschen? Zugehörige Inhalte funktionieren nicht mehr.",
     "emptyTitle": "Keine Datenanbieter",
-    "emptyDesc": "Fügen Sie einen Anbieter hinzu um Kalender oder andere Datenquellen zu verbinden."
+    "emptyDesc": "Fügen Sie einen Anbieter hinzu um Kalender oder andere Datenquellen zu verbinden.",
+    "fieldTenantId": "Tenant-ID",
+    "fieldClientId": "Client-ID",
+    "fieldClientSecret": "Client Secret",
+    "fieldServiceAccountEmail": "Dienstkonto-E-Mail",
+    "fieldPrivateKey": "Privater Schlüssel (PEM)",
+    "fieldApiToken": "API-Token",
+    "fieldIcalUrl": "URL des iCal-Feeds"
   },
   "themes": {
     "created": "Design erstellt",
@@ -664,7 +675,9 @@
     "retryOta": "Firmware {version} auf Gerät {mac} erneut versuchen",
     "retryOtaShort": "Erneut versuchen",
     "retryOtaSuccess": "Firmware {version} wird erneut angeboten",
-    "retryOtaFailed": "Firmware-Wiederholung konnte nicht aktiviert werden"
+    "retryOtaFailed": "Firmware-Wiederholung konnte nicht aktiviert werden",
+    "pollHourly": "1 Stunde",
+    "rolloutOn": "{count} darauf"
   },
   "flash": {
     "title": "Firmware flashen",
@@ -744,7 +757,10 @@
     "updateCompleteBody": "Die neue Version ist bereit. Die Konsole wird gleich fortgesetzt.",
     "updateFailedTitle": "Update nicht abgeschlossen",
     "updateFailedBody": "Vellum läuft weiterhin auf der vorherigen Version oder wurde automatisch wiederhergestellt.",
-    "databaseReconnecting": "Verbindung wird wiederhergestellt…"
+    "databaseReconnecting": "Verbindung wird wiederhergestellt…",
+    "serviceUnavailable": "Dienst nicht verfügbar",
+    "appDescription": "Anzeigesystem für E-Ink-Türschilder",
+    "select": "— auswählen —"
   },
   "contentTypes": {
     "room-booking": "Raumbelegung",
@@ -794,7 +810,12 @@
     "upToDate": "aktuell",
     "behind": "veraltet",
     "unknown": "unbekannt",
-    "byVersion": "Nach Version"
+    "byVersion": "Nach Version",
+    "totalDevices": "Geräte gesamt",
+    "onlineNow": "Jetzt online",
+    "pendingApprovals": "Offene Freigaben",
+    "contentInstances": "Inhalte",
+    "refreshProfiles": "Aktualisierungsprofile"
   },
   "resourcePicker": {
     "change": "Ändern",

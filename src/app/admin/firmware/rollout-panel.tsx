@@ -104,7 +104,7 @@ function RolloutRow({
       </div>
 
       <div className="flex items-center gap-2 text-xs text-label-tertiary tabular-nums">
-        <span title={t("rolloutAdoption")}>{adoption} on</span>
+        <span title={t("rolloutAdoption")}>{t("rolloutOn", { count: adoption })}</span>
         {(health.confirmed > 0 || health.failed > 0) && (
           <span className="flex items-center gap-1.5">
             <span className="text-green">{health.confirmed}✓</span>

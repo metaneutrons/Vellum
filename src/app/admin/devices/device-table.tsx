@@ -535,7 +535,7 @@ export function DeviceTable({
         >
           <img
             src={`/api/v1/admin/preview?instanceId=${previewId}&mac=${previewMac}`}
-            alt="Preview"
+            alt={t("preview")}
             className="max-w-full max-h-full object-contain rounded-2xl shadow-e3"
           />
         </div>
@@ -547,7 +547,7 @@ export function DeviceTable({
           open={!!deleting}
           title={t("deleteConfirm")}
           message={t("deleteMessage", { mac: deleting ?? "" })}
-          confirmLabel="Delete"
+          confirmLabel={t("delete")}
           destructive
           onConfirm={() => {
             const mac = deleting;

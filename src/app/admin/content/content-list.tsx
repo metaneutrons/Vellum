@@ -53,6 +53,26 @@ import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-type
 import { doorSignMultiConfigSchema } from "@/lib/content/renderers/door-sign-multi-types";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
 
+/**
+ * What each date format looks like, shown in the CONTENT's language.
+ *
+ * These four options used to be hardcoded German samples, so an operator setting
+ * up an English sign picked between "Sonntag, 3. Mai 2026" and "03.05.26" and had
+ * to imagine the rest. The sample is now formatted in the language the sign will
+ * actually use.
+ *
+ * `dateStyle` rather than date-fns: the two are documented as corresponding
+ * (P short, PP medium, PPP long, PPPP full), the renderer's own patterns stay the
+ * stored value, and Intl costs the client bundle nothing.
+ */
+const DATE_SAMPLE = new Date(Date.UTC(2026, 4, 3, 12));
+const DATE_FORMAT_SAMPLES: Array<[string, "full" | "long" | "medium" | "short"]> = [
+  ["PPPP", "full"],
+  ["PPP", "long"],
+  ["PP", "medium"],
+  ["P", "short"],
+];
+
 const selectCls =
   "w-full min-h-9 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
@@ -107,6 +127,7 @@ function DoorSignConfigEditor({
   knownDisplays: DisplaySize[];
 }) {
   const t = useTranslations("content");
+  const tCommon = useTranslations("common");
   const td = useTranslations("content.doorSign");
   const design = (config.design ?? {
     backgroundAssetId: null,
@@ -124,7 +145,7 @@ function DoorSignConfigEditor({
         value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}
       >
-        <option value="">— select —</option>
+        <option value="">{tCommon("select")}</option>
         {providers
           .filter((p) => p.type === "anny")
           .map((p) => (
@@ -155,14 +176,14 @@ function DoorSignConfigEditor({
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           <TimezonePicker
-            label="Timezone"
+            label={t("timezone")}
             value={(config.timezone as string) ?? "Europe/Berlin"}
             onChange={(v) => onChange({ ...config, timezone: v })}
           />
         </div>
         <div>
           <LocalePicker
-            label="Locale"
+            label={t("locale")}
             value={(config.locale as string) ?? "de"}
             onChange={(v) => onChange({ ...config, locale: v })}
           />
@@ -266,6 +287,7 @@ function RoomBookingEditor({
   providers: Provider[];
 }) {
   const t = useTranslations("content");
+  const tCommon = useTranslations("common");
   const roomConfig = (config.roomConfig ?? {}) as Record<string, string>;
   const bookingQr = (config.bookingQr ?? { visibility: "never", source: "provider" }) as {
     visibility?: "never" | "always" | "free";
@@ -278,15 +300,15 @@ function RoomBookingEditor({
   const fieldConfig =
     provider?.type === "google"
       ? {
-          label: "Calendar ID",
+          label: t("fieldCalendarId"),
           placeholder: "calendar-id@group.calendar.google.com",
           key: "calendarId",
         }
       : provider?.type === "anny"
-        ? { label: "Resource", placeholder: "", key: "resourceId" }
+        ? { label: t("fieldResource"), placeholder: "", key: "resourceId" }
         : provider?.type === "ical"
           ? null /* iCal URL is in provider credentials, not room config */
-          : { label: "Room Mailbox Email", placeholder: "room@company.com", key: "roomEmail" };
+          : { label: t("fieldRoomEmail"), placeholder: "room@company.com", key: "roomEmail" };
 
   return (
     <>
@@ -296,7 +318,7 @@ function RoomBookingEditor({
         value={(config.providerId as string) ?? ""}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}
       >
-        <option value="">— select —</option>
+        <option value="">{tCommon("select")}</option>
         {providers.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name} ({p.type})
@@ -372,10 +394,13 @@ function RoomBookingEditor({
         value={(config.dateFormat as string) ?? "PPPP"}
         onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}
       >
-        <option value="PPPP">Sonntag, 3. Mai 2026</option>
-        <option value="PPP">3. Mai 2026</option>
-        <option value="PP">03.05.2026</option>
-        <option value="P">03.05.26</option>
+        {DATE_FORMAT_SAMPLES.map(([pattern, style]) => (
+          <option key={pattern} value={pattern}>
+            {new Intl.DateTimeFormat((config.locale as string) ?? "en", {
+              dateStyle: style,
+            }).format(DATE_SAMPLE)}
+          </option>
+        ))}
       </select>
 
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("layout")}</label>
@@ -718,7 +743,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         onConfirm={handleDelete}
         title={t("deleteTitle")}
         message={t("deleteMsg")}
-        confirmLabel="Delete"
+        confirmLabel={t("delete")}
         destructive
       />
 
@@ -726,7 +751,7 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         {previewing && (
           <img
             src={`/api/v1/admin/preview?instanceId=${previewing}&t=${Date.now()}`}
-            alt="Content preview"
+            alt={t("preview")}
             className="w-full rounded-md border border-separator"
           />
         )}

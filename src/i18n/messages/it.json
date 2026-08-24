@@ -232,7 +232,8 @@
       "approved": "Approvato",
       "pending": "In attesa",
       "rejected": "Rifiutato"
-    }
+    },
+    "backToDevices": "Torna ai dispositivi"
   },
   "content": {
     "removeProperty": "Rimuovi proprietà",
@@ -363,7 +364,10 @@
       },
       "reach": "Leggibile da circa {metres} m su un pannello da 7,5 pollici.",
       "reachDense": "Da tre postazioni ciascuna occupa una riga, quindi titoli, posizione e unità non vengono mostrati."
-    }
+    },
+    "fieldCalendarId": "ID calendario",
+    "fieldRoomEmail": "Indirizzo della casella sala",
+    "fieldResource": "Risorsa"
   },
   "providers": {
     "clearSearch": "Cancella ricerca",
@@ -403,7 +407,14 @@
     },
     "deleteMsg": "Eliminare questo provider? I contenuti associati smetteranno di funzionare.",
     "emptyTitle": "Nessun provider",
-    "emptyDesc": "Aggiungi un provider per collegare fonti dati."
+    "emptyDesc": "Aggiungi un provider per collegare fonti dati.",
+    "fieldTenantId": "ID tenant",
+    "fieldClientId": "ID client",
+    "fieldClientSecret": "Client secret",
+    "fieldServiceAccountEmail": "E-mail dell'account di servizio",
+    "fieldPrivateKey": "Chiave privata (PEM)",
+    "fieldApiToken": "Token API",
+    "fieldIcalUrl": "URL del feed iCal"
   },
   "themes": {
     "created": "Tema creato",
@@ -664,7 +675,9 @@
     "retryOta": "Riprova il firmware {version} sul dispositivo {mac}",
     "retryOtaShort": "Riprova",
     "retryOtaSuccess": "Il firmware {version} verrà proposto di nuovo",
-    "retryOtaFailed": "Impossibile abilitare il nuovo tentativo del firmware"
+    "retryOtaFailed": "Impossibile abilitare il nuovo tentativo del firmware",
+    "pollHourly": "1 ora",
+    "rolloutOn": "{count} su questa"
   },
   "flash": {
     "title": "Flash firmware",
@@ -744,7 +757,10 @@
     "updateCompleteBody": "La nuova versione è pronta. La console riprenderà tra un momento.",
     "updateFailedTitle": "Aggiornamento non completato",
     "updateFailedBody": "Vellum sta ancora eseguendo la versione precedente oppure l’ha ripristinata automaticamente.",
-    "databaseReconnecting": "Tentativo di riconnessione…"
+    "databaseReconnecting": "Tentativo di riconnessione…",
+    "serviceUnavailable": "Servizio non disponibile",
+    "appDescription": "Sistema di display E-Ink per sale riunioni",
+    "select": "— seleziona —"
   },
   "contentTypes": {
     "room-booking": "Prenotazione sala",
@@ -794,7 +810,12 @@
     "upToDate": "aggiornato",
     "behind": "indietro",
     "unknown": "sconosciuto",
-    "byVersion": "Per versione"
+    "byVersion": "Per versione",
+    "totalDevices": "Dispositivi totali",
+    "onlineNow": "Online adesso",
+    "pendingApprovals": "Approvazioni in sospeso",
+    "contentInstances": "Contenuti",
+    "refreshProfiles": "Profili di aggiornamento"
   },
   "resourcePicker": {
     "change": "Modifica",

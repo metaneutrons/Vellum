@@ -47,6 +47,7 @@ export function ContentEditModal({
   const instance = contentInstances.find((i) => i.id === instanceId);
   const { toast } = useToast();
   const t = useTranslations("content");
+  const tCommon = useTranslations("common");
   const td = useTranslations("content.doorSign");
   const tc = useTranslations("contentTypes");
   const [pending, startTransition] = useTransition();
@@ -64,7 +65,7 @@ export function ContentEditModal({
         toast("success", t("save"));
         onClose();
       } catch {
-        toast("error", "Failed");
+        toast("error", tCommon("failed"));
       }
     });
   }

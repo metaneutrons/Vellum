@@ -380,9 +380,31 @@ design calls:
   - A `dark:` variant on a token is dead weight and reintroduces the raw palette;
     `admin/error.tsx` had one.
 
-- [ ] **The remaining hard-coded strings.** The i18n gate measures them and they
-      cannot grow. Worst first: `simulator/client.tsx` (21), `content-list.tsx` (9),
-      `fleet-status.tsx` (8), `firmware-page.tsx` (7).
+- [x] **The hard-coded strings are gone, and most of them were duplicates.** Of 119
+      literals across 28 views, only about fifty were ever translatable prose, and a
+      large share of THOSE already had translated keys sitting unused: `dashboard`
+      already held online / late / offline / never seen / Avg battery / Low battery /
+      Weak signal, exactly the seven the fleet panel painted in English. The same
+      pattern as the connectivity labels on the device page. Nineteen keys were
+      genuinely new.
+  - The gate guards every view now instead of an allowlist of four, and is structured
+    like the theme gate: a NOT-PROSE filter, an EXEMPT table with reasons, and an empty
+    budget. It refuses an exemption whose reason is shorter than a sentence.
+  - What is exempt and why: the simulator (its page 404s outside development), the
+    retired door-sign editors and their canvas, `theme-preview` (sample content inside
+    a miniature of a rendered sign, where a device renders in the CONTENT's locale
+    rather than the operator's), and `global-error` (it renders its own `<html>` and
+    therefore REPLACES the provider that supplies the messages, so a translated string
+    there would throw inside the handler for a crash).
+  - Not prose, and named as such rather than translated: brands, the endonyms in the
+    language picker (translating those defeats a language picker), units, IANA zones,
+    template placeholders, firmware channel identifiers used verbatim in the API,
+    HTML entities, and shell commands meant to be copied.
+  - Two fixes fell out of it. The date-format options showed hardcoded GERMAN samples,
+    so an operator configuring an English sign chose between "Sonntag, 3. Mai 2026" and
+    "03.05.26"; they are formatted in the sign's own language now. And the root
+    metadata description became `generateMetadata`, so it follows the operator's
+    language like everything else.
 
 - [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
       header band and 32 px type at fixed offsets, so on an E1003 the room name sits

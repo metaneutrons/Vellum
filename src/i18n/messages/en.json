@@ -232,7 +232,8 @@
       "approved": "Approved",
       "pending": "Pending",
       "rejected": "Rejected"
-    }
+    },
+    "backToDevices": "Back to devices"
   },
   "content": {
     "removeProperty": "Remove property",
@@ -363,7 +364,10 @@
       },
       "reach": "Readable from about {metres} m on a 7.5-inch panel.",
       "reachDense": "From three seats each one takes a single line, so titles, position and unit are not shown."
-    }
+    },
+    "fieldCalendarId": "Calendar ID",
+    "fieldRoomEmail": "Room mailbox address",
+    "fieldResource": "Resource"
   },
   "providers": {
     "clearSearch": "Clear search",
@@ -403,7 +407,14 @@
     },
     "deleteMsg": "Delete this provider? Content instances using it will stop working.",
     "emptyTitle": "No data providers",
-    "emptyDesc": "Add a provider to connect calendar or other data sources."
+    "emptyDesc": "Add a provider to connect calendar or other data sources.",
+    "fieldTenantId": "Tenant ID",
+    "fieldClientId": "Client ID",
+    "fieldClientSecret": "Client secret",
+    "fieldServiceAccountEmail": "Service account e-mail",
+    "fieldPrivateKey": "Private key (PEM)",
+    "fieldApiToken": "API token",
+    "fieldIcalUrl": "iCal feed URL"
   },
   "themes": {
     "created": "Theme created",
@@ -664,7 +675,9 @@
     "retryOta": "Retry firmware {version} on device {mac}",
     "retryOtaShort": "Retry",
     "retryOtaSuccess": "Firmware {version} will be offered again",
-    "retryOtaFailed": "Firmware retry could not be enabled"
+    "retryOtaFailed": "Firmware retry could not be enabled",
+    "pollHourly": "1 hour",
+    "rolloutOn": "{count} on"
   },
   "flash": {
     "title": "Flash Firmware",
@@ -744,7 +757,10 @@
     "updateCompleteBody": "The new version is ready. The console will continue in a moment.",
     "updateFailedTitle": "Update not completed",
     "updateFailedBody": "Vellum is still running the previous version or restored it automatically.",
-    "databaseReconnecting": "Attempting to reconnect…"
+    "databaseReconnecting": "Attempting to reconnect…",
+    "serviceUnavailable": "Service unavailable",
+    "appDescription": "E-Ink meeting room display system",
+    "select": "— select —"
   },
   "contentTypes": {
     "room-booking": "Room Booking",
@@ -794,7 +810,12 @@
     "upToDate": "up to date",
     "behind": "behind",
     "unknown": "unknown",
-    "byVersion": "By version"
+    "byVersion": "By version",
+    "totalDevices": "Total devices",
+    "onlineNow": "Online now",
+    "pendingApprovals": "Pending approvals",
+    "contentInstances": "Content instances",
+    "refreshProfiles": "Refresh profiles"
   },
   "resourcePicker": {
     "change": "Change",

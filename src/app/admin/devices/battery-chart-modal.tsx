@@ -120,10 +120,10 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
           onChange={(e) => setRange(e.target.value as TimeRange)}
           className={selectCls}
         >
-          <option value="7">7 Tage</option>
-          <option value="14">14 Tage</option>
-          <option value="30">30 Tage</option>
-          <option value="90">90 Tage</option>
+          <option value="7">{t("days", { count: 7 })}</option>
+          <option value="14">{t("days", { count: 14 })}</option>
+          <option value="30">{t("days", { count: 30 })}</option>
+          <option value="90">{t("days", { count: 90 })}</option>
         </select>
         <span className="text-xs text-label-secondary">
           {points.length} {t("dataPoints")}
