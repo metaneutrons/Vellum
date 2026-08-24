@@ -303,6 +303,35 @@ design calls:
     one remaining hand-rolled provider read, in `resolveBookingUrl`, went to the same
     loader the source uses.
 
+- [x] **All four calendar providers now pass one shared contract.** Stage 4b. The two
+      that talk to the outside world were the two with no tests at all, which is the
+      wrong way round: `microsoft365` sat at 11.1 % of statements and **0 %** of
+      branches, `google` at 12.0 % and 0 %. Four implementations of one interface had
+      four ideas of what the interface promises and nothing said which was right.
+  - Where it stands now. microsoft365 **100 % / 80.8 %**, google **92 % / 62.5 %**,
+    ical 88.5 % / 73.0 %, anny 79.3 % / 66.2 %; the provider directory as a whole from
+    58.7 / 46.2 to 86.2 / 69.9.
+  - Five shared cases, none of them invented: every field is the type the renderers
+    assume without checking (a provider returning undefined for `organizer` is a crash
+    on a wall); a local time with an offset is read as the right instant; a private
+    booking is marked private; an unattributed booking yields a STRING organizer; and
+    an out-of-order source loses nothing.
+  - Each provider brings a `serve` that translates the neutral case descriptions into
+    its own wire format. Writing those four adapters is half the value: they are the
+    only place in the repository where each provider's payload shape is written down,
+    and the double behaves like the real source, including whether the WINDOW is
+    filtered server-side (Graph and Google) or by the provider (anny, iCal).
+  - A skip has to give a reason, and the suite reports it as a passing test rather
+    than as silence. anny has no privacy flag; Graph has no offset to read, because it
+    reports naive local time plus a `timeZone` field and this provider sends no
+    `Prefer: outlook.timezone`, so the "Z" it appends is right only for as long as
+    that stays true.
+  - Graph's own rule finally has tests: a resource mailbox that auto-accepts becomes
+    the organizer of the booking it accepted, so the provider falls back to the
+    attendees rather than printing the room's name on the room's own sign. Six cases
+    around it, including the case-insensitive address match and the "(+2)" suffix.
+    Mutation-tested: letting the room name itself fails four of them.
+
 - [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
       header band and 32 px type at fixed offsets, so on an E1003 the room name sits
       small in the corner of a 1872 px panel. The frame invariants cannot see it: the

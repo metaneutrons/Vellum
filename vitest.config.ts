@@ -70,10 +70,14 @@ export default defineConfig({
         // where stage 1 put it. The margin below each is deliberate; see the note
         // above on why a threshold set flush against a measurement is a gate that
         // fails at random.
-        statements: 75,
-        branches: 68,
-        functions: 74,
-        lines: 77,
+        // Stage 4 raised these again, measured at 78.70 / 71.15 / 78.18 / 81.44.
+        // The providers did the moving: microsoft365 from 11.1 to 100 % of
+        // statements and 0 to 80.8 % of branches, google from 12.0 to 92 % and 0 to
+        // 62.5 %, once a shared contract suite existed to point at them.
+        statements: 77,
+        branches: 70,
+        functions: 77,
+        lines: 80,
       },
     },
   },
