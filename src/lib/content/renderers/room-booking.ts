@@ -66,6 +66,7 @@ import {
   shouldShowBookingQr,
   type BookingQrVisibility,
 } from "./booking-qr";
+import { blockCapacity, planBlockText } from "./room-booking-blocks";
 
 /* ── Bitmap font registration for color e-paper ──────────────── */
 
@@ -470,6 +471,98 @@ function renderHeader(h: HeaderCtx): void {
   );
 }
 
+interface EventBlockCtx {
+  tc: TextCtx;
+  T: Theme;
+  evt: DisplayEvent;
+  timezone: string;
+  scale: number;
+  ex: number;
+  ew: number;
+  y1: number;
+  blockH: number;
+}
+
+/** The type a block of a given height is set in. */
+interface BlockType {
+  plain: FontSize;
+  bold: FontSize;
+  lineH: number;
+}
+
+/** Short blocks step down one size so that two lines still fit. */
+function blockType(blockH: number, scale: number): BlockType {
+  const small = blockH < Math.round(28 * scale);
+  return {
+    plain: small ? "sm" : "md",
+    bold: small ? "sm" : "md-bold",
+    lineH: small ? Math.round(16 * scale) : Math.round(24 * scale),
+  };
+}
+
+/**
+ * One booking: the filled block and whatever text fits in it.
+ *
+ * Which text that is comes from `planBlockText` rather than from a fixed stack,
+ * so a block the window has clipped keeps naming the occupant instead of keeping
+ * the time range. See room-booking-blocks.ts for the case that forced this.
+ */
+function drawEventBlock(b: EventBlockCtx): void {
+  const { tc, T, evt, ex, ew, y1, blockH, scale } = b;
+  const ctx = tc.ctx;
+  const pad = 8;
+
+  const blockBg = evt.isPrivate || evt.showLockIcon ? T.busyBadge : T.eventBg;
+  /* Same problem as the badge: the block's ground is one of two colours while
+   * `slotText` is one value. On the mono panel both grounds are black, so an
+   * unguarded black `slotText` drew every booking as a featureless bar. */
+  const blockText = readableOn(blockBg, T.slotText);
+  ctx.fillStyle = blockBg;
+  /* Extend block 2px at bottom to fully cover the end grid line */
+  ctx.fillRect(ex, y1, ew, blockH + 2);
+  if (blockH < Math.round(16 * scale)) return; /* block drawn, but too small for text */
+
+  const { plain: fontSize, bold: fontSizeBold, lineH } = blockType(blockH, scale);
+  const capacity = blockCapacity(blockH, lineH);
+  const subject = evt.showLockIcon ? `🔒 ${evt.displaySubject}` : evt.displaySubject;
+  const plan = planBlockText(subject, evt.organizer, capacity);
+  if (!plan.primary) return;
+
+  const timeStr = `${fmtTime(evt.startTime, b.timezone)} – ${fmtTime(evt.endTime, b.timezone)}`;
+  const timeW = textWidth(tc, timeStr, fontSize);
+  const besideTime = ew - timeW - pad * 3;
+  const primaryW = textWidth(tc, plan.primary, fontSizeBold);
+  /* The time shares line one and so costs no line. It gives way only on a
+   * single-line block whose one line would otherwise be cut short, because the
+   * hour grid behind the block already says when the booking runs. */
+  const withTime = capacity > 1 || primaryW <= besideTime;
+  const textY = y1 + Math.min(lineH, blockH - 4);
+  if (withTime) text(tc, ex + ew - pad, textY, timeStr, fontSize, blockText, "right");
+
+  const primaryMaxW = withTime ? besideTime : ew - pad * 2;
+  /* Wrapping is allowed only when no occupant line has to be placed below,
+   * which is also the only case where the lines below are free. Wrapping into
+   * them regardless is what used to draw the subject over the occupant. */
+  if (!plan.secondary && capacity > 1 && primaryW > primaryMaxW) {
+    textWrap(
+      tc,
+      ex + pad,
+      textY,
+      plan.primary,
+      fontSizeBold,
+      blockText,
+      ew - pad * 2,
+      lineH,
+      capacity
+    );
+  } else {
+    text(tc, ex + pad, textY, plan.primary, fontSizeBold, blockText, "left", primaryMaxW);
+  }
+  if (plan.secondary) {
+    text(tc, ex + pad, y1 + lineH * 2, plan.secondary, fontSize, blockText, "left", ew - pad * 2);
+  }
+}
+
 export function renderToCanvas(
   events: DisplayEvent[],
   roomName: string,
@@ -579,63 +672,18 @@ export function renderToCanvas(
   const eventLayout = computeTimelineLayout(visible, windowStart, windowEnd, areaTop, areaH);
 
   for (const { evt, y1, y2, col, totalCols } of eventLayout) {
-    const blockH = Math.max(y2 - y1, 5); /* minimum 5px visible */
     const colW = eventW / Math.max(totalCols, 1);
-    const ex = eventLeft + col * colW;
-    const ew = colW - 2; /* 2px gap between columns */
-    const pad = 8;
-
-    const blockBg = evt.isPrivate || evt.showLockIcon ? T.busyBadge : T.eventBg;
-    /* Same problem as the badge: the block's ground is one of two colours while
-     * `slotText` is one value. On the mono panel both grounds are black, so an
-     * unguarded black `slotText` drew every booking as a featureless bar. */
-    const blockText = readableOn(blockBg, T.slotText);
-    ctx.fillStyle = blockBg;
-    /* Extend block 2px at bottom to fully cover the end grid line */
-    ctx.fillRect(ex, y1, ew, blockH + 2);
-
-    /* Dynamic font size based on block height */
-    if (blockH < Math.round(16 * scale)) continue; /* block drawn, but too small for text */
-    const fontSize: "sm" | "md" | "md-bold" = blockH < Math.round(28 * scale) ? "sm" : "md";
-    const fontSizeBold: "sm" | "md-bold" = blockH < Math.round(28 * scale) ? "sm" : "md-bold";
-    const lineH = blockH < Math.round(28 * scale) ? Math.round(16 * scale) : Math.round(24 * scale);
-
-    if (blockH >= 16) {
-      const timeStr = `${fmtTime(evt.startTime, timezone)} – ${fmtTime(evt.endTime, timezone)}`;
-      const timeW = textWidth(tc, timeStr, fontSize);
-      const textY = y1 + Math.min(lineH, blockH - 4);
-      text(tc, ex + ew - pad, textY, timeStr, fontSize, blockText, "right");
-
-      const label = evt.showLockIcon ? `🔒 ${evt.displaySubject}` : evt.displaySubject;
-      const labelMaxW = ew - timeW - pad * 3;
-      const availLines = Math.floor((blockH - lineH) / lineH);
-
-      if (availLines >= 1 && textWidth(tc, label, fontSizeBold) > labelMaxW) {
-        /* Wrap subject across available lines */
-        textWrap(
-          tc,
-          ex + pad,
-          textY,
-          label,
-          fontSizeBold,
-          blockText,
-          ew - pad * 2,
-          lineH,
-          availLines + 1
-        );
-      } else {
-        text(tc, ex + pad, textY, label, fontSizeBold, blockText, "left", labelMaxW);
-      }
-    }
-
-    const usedLines = blockH >= 16 ? 1 : 0;
-    if (
-      blockH > lineH * (usedLines + 1) &&
-      evt.organizer &&
-      evt.organizer.trim() !== evt.displaySubject.trim()
-    ) {
-      text(tc, ex + pad, y1 + lineH * 2, evt.organizer, fontSize, blockText, "left", ew - pad * 2);
-    }
+    drawEventBlock({
+      tc,
+      T,
+      evt,
+      timezone,
+      scale,
+      ex: eventLeft + col * colW,
+      ew: colW - 2 /* 2px gap between columns */,
+      y1,
+      blockH: Math.max(y2 - y1, 5) /* minimum 5px visible */,
+    });
   }
 
   // Reset alignment

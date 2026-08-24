@@ -161,6 +161,50 @@ design calls:
       above showed up in no preview for months: every one of them drew the grey as
       grey.
 
+- [x] **A clipped timeline block kept the time range and dropped the occupant.** The
+      eight-hour window clips a booking at `areaTop`, so a RUNNING meeting shrinks in
+      two-hour steps as the day passes, and the occupant's line was gated on that
+      clipped height. Measured on an E1003: a 10:00-13:00 booking rendered at 10:30
+      had 132 px of visible block and printed "Maria Warnking", the same booking at
+      12:30 had 44 px against a 48 px threshold and printed only "Projektbesprechung
+      10:00 - 13:00". So the line that says WHO is in the room was the first to go,
+      and it went precisely while the meeting ran, since only a running booking is
+      clipped at the top.
+  - `planBlockText` in `room-booking-blocks.ts` now fills the available lines by
+    priority instead of by a fixed stack. One line goes to the occupant, because a
+    sign beside a door answers "who is in there" and a passer-by can do without the
+    meeting's title. The time range keeps the right end of line one and costs no
+    line, giving way only when a single line would otherwise be cut short.
+  - It is a separate pure module so the invariant can be asserted directly: a block
+    the window has clipped must not identify the occupant less well than the same
+    booking unclipped. Same shape as the monotonic reach test on the name plate.
+  - The duplicate check went from exact equality to a prefix test, because the
+    redundant case is the normal one. anny reports the subject as "Lukas Thiele
+    (Hochschule Hannover)" and the organizer as "Lukas Thiele", so the second line
+    repeated the first on every booking that provider serves. It stops short of a
+    substring search, which would swallow "Besprechung mit Thiele".
+  - Why it read as a preview-versus-device bug: the preview renders at the instant it
+    is opened, the panel shows the frame from its last poll, and two moments in
+    different two-hour buckets disagree about the same booking.
+
+- [ ] **The stacked layout never names the occupant at all.** `renderStacked` draws
+      time and `displaySubject` per card and no organizer line, so on a stacked room
+      display the person is visible only when the provider happens to put the name in
+      the subject. anny does, Microsoft 365 does not, since there the subject is the
+      meeting title. Give the card the same priority fill as the timeline block.
+
+- [ ] **The preview still resolves three things differently from `/render`.** Beyond
+      the theme snap below, `/api/v1/admin/preview` (a) picks the device by
+      `.limit(1)` with NO `ORDER BY` when several use the instance, which on the
+      development estate silently chose a test device with a different panel and
+      orientation than the one on the wall, (b) never resolves the `isDefault` theme,
+      only an explicit `themeId` query parameter, so designating a default makes every
+      preview wrong, and (c) returns the raw canvas instead of running
+      `canvasToPixelBuffer`, so quantisation artefacts appear on no preview. It also
+      reads `devices.contentInstanceId` directly and therefore misses content assigned
+      through a site. Resolve exactly as the render route does, and name the panel the
+      preview stands for.
+
 - [ ] **The QR matrix is drawn by two copies of the same arithmetic.**
       `booking-qr.ts` now exports `drawQrMatrix`, used by the name plate;
       `room-booking.ts` still has the same module-size and quiet-zone maths inline
