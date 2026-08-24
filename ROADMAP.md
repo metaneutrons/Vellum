@@ -468,17 +468,35 @@ design calls:
       fixing when the offline screen next gets attention; it is the one frame a wall
       shows when everything else has failed.
 
-- [ ] **The preview still resolves three things differently from `/render`.** Beyond
-      the theme snap below, `/api/v1/admin/preview` (a) picks the device by
-      `.limit(1)` with NO `ORDER BY` when several use the instance, which on the
-      development estate silently chose a test device with a different panel and
-      orientation than the one on the wall, (b) never resolves the `isDefault` theme,
-      only an explicit `themeId` query parameter, so designating a default makes every
-      preview wrong, and (c) returns the raw canvas instead of running
-      `canvasToPixelBuffer`, so quantisation artefacts appear on no preview. It also
-      reads `devices.contentInstanceId` directly and therefore misses content assigned
-      through a site. Resolve exactly as the render route does, and name the panel the
-      preview stands for.
+- [x] **The preview resolves what the device resolves.** Stage 5, and the answer to
+      the question this whole sequence started from: why a preview and a wall showed
+      different things.
+  - **It picked an arbitrary device.** `.limit(1)` with no `ORDER BY` let Postgres
+    choose; on the development estate it chose a test device with a different panel
+    AND a different orientation than the one on the wall, so the preview was rendered
+    for a display that does not exist in the room. Ordering is approved first, then
+    most recently seen, then the address. Verified against the estate: the same query
+    that returned `DEADBEEFCAFE` (e1003, portrait) now returns `58E6C50F4054`
+    (d1001), which is the display actually carrying that content.
+  - **It missed content assigned through a site.** The lookup read
+    `devices.contentInstanceId` alone, so a display inheriting its content from its
+    site was invisible and the preview fell back to a panel nobody owns. It joins the
+    site now and matches either way.
+  - **It never resolved the default theme.** Explicit `themeId` was the only branch,
+    so designating a default made every preview show a theme no device uses. It
+    mirrors the render route step for step; the query parameter stays, because the
+    theme editor's live preview is exactly the case for overriding.
+  - **It returned the unquantised canvas.** That is the one that mattered most: the
+    preview answered what the RENDERER drew rather than what the PANEL prints, and on
+    a six- or two-colour display those are different pictures. `quantizeToIndices` is
+    now a step of its own that `canvasToPixelBuffer` and `previewImage` share, so the
+    two cannot drift; the tests decode the PNG a browser receives and check every
+    pixel against the palette entry the device's own packed buffer names.
+    Mutation-tested: returning the raw canvas fails with `[4, 2, 251]` where the
+    panel prints `[0, 0, 255]`.
+  - The response carries `X-Preview-Panel` naming the geometry, the colour mode and
+    the device it stands for. An `<img>` cannot read a header, so this is for
+    debugging a mismatch and for whoever puts the caption into the UI next.
 
 - [ ] **The QR matrix is drawn by two copies of the same arithmetic.**
       `booking-qr.ts` now exports `drawQrMatrix`, used by the name plate;
