@@ -7,9 +7,7 @@
 import type { Image } from "@napi-rs/canvas";
 import { canvasSurface } from "@/lib/render/surface";
 import { TZDate } from "@date-fns/tz";
-import { getCalendarProvider } from "@/lib/calendar/registry";
-import { getProviderWithCredentials } from "@/lib/providers";
-import { TtlCache } from "@/lib/cache";
+import { fetchResourceEvents } from "@/lib/calendar/source";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ContentRenderer, DrawParams, DrawResult, LoadParams } from "../types";
 import { doorSignConfigSchema, type DoorSignConfig } from "./door-sign-types";
@@ -24,28 +22,19 @@ import {
 
 /* ── Booking cache ────────────────────────────────────────────── */
 
-const BOOKING_CACHE_TTL_MS = 60_000;
-const bookingCache = new TtlCache<CalendarEvent[]>(BOOKING_CACHE_TTL_MS);
-
 async function fetchCurrentBooking(
   config: DoorSignConfig,
   now: Date
 ): Promise<CalendarEvent | null> {
-  const cacheKey = `door-sign:${config.providerId}:${config.resourceId}`;
-  const cached = bookingCache.get(cacheKey);
-  const events = cached ?? (await fetchEventsFromProvider(config, now));
-  if (!cached) bookingCache.set(cacheKey, events);
+  const events = await fetchEventsFromProvider(config, now);
   return events.find((e) => now >= e.startTime && now < e.endTime) ?? null;
 }
 
+/** The whole of the sign's day, in the sign's own zone. */
 async function fetchEventsFromProvider(
   config: DoorSignConfig,
   now: Date
 ): Promise<CalendarEvent[]> {
-  const provider = await getProviderWithCredentials(config.providerId);
-  const impl = getCalendarProvider(provider.type);
-  if (!impl) throw new Error(`No implementation for provider type: ${provider.type}`);
-
   const tzNow = new TZDate(now, config.timezone);
   const dayStart = new TZDate(
     tzNow.getFullYear(),
@@ -66,11 +55,14 @@ async function fetchEventsFromProvider(
     config.timezone
   );
 
-  return impl.fetchEvents({
-    credentials: provider.credentials,
+  return fetchResourceEvents({
+    providerId: config.providerId,
     roomConfig: { resourceId: config.resourceId, resourceName: config.resourceName },
     windowStart: dayStart,
     windowEnd: dayEnd,
+    /* The minute this renderer has always used. Unchanged deliberately: it is
+     * retired, and a behaviour change here buys nothing. */
+    ttlS: 60,
   });
 }
 

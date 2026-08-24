@@ -9,9 +9,7 @@
 
 import { canvasSurface } from "@/lib/render/surface";
 import { TZDate } from "@date-fns/tz";
-import { getCalendarProvider } from "@/lib/calendar/registry";
-import { getProviderWithCredentials } from "@/lib/providers";
-import { TtlCache } from "@/lib/cache";
+import { fetchResourceEvents } from "@/lib/calendar/source";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Image } from "@napi-rs/canvas";
 import type { ContentRenderer, DrawParams, DrawResult, LoadParams } from "../types";
@@ -31,22 +29,12 @@ import {
 
 /* ── Booking cache ────────────────────────────────────────────── */
 
-const BOOKING_CACHE_TTL_MS = 60_000;
-const bookingCache = new TtlCache<CalendarEvent[]>(BOOKING_CACHE_TTL_MS);
-
+/** One resource's whole day, in the sign's own zone. */
 async function fetchEventsForResource(
   resource: ResourceEntry,
   timezone: string,
   now: Date
 ): Promise<CalendarEvent[]> {
-  const cacheKey = `door-sign-multi:${resource.providerId}:${resource.resourceId}`;
-  const cached = bookingCache.get(cacheKey);
-  if (cached) return cached;
-
-  const provider = await getProviderWithCredentials(resource.providerId);
-  const impl = getCalendarProvider(provider.type);
-  if (!impl) return [];
-
   const tzNow = new TZDate(now, timezone);
   const dayStart = new TZDate(
     tzNow.getFullYear(),
@@ -67,15 +55,15 @@ async function fetchEventsForResource(
     timezone
   );
 
-  const events = await impl.fetchEvents({
-    credentials: provider.credentials,
+  /* Never throws: a multi-resource sign with one unreachable row still shows the
+   * others, which is what its own caller assumed when it had a cache of its own. */
+  return fetchResourceEvents({
+    providerId: resource.providerId,
     roomConfig: { resourceId: resource.resourceId, resourceName: resource.resourceName },
     windowStart: dayStart,
     windowEnd: dayEnd,
-  });
-
-  bookingCache.set(cacheKey, events);
-  return events;
+    ttlS: 60,
+  }).catch(() => []);
 }
 
 /* ── Renderer ─────────────────────────────────────────────────── */

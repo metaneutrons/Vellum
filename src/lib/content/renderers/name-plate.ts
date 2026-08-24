@@ -21,9 +21,7 @@
  */
 
 import { TZDate } from "@date-fns/tz";
-import { getCalendarProvider } from "@/lib/calendar/registry";
-import { getProviderWithCredentials } from "@/lib/providers";
-import { TtlCache } from "@/lib/cache";
+import { fetchResourceEvents } from "@/lib/calendar/source";
 import { ensureRenderFonts, narrowFontFamily } from "@/lib/render/fonts";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Theme } from "@/lib/theme";
@@ -59,9 +57,6 @@ import { choosePlan, type ChosenPlan } from "./name-plate-sizes";
 
 /* ── Occupancy ────────────────────────────────────────────────── */
 
-const BOOKING_CACHE_TTL_MS = 60_000;
-const bookingCache = new TtlCache<CalendarEvent[]>(BOOKING_CACHE_TTL_MS);
-
 async function fetchDayEvents(
   providerId: string,
   resourceId: string,
@@ -69,14 +64,6 @@ async function fetchDayEvents(
   now: Date,
   timezone: string
 ): Promise<CalendarEvent[]> {
-  const key = `name-plate:${providerId}:${resourceId}`;
-  const cached = bookingCache.get(key);
-  if (cached) return cached;
-
-  const provider = await getProviderWithCredentials(providerId);
-  const impl = getCalendarProvider(provider.type);
-  if (!impl) throw new Error(`No implementation for provider type: ${provider.type}`);
-
   const zoned = new TZDate(now, timezone);
   const dayStart = new TZDate(
     zoned.getFullYear(),
@@ -97,14 +84,15 @@ async function fetchDayEvents(
     timezone
   );
 
-  const events = await impl.fetchEvents({
-    credentials: provider.credentials,
+  return fetchResourceEvents({
+    providerId,
     roomConfig: { resourceId, resourceName },
     windowStart: dayStart,
     windowEnd: dayEnd,
+    /* A minute, as this renderer has always used, rather than the source's two.
+     * A name plate is read by someone standing at the desk. */
+    ttlS: 60,
   });
-  bookingCache.set(key, events);
-  return events;
 }
 
 /**

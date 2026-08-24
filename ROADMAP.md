@@ -280,6 +280,29 @@ design calls:
     the only two functions still over the complexity limit in this file, neither
     introduced nor touched here. The first is the QR-duplication item below.
 
+- [x] **Four event caches became one, and it can now say what it saves.** Stage 4a.
+      `room-booking`, `door-sign`, `door-sign-multi` and `name-plate` each held their
+      own `TtlCache` under their own key prefix, so a name plate and a door sign
+      pointed at the same anny desk fetched it twice, three of the four ignored the
+      configured `cacheTtlS` in favour of a hard-coded minute, and none could report a
+      hit rate. `calendar/source.ts` replaces all four.
+  - All four keyed on `providerId + roomConfig` and IGNORED the window they had asked
+    for, so a hit could answer a different question than the one asked. The window is
+    part of the key now, rounded outward to whole hours so that being part of the key
+    does not defeat it, and the wider result is clipped on the way out.
+  - Twenty displays polling one room within an hour now cost ONE provider call, which
+    is asserted rather than asserted-in-prose: `source.test.ts` counts them.
+  - The limit is written down in the module and asserted too: sharing needs the
+    ROUNDED windows to coincide, so the three day-window renderers share with each
+    other, and a room display's rolling sixteen hours does not share with a name
+    plate's calendar day. Closing that means partitioning by day, and anny fetches
+    every page of a resource's bookings per call regardless of window, so a two-day
+    span would double the most expensive thing here. Revisit when a room and a desk on
+    one provider are actually polled together.
+  - Side effect worth having: `room-booking.ts` no longer imports `@/db` at all. Its
+    one remaining hand-rolled provider read, in `resolveBookingUrl`, went to the same
+    loader the source uses.
+
 - [ ] **The offline screen ignores `scale` entirely.** `renderOffline` draws a 60 px
       header band and 32 px type at fixed offsets, so on an E1003 the room name sits
       small in the corner of a 1872 px panel. The frame invariants cannot see it: the

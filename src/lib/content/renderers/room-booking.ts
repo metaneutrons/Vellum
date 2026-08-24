@@ -31,13 +31,10 @@ const UPDATED_TEXT: Record<string, string> = {
   it: "aggiornato",
   es: "actualizado",
 };
-import { eq } from "drizzle-orm";
-import { db, withDbRead } from "@/db";
-import { dataProviders } from "@/db/schema";
-import { getCalendarProvider } from "@/lib/calendar/registry";
 import { applyRoomPolicy } from "@/lib/calendar/policy";
-import { decryptCredentials } from "@/lib/encryption";
-import { TtlCache } from "@/lib/cache";
+import { fetchResourceEvents } from "@/lib/calendar/source";
+import { getCalendarProvider } from "@/lib/calendar/registry";
+import { getProviderWithCredentials } from "@/lib/providers";
 import { log } from "@/lib/logger";
 import { ensureRenderFonts } from "@/lib/render/fonts";
 
@@ -190,40 +187,25 @@ export const roomBookingConfigSchema = z.object({
 
 export type RoomBookingConfig = z.infer<typeof roomBookingConfigSchema>;
 
-const eventsCache = new TtlCache<CalendarEvent[]>(Infinity); // TTL managed per-entry
-
+/**
+ * The room's bookings for the window a day view shows.
+ *
+ * Four hours back so that a booking already running is still there, twelve hours
+ * forward because the timeline shows eight and the stacked layout wants a few
+ * more. The cache and the provider dispatch live in `calendar/source.ts`, shared
+ * with every other renderer that asks about the same room.
+ */
 export async function fetchEvents(
   config: z.infer<typeof roomBookingConfigSchema>
 ): Promise<CalendarEvent[]> {
-  const cacheKey = `${config.providerId}:${JSON.stringify(config.roomConfig)}`;
-
-  // Skip cache in development for instant feedback
-  if (process.env.NODE_ENV !== "development") {
-    const cached = eventsCache.get(cacheKey);
-    if (cached) return cached;
-  }
-
-  const [provider] = await withDbRead(
-    () => db.select().from(dataProviders).where(eq(dataProviders.id, config.providerId)).limit(1),
-    "room-booking-provider"
-  );
-
-  if (!provider) throw new Error(`Calendar provider ${config.providerId} not found`);
-
-  const impl = getCalendarProvider(provider.type);
-  if (!impl) throw new Error(`No implementation for provider type: ${provider.type}`);
-
-  const credentials = decryptCredentials(provider.encryptedCredentials);
-  const now = new Date();
-  const events = await impl.fetchEvents({
-    credentials,
+  const now = Date.now();
+  return fetchResourceEvents({
+    providerId: config.providerId,
     roomConfig: config.roomConfig,
-    windowStart: new Date(now.getTime() - 4 * 3600_000),
-    windowEnd: new Date(now.getTime() + 12 * 3600_000),
+    windowStart: new Date(now - 4 * 3600_000),
+    windowEnd: new Date(now + 12 * 3600_000),
+    ttlS: config.cacheTtlS,
   });
-
-  eventsCache.set(cacheKey, events, config.cacheTtlS * 1000);
-  return events;
 }
 
 /** Resolve an optional booking URL without coupling it to calendar events. */
@@ -232,19 +214,14 @@ export async function resolveBookingUrl(
 ): Promise<string | null> {
   if (config.bookingQr.source === "custom") return normalizeBookingUrl(config.bookingQr.customUrl);
 
-  const [provider] = await withDbRead(
-    () => db.select().from(dataProviders).where(eq(dataProviders.id, config.providerId)).limit(1),
-    "room-booking-url-provider"
-  );
-  if (!provider) return null;
-
-  const impl = getCalendarProvider(provider.type);
-  if (!impl?.getBookingUrl) return null;
+  /* Same loader the event source uses, rather than a second hand-rolled read and
+   * decrypt in this file. A missing provider is not an error here: a room whose
+   * booking link cannot be resolved still shows its bookings. */
+  const provider = await getProviderWithCredentials(config.providerId).catch(() => null);
+  const impl = provider ? getCalendarProvider(provider.type) : null;
+  if (!provider || !impl?.getBookingUrl) return null;
   return normalizeBookingUrl(
-    impl.getBookingUrl({
-      credentials: decryptCredentials(provider.encryptedCredentials),
-      roomConfig: config.roomConfig,
-    })
+    impl.getBookingUrl({ credentials: provider.credentials, roomConfig: config.roomConfig })
   );
 }
 
