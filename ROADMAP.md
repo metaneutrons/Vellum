@@ -494,6 +494,14 @@ design calls:
     pixel against the palette entry the device's own packed buffer names.
     Mutation-tested: returning the raw canvas fails with `[4, 2, 251]` where the
     panel prints `[0, 0, 255]`.
+  - **The ordering had a hole, closed the same day it was written.** The development
+    simulator enrols as a real device row under a fixed address, `DEADBEEFCAFE`, so
+    "most recently seen first" would have handed the preview back to the simulator the
+    moment somebody opened it — the very wrong answer the ordering exists to prevent.
+    The address is named once in `lib/simulator.ts` and sorted last before anything
+    else is considered; it is still chosen when it is the only candidate. Checked
+    against the estate with the simulator's `last_seen` set to now: the old ordering
+    returns `DEADBEEFCAFE` (e1003), the new one `58E6C50F4054` (d1001).
   - The response carries `X-Preview-Panel` naming the geometry, the colour mode and
     the device it stands for. An `<img>` cannot read a header, so this is for
     debugging a mismatch and for whoever puts the caption into the UI next.

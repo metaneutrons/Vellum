@@ -9,6 +9,7 @@ import { resolveTheme, parseTheme, snapThemeToPalette } from "@/lib/theme";
 import { previewImage } from "@/lib/render";
 import { resolveDisplayCaps, DISPLAY_REGISTRY, type ResolvedDisplay } from "@/lib/display";
 import { requestHasPermission } from "@/lib/access";
+import { SIMULATOR_MAC } from "@/lib/simulator";
 
 const _defaultModel = DISPLAY_REGISTRY.e1002;
 const _defaultReserved = _defaultModel.reservedPaletteIndices ?? [];
@@ -75,7 +76,13 @@ export async function GET(request: NextRequest) {
                 and(isNull(devices.contentInstanceId), eq(sites.contentInstanceId, instanceId))
               )
         )
+        /* The simulator LAST, before anything else is considered. It enrols as a
+         * real row under a fixed address, so ordering by "most recently seen"
+         * alone would hand the preview to the simulator the moment a developer
+         * opened it — which is the very wrong answer this ordering exists to
+         * prevent. It is still chosen when it is the only candidate. */
         .orderBy(
+          sql`case when upper(${devices.mac}) = ${SIMULATOR_MAC} then 1 else 0 end`,
           sql`case when ${devices.status} = 'approved' then 0 else 1 end`,
           sql`${devices.lastSeen} desc nulls last`,
           devices.mac

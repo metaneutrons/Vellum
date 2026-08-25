@@ -44,9 +44,23 @@ Nothing about rendering changed. The two devices on that instance are unaffected
 
 ## What is outstanding
 
-1. **Check production.** `SELECT type_slug, count(*) FROM content_instances GROUP BY
-1` against the production database. Only the development database was visible
-   here, and the next two steps depend on what production holds.
+1. ~~**Check production.**~~ Done on 2026-08-25. There is one database, `vellum` on
+   192.168.2.20, and it is the one `.env` names; there is no separate development
+   instance, so the counts below are the counts that matter.
+
+   ```
+   room-booking     3
+   door-sign        1
+   name-plate       1
+   door-sign-multi  0
+   ```
+
+   So `door-sign-multi` can be unregistered without any migration at all, and the
+   migration below is one instance, "2C.3.03", carrying two devices: the wall-mounted
+   `58E6C50F4054` (d1001) and `DEADBEEFCAFE`, which is the development SIMULATOR
+   rather than a stale test device. The simulator must NOT be deleted to tidy up: it
+   re-enrols the next time the page is opened.
+
 2. **Migrate the surviving instances.** `door-sign` → `name-plate` is mechanical:
    `providerId` and `resourceId` become one calendar seat, the `Raum {…}` box becomes
    `roomName`. The devices gain a correct free state and lose the geometry override.
