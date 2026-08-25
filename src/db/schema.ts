@@ -437,6 +437,14 @@ export const devices = pgTable(
   "devices",
   {
     mac: text("mac").primaryKey(),
+    /* The operator's own name for this display, or null for "has none".
+     *
+     * Deliberately NOT unique and NOT required. Two floors may each hold a sign
+     * called "Foyer", and demanding a name at enrolment would put a dialogue in
+     * front of a display that is otherwise provisioned by voucher with nobody
+     * present. Until one is given, the assigned content is the only human handle
+     * on a device, and that changes whenever the assignment does. */
+    label: text("label"),
     status: text("status").notNull().default("pending") /* "pending" | "approved" | "rejected" */,
     token: text("token"),
     publicKey: text("public_key"),

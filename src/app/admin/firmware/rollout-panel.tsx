@@ -3,13 +3,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { retryDeviceOta, setRollout, type RolloutOverview } from "../actions";
+import { setRollout, type RolloutOverview } from "../actions";
+import { OtaEventList } from "@/components/ota-event-list";
 import { useToast } from "@/components/toast";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Rocket, OctagonX, History, AlertCircle, RotateCcw } from "lucide-react";
+import { Rocket, OctagonX, History } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 
 type RolloutState = "full" | "canary" | "percent" | "paused" | "halted";
 const STATES: RolloutState[] = ["paused", "canary", "percent", "full", "halted"];
@@ -29,42 +29,6 @@ function stateTone(s: RolloutState): "green" | "orange" | "red" {
   if (s === "paused") return "orange";
   return "green";
 }
-function phaseTone(phase: string): "green" | "orange" | "red" {
-  if (phase === "verify_fail" || phase === "rolled_back") return "red";
-  if (phase === "deferred") return "orange";
-  return "green";
-}
-
-function RetryOtaButton({ mac, version }: { mac: string; version: string }) {
-  const t = useTranslations("firmware");
-  const { toast } = useToast();
-  const router = useRouter();
-  const [pending, start] = useTransition();
-
-  return (
-    <Button
-      size="sm"
-      variant="plain"
-      disabled={pending}
-      aria-label={t("retryOta", { mac, version })}
-      onClick={() =>
-        start(async () => {
-          try {
-            await retryDeviceOta(mac, version);
-            toast("success", t("retryOtaSuccess", { version }));
-            router.refresh();
-          } catch {
-            toast("error", t("retryOtaFailed"));
-          }
-        })
-      }
-    >
-      <RotateCcw size={14} aria-hidden="true" />
-      {t("retryOtaShort")}
-    </Button>
-  );
-}
-
 function RolloutRow({
   v,
   current,
@@ -104,7 +68,7 @@ function RolloutRow({
       </div>
 
       <div className="flex items-center gap-2 text-xs text-label-tertiary tabular-nums">
-        <span title={t("rolloutAdoption")}>{adoption} on</span>
+        <span title={t("rolloutAdoption")}>{t("rolloutOn", { count: adoption })}</span>
         {(health.confirmed > 0 || health.failed > 0) && (
           <span className="flex items-center gap-1.5">
             <span className="text-green">{health.confirmed}✓</span>
@@ -205,31 +169,7 @@ export function RolloutPanel({ overview, versions }: Props) {
         <h3 className="text-[14px] font-semibold text-label">{t("recentOta")}</h3>
       </div>
       <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 overflow-hidden divide-y divide-separator">
-        {overview.recentEvents.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-label-secondary flex items-center gap-2">
-            <AlertCircle size={15} className="text-label-tertiary" aria-hidden="true" />
-            {t("noOta")}
-          </div>
-        ) : (
-          overview.recentEvents.slice(0, 20).map((e, i) => (
-            <div key={i} className="px-4 py-2.5 flex items-center gap-3 text-[13px]">
-              <span className="font-mono text-label-tertiary shrink-0">{e.mac.slice(-8)}</span>
-              <StatusPill tone={phaseTone(e.phase)} dot>{e.phase}</StatusPill>
-              <span className="font-mono text-label-secondary truncate">
-                {e.fromVersion ?? "?"} → {e.toVersion ?? "?"}
-              </span>
-              {e.errorCode && <span className="text-xs text-red truncate">{e.errorCode}</span>}
-              {(e.phase === "verify_fail" || e.phase === "rolled_back") && e.toVersion && (
-                <RetryOtaButton mac={e.mac} version={e.toVersion} />
-              )}
-              <span className="ml-auto text-xs text-label-tertiary shrink-0">
-                {new Date(e.timestamp).toLocaleString(undefined, {
-                  day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                })}
-              </span>
-            </div>
-          ))
-        )}
+        <OtaEventList events={overview.recentEvents} showMac />
       </div>
     </section>
   );

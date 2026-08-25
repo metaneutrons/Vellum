@@ -9,11 +9,67 @@ import ts from "typescript";
 const messagesDir = path.resolve("src/i18n/messages");
 const sourceDir = path.resolve("src");
 const canonicalFile = "en.json";
-const guardedUiFiles = [
-  "src/app/admin/profiles/profile-list.tsx",
-  "src/app/admin/themes/theme-editor.tsx",
-  "src/components/schedule-timeline.tsx",
+// ── Hard-coded user-facing text ─────────────────────────────────────────────
+//
+// Every view is guarded. This used to be an allowlist of three files, and the
+// consequence was measurable: a sweep on 2026-08-25 found 119 literals across 28
+// views, none of them in the three, which is how the device detail page shipped
+// eight English toasts and four English connectivity labels while this check
+// passed on every commit.
+//
+// Structured like `scripts/check-theme-tokens.mjs`, on purpose, so the two gates
+// read the same way: a NOT-PROSE filter for things no locale would translate,
+// EXEMPT for whole files that should not be translated at all, and BUDGET for
+// what is simply not done yet.
+
+/**
+ * Strings that are not prose, whatever they look like to a regular expression.
+ *
+ * Getting this wrong in either direction costs something. Too narrow and the gate
+ * demands a German word for `docker compose pull`; too wide and a real sentence
+ * slips through as "probably an identifier".
+ */
+const NOT_PROSE = [
+  // A unit is a unit in every locale, and an example URL is a placeholder.
+  /^\d*\s*(?:min|sec|s|h|ms|px|B|KB|MB|GB|V|mV|mA|dBm|%|°C)\b/i,
+  /^https?:\/\//i,
+  // The product, and the services it talks to. Brand names are not translated.
+  /^(?:Vellum|GitHub|Microsoft 365|Google|iCal|anny\.co|Docker)\b/,
+  // Endonyms in a language picker. Translating these defeats the picker: a reader
+  // who cannot read the current language has to find their own in their own.
+  /^(?:Deutsch|English|Français|Italiano|Español)$/,
+  // Identifiers, examples and machine input.
+  /^[a-z0-9._-]+@[a-z0-9.-]+$/i, // an example address
+  /^(?:docker|make|pnpm|npm|git)\s/, // a command to copy
+  /^[A-Za-z]+\/[A-Za-z_]+$/, // an IANA zone, e.g. Europe/Berlin
+  /^\{[a-z_]+\}$/, // a template placeholder, e.g. {full_name}
+  /^(?:stable|beta|dev)$/, // a firmware channel, used verbatim in the API
+  /^&[a-z]+;/, // an HTML entity rather than a word
+  /^prop\./, // a provider's own property path
 ];
+
+/**
+ * Views deliberately left untranslated, each with the reason.
+ *
+ * A whole-file exemption is a strong claim, so it has to say why. The check
+ * requires a reason of some length for exactly that purpose.
+ */
+const EXEMPT = {
+  "src/app/simulator/client.tsx":
+    "a development-only tool; its page returns 404 unless NODE_ENV is development, so nobody outside a dev machine ever reads these strings",
+  "src/components/retired/door-sign-multi-editor.tsx":
+    "editor for a retired content type, kept only as the starting point for a future free-form sign; translating it would spend effort on code on its way out (docs/door-sign-retirement.md)",
+  "src/components/retired/door-sign-editor.tsx":
+    "editor for a retired content type, see door-sign-multi-editor above",
+  "src/components/retired/text-box-canvas.tsx":
+    "the retired editors' canvas, see door-sign-multi-editor above",
+  "src/app/global-error.tsx":
+    "the root error boundary renders its own <html> and therefore REPLACES the layout that provides the messages; a translated string here would throw inside the handler for a crash",
+  "src/components/theme-preview.tsx":
+    "sample content inside a miniature of a rendered sign; a device renders in the CONTENT's locale rather than the operator's, so translating the sample would misrepresent what the panel shows",
+};
+
+const BUDGET = {};
 const humanFacingAttributes = new Set([
   "alt",
   "aria-label",
@@ -101,7 +157,19 @@ if (missingUsages.size) {
 // literals despite having complete locale schemas. Guard the human-facing
 // literal shapes that schema parity cannot detect.
 const hardcodedUiText = [];
-const containsWords = (value) => /\p{L}{2}/u.test(value);
+const perFile = new Map();
+/* Every view, minus the ones that are exempt with a reason. */
+const guardedUiFiles = sourceFiles(sourceDir)
+  .filter((file) => /\.tsx$/.test(file) && !file.includes("__tests__"))
+  .map((file) => path.relative(process.cwd(), file))
+  .filter((file) => !EXEMPT[file])
+  .sort();
+/** Prose, as opposed to a brand, an identifier, a unit or a command. */
+const containsWords = (value) => {
+  const text = value.trim();
+  if (!/\p{L}{2}/u.test(text)) return false;
+  return !NOT_PROSE.some((pattern) => pattern.test(text));
+};
 for (const relativeFile of guardedUiFiles) {
   const file = path.resolve(relativeFile);
   const sourceText = fs.readFileSync(file, "utf8");
@@ -115,6 +183,7 @@ for (const relativeFile of guardedUiFiles) {
   const report = (node, value) => {
     const position = source.getLineAndCharacterOfPosition(node.getStart(source));
     hardcodedUiText.push(`${relativeFile}:${position.line + 1}: ${JSON.stringify(value.trim())}`);
+    perFile.set(relativeFile, (perFile.get(relativeFile) ?? 0) + 1);
   };
   const literal = (node) =>
     ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : null;
@@ -134,6 +203,17 @@ for (const relativeFile of guardedUiFiles) {
       const value = literal(node.expression);
       if (value && containsWords(value)) report(node.expression, value);
     }
+    /* `{ label: "Online" }` in a lookup table is neither JSX nor an attribute, so
+     * every shape above walked past it. That is exactly how four connectivity
+     * labels stayed English next to a locale file that already translated them. */
+    if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      humanFacingAttributes.has(node.name.text)
+    ) {
+      const value = literal(node.initializer);
+      if (value && containsWords(value)) report(node.initializer, value);
+    }
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -148,10 +228,57 @@ for (const relativeFile of guardedUiFiles) {
   visit(source);
 }
 
-if (hardcodedUiText.length) {
+/**
+ * A hard-coded LOCALE is invisible to every check above, because it is an
+ * argument rather than a string a reader sees. It is the same defect all the same:
+ * `toLocaleString("de-DE")` shows an English operator German dates. The device
+ * detail page had six of them, the repository ten.
+ *
+ * `undefined` is the correct argument for "use the runtime's locale"; a view with
+ * a `useLocale()` in hand should pass that instead.
+ */
+const LOCALE_ARGUMENT =
+  /\.toLocale(?:Date|Time)?String\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']|\bIntl\.[A-Za-z]+Format\(\s*["'][a-z]{2}(?:-[A-Z]{2})?["']/g;
+for (const file of sourceFiles(sourceDir)) {
+  const relative = path.relative(process.cwd(), file);
+  if (!/\.tsx$/.test(relative) || relative.includes("__tests__")) continue;
+  const matches = fs.readFileSync(file, "utf8").match(LOCALE_ARGUMENT) ?? [];
+  if (matches.length > 0) {
+    process.exitCode = 1;
+    console.error(
+      `\n${relative}: ${matches.length} hard-coded locale(s) in date formatting: ${matches.join(", ")}`
+    );
+    console.error("  Pass the operator's locale from useLocale(), or undefined.");
+  }
+}
+
+/* An exemption without a reason is an allowlist wearing a disguise. */
+for (const [file, why] of Object.entries(EXEMPT)) {
+  if (!why || why.length < 40) {
+    process.exitCode = 1;
+    console.error(`\n${file} is exempt from the text check without a real reason.`);
+  }
+}
+
+const overBudget = [...perFile].filter(([file, hits]) => hits > (BUDGET[file] ?? 0));
+if (overBudget.length) {
   process.exitCode = 1;
-  console.error("\nHard-coded user-facing text found in i18n-guarded views:");
-  for (const issue of hardcodedUiText) console.error(`  ${issue}`);
+  console.error("\nHard-coded user-facing text found in views:");
+  for (const issue of hardcodedUiText) {
+    const file = issue.slice(0, issue.indexOf(":"));
+    if (overBudget.some(([f]) => f === file)) console.error(`  ${issue}`);
+  }
+}
+
+/* Same ratchet as the theme gate: a gain nobody writes down gets spent again. */
+for (const [file, allowed] of Object.entries(BUDGET)) {
+  const hits = perFile.get(file) ?? 0;
+  if (hits < allowed) {
+    process.exitCode = 1;
+    console.error(
+      `\n${file}: down to ${hits} from a budget of ${allowed}. Lower it in scripts/check-i18n.mjs.`
+    );
+  }
 }
 
 if (!process.exitCode) console.log("i18n message schemas and static source usages are in sync.");

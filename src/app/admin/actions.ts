@@ -488,6 +488,7 @@ export async function cancelDeviceConfigurationCommand(macInput: string, command
 export async function updateDevice(
   mac: string,
   data: {
+    label?: string | null;
     contentInstanceId?: string | null;
     themeId?: string | null;
     refreshProfileId?: string | null;
@@ -688,12 +689,59 @@ export async function deleteProvider(id: string) {
 
 /* ── Content Instances ────────────────────────────────────────── */
 
+/**
+ * Refuse a content config its own renderer cannot parse.
+ *
+ * Nothing checked this: the actions stored whatever JSONB they were handed, so a
+ * half-filled instance was accepted here and surfaced later as a broken display.
+ * The failure landed on a wall instead of in front of the person who caused it.
+ *
+ * Every instance in the development database satisfies its current schema, so
+ * this refuses new mistakes rather than existing data. It is deliberately the
+ * SERVER-side gate: a client that forgets a field must not be able to write one.
+ *
+ * The message names the offending path, which helps in the log. It does not reach
+ * the operator, because Next redacts server-action errors in production and the
+ * caller shows a generic failure — improving that means returning a typed result
+ * instead of throwing, which is a change to every caller's contract.
+ */
+async function assertValidContentConfig(typeSlug: string, config: unknown): Promise<void> {
+  /* Imported lazily, like the other use of the registry further down: it pulls in
+   * every renderer and with them canvas and the calendar providers, which the
+   * rest of this module has no reason to load. */
+  const { getContentRenderer } = await import("@/lib/content/registry");
+  const renderer = getContentRenderer(typeSlug);
+  if (!renderer) throw new Error(`content_unknown_type: ${typeSlug}`);
+  const result = renderer.configSchema.safeParse(config);
+  if (result.success) return;
+  const issue = result.error.issues[0];
+  const where = issue?.path.join(".") || "config";
+  throw new Error(`content_invalid_config: ${where}: ${issue?.message ?? "invalid"}`);
+}
+
+/**
+ * Refuse to create a NEW instance of a retired type.
+ *
+ * `getAllContentTypes` already leaves those out of the menu, but a hidden option is
+ * a suggestion and this is a rule: server actions are a public surface, and the
+ * whole point of retiring a type is that the estate stops growing instances of it
+ * while the ones that exist keep rendering.
+ */
+async function assertNotRetired(typeSlug: string): Promise<void> {
+  const { getContentRenderer } = await import("@/lib/content/registry");
+  if (getContentRenderer(typeSlug)?.deprecated) {
+    throw new Error(`content_type_retired: ${typeSlug}`);
+  }
+}
+
 export async function createContentInstance(
   typeSlug: string,
   name: string,
   config: Record<string, unknown>
 ) {
   const actor = await requireAdmin("content.manage");
+  await assertNotRetired(typeSlug);
+  await assertValidContentConfig(typeSlug, config);
   await withAuditedTransaction(
     actor,
     (created: { id: string }[]) => ({
@@ -722,6 +770,16 @@ export async function updateContentInstance(
     actor,
     { action: "content.update", targetType: "content", targetId: id, metadata: { name } },
     async (tx) => {
+      /* The type is not a parameter, so it comes from the row -- which also means
+       * a caller cannot validate against a type the instance does not have. */
+      const [existing] = await tx
+        .select({ typeSlug: contentInstances.typeSlug })
+        .from(contentInstances)
+        .where(eq(contentInstances.id, id))
+        .limit(1);
+      if (!existing) throw new Error("content_not_found");
+      await assertValidContentConfig(existing.typeSlug, config);
+
       const updated = await tx
         .update(contentInstances)
         .set({ name, config, updatedAt: new Date() })
@@ -810,7 +868,12 @@ export async function getAllContentInstances() {
 export async function getAllContentTypes() {
   await requireAdmin("content.read");
   const { getAllContentRenderers } = await import("@/lib/content/registry");
-  return getAllContentRenderers().map((r) => ({ slug: r.slug, name: r.name }));
+  /* Retired types are omitted, which is what takes them out of the "new content"
+   * menu. Existing instances of them keep their editor, because that is chosen from
+   * the instance's own slug rather than from this list. */
+  return getAllContentRenderers()
+    .filter((r) => !r.deprecated)
+    .map((r) => ({ slug: r.slug, name: r.name }));
 }
 
 export async function testDataProvider(id: string): Promise<{ ok: boolean; message: string }> {
@@ -913,28 +976,9 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
       return { ok: true, message: `OK — ${events.length} events today` };
     }
 
-    if (instance.typeSlug === "door-sign") {
-      const { getProviderWithCredentials } = await import("@/lib/providers");
-      const { getCalendarProvider } = await import("@/lib/calendar/registry");
-      const provider = await getProviderWithCredentials(config.providerId);
-      const impl = getCalendarProvider(provider.type);
-      if (!impl) return { ok: false, message: `No provider implementation: ${provider.type}` };
-      const now = new Date();
-      const events = await impl.fetchEvents({
-        credentials: provider.credentials,
-        roomConfig: { resourceId: config.resourceId, resourceName: config.resourceName },
-        windowStart: new Date(now.getTime() - 3600_000),
-        windowEnd: new Date(now.getTime() + 3600_000),
-      });
-      const current = events.find((e) => now >= e.startTime && now < e.endTime);
-      return {
-        ok: true,
-        message: current
-          ? `Occupied: ${current.organizer}`
-          : `Free — ${events.length} bookings today`,
-      };
-    }
-
+    /* A `door-sign` branch stood here until 2026-08-25. It was not merely unused,
+     * it was unreachable: `getContentRenderer` above no longer answers for that
+     * slug, so the function returns "Unknown renderer" before reaching this point. */
     return { ok: true, message: "Config valid" };
   } catch (err) {
     return { ok: false, message: String(err instanceof Error ? err.message : err) };
@@ -1268,48 +1312,6 @@ export async function updateSetting(key: string, value: unknown) {
   else cacheCommittedSetting(key, value as number);
   await syncAutoPoll();
   revalidatePath("/admin/firmware");
-}
-
-export async function getKnownDisplaySizes(): Promise<
-  { label: string; width: number; height: number }[]
-> {
-  await requireAdmin("content.read");
-  const { KNOWN_DISPLAYS } = await import("@/lib/content/renderers/door-sign-types");
-  const rows = await withDbRead(
-    () =>
-      db
-        .selectDistinct({ displayCaps: devices.displayCaps })
-        .from(devices)
-        .where(sql`${devices.displayCaps} IS NOT NULL`),
-    "get-known-display-sizes"
-  );
-  const seen = new Set<string>();
-  const sizes: { label: string; width: number; height: number }[] = [];
-
-  // Start with all registry displays
-  for (const d of KNOWN_DISPLAYS) {
-    const key = `${d.width}x${d.height}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    sizes.push(d);
-  }
-
-  // Add any DB-known sizes not in the registry
-  for (const row of rows) {
-    if (!row.displayCaps || typeof row.displayCaps !== "object") continue;
-    const caps = row.displayCaps as { model?: string; width?: number; height?: number };
-    if (!caps.width || !caps.height) continue;
-    const key = `${caps.width}x${caps.height}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    sizes.push({
-      label: `${caps.model ?? "Unknown"} (${key})`,
-      width: caps.width,
-      height: caps.height,
-    });
-  }
-
-  return sizes;
 }
 
 /* ── Firmware rollouts ────────────────────────────────────────── */

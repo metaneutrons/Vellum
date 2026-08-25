@@ -13,6 +13,7 @@ import { BatteryChartModal } from "./battery-chart-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
+import { deviceName, hasOwnName } from "@/lib/device-name";
 import { EmptyState } from "@/components/ui/misc";
 import { deviceConnectivity, connectivityTone } from "@/lib/connectivity";
 import { parseDeviceTs } from "../dashboard/ts";
@@ -31,6 +32,7 @@ import { useDeviceLiveUpdates, type LiveDeviceRow } from "./use-device-live-upda
 
 interface Device {
   mac: string;
+  label: string | null;
   status: string;
   content_instance_id: string | null;
   theme_id: string | null;
@@ -72,7 +74,6 @@ interface Props {
   refreshProfiles: { id: string; name: string; isDefault?: boolean }[];
   firmwareVersions: FirmwareVersion[];
   providers: { id: string; type: string; name: string }[];
-  knownDisplays: { label: string; width: number; height: number }[];
 }
 
 const selectCls =
@@ -85,7 +86,6 @@ export function DeviceTable({
   refreshProfiles,
   firmwareVersions,
   providers,
-  knownDisplays,
 }: Props) {
   const live = useDeviceLiveUpdates(rawDevices as LiveDeviceRow[]);
   const devices = live.devices as unknown as Device[];
@@ -134,6 +134,7 @@ export function DeviceTable({
     const q = search.toLowerCase();
     return (
       d.mac.toLowerCase().includes(q) ||
+      (d.label ?? "").toLowerCase().includes(q) ||
       (d.firmware_version ?? "").toLowerCase().includes(q) ||
       ((d.display_caps as { model?: string })?.model ?? "").includes(q)
     );
@@ -267,10 +268,15 @@ export function DeviceTable({
                         page, so the list an operator actually uses was a dead end. */}
                     <Link
                       href={`/admin/devices/${d.mac}`}
-                      className="focus-ring rounded font-mono text-sm font-semibold tracking-tight text-label hover:text-accent hover:underline"
+                      className={`focus-ring rounded text-sm font-semibold tracking-tight text-label hover:text-accent hover:underline ${
+                        hasOwnName(d) ? "" : "font-mono"
+                      }`}
                     >
-                      {d.mac}
+                      {deviceName(d)}
                     </Link>
+                    {hasOwnName(d) && (
+                      <span className="font-mono text-xs text-label-tertiary">{d.mac}</span>
+                    )}
                     <StatusPill tone={statusTone} dot>
                       {d.status}
                     </StatusPill>
@@ -535,7 +541,7 @@ export function DeviceTable({
         >
           <img
             src={`/api/v1/admin/preview?instanceId=${previewId}&mac=${previewMac}`}
-            alt="Preview"
+            alt={t("preview")}
             className="max-w-full max-h-full object-contain rounded-2xl shadow-e3"
           />
         </div>
@@ -547,7 +553,7 @@ export function DeviceTable({
           open={!!deleting}
           title={t("deleteConfirm")}
           message={t("deleteMessage", { mac: deleting ?? "" })}
-          confirmLabel="Delete"
+          confirmLabel={t("delete")}
           destructive
           onConfirm={() => {
             const mac = deleting;
@@ -562,7 +568,6 @@ export function DeviceTable({
           instanceId={editingContent}
           contentInstances={contentInstances}
           providers={providers}
-          knownDisplays={knownDisplays}
           onClose={() => setEditingContent(null)}
         />
       )}

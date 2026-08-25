@@ -18,6 +18,27 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   assume the directory you are in is `main`, and do not assume `main` is in the
   clone with the plainest name. Many stale branches are already squash-merged;
   check a branch against merged PRs before assuming its work is unlanded.
+- **The branch can change UNDER a long session, so re-check it before every commit,
+  not only at the start.** This actually happened: a session working `feat/name-plate`
+  had the shared checkout switched to a new `test/mpll-state-dump` mid-flight, and its
+  next commit landed on that branch on top of unrelated firmware work. It went
+  unnoticed because `git push origin feat/name-plate` pushes the NAMED BRANCH rather
+  than HEAD, so the push reported "Everything up-to-date" and, by luck, did not carry
+  the firmware commit onto the PR. Recovery without disturbing whoever owns the shared
+  checkout: `git worktree add <tmp> <target-branch>`, cherry-pick the commit there,
+  push, remove the worktree. A temporary worktree has no `node_modules`, so the
+  `core.hooksPath` hooks cannot run; `git -c core.hooksPath=/dev/null` is the way past
+  them, and is only honest when the gates were already run on identical content in the
+  real checkout.
+- **Never symlink `node_modules` into a worktree and then `git add -A`.** Until
+  2026-08-24 `.gitignore` said `node_modules/`, and a trailing slash matches
+  DIRECTORIES only, so the symlink was a file that git happily tracked. Every CI job
+  then died in `pnpm install` with `ENOTDIR: not a directory, mkdir .../node_modules`,
+  and the branch stayed red for three commits while every local gate passed. The
+  pattern is now `node_modules` without the slash, which covers both. The wider lesson:
+  **local gates green is not CI green** — check `gh pr view <n> --json statusCheckRollup`
+  after pushing, because a whole class of failure lives in the checkout rather than the
+  code.
 
 ## Server (Next.js): build / test
 
@@ -59,6 +80,26 @@ socket`" does NOT apply to Vellum.
   63 / functions 67 / lines 70, enforced by the required CI "Test" job. Raise,
   never lower. Only modules the suite imports are measured, so `scripts/` is out
   of scope and adding an untested script cannot move the number.
+- **Codacy's complexity gate is Lizard, its limit is 50 NON-COMMENT lines per
+  function, and it fails the check on ANY issue ("≤ 0 issues of at least minor
+  severity"). Reproduce it locally before pushing rather than guessing:
+  `pip install lizard` in a venv, then
+  `lizard -l typescript <files>` — the NLOC column is what Codacy quotes, and its
+  own `length` column (which counts comments) is not.** Two traps cost a full
+  round trip each. Lizard **loses any function whose return type is a COMPOSED type
+  containing an object literal** (`X & { ... }`, `X | { ... }`; a bare `{ ... }` is
+  fine) and attributes its body to the neighbouring function, which is how a
+  10-line `choosePlan` was reported as 67 lines. Name such return types. It loses the
+  boundary the same way at a **template literal nested inside a template literal**
+  (`` `${a}: ${cond ? `${b} Uhr` : b}` ``), which made a 15-line `closeFrame` report
+  201 lines at CCN 27; hoist the inner one into a variable. Both traps are the same
+  class, so when a warning names a function whose body is obviously short, suspect
+  the tokenizer before rewriting the code. It also
+  applies an NLOC ceiling per FILE; 739 tripped it, so a renderer that grows past a
+  few hundred lines wants splitting by concern (`name-plate.ts` became
+  `-scale`/`-draw`/`-sizes` plus the renderer). Note ESLint's own `complexity` and
+  `max-lines-per-function` rules are NOT enabled here, so `pnpm lint` says nothing
+  about either.
 - **Coverage is not reproducible to the last statement, so keep ~1pp of margin
   and calibrate against CI, never a local run.** CI runs Node 22 (`.nvmrc`) and v8
   counts statements differently per version (70.24 local vs 70.12 CI), and CI

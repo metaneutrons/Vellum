@@ -5,7 +5,7 @@
 import { useTransition } from "react";
 import { updateDevice, updateSetting } from "../actions";
 import { useToast } from "@/components/toast";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { Cpu, Download, Package, Usb } from "lucide-react";
@@ -35,6 +35,7 @@ const selectCls =
 export function FirmwarePage({ devices, versions, settings }: Props) {
   const { toast } = useToast();
   const t = useTranslations("firmware");
+  const locale = useLocale();
   const [pending, startTransition] = useTransition();
 
   const autoPoll = settings["firmware.autoPoll"] as boolean ?? false;
@@ -108,7 +109,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
               <option value={300}>5 min</option>
               <option value={900}>15 min</option>
               <option value={1800}>30 min</option>
-              <option value={3600}>1 hour</option>
+              <option value={3600}>{t("pollHourly")}</option>
             </select>
           </label>
         )}
@@ -132,7 +133,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
             <StatusPill tone={v.channel === "stable" ? "green" : "orange"}>
               {v.channel}
             </StatusPill>
-            <span className="text-xs text-label-tertiary tabular-nums">{new Date(v.date).toLocaleDateString("de-DE")}</span>
+            <span className="text-xs text-label-tertiary tabular-nums">{new Date(v.date).toLocaleDateString(locale)}</span>
           </div>
         ))}
       </div>
@@ -168,7 +169,7 @@ export function FirmwarePage({ devices, versions, settings }: Props) {
                 <select className={selectCls} aria-label={t("pinVersion")}
                   value={d.firmwarePinVersion ?? ""}
                   onChange={(e) => pinVersion(d.mac, e.target.value || null)}>
-                  <option value="">— latest —</option>
+                  <option value="">{t("latestVersion")}</option>
                   {channelVersions.map((v) => (
                     <option key={v.version} value={v.version}>
                       v{v.version} ({v.channel})

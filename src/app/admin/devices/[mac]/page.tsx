@@ -2,9 +2,17 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { db, withDbRead } from "@/db";
-import { deviceConfigurationCommands, deviceLogs, devices, telemetry, reports } from "@/db/schema";
+import {
+  deviceConfigurationCommands,
+  deviceLogs,
+  devices,
+  telemetry,
+  reports,
+  otaEvents as otaEventsTable,
+} from "@/db/schema";
 import { DeviceDetail } from "./detail";
 import {
   getAllThemes,
@@ -34,6 +42,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
     siteList,
     configCommands,
     logBatches,
+    otaEvents,
   ] = await Promise.all([
     withDbRead(
       () =>
@@ -81,19 +90,30 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
           .limit(10),
       "device-detail-log-batches"
     ),
+    /* The firmware history for THIS device. Its absence was the largest gap on
+     * this page: a display that rolled back an update after a failed boot health
+     * check said nothing about it on its own page. */
+    withDbRead(
+      () =>
+        db
+          .select()
+          .from(otaEventsTable)
+          .where(eq(otaEventsTable.mac, mac))
+          .orderBy(desc(otaEventsTable.timestamp))
+          .limit(10),
+      "device-detail-ota-events"
+    ),
   ]);
 
   /* Resolved with the workspace defaults included, so the page can name where
      each value comes from instead of leaving an operator to infer it. */
   const effective = await explainDeviceSettings(device);
+  const t = await getTranslations("devices");
 
   return (
     <div>
-      <Link
-        href="/admin/devices"
-        className="text-sm text-blue-600 hover:underline mb-4 inline-block"
-      >
-        ← Back to Devices
+      <Link href="/admin/devices" className="text-sm text-accent hover:underline mb-4 inline-block">
+        ← {t("backToDevices")}
       </Link>
       <DeviceDetail
         device={device}
@@ -105,6 +125,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<{ m
         sites={siteList}
         effective={effective}
         logBatches={logBatches}
+        otaEvents={otaEvents}
         configurationCommands={configCommands.map((command) => ({
           ...command,
           payload:

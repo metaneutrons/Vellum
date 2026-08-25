@@ -367,3 +367,30 @@ export function parseDisplayCapsHeader(value: string | null | undefined): {
 
   return { width, height, orientation: current, orientations, backlight };
 }
+
+/**
+ * A panel geometry an operator can pick from, derived from the registry above.
+ *
+ * Moved here from `content/renderers/door-sign-types.ts` when the two door-sign
+ * types were unregistered: this is a fact about the display estate rather than
+ * about a retired content type, and four places in the admin UI wanted it.
+ */
+export interface DisplaySize {
+  label: string;
+  width: number;
+  height: number;
+}
+
+/** Every known size including orientation variants, deduplicated by geometry. */
+export const KNOWN_DISPLAYS: DisplaySize[] = Object.entries(DISPLAY_REGISTRY)
+  .flatMap(([id, d]) =>
+    d.orientations.map((o) => {
+      const isLandscape = o === "landscape";
+      const w = isLandscape ? Math.max(d.width, d.height) : Math.min(d.width, d.height);
+      const h = isLandscape ? Math.min(d.width, d.height) : Math.max(d.width, d.height);
+      return { label: `${id.toUpperCase()} ${w}×${h}`, width: w, height: h };
+    })
+  )
+  .filter((d, i, arr) => arr.findIndex((x) => x.width === d.width && x.height === d.height) === i);
+
+export const DEFAULT_DISPLAY: DisplaySize = KNOWN_DISPLAYS[0];

@@ -6,7 +6,7 @@
 
 export { floydSteinbergDither, type ColorPalette, type ReservedIndices } from "./dither";
 
-import type { Canvas } from "@napi-rs/canvas";
+import { createCanvas, type Canvas } from "@napi-rs/canvas";
 import {
   floydSteinbergDither,
   nearestPaletteIndex,
@@ -81,9 +81,35 @@ export function canvasToPixelBuffer(
     return canvas.toBuffer("image/png");
   }
 
+  const indices = quantizeToIndices(canvas, palette, colorMode, reserved);
+  return colorMode === "mono"
+    ? packTo1bit(indices, canvas.width, canvas.height)
+    : packTo4bit(indices, canvas.width, canvas.height);
+}
+
+/**
+ * One palette index per pixel — the step the panel and its preview must share.
+ *
+ * Split out so that `canvasToPixelBuffer` and `previewImage` cannot disagree: one
+ * packs these indices into the panel's bit format, the other paints them back as
+ * colours for a browser. Before this the preview returned the UNQUANTISED canvas,
+ * which is how a mono theme that drew white on white went unnoticed for months —
+ * every preview showed it as grey on white, because grey is what the renderer
+ * asked for and the panel is what turned it into white.
+ */
+export function quantizeToIndices(
+  canvas: Canvas,
+  palette: ColorPalette,
+  colorMode: Exclude<ColorMode, "fullcolor">,
+  reserved: ReservedIndices = []
+): Buffer {
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
   const data = new Uint8ClampedArray(ctx.getImageData(0, 0, width, height).data);
+
+  if (colorMode === "mono") {
+    return floydSteinbergDither(data, width, height, palette, reserved);
+  }
 
   if (colorMode === "indexed") {
     // Snap anti-aliasing artifacts to palette colors. Reserved positions are
@@ -121,15 +147,48 @@ export function canvasToPixelBuffer(
         data[i * 4 + 2] = v;
       }
     }
-    return packTo4bit(nearestColorQuantize(data, width, height, palette, reserved), width, height);
   }
 
-  if (colorMode === "grayscale") {
-    return packTo4bit(nearestColorQuantize(data, width, height, palette, reserved), width, height);
+  return nearestColorQuantize(data, width, height, palette, reserved);
+}
+
+/**
+ * What the panel will show, as an image a browser can display.
+ *
+ * The preview route used to return the raw canvas, so it answered a different
+ * question than the device: it showed what the RENDERER drew rather than what the
+ * PANEL prints. On a six-colour or two-colour display those are not the same
+ * picture, and the difference is exactly where the interesting defects live.
+ */
+export function previewImage(
+  canvas: Canvas,
+  palette: ColorPalette,
+  format: OutputFormat,
+  colorMode: ColorMode,
+  reserved: ReservedIndices = []
+): { body: Buffer; contentType: string } {
+  /* An LCD is handed a JPEG and a full-colour panel a PNG, so for those two the
+   * device's own bytes ARE the preview. */
+  if (format === "jpeg")
+    return { body: canvas.toBuffer("image/jpeg", 95), contentType: "image/jpeg" };
+  if (colorMode === "fullcolor") {
+    return { body: canvas.toBuffer("image/png"), contentType: "image/png" };
   }
 
-  // mono — Floyd-Steinberg dither then pack to 1-bit
-  return packTo1bit(floydSteinbergDither(data, width, height, palette, reserved), width, height);
+  const { width, height } = canvas;
+  const indices = quantizeToIndices(canvas, palette, colorMode, reserved);
+  const out = createCanvas(width, height);
+  const octx = out.getContext("2d");
+  const image = octx.createImageData(width, height);
+  for (let i = 0; i < width * height; i++) {
+    const [r, g, b] = palette[indices[i]] ?? [0, 0, 0];
+    image.data[i * 4] = r;
+    image.data[i * 4 + 1] = g;
+    image.data[i * 4 + 2] = b;
+    image.data[i * 4 + 3] = 255;
+  }
+  octx.putImageData(image, 0, 0);
+  return { body: out.toBuffer("image/png"), contentType: "image/png" };
 }
 
 /**

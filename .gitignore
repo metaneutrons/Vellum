@@ -1,5 +1,11 @@
 # ── Dependencies ──────────────────────────────────────────────
-node_modules/
+# No trailing slash, deliberately. A pattern ending in "/" matches DIRECTORIES
+# only, so a SYMLINK named node_modules is a file and slips past it. That is not
+# hypothetical: working in a git worktree means symlinking node_modules to the main
+# checkout, `git add -A` then tracked the link, and every CI job died on
+# "ENOTDIR: not a directory, mkdir .../node_modules" because a file stood where
+# pnpm wanted a directory.
+node_modules
 
 # ── Next.js ───────────────────────────────────────────────────
 .next/

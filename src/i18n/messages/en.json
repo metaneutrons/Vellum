@@ -139,7 +139,6 @@
     },
     "model": "Model",
     "resolution": "Resolution",
-    "quantize": "Quantize",
     "recentReports": "Recent reports",
     "connectivity": {
       "online": "Online",
@@ -223,7 +222,38 @@
       "followProfile": "Follow the profile",
       "fromProfile": "Following the profile: resolved from the schedule and the power source.",
       "overridden": "Set for this display, so the profile's schedule no longer applies here."
-    }
+    },
+    "toast": {
+      "updated": "Device updated",
+      "updateFailed": "Update failed"
+    },
+    "status": {
+      "approved": "Approved",
+      "pending": "Pending",
+      "rejected": "Rejected"
+    },
+    "backToDevices": "Back to devices",
+    "firmwareHistory": "Firmware history",
+    "colorMode": "Colour mode",
+    "colors": "Colours",
+    "backlightSupported": "Adjustable",
+    "nextExpected": "Next contact expected",
+    "checkInEvery": "Checks in every",
+    "nvsEncryption": "NVS encryption",
+    "colorModes": {
+      "fullcolor": "Full colour",
+      "indexed": "Indexed",
+      "grayscale": "Greyscale",
+      "mono": "Black and white"
+    },
+    "version": "Version",
+    "pinnedTo": "Pinned to",
+    "channels": {
+      "stable": "stable",
+      "beta": "beta",
+      "dev": "dev"
+    },
+    "renameLabel": "Name this display"
   },
   "content": {
     "removeProperty": "Remove property",
@@ -311,7 +341,53 @@
     },
     "deleteMsg": "Delete this content instance? Devices using it will show no content.",
     "emptyTitle": "No content instances",
-    "emptyDesc": "Create one and assign it to a device to display content."
+    "emptyDesc": "Create one and assign it to a device to display content.",
+    "namePlate": {
+      "seats": "Seats",
+      "addSeat": "Add seat",
+      "removeSeat": "Remove",
+      "caption": "Caption (optional)",
+      "captionPlaceholder": "Desk 1",
+      "source": "Source",
+      "sourceStatic": "Fixed name",
+      "sourceCalendar": "From calendar",
+      "staticName": "Name",
+      "staticNamePlaceholder": "Miller",
+      "role": "Position (optional)",
+      "rolePlaceholder": "Vice-President",
+      "unit": "Unit (optional)",
+      "unitPlaceholder": "Executive Board",
+      "affiliationHint": "Both appear as one line below the name. Left empty, no line is drawn and the name gets the space.",
+      "showStatus": "Show booking state",
+      "showStatusHint": "Calendar seats only. A fixed name has no state, so its line is left out rather than shown empty.",
+      "maxSeatsHint": "Four seats at most, so the names stay readable from across the room.",
+      "noEditorHint": "The layout is computed from the seat count and the display. There is nothing to position.",
+      "resource": "Resource (room / desk)",
+      "roomName": "Room (header)",
+      "roomNamePlaceholder": "1J.2.27",
+      "roomNameHint": "Shown across the top, the way the room-booking display does it. Left empty, the room the seats came from is used.",
+      "accentColor": "Header colour",
+      "accentColorHint": "Marks the kind of room, on panels that have real colours. Ignored elsewhere.",
+      "accent": {
+        "none": "Black (default)",
+        "red": "Red",
+        "blue": "Blue",
+        "green": "Green",
+        "yellow": "Yellow"
+      },
+      "bookingQr": "Booking code",
+      "bookingQrHint": "One seat only, and only with a booking link. One code cannot say which of four desks it books.",
+      "qr": {
+        "never": "Never",
+        "free": "Only when free",
+        "always": "Always"
+      },
+      "reach": "Readable from about {metres} m on a 7.5-inch panel.",
+      "reachDense": "From three seats each one takes a single line, so titles, position and unit are not shown."
+    },
+    "fieldCalendarId": "Calendar ID",
+    "fieldRoomEmail": "Room mailbox address",
+    "fieldResource": "Resource"
   },
   "providers": {
     "clearSearch": "Clear search",
@@ -351,7 +427,14 @@
     },
     "deleteMsg": "Delete this provider? Content instances using it will stop working.",
     "emptyTitle": "No data providers",
-    "emptyDesc": "Add a provider to connect calendar or other data sources."
+    "emptyDesc": "Add a provider to connect calendar or other data sources.",
+    "fieldTenantId": "Tenant ID",
+    "fieldClientId": "Client ID",
+    "fieldClientSecret": "Client secret",
+    "fieldServiceAccountEmail": "Service account e-mail",
+    "fieldPrivateKey": "Private key (PEM)",
+    "fieldApiToken": "API token",
+    "fieldIcalUrl": "iCal feed URL"
   },
   "themes": {
     "created": "Theme created",
@@ -612,7 +695,19 @@
     "retryOta": "Retry firmware {version} on device {mac}",
     "retryOtaShort": "Retry",
     "retryOtaSuccess": "Firmware {version} will be offered again",
-    "retryOtaFailed": "Firmware retry could not be enabled"
+    "retryOtaFailed": "Firmware retry could not be enabled",
+    "pollHourly": "1 hour",
+    "rolloutOn": "{count} on",
+    "otaPhase": {
+      "applied": "applied",
+      "verify_fail": "verification failed",
+      "rolled_back": "rolled back",
+      "deferred": "deferred",
+      "started": "started",
+      "downloaded": "downloaded",
+      "confirmed": "confirmed",
+      "failed": "failed"
+    }
   },
   "flash": {
     "title": "Flash Firmware",
@@ -692,12 +787,16 @@
     "updateCompleteBody": "The new version is ready. The console will continue in a moment.",
     "updateFailedTitle": "Update not completed",
     "updateFailedBody": "Vellum is still running the previous version or restored it automatically.",
-    "databaseReconnecting": "Attempting to reconnect…"
+    "databaseReconnecting": "Attempting to reconnect…",
+    "serviceUnavailable": "Service unavailable",
+    "appDescription": "E-Ink meeting room display system",
+    "select": "— select —"
   },
   "contentTypes": {
     "room-booking": "Room Booking",
-    "door-sign": "Door Sign",
-    "door-sign-multi": "Door Sign (Multi)"
+    "door-sign": "Door Sign (Designer, retired)",
+    "door-sign-multi": "Door Sign (Multi, retired)",
+    "name-plate": "Door Sign"
   },
   "error": {
     "dbUnavailable": "Database Unavailable",
@@ -741,14 +840,21 @@
     "upToDate": "up to date",
     "behind": "behind",
     "unknown": "unknown",
-    "byVersion": "By version"
+    "byVersion": "By version",
+    "totalDevices": "Total devices",
+    "onlineNow": "Online now",
+    "pendingApprovals": "Pending approvals",
+    "contentInstances": "Content instances",
+    "refreshProfiles": "Refresh profiles"
   },
   "resourcePicker": {
     "change": "Change",
     "search": "Search rooms…",
     "loading": "Loading…",
     "noResults": "No rooms found",
-    "noResources": "No resources"
+    "noResources": "No resources",
+    "identifier": "Resource identifier",
+    "notListable": "This provider cannot list resources — an iCal feed's URL is itself the resource. Enter the identifier the provider uses."
   },
   "provision": {
     "title": "Provision over USB",

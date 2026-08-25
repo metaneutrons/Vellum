@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import Link from "next/link";
 import { MonitorSmartphone, Wifi, UserCheck, AlertTriangle, type LucideIcon } from "lucide-react";
 import type { DashboardData } from "../dashboard-data";
@@ -83,6 +85,7 @@ export function KpiCards({
   fleet: DashboardData["fleet"];
   attentionCount: number;
 }) {
+  const t = useTranslations("dashboard");
   const onlinePct = fleet.total ? Math.round((fleet.online / fleet.total) * 100) : 0;
   const hasPending = fleet.pending > 0;
   const hasAttention = attentionCount > 0;
@@ -93,21 +96,21 @@ export function KpiCards({
         icon={MonitorSmartphone}
         chipTone="accent"
         value={fleet.total}
-        label="Total Devices"
+        label={t("totalDevices")}
         sub={`${fleet.approved.toLocaleString()} approved`}
       />
       <Tile
         icon={Wifi}
         chipTone="green"
         value={fleet.online}
-        label="Online Now"
+        label={t("onlineNow")}
         sub={`${onlinePct}% · ${fleet.offline.toLocaleString()} offline`}
       />
       <Tile
         icon={UserCheck}
         chipTone={hasPending ? "orange" : "accent"}
         value={fleet.pending}
-        label="Pending Approvals"
+        label={t("pendingApprovals")}
         sub="awaiting approval"
         href={hasPending ? "/admin/devices" : undefined}
       />
@@ -115,7 +118,7 @@ export function KpiCards({
         icon={AlertTriangle}
         chipTone={hasAttention ? "red" : "green"}
         value={attentionCount}
-        label="Needs Attention"
+        label={t("needsAttention")}
         sub={`${fleet.lowBattery.toLocaleString()} low battery · ${fleet.weakSignal.toLocaleString()} weak signal`}
         valueTone={hasAttention ? "red" : "label"}
         href={hasAttention ? "/admin/devices" : undefined}

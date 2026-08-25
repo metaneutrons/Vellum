@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { floydSteinbergDither, type ColorPalette } from "../dither";
 import {
-  renderToCanvas as renderLayout,
+  renderTimeline as renderLayout,
   renderOffline as renderOfflineLayout,
 } from "@/lib/content/renderers/room-booking";
 import { THEME_MONO } from "@/lib/theme";
@@ -90,7 +90,16 @@ describe("Property 8: Render layout contains required visual elements", () => {
         arbRoomName,
         fc.array(arbDisplayEvent(now), { minLength: 0, maxLength: 5 }),
         (roomName, events) => {
-          const canvas = renderLayout(events, roomName, "UTC", now, THEME_MONO, 800, 480, 2);
+          const canvas = renderLayout({
+            events,
+            roomName,
+            timezone: "UTC",
+            now,
+            theme: THEME_MONO,
+            width: 800,
+            height: 480,
+            colorCount: 2,
+          });
 
           // (a) Canvas dimensions are exactly 800x480
           expect(canvas.width).toBe(800);
@@ -174,7 +183,13 @@ describe("Property 9: Stale calendar data triggers fail-safe", () => {
   it("renderOfflineLayout produces 800x480 canvas with content in the center region", () => {
     fc.assert(
       fc.property(arbRoomName, arbNow, (roomName, now) => {
-        const canvas = renderOfflineLayout(roomName, now, THEME_MONO, 800, 480);
+        const canvas = renderOfflineLayout({
+          roomName,
+          now,
+          theme: THEME_MONO,
+          width: 800,
+          height: 480,
+        });
 
         // Canvas dimensions are exactly 800x480
         expect(canvas.width).toBe(800);
@@ -225,7 +240,13 @@ describe("Property 9: Stale calendar data triggers fail-safe", () => {
         expect(fetchedAt.getTime()).toBeLessThan(staleCutoff.getTime());
 
         // When data is stale, renderOfflineLayout should be used
-        const offlineCanvas = renderOfflineLayout(roomName, now, THEME_MONO, 800, 480);
+        const offlineCanvas = renderOfflineLayout({
+          roomName,
+          now,
+          theme: THEME_MONO,
+          width: 800,
+          height: 480,
+        });
         const offlineCtx = offlineCanvas.getContext("2d");
         const offlineData = offlineCtx.getImageData(0, 0, 800, 480);
 

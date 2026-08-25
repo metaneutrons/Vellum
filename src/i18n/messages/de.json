@@ -139,7 +139,6 @@
     },
     "model": "Modell",
     "resolution": "Auflösung",
-    "quantize": "Quantisierung",
     "recentReports": "Letzte Meldungen",
     "connectivity": {
       "online": "Online",
@@ -223,7 +222,38 @@
       "followProfile": "Dem Profil folgen",
       "fromProfile": "Folgt dem Profil: aufgelöst aus Zeitplan und Stromquelle.",
       "overridden": "Für dieses Display gesetzt, der Zeitplan des Profils greift hier nicht mehr."
-    }
+    },
+    "toast": {
+      "updated": "Gerät aktualisiert",
+      "updateFailed": "Aktualisierung fehlgeschlagen"
+    },
+    "status": {
+      "approved": "Genehmigt",
+      "pending": "Ausstehend",
+      "rejected": "Abgelehnt"
+    },
+    "backToDevices": "Zurück zu den Geräten",
+    "firmwareHistory": "Firmware-Verlauf",
+    "colorMode": "Farbmodus",
+    "colors": "Farben",
+    "backlightSupported": "regelbar",
+    "nextExpected": "Nächster Kontakt erwartet",
+    "checkInEvery": "Meldet sich alle",
+    "nvsEncryption": "NVS-Verschlüsselung",
+    "colorModes": {
+      "fullcolor": "Vollfarbe",
+      "indexed": "indiziert",
+      "grayscale": "Graustufen",
+      "mono": "Schwarzweiß"
+    },
+    "version": "Version",
+    "pinnedTo": "Festgesetzt auf",
+    "channels": {
+      "stable": "stable",
+      "beta": "beta",
+      "dev": "dev"
+    },
+    "renameLabel": "Diesem Display einen Namen geben"
   },
   "content": {
     "removeProperty": "Eigenschaft entfernen",
@@ -311,7 +341,53 @@
     },
     "deleteMsg": "Diesen Inhalt löschen? Zugewiesene Geräte zeigen keinen Inhalt mehr.",
     "emptyTitle": "Keine Inhalte",
-    "emptyDesc": "Erstellen Sie einen Inhalt und weisen Sie ihn einem Gerät zu."
+    "emptyDesc": "Erstellen Sie einen Inhalt und weisen Sie ihn einem Gerät zu.",
+    "namePlate": {
+      "seats": "Plätze",
+      "addSeat": "Platz hinzufügen",
+      "removeSeat": "Entfernen",
+      "caption": "Bezeichnung (optional)",
+      "captionPlaceholder": "Schreibtisch 1",
+      "source": "Quelle",
+      "sourceStatic": "Fester Name",
+      "sourceCalendar": "Aus Kalender",
+      "staticName": "Name",
+      "staticNamePlaceholder": "Müller",
+      "role": "Position (optional)",
+      "rolePlaceholder": "Vizepräsident",
+      "unit": "Organisationseinheit (optional)",
+      "unitPlaceholder": "Präsidium",
+      "affiliationHint": "Beide erscheinen als eine Zeile unter dem Namen. Leer gelassen wird keine Zeile gezeichnet und der Name bekommt den Platz.",
+      "showStatus": "Buchungszustand anzeigen",
+      "showStatusHint": "Nur für Kalenderplätze. Ein fester Name hat keinen Zustand, seine Zeile entfällt statt leer zu bleiben.",
+      "maxSeatsHint": "Höchstens vier Plätze, damit die Namen aus der Entfernung lesbar bleiben.",
+      "noEditorHint": "Das Layout wird aus der Anzahl der Plätze und dem Display berechnet. Es gibt nichts zu positionieren.",
+      "resource": "Ressource (Raum/Arbeitsplatz)",
+      "roomName": "Raum (Kopfbereich)",
+      "roomNamePlaceholder": "1J.2.27",
+      "roomNameHint": "Steht oben über der Fläche, wie bei der Raumbelegung. Leer gelassen wird der Raum verwendet, aus dem die Plätze stammen.",
+      "accentColor": "Farbe des Kopfbereichs",
+      "accentColorHint": "Kennzeichnet die Raumart, auf Panels mit echten Farben. Sonst ohne Wirkung.",
+      "accent": {
+        "none": "Schwarz (Standard)",
+        "red": "Rot",
+        "blue": "Blau",
+        "green": "Grün",
+        "yellow": "Gelb"
+      },
+      "bookingQr": "Buchungscode",
+      "bookingQrHint": "Nur bei einem Platz und nur mit Buchungslink. Ein Code kann nicht sagen, welchen von vier Plätzen er bucht.",
+      "qr": {
+        "never": "Nie",
+        "free": "Nur wenn frei",
+        "always": "Immer"
+      },
+      "reach": "Lesbar aus etwa {metres} m auf einem 7,5-Zoll-Panel.",
+      "reachDense": "Ab drei Plätzen bekommt jeder eine Zeile, Titel, Position und Einheit erscheinen dann nicht."
+    },
+    "fieldCalendarId": "Kalender-ID",
+    "fieldRoomEmail": "Adresse des Raumpostfachs",
+    "fieldResource": "Ressource"
   },
   "providers": {
     "clearSearch": "Suche löschen",
@@ -351,7 +427,14 @@
     },
     "deleteMsg": "Diesen Anbieter löschen? Zugehörige Inhalte funktionieren nicht mehr.",
     "emptyTitle": "Keine Datenanbieter",
-    "emptyDesc": "Fügen Sie einen Anbieter hinzu um Kalender oder andere Datenquellen zu verbinden."
+    "emptyDesc": "Fügen Sie einen Anbieter hinzu um Kalender oder andere Datenquellen zu verbinden.",
+    "fieldTenantId": "Tenant-ID",
+    "fieldClientId": "Client-ID",
+    "fieldClientSecret": "Client Secret",
+    "fieldServiceAccountEmail": "Dienstkonto-E-Mail",
+    "fieldPrivateKey": "Privater Schlüssel (PEM)",
+    "fieldApiToken": "API-Token",
+    "fieldIcalUrl": "URL des iCal-Feeds"
   },
   "themes": {
     "created": "Design erstellt",
@@ -612,7 +695,19 @@
     "retryOta": "Firmware {version} auf Gerät {mac} erneut versuchen",
     "retryOtaShort": "Erneut versuchen",
     "retryOtaSuccess": "Firmware {version} wird erneut angeboten",
-    "retryOtaFailed": "Firmware-Wiederholung konnte nicht aktiviert werden"
+    "retryOtaFailed": "Firmware-Wiederholung konnte nicht aktiviert werden",
+    "pollHourly": "1 Stunde",
+    "rolloutOn": "{count} darauf",
+    "otaPhase": {
+      "applied": "eingespielt",
+      "verify_fail": "Prüfung fehlgeschlagen",
+      "rolled_back": "zurückgerollt",
+      "deferred": "zurückgestellt",
+      "started": "gestartet",
+      "downloaded": "heruntergeladen",
+      "confirmed": "bestätigt",
+      "failed": "fehlgeschlagen"
+    }
   },
   "flash": {
     "title": "Firmware flashen",
@@ -692,12 +787,16 @@
     "updateCompleteBody": "Die neue Version ist bereit. Die Konsole wird gleich fortgesetzt.",
     "updateFailedTitle": "Update nicht abgeschlossen",
     "updateFailedBody": "Vellum läuft weiterhin auf der vorherigen Version oder wurde automatisch wiederhergestellt.",
-    "databaseReconnecting": "Verbindung wird wiederhergestellt…"
+    "databaseReconnecting": "Verbindung wird wiederhergestellt…",
+    "serviceUnavailable": "Dienst nicht verfügbar",
+    "appDescription": "Anzeigesystem für E-Ink-Türschilder",
+    "select": "— auswählen —"
   },
   "contentTypes": {
     "room-booking": "Raumbelegung",
-    "door-sign": "Türschild",
-    "door-sign-multi": "Türschild (Multi)"
+    "door-sign": "Türschild (erweitert, stillgelegt)",
+    "door-sign-multi": "Türschild (Multi, stillgelegt)",
+    "name-plate": "Türschild"
   },
   "error": {
     "dbUnavailable": "Datenbank nicht erreichbar",
@@ -741,14 +840,21 @@
     "upToDate": "aktuell",
     "behind": "veraltet",
     "unknown": "unbekannt",
-    "byVersion": "Nach Version"
+    "byVersion": "Nach Version",
+    "totalDevices": "Geräte gesamt",
+    "onlineNow": "Jetzt online",
+    "pendingApprovals": "Offene Freigaben",
+    "contentInstances": "Inhalte",
+    "refreshProfiles": "Aktualisierungsprofile"
   },
   "resourcePicker": {
     "change": "Ändern",
     "search": "Räume suchen…",
     "loading": "Laden…",
     "noResults": "Keine Räume gefunden",
-    "noResources": "Keine Ressourcen"
+    "noResources": "Keine Ressourcen",
+    "identifier": "Ressourcen-Kennung",
+    "notListable": "Dieser Anbieter kann keine Ressourcen auflisten; bei einem iCal-Abruf ist die URL selbst die Ressource. Gib die Kennung ein, die der Anbieter verwendet."
   },
   "provision": {
     "title": "Über USB provisionieren",

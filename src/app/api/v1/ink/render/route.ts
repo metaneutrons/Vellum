@@ -14,7 +14,7 @@ import { settingsForDevice } from "@/lib/settings/for-device";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { resolveDisplayCaps, mergeReportedCaps } from "@/lib/display";
-import { getContentRenderer } from "@/lib/content";
+import { getContentRenderer, renderContent } from "@/lib/content";
 import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/theme";
 import { renderEntityTag } from "@/lib/render-etag";
 
@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   let renderResult;
   try {
-    renderResult = await renderer.render({
+    renderResult = await renderContent(renderer, {
       config: instance.config,
       theme,
       display,

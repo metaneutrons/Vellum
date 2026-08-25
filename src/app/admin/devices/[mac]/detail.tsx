@@ -3,7 +3,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,13 +16,30 @@ import {
   setDeviceBacklight,
 } from "../../actions";
 import { useToast } from "@/components/toast";
+import { Card as UiCard } from "@/components/ui/card";
+import { StatusPill } from "@/components/ui/badge";
+import { OtaEventList, type OtaEvent } from "@/components/ota-event-list";
 import { deviceConnectivity } from "@/lib/connectivity";
+import { fmtInterval } from "@/lib/duration";
+import { deviceName } from "@/lib/device-name";
 import { assessSecurityPosture } from "@/lib/security-posture";
 
+/**
+ * Four columns were missing from this type, and that is why the view never
+ * showed them: `orientationOverride`, `firmwareChannel`, `firmwarePinVersion` and
+ * `timezone` are all per-device settings that `updateDevice` already accepts. The
+ * page loads the whole row, so they were present at runtime the entire time and
+ * simply invisible to the component.
+ */
 interface Device {
   mac: string;
   status: string;
+  label: string | null;
   displayCaps: unknown;
+  orientationOverride: string | null;
+  firmwareChannel: string | null;
+  firmwarePinVersion: string | null;
+  timezone: string | null;
   contentInstanceId: string | null;
   themeId: string | null;
   refreshProfileId: string | null;
@@ -55,8 +72,8 @@ interface TelemetryEntry {
   partitionTableOffset: number | null;
   layoutVerified: boolean | null;
   secureBootEnabled: boolean | null;
-  flashEncryptionEnabled: boolean | null;
   nvsEncryptionEnabled: boolean | null;
+  flashEncryptionEnabled: boolean | null;
   timestamp: Date;
 }
 
@@ -102,27 +119,35 @@ interface Props {
     byteLen: number;
     receivedAt: Date;
   }[];
+  otaEvents: OtaEvent[];
   canProvision: boolean;
 }
 
-function Badge({ label, color }: { label: string; color: string }) {
-  return <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>{label}</span>;
-}
-
+/**
+ * A titled card, on the design system's surface rather than on `bg-white`.
+ *
+ * The whole of this view predates the Aurora tokens and painted itself from the
+ * raw Tailwind palette: a white card, grey labels, and light chips, none of which
+ * has a dark variant. Since the theme defaults to `system` and flips a `.dark`
+ * class on `<html>`, that meant a white card on a black page, and a log block with
+ * a near-white ground and no foreground colour of its own — hence unreadable text.
+ */
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-lg shadow p-5">
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{title}</h3>
+    <UiCard className="p-5">
+      <h3 className="mb-3 text-sm font-semibold tracking-wide text-label-secondary uppercase">
+        {title}
+      </h3>
       {children}
-    </div>
+    </UiCard>
   );
 }
 
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`text-lg font-semibold ${warn ? "text-red-600" : ""}`}>{value}</div>
+      <div className="text-xs text-label-secondary">{label}</div>
+      <div className={`text-lg font-semibold ${warn ? "text-red" : ""}`}>{value}</div>
     </div>
   );
 }
@@ -138,9 +163,11 @@ export function DeviceDetail({
   sites,
   effective,
   logBatches,
+  otaEvents,
   canProvision,
 }: Props) {
   const t = useTranslations("devices");
+  const locale = useLocale();
   const nameFor = (list: { id: string; name: string }[], id: string | null) =>
     id ? (list.find((x) => x.id === id)?.name ?? id) : t("site.notSet");
   const { toast } = useToast();
@@ -154,11 +181,20 @@ export function DeviceDetail({
     typeof reportedModel === "string" && reportedModel.length > 0
       ? reportedModel.toLowerCase()
       : "<model>";
+  /* `quantize` is the LEGACY shape, migrated to format + colorMode in
+   * lib/display.ts. No device in the estate reports it, so the card's "Quantize"
+   * row read "—" on every single display while the panel's colour mode, palette
+   * size, orientation and backlight sat unread in the same object. */
   const caps = device.displayCaps as {
     model?: string;
     width?: number;
     height?: number;
-    quantize?: string;
+    format?: string;
+    colorMode?: string;
+    palette?: unknown[];
+    orientation?: string;
+    orientations?: string[];
+    backlight?: boolean;
   } | null;
   const latest = telemetryHistory[0];
   const securityAssessment = latest
@@ -182,14 +218,24 @@ export function DeviceDetail({
     device.expectedIntervalS,
     Date.now()
   );
+  /* Tone AND wording, never colour alone: the pill carries a label, so the state
+   * survives a greyscale screenshot and a colour-blind reader. */
   const conn = {
-    online: { label: "Online", color: "bg-green-100 text-green-800" },
-    late: { label: "Late", color: "bg-yellow-100 text-yellow-800" },
-    offline: { label: "Offline", color: "bg-red-100 text-red-800" },
-    never: { label: "Never seen", color: "bg-gray-100 text-gray-700" },
+    online: { label: t("connectivity.online"), tone: "green" as const },
+    late: { label: t("connectivity.late"), tone: "orange" as const },
+    offline: { label: t("connectivity.offline"), tone: "red" as const },
+    never: { label: t("connectivity.never"), tone: "neutral" as const },
   }[connState];
 
+  /** Empty means "no name": the fallback chain in `deviceName` takes over. */
+  function renameDevice(value: string) {
+    const label = value.trim() || null;
+    if (label === (device.label ?? null)) return;
+    handleUpdate({ label });
+  }
+
   function handleUpdate(data: {
+    label?: string | null;
     contentInstanceId?: string | null;
     themeId?: string | null;
     refreshProfileId?: string | null;
@@ -197,9 +243,9 @@ export function DeviceDetail({
     startTransition(async () => {
       try {
         await updateDevice(device.mac, data);
-        toast("success", "Device updated");
+        toast("success", t("toast.updated"));
       } catch {
-        toast("error", "Update failed");
+        toast("error", t("toast.updateFailed"));
       }
     });
   }
@@ -208,10 +254,10 @@ export function DeviceDetail({
     startTransition(async () => {
       try {
         await setDeviceBacklight(device.mac, value);
-        toast("success", "Device updated");
+        toast("success", t("toast.updated"));
         router.refresh();
       } catch {
-        toast("error", "Update failed");
+        toast("error", t("toast.updateFailed"));
       }
     });
   }
@@ -220,10 +266,10 @@ export function DeviceDetail({
     startTransition(async () => {
       try {
         await setDeviceSite(device.mac, siteId || null);
-        toast("success", "Device updated");
+        toast("success", t("toast.updated"));
         router.refresh();
       } catch {
-        toast("error", "Update failed");
+        toast("error", t("toast.updateFailed"));
       }
     });
   }
@@ -232,10 +278,10 @@ export function DeviceDetail({
     startTransition(async () => {
       try {
         await setDeviceLogVerbose(device.mac, !device.logVerbose);
-        toast("success", "Device updated");
+        toast("success", t("toast.updated"));
         router.refresh();
       } catch {
-        toast("error", "Update failed");
+        toast("error", t("toast.updateFailed"));
       }
     });
   }
@@ -328,20 +374,50 @@ export function DeviceDetail({
 
   return (
     <div className={pending ? "opacity-60 pointer-events-none" : ""}>
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold font-mono">{device.mac}</h1>
-        <Badge
-          label={device.status}
-          color={
-            device.status === "approved"
-              ? "bg-blue-100 text-blue-800"
-              : device.status === "pending"
-                ? "bg-yellow-100 text-yellow-800"
-                : "bg-red-100 text-red-800"
+      {/* Header. The name an operator gave it leads, the address stays beside it
+          because that is what the sticker on the back says, and the assigned room
+          is underneath because it is what the display is FOR. */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          {canProvision ? (
+            <input
+              className="-mx-1 w-full min-w-0 rounded border border-transparent bg-transparent px-1 text-2xl font-bold text-label hover:border-separator focus:border-separator focus-ring"
+              defaultValue={device.label ?? ""}
+              placeholder={device.mac}
+              aria-label={t("renameLabel")}
+              maxLength={64}
+              onBlur={(e) => renameDevice(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") {
+                  e.currentTarget.value = device.label ?? "";
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          ) : (
+            <h1 className={`text-2xl font-bold ${device.label ? "" : "font-mono"}`}>
+              {deviceName(device)}
+            </h1>
+          )}
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-label-secondary">
+            {device.label && <span className="font-mono text-label-tertiary">{device.mac}</span>}
+            <span>
+              {contentInstances.find((c) => c.id === effective.values.contentInstanceId)?.name ??
+                t("noContent")}
+            </span>
+          </p>
+        </div>
+        <StatusPill
+          tone={
+            device.status === "approved" ? "accent" : device.status === "pending" ? "orange" : "red"
           }
-        />
-        <Badge label={conn.label} color={conn.color} />
+        >
+          {t(`status.${device.status}`)}
+        </StatusPill>
+        <StatusPill tone={conn.tone} dot>
+          {conn.label}
+        </StatusPill>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -385,6 +461,18 @@ export function DeviceDetail({
                 value={latest.nvsIntegrity ? t(`security.integrity.${latest.nvsIntegrity}`) : "—"}
                 warn={latest.nvsIntegrity === "invalid"}
               />
+              {/* Collected all along, and the only one of the three encryption
+                  facts the card did not print. */}
+              <Stat
+                label={t("nvsEncryption")}
+                value={
+                  latest.nvsEncryptionEnabled === null
+                    ? "—"
+                    : latest.nvsEncryptionEnabled
+                      ? t("security.enabled")
+                      : t("security.disabled")
+                }
+              />
               <Stat label={t("security.chip")} value={latest.chipModel ?? "—"} />
               <Stat
                 label={t("security.flashSize")}
@@ -422,7 +510,7 @@ export function DeviceDetail({
               />
             </div>
           ) : (
-            <p className="text-sm text-gray-400">{t("noTelemetry")}</p>
+            <p className="text-sm text-label-tertiary">{t("noTelemetry")}</p>
           )}
         </Card>
 
@@ -435,37 +523,95 @@ export function DeviceDetail({
                 label={t("resolution")}
                 value={caps.width && caps.height ? `${caps.width}×${caps.height}` : "—"}
               />
-              <Stat label={t("quantize")} value={caps.quantize ?? "—"} />
+              <Stat
+                label={t("colorMode")}
+                value={caps.colorMode ? t(`colorModes.${caps.colorMode}`) : "—"}
+              />
+              <Stat
+                label={t("colors")}
+                value={caps.palette?.length ? String(caps.palette.length) : "—"}
+              />
+              <Stat
+                label={t("orientation")}
+                value={
+                  device.orientationOverride
+                    ? t(
+                        `orientation${device.orientationOverride === "portrait" ? "Portrait" : "Landscape"}`
+                      )
+                    : caps.orientation
+                      ? t(
+                          `orientation${caps.orientation === "portrait" ? "Portrait" : "Landscape"}`
+                        )
+                      : "—"
+                }
+              />
+              {caps.backlight && (
+                <Stat label={t("backlight.label")} value={t("backlightSupported")} />
+              )}
             </div>
           ) : (
-            <p className="text-sm text-gray-400">{t("noDisplayCaps")}</p>
+            <p className="text-sm text-label-tertiary">{t("noDisplayCaps")}</p>
           )}
+        </Card>
+
+        {/* Firmware. Both of these are per-device columns that `updateDevice`
+            already accepts, and neither had ever been rendered, so the channel a
+            display follows was invisible from the display's own page. */}
+        <Card title={t("firmware")}>
+          <div className="grid grid-cols-2 gap-4">
+            <Stat
+              label={t("channel")}
+              value={device.firmwareChannel ? t(`channels.${device.firmwareChannel}`) : "—"}
+            />
+            <Stat label={t("version")} value={latest?.firmwareVersion ?? "—"} />
+            {device.firmwarePinVersion && (
+              <Stat label={t("pinnedTo")} value={device.firmwarePinVersion} warn />
+            )}
+          </div>
         </Card>
 
         {/* Timestamps */}
         <Card title={t("timeline")}>
           <div className="space-y-2 text-sm">
             <div>
-              <span className="text-gray-500">{t("registered")}:</span>{" "}
-              {new Date(device.createdAt).toLocaleString("de-DE")}
+              <span className="text-label-secondary">{t("registered")}:</span>{" "}
+              {new Date(device.createdAt).toLocaleString(locale)}
             </div>
             {device.approvedAt && (
               <div>
-                <span className="text-gray-500">{t("approvedAt")}:</span>{" "}
-                {new Date(device.approvedAt).toLocaleString("de-DE")}
+                <span className="text-label-secondary">{t("approvedAt")}:</span>{" "}
+                {new Date(device.approvedAt).toLocaleString(locale)}
               </div>
             )}
             <div>
-              <span className="text-gray-500">{t("lastSeen")}:</span>{" "}
-              {device.lastSeen ? new Date(device.lastSeen).toLocaleString("de-DE") : "—"}
+              <span className="text-label-secondary">{t("lastSeen")}:</span>{" "}
+              {device.lastSeen ? new Date(device.lastSeen).toLocaleString(locale) : "—"}
             </div>
+            {/* "Last seen two weeks ago" is unreadable as a health signal without
+                the cadence beside it: this display sleeps for 20 575 s between
+                calls, so two weeks may be perfectly healthy or long dead. Both
+                numbers were already on the page; only their difference was. */}
+            {device.expectedIntervalS !== null && (
+              <div>
+                <span className="text-label-secondary">{t("checkInEvery")}:</span>{" "}
+                {fmtInterval(device.expectedIntervalS)}
+              </div>
+            )}
+            {device.lastSeen && device.expectedIntervalS !== null && (
+              <div>
+                <span className="text-label-secondary">{t("nextExpected")}:</span>{" "}
+                {new Date(
+                  new Date(device.lastSeen).getTime() + device.expectedIntervalS * 1000
+                ).toLocaleString(locale)}
+              </div>
+            )}
           </div>
         </Card>
       </div>
 
       <div className="mb-6">
         <Card title={t("security.title")}>
-          <p className="mb-4 text-sm text-gray-500">{t("security.description")}</p>
+          <p className="mb-4 text-sm text-label-secondary">{t("security.description")}</p>
           <div className="grid gap-3 md:grid-cols-3">
             {[
               {
@@ -483,7 +629,7 @@ export function DeviceDetail({
             ].map((step) => (
               <div
                 key={step.label}
-                className={`rounded border p-3 text-sm ${step.done ? "border-green-300 bg-green-50 text-green-800" : "border-gray-200 bg-gray-50 text-gray-600"}`}
+                className={`rounded border p-3 text-sm ${step.done ? "border-green/30 bg-green/10 text-green" : "border-separator bg-surface-secondary text-label-secondary"}`}
               >
                 <span className="mr-2" aria-hidden="true">
                   {step.done ? "✓" : "○"}
@@ -493,24 +639,24 @@ export function DeviceDetail({
             ))}
           </div>
           {securityAssessment?.state === "testsecure" && securityAssessment.verified ? (
-            <p className="mt-4 text-sm text-green-700">{t("security.reversibleComplete")}</p>
+            <p className="mt-4 text-sm text-green">{t("security.reversibleComplete")}</p>
           ) : (
             <div className="mt-4 space-y-3">
-              <code className="block overflow-x-auto rounded bg-gray-950 px-3 py-2 text-xs text-gray-100">
+              <code className="block overflow-x-auto rounded bg-fill-secondary px-3 py-2 font-mono text-xs text-label">
                 {`make build MODEL=${testsecureModel} SECURE=1 SECURE_PROFILE=testsecure`}
               </code>
               <Link
                 href="https://github.com/metaneutrons/Vellum/blob/main/docs/SECURE_BOOT_AND_KMS.md#phase-a--prove-the-chain-with-zero-burns-spare-board-reversible"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+                className="inline-flex rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent"
               >
                 {t("security.flashTestsecure")}
               </Link>
-              <p className="text-xs text-gray-500">{t("security.testsecureHint")}</p>
+              <p className="text-xs text-label-secondary">{t("security.testsecureHint")}</p>
             </div>
           )}
-          <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="mt-4 rounded border border-orange/30 bg-orange/10 p-3 text-sm text-orange">
             {t("security.productionLocked")}
           </div>
         </Card>
@@ -520,12 +666,12 @@ export function DeviceDetail({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <Card title={t("contentAssignment")}>
           <select
-            className="w-full border rounded px-3 py-2 text-sm"
+            className="w-full rounded border border-separator bg-surface px-3 py-2 text-sm text-label"
             aria-label={t("contentAssignment")}
             value={device.contentInstanceId ?? ""}
             onChange={(e) => handleUpdate({ contentInstanceId: e.target.value || null })}
           >
-            <option value="">— none —</option>
+            <option value="">— {t("none")} —</option>
             {contentInstances.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -535,12 +681,12 @@ export function DeviceDetail({
         </Card>
         <Card title={t("themeAssignment")}>
           <select
-            className="w-full border rounded px-3 py-2 text-sm"
+            className="w-full rounded border border-separator bg-surface px-3 py-2 text-sm text-label"
             aria-label={t("themeAssignment")}
             value={device.themeId ?? ""}
             onChange={(e) => handleUpdate({ themeId: e.target.value || null })}
           >
-            <option value="">— default —</option>
+            <option value="">— {t("default")} —</option>
             {themes.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -550,12 +696,12 @@ export function DeviceDetail({
         </Card>
         <Card title={t("refreshProfile")}>
           <select
-            className="w-full border rounded px-3 py-2 text-sm"
+            className="w-full rounded border border-separator bg-surface px-3 py-2 text-sm text-label"
             aria-label={t("refreshProfile")}
             value={device.refreshProfileId ?? ""}
             onChange={(e) => handleUpdate({ refreshProfileId: e.target.value || null })}
           >
-            <option value="">— default —</option>
+            <option value="">— {t("default")} —</option>
             {refreshProfiles.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -567,7 +713,7 @@ export function DeviceDetail({
 
       <div className="mb-6">
         <Card title={t("remoteConfig.title")}>
-          <p className="mb-4 text-sm text-gray-500">{t("remoteConfig.description")}</p>
+          <p className="mb-4 text-sm text-label-secondary">{t("remoteConfig.description")}</p>
           {canProvision && (
             <>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -577,19 +723,19 @@ export function DeviceDetail({
                   onChange={(event) => setServerUrl(event.target.value)}
                   placeholder="https://vellum.example.com"
                   aria-label={t("remoteConfig.serverUrl")}
-                  className="min-w-0 flex-1 rounded border px-3 py-2 text-sm"
+                  className="min-w-0 flex-1 rounded border border-separator bg-surface px-3 py-2 text-sm text-label"
                   disabled={pending || configurationApplying}
                 />
                 <button
                   type="button"
                   onClick={queueServerMigration}
                   disabled={pending || configurationApplying || !serverUrl.trim()}
-                  className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-40"
                 >
                   {t("remoteConfig.migrate")}
                 </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500">{t("remoteConfig.safety")}</p>
+              <p className="mt-2 text-xs text-label-secondary">{t("remoteConfig.safety")}</p>
               <div className="my-5 border-t" />
               <h4 className="mb-2 text-sm font-semibold">{t("remoteConfig.wifiTitle")}</h4>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
@@ -600,7 +746,7 @@ export function DeviceDetail({
                   placeholder={t("remoteConfig.wifiSsid")}
                   aria-label={t("remoteConfig.wifiSsid")}
                   maxLength={32}
-                  className="min-w-0 rounded border px-3 py-2 text-sm"
+                  className="min-w-0 rounded border border-separator bg-surface px-3 py-2 text-sm text-label"
                   disabled={pending || configurationApplying}
                 />
                 <input
@@ -611,19 +757,19 @@ export function DeviceDetail({
                   aria-label={t("remoteConfig.wifiPassword")}
                   autoComplete="new-password"
                   maxLength={64}
-                  className="min-w-0 rounded border px-3 py-2 text-sm"
+                  className="min-w-0 rounded border border-separator bg-surface px-3 py-2 text-sm text-label"
                   disabled={pending || configurationApplying}
                 />
                 <button
                   type="button"
                   onClick={queueWifiConfiguration}
                   disabled={pending || configurationApplying || !wifiSsid}
-                  className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-40"
                 >
                   {t("remoteConfig.wifiChange")}
                 </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500">{t("remoteConfig.wifiSafety")}</p>
+              <p className="mt-2 text-xs text-label-secondary">{t("remoteConfig.wifiSafety")}</p>
             </>
           )}
 
@@ -635,32 +781,33 @@ export function DeviceDetail({
                 return (
                   <div
                     key={command.id}
-                    className="flex flex-wrap items-center gap-2 rounded border p-3 text-sm"
+                    className="flex flex-wrap items-center gap-2 rounded border border-separator p-3 text-sm"
                   >
                     <span className="min-w-0 flex-1 truncate font-mono">
                       {command.kind === "wifi"
                         ? t("remoteConfig.wifiHistory", { ssid: payload.ssid ?? "—" })
                         : (payload.serverUrl ?? "—")}
                     </span>
-                    <Badge
-                      label={configurationStatus(command.status)}
-                      color={
+                    <StatusPill
+                      tone={
                         command.status === "applied"
-                          ? "bg-green-100 text-green-800"
+                          ? "green"
                           : command.status === "failed"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
+                            ? "red"
+                            : "orange"
                       }
-                    />
+                    >
+                      {configurationStatus(command.status)}
+                    </StatusPill>
                     {command.errorCode && (
-                      <span className="text-xs text-red-600">
+                      <span className="text-xs text-red">
                         {configurationError(command.errorCode)}
                       </span>
                     )}
                     {isActive && canProvision && (
                       <button
                         type="button"
-                        className="text-xs text-red-600 hover:underline"
+                        className="text-xs text-red hover:underline"
                         onClick={() => cancelConfiguration(command.id)}
                       >
                         {t("remoteConfig.cancel")}
@@ -694,7 +841,7 @@ export function DeviceDetail({
               ))}
             </select>
           </label>
-          <p className="min-w-0 flex-1 text-xs text-gray-500">{t("site.hint")}</p>
+          <p className="min-w-0 flex-1 text-xs text-label-secondary">{t("site.hint")}</p>
         </div>
 
         <dl className="mt-4 space-y-1 text-xs">
@@ -718,9 +865,9 @@ export function DeviceDetail({
               ] ?? "builtin";
             return (
               <div key={key} className="flex flex-wrap items-baseline gap-2">
-                <dt className="w-24 text-gray-500">{t(`site.${key}`)}</dt>
+                <dt className="w-24 text-label-secondary">{t(`site.${key}`)}</dt>
                 <dd className="font-mono text-label">{value}</dd>
-                <span className="text-gray-500">{t(`site.from.${source}`)}</span>
+                <span className="text-label-secondary">{t(`site.from.${source}`)}</span>
               </div>
             );
           })}
@@ -752,7 +899,7 @@ export function DeviceDetail({
                   type="button"
                   disabled={pending}
                   onClick={() => applyBacklight(device.backlightPercent === null ? 80 : null)}
-                  className="focus-ring rounded border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+                  className="focus-ring rounded border border-separator px-3 py-1.5 text-xs font-medium text-label disabled:opacity-40"
                 >
                   {device.backlightPercent === null
                     ? t("backlight.override")
@@ -760,7 +907,7 @@ export function DeviceDetail({
                 </button>
               )}
             </div>
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-label-secondary">
               {device.backlightPercent === null
                 ? t("backlight.fromProfile")
                 : t("backlight.overridden")}
@@ -774,46 +921,59 @@ export function DeviceDetail({
           goes wrong, or while an operator raised it to report everything. */}
       <Card title={`${t("diagnostics.title")} (${logBatches.length})`}>
         <div className="flex flex-wrap items-center gap-3">
-          <p className="min-w-0 flex-1 text-xs text-gray-500">{t("diagnostics.hint")}</p>
+          <p className="min-w-0 flex-1 text-xs text-label-secondary">{t("diagnostics.hint")}</p>
           {canProvision && (
             <button
               type="button"
               disabled={pending}
               onClick={toggleVerbose}
-              className="rounded border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              className="focus-ring rounded border border-separator px-3 py-1.5 text-xs font-medium text-label disabled:opacity-40"
             >
               {device.logVerbose ? t("diagnostics.stopVerbose") : t("diagnostics.startVerbose")}
             </button>
           )}
         </div>
         {device.logVerbose && (
-          <p className="mt-2 text-xs text-amber-700">{t("diagnostics.verboseActive")}</p>
+          <p className="mt-2 text-xs text-orange">{t("diagnostics.verboseActive")}</p>
         )}
         {logBatches.length > 0 ? (
           <div className="mt-4 space-y-3">
             {logBatches.map((batch) => (
-              <details key={batch.id} className="rounded border">
-                <summary className="cursor-pointer px-3 py-2 text-xs text-gray-600">
-                  {new Date(batch.receivedAt).toLocaleString("de-DE")} · #{batch.seq} ·{" "}
+              <details key={batch.id} className="rounded border border-separator">
+                <summary className="cursor-pointer px-3 py-2 text-xs text-label-secondary">
+                  {new Date(batch.receivedAt).toLocaleString(locale)} · #{batch.seq} ·{" "}
                   {batch.byteLen} B
                 </summary>
-                <pre className="max-h-96 overflow-auto border-t bg-gray-50 p-3 text-[11px] leading-relaxed whitespace-pre-wrap">
+                {/* Ground AND foreground. This block used to name only the
+                    background, so the text took whatever it inherited: grey on a
+                    light grey panel in light mode, and near-white on the same
+                    light grey once the theme followed the system into dark. */}
+                <pre className="max-h-96 overflow-auto border-t border-separator bg-surface-secondary p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-label">
                   {batch.lines}
                 </pre>
               </details>
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-gray-500">{t("diagnostics.empty")}</p>
+          <p className="mt-4 text-sm text-label-secondary">{t("diagnostics.empty")}</p>
         )}
       </Card>
 
       {/* Telemetry History */}
+      {/* Firmware history. Above the telemetry table on purpose: when a display
+          misbehaves, "which update did it take, and did it stick" is the first
+          question, and it used to be answerable only from the firmware page. */}
+      <Card title={`${t("firmwareHistory")} (${otaEvents.length})`}>
+        <div className="-mx-5 -mb-5 divide-y divide-separator border-t border-separator">
+          <OtaEventList events={otaEvents} />
+        </div>
+      </Card>
+
       <Card title={`${t("telemetryHistory")} (${telemetryHistory.length})`}>
         {telemetryHistory.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="text-left text-gray-500">
+              <thead className="text-left text-label-secondary">
                 <tr>
                   <th className="pr-4 py-1">{t("time")}</th>
                   <th className="pr-4 py-1">{t("battery")}</th>
@@ -828,11 +988,11 @@ export function DeviceDetail({
               <tbody className="divide-y">
                 {telemetryHistory.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="pr-4 py-1 text-gray-500">
-                      {new Date(entry.timestamp).toLocaleString("de-DE")}
+                    <td className="pr-4 py-1 text-label-secondary">
+                      {new Date(entry.timestamp).toLocaleString(locale)}
                     </td>
                     <td
-                      className={`pr-4 py-1 ${(entry.batteryLevel ?? 100) < 20 ? "text-red-600 font-medium" : ""}`}
+                      className={`pr-4 py-1 ${(entry.batteryLevel ?? 100) < 20 ? "text-red font-medium" : ""}`}
                     >
                       {entry.batteryLevel ?? "—"}%
                     </td>
@@ -845,20 +1005,22 @@ export function DeviceDetail({
                           : "—"}
                     </td>
                     <td
-                      className={`pr-4 py-1 ${(entry.wifiRssi ?? 0) < -70 ? "text-red-600 font-medium" : ""}`}
+                      className={`pr-4 py-1 ${(entry.wifiRssi ?? 0) < -70 ? "text-red font-medium" : ""}`}
                     >
                       {entry.wifiRssi ?? "—"} dBm
                     </td>
                     <td className="pr-4 py-1">{entry.wifiSsid ?? "—"}</td>
                     <td className="pr-4 py-1">{entry.wifiSecurity ?? "—"}</td>
-                    <td className="pr-4 py-1 text-gray-500">{entry.firmwareVersion ?? "—"}</td>
+                    <td className="pr-4 py-1 text-label-secondary">
+                      {entry.firmwareVersion ?? "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="text-sm text-gray-400">{t("noTelemetry")}</p>
+          <p className="text-sm text-label-tertiary">{t("noTelemetry")}</p>
         )}
       </Card>
 
@@ -870,8 +1032,8 @@ export function DeviceDetail({
               {recentReports.map((r) => (
                 <div key={r.id} className="flex justify-between text-sm border-b pb-2">
                   <span>{r.issue ?? "—"}</span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(r.timestamp).toLocaleString("de-DE")}
+                  <span className="text-xs text-label-tertiary">
+                    {new Date(r.timestamp).toLocaleString(locale)}
                   </span>
                 </div>
               ))}

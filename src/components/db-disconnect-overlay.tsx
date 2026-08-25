@@ -34,6 +34,17 @@ interface DbHealth {
   lastErrorAt: string | null;
 }
 
+/**
+ * The database-unavailable overlay.
+ *
+ * DELIBERATELY dark in both themes, which is why this file is listed as an
+ * exception in `scripts/check-theme-tokens.mjs` rather than converted. It is a
+ * blocking, full-viewport alert over a blurred backdrop, and a system alert that
+ * looks the same whatever the page behind it is doing is a choice, not an
+ * oversight. The colours that carry MEANING — the fault icon, the circuit state,
+ * the failure count — use the tokens, because those have to stay recognisable
+ * against the rest of the admin.
+ */
 export function DbDisconnectOverlay() {
   const t = useTranslations("common");
   const [health, setHealth] = useState<DbHealth | null>(null);
@@ -278,7 +289,7 @@ export function DbDisconnectOverlay() {
             <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
               <div className="w-10 h-10 rounded-full bg-red-500/40 flex items-center justify-center animate-pulse">
                 <svg
-                  className="w-6 h-6 text-red-400"
+                  className="h-6 w-6 text-red"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -304,10 +315,10 @@ export function DbDisconnectOverlay() {
         {/* Status details */}
         <div className="bg-gray-800/50 rounded-lg p-4 text-left text-xs font-mono text-gray-500 space-y-1 mb-4">
           <div>
-            {t("status")}: <span className="text-red-400">{circuit}</span>
+            {t("status")}: <span className="text-red">{circuit}</span>
           </div>
           <div>
-            {t("failures")}: <span className="text-yellow-400">{failures}</span>
+            {t("failures")}: <span className="text-orange">{failures}</span>
           </div>
           {lastError && (
             <div className="truncate">

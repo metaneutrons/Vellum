@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 
+import { SIMULATOR_MAC } from "@/lib/simulator";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DISPLAY_REGISTRY } from "@/lib/display";
 import { AppFooter } from "@/components/app-footer";
@@ -31,7 +33,7 @@ interface SimConfig {
 
 const DEFAULT_CONFIG: SimConfig = {
   serverUrl: "",
-  mac: "DEADBEEFCAFE",
+  mac: SIMULATOR_MAC,
   displayModel: "d1001",
   orientation: "portrait",
   batteryLevel: 85,
@@ -71,7 +73,7 @@ export function SimulatorClient() {
   const baseUrl = config.serverUrl || (typeof window !== "undefined" ? window.location.origin : "");
 
   const appendLog = useCallback((msg: string) => {
-    const ts = new Date().toLocaleTimeString("de-DE", { hour12: false });
+    const ts = new Date().toLocaleTimeString(undefined, { hour12: false });
     setLog((prev) => [...prev.slice(-200), `[${ts}] ${msg}`]);
   }, []);
 

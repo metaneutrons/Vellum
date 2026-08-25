@@ -8,6 +8,7 @@ import type { DashboardData } from "../dashboard-data";
 import { useTranslations } from "next-intl";
 
 export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"] }) {
+  const tNav = useTranslations("nav");
   const t = useTranslations("dashboard");
   const { latestStable, latestBeta, upToDate, behind, unknown, byVersion } = firmware;
 
@@ -24,7 +25,7 @@ export function FirmwarePanel({ firmware }: { firmware: DashboardData["firmware"
 
   return (
     <DashCard
-      title="Firmware"
+      title={tNav("firmware")}
       icon={<Cpu size={16} />}
       action={{ label: t("manage"), href: "/admin/firmware" }}
     >

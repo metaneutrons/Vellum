@@ -139,7 +139,6 @@
     },
     "model": "Modello",
     "resolution": "Risoluzione",
-    "quantize": "Quantizzazione",
     "recentReports": "Rapporti recenti",
     "connectivity": {
       "online": "Online",
@@ -223,7 +222,38 @@
       "followProfile": "Segui il profilo",
       "fromProfile": "Segue il profilo: risolto da orario e fonte di alimentazione.",
       "overridden": "Impostato per questo display, l'orario del profilo qui non si applica più."
-    }
+    },
+    "toast": {
+      "updated": "Dispositivo aggiornato",
+      "updateFailed": "Aggiornamento non riuscito"
+    },
+    "status": {
+      "approved": "Approvato",
+      "pending": "In attesa",
+      "rejected": "Rifiutato"
+    },
+    "backToDevices": "Torna ai dispositivi",
+    "firmwareHistory": "Cronologia del firmware",
+    "colorMode": "Modalità colore",
+    "colors": "Colori",
+    "backlightSupported": "regolabile",
+    "nextExpected": "Prossimo contatto previsto",
+    "checkInEvery": "Si annuncia ogni",
+    "nvsEncryption": "Crittografia NVS",
+    "colorModes": {
+      "fullcolor": "Colori pieni",
+      "indexed": "indicizzato",
+      "grayscale": "Scala di grigi",
+      "mono": "Bianco e nero"
+    },
+    "version": "Versione",
+    "pinnedTo": "Bloccato su",
+    "channels": {
+      "stable": "stable",
+      "beta": "beta",
+      "dev": "dev"
+    },
+    "renameLabel": "Assegna un nome a questo display"
   },
   "content": {
     "removeProperty": "Rimuovi proprietà",
@@ -311,7 +341,53 @@
     },
     "deleteMsg": "Eliminare questo contenuto? I dispositivi associati non mostreranno più nulla.",
     "emptyTitle": "Nessun contenuto",
-    "emptyDesc": "Crea un contenuto e assegnalo a un dispositivo."
+    "emptyDesc": "Crea un contenuto e assegnalo a un dispositivo.",
+    "namePlate": {
+      "seats": "Postazioni",
+      "addSeat": "Aggiungi postazione",
+      "removeSeat": "Rimuovi",
+      "caption": "Didascalia (opzionale)",
+      "captionPlaceholder": "Scrivania 1",
+      "source": "Origine",
+      "sourceStatic": "Nome fisso",
+      "sourceCalendar": "Dal calendario",
+      "staticName": "Nome",
+      "staticNamePlaceholder": "Rossi",
+      "role": "Posizione (opzionale)",
+      "rolePlaceholder": "Vicepresidente",
+      "unit": "Unità organizzativa (opzionale)",
+      "unitPlaceholder": "Rettorato",
+      "affiliationHint": "Entrambi appaiono su una sola riga sotto il nome. Se lasciati vuoti, nessuna riga viene disegnata e il nome occupa lo spazio.",
+      "showStatus": "Mostra stato della prenotazione",
+      "showStatusHint": "Solo per le postazioni da calendario. Un nome fisso non ha stato, quindi la sua riga viene omessa invece di restare vuota.",
+      "maxSeatsHint": "Al massimo quattro postazioni, così i nomi restano leggibili da lontano.",
+      "noEditorHint": "La disposizione è calcolata dal numero di postazioni e dal display. Non c'è nulla da posizionare.",
+      "resource": "Risorsa (sala / scrivania)",
+      "roomName": "Sala (intestazione)",
+      "roomNamePlaceholder": "1J.2.27",
+      "roomNameHint": "Mostrata in alto, come nel display di prenotazione sala. Se lasciata vuota si usa la sala da cui provengono le postazioni.",
+      "accentColor": "Colore dell'intestazione",
+      "accentColorHint": "Indica il tipo di stanza, sui pannelli con colori reali. Altrove senza effetto.",
+      "accent": {
+        "none": "Nero (predefinito)",
+        "red": "Rosso",
+        "blue": "Blu",
+        "green": "Verde",
+        "yellow": "Giallo"
+      },
+      "bookingQr": "Codice di prenotazione",
+      "bookingQrHint": "Solo con una postazione e solo con un link di prenotazione. Un codice non può dire quale di quattro postazioni prenota.",
+      "qr": {
+        "never": "Mai",
+        "free": "Solo se libera",
+        "always": "Sempre"
+      },
+      "reach": "Leggibile da circa {metres} m su un pannello da 7,5 pollici.",
+      "reachDense": "Da tre postazioni ciascuna occupa una riga, quindi titoli, posizione e unità non vengono mostrati."
+    },
+    "fieldCalendarId": "ID calendario",
+    "fieldRoomEmail": "Indirizzo della casella sala",
+    "fieldResource": "Risorsa"
   },
   "providers": {
     "clearSearch": "Cancella ricerca",
@@ -351,7 +427,14 @@
     },
     "deleteMsg": "Eliminare questo provider? I contenuti associati smetteranno di funzionare.",
     "emptyTitle": "Nessun provider",
-    "emptyDesc": "Aggiungi un provider per collegare fonti dati."
+    "emptyDesc": "Aggiungi un provider per collegare fonti dati.",
+    "fieldTenantId": "ID tenant",
+    "fieldClientId": "ID client",
+    "fieldClientSecret": "Client secret",
+    "fieldServiceAccountEmail": "E-mail dell'account di servizio",
+    "fieldPrivateKey": "Chiave privata (PEM)",
+    "fieldApiToken": "Token API",
+    "fieldIcalUrl": "URL del feed iCal"
   },
   "themes": {
     "created": "Tema creato",
@@ -612,7 +695,19 @@
     "retryOta": "Riprova il firmware {version} sul dispositivo {mac}",
     "retryOtaShort": "Riprova",
     "retryOtaSuccess": "Il firmware {version} verrà proposto di nuovo",
-    "retryOtaFailed": "Impossibile abilitare il nuovo tentativo del firmware"
+    "retryOtaFailed": "Impossibile abilitare il nuovo tentativo del firmware",
+    "pollHourly": "1 ora",
+    "rolloutOn": "{count} su questa",
+    "otaPhase": {
+      "applied": "applicato",
+      "verify_fail": "verifica non riuscita",
+      "rolled_back": "ripristinato",
+      "deferred": "rinviato",
+      "started": "avviato",
+      "downloaded": "scaricato",
+      "confirmed": "confermato",
+      "failed": "non riuscito"
+    }
   },
   "flash": {
     "title": "Flash firmware",
@@ -692,12 +787,16 @@
     "updateCompleteBody": "La nuova versione è pronta. La console riprenderà tra un momento.",
     "updateFailedTitle": "Aggiornamento non completato",
     "updateFailedBody": "Vellum sta ancora eseguendo la versione precedente oppure l’ha ripristinata automaticamente.",
-    "databaseReconnecting": "Tentativo di riconnessione…"
+    "databaseReconnecting": "Tentativo di riconnessione…",
+    "serviceUnavailable": "Servizio non disponibile",
+    "appDescription": "Sistema di display E-Ink per sale riunioni",
+    "select": "— seleziona —"
   },
   "contentTypes": {
     "room-booking": "Prenotazione sala",
-    "door-sign": "Targhetta",
-    "door-sign-multi": "Targhetta (Multi)"
+    "door-sign": "Targa (editor, ritirata)",
+    "door-sign-multi": "Targa (multipla, ritirata)",
+    "name-plate": "Targhetta"
   },
   "error": {
     "dbUnavailable": "Database non disponibile",
@@ -741,14 +840,21 @@
     "upToDate": "aggiornato",
     "behind": "indietro",
     "unknown": "sconosciuto",
-    "byVersion": "Per versione"
+    "byVersion": "Per versione",
+    "totalDevices": "Dispositivi totali",
+    "onlineNow": "Online adesso",
+    "pendingApprovals": "Approvazioni in sospeso",
+    "contentInstances": "Contenuti",
+    "refreshProfiles": "Profili di aggiornamento"
   },
   "resourcePicker": {
     "change": "Modifica",
     "search": "Cerca sale…",
     "loading": "Caricamento…",
     "noResults": "Nessuna sala trovata",
-    "noResources": "Nessuna risorsa"
+    "noResources": "Nessuna risorsa",
+    "identifier": "Identificativo risorsa",
+    "notListable": "Questo fornitore non può elencare le risorse; in un feed iCal l'URL è essa stessa la risorsa. Inserisci l'identificativo usato dal fornitore."
   },
   "provision": {
     "title": "Provisiona via USB",

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 import { useTranslations } from "next-intl";
+import { fmtInterval } from "@/lib/duration";
 
 interface ScheduleRule {
   name: string;
@@ -21,12 +22,6 @@ const COLORS = [
   "#6366f1",
   "#14b8a6",
 ];
-
-function fmtInterval(s: number): string {
-  if (s >= 3600) return `${(s / 3600).toFixed(s % 3600 ? 1 : 0)}h`;
-  if (s >= 60) return `${Math.round(s / 60)}m`;
-  return `${s}s`;
-}
 
 function isOvernight(r: ScheduleRule): boolean {
   return r.startHour > r.endHour;
@@ -85,7 +80,7 @@ export function ScheduleTimeline({
     <div className="mt-4 mb-2">
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-medium">{t("timelineToday")}</span>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-label-secondary">
           {t("timelineDefault", { interval: fmtInterval(defaultIntervalS) })}
         </span>
       </div>
@@ -99,11 +94,11 @@ export function ScheduleTimeline({
         {[0, 6, 12, 18].map((h) => (
           <div
             key={h}
-            className="absolute top-0 bottom-0 border-l border-gray-700"
+            className="absolute top-0 bottom-0 border-l border-white/15"
             style={{ left: `${(h / 24) * 100}%` }}
           >
             <span
-              className="absolute -top-4 text-[9px] text-gray-500"
+              className="absolute -top-4 text-[9px] text-label-secondary"
               style={{ transform: "translateX(-50%)" }}
             >
               {h}:00
@@ -151,7 +146,7 @@ export function ScheduleTimeline({
 
         {/* Now indicator */}
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-orange-400 z-10"
+          className="absolute top-0 bottom-0 z-10 w-0.5 bg-orange"
           style={{ left: `${(nowHour / 24) * 100}%` }}
         />
       </div>
@@ -167,13 +162,15 @@ export function ScheduleTimeline({
                 className="w-2.5 h-2.5 rounded-sm"
                 style={{ background: COLORS[i % COLORS.length] }}
               />
-              <span className={`text-[10px] ${active ? "font-bold text-white" : "text-gray-500"}`}>
+              <span
+                className={`text-[10px] ${active ? "font-bold text-label" : "text-label-secondary"}`}
+              >
                 {rule.name || t("ruleFallback", { number: i + 1 })} ({fmtInterval(rule.intervalS)})
-                {active && <span className="ml-1 text-orange-400">● {t("active")}</span>}
+                {active && <span className="ml-1 text-orange">● {t("active")}</span>}
                 {isOvernight(rule) && <span className="ml-1">🌙</span>}
               </span>
               {hasOverlap && (
-                <span className="text-[10px] text-yellow-500" title={t("overlapHint")}>
+                <span className="text-[10px] text-orange" title={t("overlapHint")}>
                   ⚠
                 </span>
               )}
@@ -184,7 +181,7 @@ export function ScheduleTimeline({
 
       {/* Overlap warnings */}
       {overlaps.length > 0 && (
-        <div className="mt-2 text-[10px] text-yellow-500">
+        <div className="mt-2 text-[10px] text-orange">
           ⚠{" "}
           {t("overlapSummary", {
             pairs: overlaps.map(([a, b]) => `#${a + 1}↔#${b + 1}`).join(", "),

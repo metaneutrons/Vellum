@@ -9,10 +9,7 @@ import { useToast } from "@/components/toast";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
-import { DoorSignEditor } from "@/components/door-sign-editor";
-import { AnnyResourcePicker } from "@/components/anny-resource-picker";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
-import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
 
 interface ContentInstance {
   id: string;
@@ -30,24 +27,17 @@ interface Props {
   instanceId: string;
   contentInstances: ContentInstance[];
   providers: Provider[];
-  knownDisplays: DisplaySize[];
   onClose: () => void;
 }
 
 const selectCls =
   "w-full min-h-11 px-3.5 rounded-md bg-surface-secondary border border-separator text-[15px] text-label focus-ring focus:border-accent transition";
 
-export function ContentEditModal({
-  instanceId,
-  contentInstances,
-  providers,
-  knownDisplays,
-  onClose,
-}: Props) {
+export function ContentEditModal({ instanceId, contentInstances, providers, onClose }: Props) {
   const instance = contentInstances.find((i) => i.id === instanceId);
   const { toast } = useToast();
   const t = useTranslations("content");
-  const td = useTranslations("content.doorSign");
+  const tCommon = useTranslations("common");
   const tc = useTranslations("contentTypes");
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(instance?.name ?? "");
@@ -64,7 +54,7 @@ export function ContentEditModal({
         toast("success", t("save"));
         onClose();
       } catch {
-        toast("error", "Failed");
+        toast("error", tCommon("failed"));
       }
     });
   }
@@ -72,9 +62,8 @@ export function ContentEditModal({
   return (
     <Modal
       open
-      wide={instance.typeSlug === "door-sign"}
       onClose={onClose}
-      title={`${tc(instance.typeSlug as "room-booking" | "door-sign")}: ${name}`}
+      title={`${tc(instance.typeSlug as "room-booking" | "name-plate")}: ${name}`}
       footer={
         <>
           <Button variant="gray" onClick={onClose}>
@@ -89,65 +78,9 @@ export function ContentEditModal({
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("name")}</label>
       <Input className="mb-3" value={name} onChange={(e) => setName(e.target.value)} />
 
-      {instance.typeSlug === "door-sign" && (
-        <>
-          <label className="block text-sm font-medium text-label-secondary mb-1">
-            {t("provider")}
-          </label>
-          <select
-            className={`${selectCls} mb-3`}
-            value={(config.providerId as string) ?? ""}
-            onChange={(e) => setConfig({ ...config, providerId: e.target.value })}
-          >
-            <option value="">{t("selectProvider")}</option>
-            {providers
-              .filter((p) => p.type === "anny")
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-          </select>
-
-          {config.providerId && (
-            <div className="mb-3">
-              <label className="block text-sm font-medium text-label-secondary mb-1">
-                {td("resource")}
-              </label>
-              <AnnyResourcePicker
-                providerId={config.providerId as string}
-                resourceId={(config.resourceId as string) ?? ""}
-                resourceName={config.resourceName as string | undefined}
-                onChange={(resId, resName) =>
-                  setConfig({ ...config, resourceId: resId, resourceName: resName })
-                }
-              />
-            </div>
-          )}
-
-          <div className="border-t border-separator pt-3 mt-3">
-            <label className="block text-sm font-semibold text-label mb-2">
-              {td("visualLayout")}
-            </label>
-            <DoorSignEditor
-              design={
-                (config.design ?? {
-                  backgroundAssetId: null,
-                  textBoxes: [],
-                  freeTextBoxes: [],
-                  backgroundColor: "#FFFFFF",
-                }) as Design
-              }
-              designOverrides={(config.designOverrides ?? {}) as Record<string, Design>}
-              onChange={(d, o) => setConfig({ ...config, design: d, designOverrides: o })}
-              knownDisplays={knownDisplays}
-              providerId={config.providerId as string}
-              resourceId={config.resourceId as string}
-              onPropertiesResolved={(props) => setConfig({ ...config, cachedProperties: props })}
-            />
-          </div>
-        </>
-      )}
+      {/* The `door-sign` branch stood here until 2026-08-25. The type is
+          unregistered and its editor is parked under `components/retired/`, so no
+          instance of it can exist to be edited. */}
 
       {instance.typeSlug === "room-booking" && (
         <>

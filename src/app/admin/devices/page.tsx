@@ -7,20 +7,17 @@ import {
   getAllRefreshProfiles,
   getAvailableVersions,
   getAllProviders,
-  getKnownDisplaySizes,
 } from "../actions";
 import { DeviceTable } from "./device-table";
 
 export default async function DevicesPage() {
-  const [themeList, contentList, profileList, versions, providers, knownDisplays] =
-    await Promise.all([
-      getAllThemes(),
-      getAllContentInstances(),
-      getAllRefreshProfiles(),
-      getAvailableVersions(),
-      getAllProviders(),
-      getKnownDisplaySizes(),
-    ]);
+  const [themeList, contentList, profileList, versions, providers] = await Promise.all([
+    getAllThemes(),
+    getAllContentInstances(),
+    getAllRefreshProfiles(),
+    getAvailableVersions(),
+    getAllProviders(),
+  ]);
 
   // The container completes schema migrations before serving requests, so a
   // schema error must remain visible instead of being mistaken for an older DB.
@@ -34,7 +31,6 @@ export default async function DevicesPage() {
       refreshProfiles={profileList}
       firmwareVersions={versions}
       providers={providers}
-      knownDisplays={knownDisplays}
     />
   );
 }

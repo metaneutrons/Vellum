@@ -25,28 +25,28 @@ const PROVIDER_TYPES = {
     label: "Microsoft 365 — Calendar",
     category: "calendar",
     fields: [
-      { key: "tenantId", label: "Tenant ID", secret: false },
-      { key: "clientId", label: "Client ID", secret: false },
-      { key: "clientSecret", label: "Client Secret", secret: true },
+      { key: "tenantId", labelKey: "fieldTenantId", secret: false },
+      { key: "clientId", labelKey: "fieldClientId", secret: false },
+      { key: "clientSecret", labelKey: "fieldClientSecret", secret: true },
     ],
   },
   google: {
     label: "Google — Calendar",
     category: "calendar",
     fields: [
-      { key: "clientEmail", label: "Service Account Email", secret: false },
-      { key: "privateKey", label: "Private Key (PEM)", secret: true },
+      { key: "clientEmail", labelKey: "fieldServiceAccountEmail", secret: false },
+      { key: "privateKey", labelKey: "fieldPrivateKey", secret: true },
     ],
   },
   ical: {
     label: "iCal Feed — Calendar",
     category: "calendar",
-    fields: [{ key: "url", label: "iCal Feed URL", secret: false }],
+    fields: [{ key: "url", labelKey: "fieldIcalUrl", secret: false }],
   },
   anny: {
     label: "anny.co — Room & Workspace Booking",
     category: "calendar",
-    fields: [{ key: "apiToken", label: "API Token", secret: true }],
+    fields: [{ key: "apiToken", labelKey: "fieldApiToken", secret: true }],
   },
 } as const;
 
@@ -197,7 +197,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
                         className="animate-spin motion-reduce:animate-none"
                         aria-hidden="true"
                       />
-                      Testing…
+                      {t("testing")}
                     </span>
                   );
                 if (r && r.ok)
@@ -305,12 +305,9 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
         {PROVIDER_TYPES[type].fields.map((f) => (
           <div key={f.key} className="mb-3">
             <label className="block text-sm font-medium text-label-secondary mb-1">
-              {f.label}
+              {t(f.labelKey)}
               {editing !== "new" && (
-                <span className="text-label-tertiary font-normal">
-                  {" "}
-                  (leave blank to keep current)
-                </span>
+                <span className="text-label-tertiary font-normal"> {t("keepCurrent")}</span>
               )}
             </label>
             <div className="relative">
@@ -359,7 +356,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
         onConfirm={handleDelete}
         title={t("deleteTitle")}
         message={t("deleteMsg")}
-        confirmLabel="Delete"
+        confirmLabel={t("delete")}
         destructive
       />
     </div>
