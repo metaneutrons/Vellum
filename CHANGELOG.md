@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.19.0](https://github.com/metaneutrons/Vellum/compare/v1.18.0...v1.19.0) (2026-08-25)
+
+
+### Features
+
+* **content:** a name plate that lays itself out ([b488967](https://github.com/metaneutrons/Vellum/commit/b48896785f3644122fded4aef805e9dd02d498d1))
+* **firmware:** dim the D1001 indicators the way its vendor does ([d2dc067](https://github.com/metaneutrons/Vellum/commit/d2dc0673409ae7db16c42e2e07469fdbf1fa96dd))
+* **firmware:** say something with the indicator LEDs, per board ([e535867](https://github.com/metaneutrons/Vellum/commit/e53586790f98896ba54fb68a0bfe859627676941))
+
+
+### Bug Fixes
+
+* **firmware:** initialise the indicators on every board, and drop a broken profile ([c71d3bb](https://github.com/metaneutrons/Vellum/commit/c71d3bb631b3be9a204aced6e065bc5fe5a44840))
+
 ## [1.18.0](https://github.com/metaneutrons/Vellum/compare/v1.17.0...v1.18.0) (2026-08-19)
 
 
