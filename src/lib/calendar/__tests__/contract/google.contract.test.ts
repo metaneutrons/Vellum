@@ -40,7 +40,11 @@ function serve(events: WireEvent[]): void {
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("oauth2.googleapis.com")) {
-      return new Response(JSON.stringify({ access_token: "ya29.test" }), {
+      /* Deliberately NOT of the form `ya29.…`. Real Google access tokens carry
+       * that prefix, so a stub wearing it trips every secret scanner and each
+       * hit then has to be triangulated by hand to establish it was fake. The
+       * provider only passes this string through; nothing checks its shape. */
+      return new Response(JSON.stringify({ access_token: "stub-access-token" }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
