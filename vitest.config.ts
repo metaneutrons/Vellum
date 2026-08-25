@@ -30,12 +30,7 @@ export default defineConfig({
        * Reviving this code as a free-form sign means deleting these three lines
        * first. That is deliberate: it is the moment the coverage debt becomes real.
        */
-      exclude: [
-        ...coverageConfigDefaults.exclude,
-        "src/lib/content/renderers/door-sign.ts",
-        "src/lib/content/renderers/door-sign-multi.ts",
-        "src/lib/content/renderers/shared.ts",
-      ],
+      exclude: [...coverageConfigDefaults.exclude, "src/lib/content/retired/**"],
       // Ratchet gate: thresholds sit just below current coverage of the code
       // the suite exercises, so it can only hold or improve — never silently
       // regress. Raise these as coverage grows. Default v8 include/exclude

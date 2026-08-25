@@ -12,7 +12,7 @@ import {
   type TextBox,
   type Design,
   type DisplaySize,
-} from "@/lib/content/renderers/door-sign-types";
+} from "@/lib/content/retired/door-sign-types";
 
 export type { TextBox, Design, DisplaySize };
 

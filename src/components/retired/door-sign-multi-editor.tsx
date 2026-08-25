@@ -8,17 +8,17 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { TextBoxCanvas } from "@/components/text-box-canvas";
+import { TextBoxCanvas } from "@/components/retired/text-box-canvas";
 import {
   KNOWN_DISPLAYS,
   type DisplaySize,
   type Design,
-} from "@/lib/content/renderers/door-sign-types";
+} from "@/lib/content/retired/door-sign-types";
 import {
   MULTI_TEMPLATE_VARS,
   type DoorSignMultiConfig,
   type RowTemplate,
-} from "@/lib/content/renderers/door-sign-multi-types";
+} from "@/lib/content/retired/door-sign-multi-types";
 
 interface Provider {
   id: string;

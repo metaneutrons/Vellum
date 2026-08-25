@@ -303,6 +303,17 @@ design calls:
     one remaining hand-rolled provider read, in `resolveBookingUrl`, went to the same
     loader the source uses.
 
+- [x] **Production was finally read, and it holds no door sign at all.** The count the
+      retirement note waited on: `room-booking` 1, everything else 0. So there is
+      nothing to migrate and the two retired types can be unregistered outright.
+  - The wrong answer came first and is worth writing down. `vellum-postgres` publishes
+    5432 only inside the compose network, so a query against `192.168.2.20:5432`
+    reaches the DEVELOPMENT container, and both databases are named `vellum`. Reach
+    production with `ssh spock "docker exec vellum-postgres psql -U vellum -d vellum"`.
+  - All three production displays sit on that one instance with three DIFFERENT
+    panels: e1002, e1003 and d1001. Which is precisely the estate the preview used to
+    choose among by `.limit(1)`.
+
 - [x] **All four calendar providers now pass one shared contract.** Stage 4b. The two
       that talk to the outside world were the two with no tests at all, which is the
       wrong way round: `microsoft365` sat at 11.1 % of statements and **0 %** of

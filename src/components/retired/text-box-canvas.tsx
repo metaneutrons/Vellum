@@ -11,7 +11,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Rnd } from "react-rnd";
 import { useTranslations } from "next-intl";
 import { Plus, Trash2, X } from "lucide-react";
-import type { TextBox } from "@/lib/content/renderers/door-sign-types";
+import type { TextBox } from "@/lib/content/retired/door-sign-types";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";

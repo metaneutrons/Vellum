@@ -41,16 +41,11 @@ interface Props {
   instances: ContentInstance[];
   types: ContentType[];
   providers: Provider[];
-  knownDisplays: DisplaySize[];
   initialEditId?: string | null;
 }
 
 import { ResourcePicker } from "@/components/resource-picker";
-import { DoorSignEditor } from "@/components/door-sign-editor";
-import { DoorSignMultiEditor } from "@/components/door-sign-multi-editor";
 import { NamePlateEditor } from "@/components/name-plate-editor";
-import type { Design, DisplaySize } from "@/lib/content/renderers/door-sign-types";
-import { doorSignMultiConfigSchema } from "@/lib/content/renderers/door-sign-multi-types";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
 
 /**
@@ -76,206 +71,11 @@ const DATE_FORMAT_SAMPLES: Array<[string, "full" | "long" | "medium" | "short"]>
 const selectCls =
   "w-full min-h-9 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
 
-function DoorSignMultiConfigEditor({
-  config,
-  onChange,
-  providers,
-  knownDisplays,
-}: {
-  config: Record<string, unknown>;
-  onChange: (c: Record<string, unknown>) => void;
-  providers: Provider[];
-  knownDisplays: DisplaySize[];
-}) {
-  const parsed = doorSignMultiConfigSchema.safeParse(config);
-  const multiConfig = parsed.success
-    ? parsed.data
-    : {
-        resources: [],
-        locale: "de",
-        timezone: "Europe/Berlin",
-        cachedProperties: {},
-        design: {
-          backgroundAssetId: null,
-          textBoxes: [],
-          freeTextBoxes: [],
-          backgroundColor: "#FFFFFF",
-        },
-        designOverrides: {},
-        headerHeight: 0.25,
-        rowTemplate: { height: 0.12, textBoxes: [], freeTextBoxes: [] },
-      };
-  return (
-    <DoorSignMultiEditor
-      config={multiConfig}
-      onChange={(c) => onChange(c as unknown as Record<string, unknown>)}
-      providers={providers}
-      knownDisplays={knownDisplays}
-    />
-  );
-}
-
-function DoorSignConfigEditor({
-  config,
-  onChange,
-  providers,
-  knownDisplays,
-}: {
-  config: Record<string, unknown>;
-  onChange: (c: Record<string, unknown>) => void;
-  providers: Provider[];
-  knownDisplays: DisplaySize[];
-}) {
-  const t = useTranslations("content");
-  const tCommon = useTranslations("common");
-  const td = useTranslations("content.doorSign");
-  const design = (config.design ?? {
-    backgroundAssetId: null,
-    textBoxes: [],
-    freeTextBoxes: [],
-    backgroundColor: "#FFFFFF",
-  }) as Design;
-  const designOverrides = (config.designOverrides ?? {}) as Record<string, Design>;
-
-  return (
-    <>
-      <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
-      <select
-        className={`${selectCls} mb-3`}
-        value={(config.providerId as string) ?? ""}
-        onChange={(e) => onChange({ ...config, providerId: e.target.value })}
-      >
-        <option value="">{tCommon("select")}</option>
-        {providers
-          .filter((p) => p.type === "anny")
-          .map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-      </select>
-
-      {config.providerId && (
-        <>
-          <label className="block text-sm font-medium text-label-secondary mb-1">
-            {td("resource")}
-          </label>
-          <div className="mb-3">
-            <ResourcePicker
-              providerId={config.providerId as string}
-              resourceId={(config.resourceId as string) ?? ""}
-              resourceName={config.resourceName as string | undefined}
-              onChange={(resId, resName) =>
-                onChange({ ...config, resourceId: resId, resourceName: resName })
-              }
-            />
-          </div>
-        </>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div>
-          <TimezonePicker
-            label={t("timezone")}
-            value={(config.timezone as string) ?? "Europe/Berlin"}
-            onChange={(v) => onChange({ ...config, timezone: v })}
-          />
-        </div>
-        <div>
-          <LocalePicker
-            label={t("locale")}
-            value={(config.locale as string) ?? "de"}
-            onChange={(v) => onChange({ ...config, locale: v })}
-          />
-        </div>
-      </div>
-
-      {/* Custom Properties — manual key-value pairs for template variables */}
-      <div className="border-t border-separator pt-3 mt-3">
-        <label className="block text-sm font-semibold text-label mb-1">
-          {td("customProperties")}
-        </label>
-        <p className="text-xs text-label-tertiary mb-2">{td("customPropertiesHint")}</p>
-        {Object.entries((config.cachedProperties as Record<string, string>) ?? {}).map(
-          ([key, val]) => (
-            <div key={key} className="flex gap-2 mb-1">
-              <Input className="flex-1 min-h-9 text-[13px]" value={key} readOnly />
-              <Input
-                className="flex-1 min-h-9 text-[13px]"
-                value={val}
-                onChange={(e) =>
-                  onChange({
-                    ...config,
-                    cachedProperties: {
-                      ...(config.cachedProperties as Record<string, string>),
-                      [key]: e.target.value,
-                    },
-                  })
-                }
-              />
-              <Button
-                size="sm"
-                variant="plain"
-                className="text-red px-2"
-                aria-label={t("removeProperty")}
-                onClick={() => {
-                  const { [key]: _, ...rest } =
-                    (config.cachedProperties as Record<string, string>) ?? {};
-                  onChange({ ...config, cachedProperties: rest });
-                }}
-              >
-                <X size={16} aria-hidden="true" />
-              </Button>
-            </div>
-          )
-        )}
-        <div className="flex gap-2 mt-1">
-          <Input
-            id="newPropKey"
-            className="flex-1 min-h-9 text-[13px]"
-            placeholder="prop.Raumnummer"
-          />
-          <Input id="newPropVal" className="flex-1 min-h-9 text-[13px]" placeholder="1J.2.02" />
-          <Button
-            size="sm"
-            variant="plain"
-            leading={<Plus size={16} aria-hidden="true" />}
-            onClick={() => {
-              const keyEl = document.getElementById("newPropKey") as HTMLInputElement;
-              const valEl = document.getElementById("newPropVal") as HTMLInputElement;
-              if (keyEl.value && valEl.value) {
-                onChange({
-                  ...config,
-                  cachedProperties: {
-                    ...(config.cachedProperties as Record<string, string>),
-                    [keyEl.value]: valEl.value,
-                  },
-                });
-                keyEl.value = "";
-                valEl.value = "";
-              }
-            }}
-          >
-            {t("add")}
-          </Button>
-        </div>
-      </div>
-
-      <div className="border-t border-separator pt-3 mt-3">
-        <label className="block text-sm font-semibold text-label mb-2">{td("visualLayout")}</label>
-        <DoorSignEditor
-          design={design}
-          designOverrides={designOverrides}
-          onChange={(d, o) => onChange({ ...config, design: d, designOverrides: o })}
-          knownDisplays={knownDisplays}
-          providerId={config.providerId as string}
-          resourceId={config.resourceId as string}
-          onPropertiesResolved={(props) => onChange({ ...config, cachedProperties: props })}
-        />
-      </div>
-    </>
-  );
-}
+/* The `door-sign` and `door-sign-multi` editors lived here until 2026-08-25.
+ * Both types are unregistered and their editors are parked under
+ * `components/retired/`; see docs/door-sign-retirement.md for why they are kept
+ * rather than deleted. Nothing can create an instance of either, so nothing can
+ * reach an editor for one. */
 
 function RoomBookingEditor({
   config,
@@ -490,7 +290,7 @@ function RoomBookingEditor({
   );
 }
 
-export function ContentList({ instances, types, providers, knownDisplays, initialEditId }: Props) {
+export function ContentList({ instances, types, providers, initialEditId }: Props) {
   const { toast } = useToast();
   const tc = useTranslations("contentTypes");
   const t = useTranslations("content");
@@ -674,7 +474,6 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         onSubmit={name ? save : undefined}
         onClose={() => setEditing(null)}
         title={editing === "new" ? t("newTitle") : t("editTitle")}
-        wide={typeSlug === "door-sign" || typeSlug === "door-sign-multi"}
         footer={
           <>
             <Button variant="gray" onClick={() => setEditing(null)}>
@@ -716,24 +515,8 @@ export function ContentList({ instances, types, providers, knownDisplays, initia
         {typeSlug === "room-booking" && (
           <RoomBookingEditor config={config} onChange={setConfig} providers={providers} />
         )}
-        {typeSlug === "door-sign" && (
-          <DoorSignConfigEditor
-            config={config}
-            onChange={setConfig}
-            providers={providers}
-            knownDisplays={knownDisplays}
-          />
-        )}
         {typeSlug === "name-plate" && (
           <NamePlateEditor config={config} onChange={setConfig} providers={providers} />
-        )}
-        {typeSlug === "door-sign-multi" && (
-          <DoorSignMultiConfigEditor
-            config={config}
-            onChange={setConfig}
-            providers={providers}
-            knownDisplays={knownDisplays}
-          />
         )}
       </Modal>
 

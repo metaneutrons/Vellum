@@ -976,28 +976,9 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
       return { ok: true, message: `OK — ${events.length} events today` };
     }
 
-    if (instance.typeSlug === "door-sign") {
-      const { getProviderWithCredentials } = await import("@/lib/providers");
-      const { getCalendarProvider } = await import("@/lib/calendar/registry");
-      const provider = await getProviderWithCredentials(config.providerId);
-      const impl = getCalendarProvider(provider.type);
-      if (!impl) return { ok: false, message: `No provider implementation: ${provider.type}` };
-      const now = new Date();
-      const events = await impl.fetchEvents({
-        credentials: provider.credentials,
-        roomConfig: { resourceId: config.resourceId, resourceName: config.resourceName },
-        windowStart: new Date(now.getTime() - 3600_000),
-        windowEnd: new Date(now.getTime() + 3600_000),
-      });
-      const current = events.find((e) => now >= e.startTime && now < e.endTime);
-      return {
-        ok: true,
-        message: current
-          ? `Occupied: ${current.organizer}`
-          : `Free — ${events.length} bookings today`,
-      };
-    }
-
+    /* A `door-sign` branch stood here until 2026-08-25. It was not merely unused,
+     * it was unreachable: `getContentRenderer` above no longer answers for that
+     * slug, so the function returns "Unknown renderer" before reaching this point. */
     return { ok: true, message: "Config valid" };
   } catch (err) {
     return { ok: false, message: String(err instanceof Error ? err.message : err) };
@@ -1331,48 +1312,6 @@ export async function updateSetting(key: string, value: unknown) {
   else cacheCommittedSetting(key, value as number);
   await syncAutoPoll();
   revalidatePath("/admin/firmware");
-}
-
-export async function getKnownDisplaySizes(): Promise<
-  { label: string; width: number; height: number }[]
-> {
-  await requireAdmin("content.read");
-  const { KNOWN_DISPLAYS } = await import("@/lib/content/renderers/door-sign-types");
-  const rows = await withDbRead(
-    () =>
-      db
-        .selectDistinct({ displayCaps: devices.displayCaps })
-        .from(devices)
-        .where(sql`${devices.displayCaps} IS NOT NULL`),
-    "get-known-display-sizes"
-  );
-  const seen = new Set<string>();
-  const sizes: { label: string; width: number; height: number }[] = [];
-
-  // Start with all registry displays
-  for (const d of KNOWN_DISPLAYS) {
-    const key = `${d.width}x${d.height}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    sizes.push(d);
-  }
-
-  // Add any DB-known sizes not in the registry
-  for (const row of rows) {
-    if (!row.displayCaps || typeof row.displayCaps !== "object") continue;
-    const caps = row.displayCaps as { model?: string; width?: number; height?: number };
-    if (!caps.width || !caps.height) continue;
-    const key = `${caps.width}x${caps.height}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    sizes.push({
-      label: `${caps.model ?? "Unknown"} (${key})`,
-      width: caps.width,
-      height: caps.height,
-    });
-  }
-
-  return sizes;
 }
 
 /* ── Firmware rollouts ────────────────────────────────────────── */

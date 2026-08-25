@@ -1,9 +1,9 @@
 # Retiring `door-sign` and `door-sign-multi`
 
-Both types are retired in favour of `name-plate`. They still render, they can no
-longer be created, and their code stays in the tree because the free-positioning
-editor is the obvious starting point for a free-form sign later. This file is the
-record of why, and of what is still outstanding.
+Both types are retired in favour of `name-plate`. As of 2026-08-25 the retirement is
+complete: they are unregistered, they no longer render, and their code is parked
+under `retired/` because the free-positioning editor is the obvious starting point
+for a free-form sign later. This file is the record of why, and of what was done.
 
 ## Why
 
@@ -32,45 +32,76 @@ it is in use: a background image, freely positioned template text, and
 
 ## What is done
 
-- `ContentRenderer.deprecated` marks a type as retired. `getAllContentTypes` filters
-  those out, which removes them from the "new content" menu; `createContentInstance`
-  refuses them outright, because a hidden option is a suggestion and this is a rule.
-- The two labels say "stillgelegt" / "retired" in all five locales, so the pill on
-  the existing instance is honest about what it is.
-- `src/lib/content/__tests__/retirement.test.ts` asserts both halves: still
-  registered and still renderable, and no live type carries the flag by accident.
+Staged, because the order was the safety property rather than a preference. Removing
+a slug while an instance still names it makes `getContentRenderer` return undefined
+and the render route answer 500, which on a wall is a display that quietly stops
+updating.
 
-Nothing about rendering changed. The two devices on that instance are unaffected.
+1. **Held them registered but deprecated.** `ContentRenderer.deprecated` kept the two
+   types renderable while removing them from the "new content" menu, and
+   `createContentInstance` refused them outright, because a hidden option is a
+   suggestion and this needed to be a rule. The labels read "stillgelegt" / "retired"
+   in all five locales so the pill on the surviving instance was honest.
+2. **Counted the estate.** Production held no door sign at all; see below.
+3. **Migrated the one surviving instance.** Development's `door-sign` "2C.3.03"
+   became a `name-plate` with two seats on 2026-08-25, applied against the
+   development database directly. It gained a correct free state and lost its
+   800×480 geometry override.
+4. **Unregistered both slugs and parked the code.** `src/lib/content/retired/` and
+   `src/components/retired/`. Two things came out of the attic on the way, because
+   they were never door-sign concerns: `KNOWN_DISPLAYS`, `DisplaySize` and
+   `DEFAULT_DISPLAY` now live in `src/lib/display.ts`, and the calendar fetch is
+   shared through `src/lib/calendar/source.ts`.
+5. **Removed what only the retired code fed.** `getKnownDisplaySizes` in
+   `admin/actions.ts` existed for the two parked editors alone. An exported server
+   action is a reachable RPC endpoint, so it went rather than idling behind a
+   permission check; the parked editors still take `knownDisplays` as a prop, and
+   whoever revives them supplies it. The `door-sign` branch of `testContentInstance`
+   went too, as it had become unreachable rather than merely unused.
+
+`src/lib/content/__tests__/retirement.test.ts` now asserts the end state: neither
+slug resolves, nothing carries the `deprecated` flag any more, exactly
+`name-plate` and `room-booking` are creatable, and every live type has both a `load`
+and a `draw`.
 
 ## What is outstanding
 
-1. ~~**Check production.**~~ Done on 2026-08-25. There is one database, `vellum` on
-   192.168.2.20, and it is the one `.env` names; there is no separate development
-   instance, so the counts below are the counts that matter.
+1. ~~**Check production.**~~ Done on 2026-08-25, and the answer changes the rest of
+   this list. **Production holds no door sign at all.**
 
    ```
-   room-booking     3
-   door-sign        1
-   name-plate       1
+   room-booking     1     ← "lexICT Besprechungsraum"
+   door-sign        0
    door-sign-multi  0
+   name-plate       0
    ```
 
-   So `door-sign-multi` can be unregistered without any migration at all, and the
-   migration below is one instance, "2C.3.03", carrying two devices: the wall-mounted
-   `58E6C50F4054` (d1001) and `DEADBEEFCAFE`, which is the development SIMULATOR
-   rather than a stale test device. The simulator must NOT be deleted to tidy up: it
-   re-enrols the next time the page is opened.
+   Read from the production database itself, which is the container
+   `vellum-postgres` on spock. Note the trap that cost a wrong answer first: its 5432
+   is published only INSIDE the compose network, so a host-port query on
+   `192.168.2.20:5432` reaches the DEVELOPMENT container instead and both databases
+   are called `vellum`. Reach production through the container:
 
-2. **Migrate the surviving instances.** `door-sign` → `name-plate` is mechanical:
-   `providerId` and `resourceId` become one calendar seat, the `Raum {…}` box becomes
-   `roomName`. The devices gain a correct free state and lose the geometry override.
-3. **Then, and only then, unregister and park the code.** Removing a slug while an
-   instance still names it makes `getContentRenderer` return undefined and the render
-   route answer 500, which on a wall is a display that stops updating. Migration
-   first, verification second, code move third.
+   ```
+   ssh spock "docker exec vellum-postgres psql -U vellum -d vellum -tAc '…'"
+   ```
 
-Step 3 is where the physical mothballing belongs, because until the slugs are
-unregistered the files have to stay where the registry can reach them.
+   All three production devices are on that one room-booking instance, and each has a
+   different panel: `10B41DE59E7C` (e1002), `E072A1D85BD0` (e1003), `58E6C50F4054`
+   (d1001). Worth knowing for the preview, which until 2026-08-25 chose among them
+   arbitrarily.
+
+   The single `door-sign` instance, "2C.3.03", exists only in the development
+   database. One of its two devices is `DEADBEEFCAFE`, which is the development
+   SIMULATOR rather than a stale test device: it re-enrols the next time the page is
+   opened, so it must not be deleted to tidy up.
+
+2. ~~**Migrate the surviving instances.**~~ Done; see step 3 above.
+3. ~~**Unregister and park the code.**~~ Done; see step 4 above.
+4. **Confirm the migrated sign on the panel.** The one thing still genuinely open.
+   The content and the code are right and the tests cover the layout, but nobody has
+   yet looked at `58E6C50F4054` showing a two-seat name plate. That verification is
+   blocked on the path-MTU black hole to 192.168.2.20 rather than on any code.
 
 ## What is worth keeping, and why
 
@@ -83,9 +114,13 @@ want and a poor thing to write twice.
 
 Two notes for whoever revives it:
 
-- `door-sign-types.ts` is imported by four places in the admin UI, largely for
-  `KNOWN_DISPLAYS`. That belongs in `src/lib/display.ts` and should move there when
-  the rest is parked, rather than travelling into the attic with it.
+- The parked files import `@/lib/display` for `KNOWN_DISPLAYS` and `DisplaySize`,
+  which stayed behind deliberately: they were never door-sign concerns and four
+  places in the live admin UI need them.
+- `DoorSignEditor` and `DoorSignMultiEditor` still take a `knownDisplays` prop, but
+  nothing supplies it any more. Reviving them means writing that source again;
+  `getKnownDisplaySizes` in `admin/actions.ts` is what it used to be, recoverable
+  from git history at the commit that parked this.
 - Keeping the parked code under `src/` means `tsc` keeps checking it, so it will not
   rot into unbuildable archaeology. The cost is that a refactor of the UI kit has to
   fix code nobody uses. If that cost starts being paid regularly, delete it: git has

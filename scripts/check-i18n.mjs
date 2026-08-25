@@ -57,11 +57,11 @@ const NOT_PROSE = [
 const EXEMPT = {
   "src/app/simulator/client.tsx":
     "a development-only tool; its page returns 404 unless NODE_ENV is development, so nobody outside a dev machine ever reads these strings",
-  "src/components/door-sign-multi-editor.tsx":
+  "src/components/retired/door-sign-multi-editor.tsx":
     "editor for a retired content type, kept only as the starting point for a future free-form sign; translating it would spend effort on code on its way out (docs/door-sign-retirement.md)",
-  "src/components/door-sign-editor.tsx":
+  "src/components/retired/door-sign-editor.tsx":
     "editor for a retired content type, see door-sign-multi-editor above",
-  "src/components/text-box-canvas.tsx":
+  "src/components/retired/text-box-canvas.tsx":
     "the retired editors' canvas, see door-sign-multi-editor above",
   "src/app/global-error.tsx":
     "the root error boundary renders its own <html> and therefore REPLACES the layout that provides the messages; a translated string here would throw inside the handler for a crash",

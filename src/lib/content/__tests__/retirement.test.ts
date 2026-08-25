@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 /**
- * A retired content type still RENDERS and can no longer be CREATED.
+ * The two door-sign types are gone from the registry, and the condition that made
+ * that safe is asserted here rather than remembered.
  *
- * Both halves matter and they pull in opposite directions, which is why they are
- * asserted rather than described. Dropping a renderer outright would be a breaking
- * change for any instance still naming it: `getContentRenderer` returns undefined,
- * the render route answers 500, and on a wall that is a display which quietly stops
- * updating. Meanwhile a type that stays creatable is not retired at all.
+ * The order was the whole point. Unregistering a slug while an instance still names
+ * it makes `getContentRenderer` return undefined and the render route answer 500,
+ * which on a wall is a display that quietly stops updating. So the types stayed
+ * registered-but-deprecated until the estate held no instance of either: production
+ * never had one, and development's single door sign became a two-seat name plate on
+ * 2026-08-25.
+ *
+ * What this file now guards is the other direction. An unknown slug must fail in a
+ * way an operator can act on, and the live types must stay creatable.
  */
 
 import { describe, it, expect } from "vitest";
@@ -16,26 +21,34 @@ import { getContentRenderer, getAllContentRenderers } from "../registry";
 const RETIRED = ["door-sign", "door-sign-multi"];
 
 describe("retired content types", () => {
-  it("are still registered, so existing instances keep rendering", () => {
+  it("are no longer registered", () => {
     for (const slug of RETIRED) {
-      const renderer = getContentRenderer(slug);
-      expect(renderer, `${slug} must stay registered`).toBeDefined();
-      expect(typeof renderer?.load, `${slug} must still fetch`).toBe("function");
-      expect(typeof renderer?.draw, `${slug} must still paint`).toBe("function");
+      expect(getContentRenderer(slug), `${slug} must be gone`).toBeUndefined();
     }
   });
 
-  it("are marked, so the create path can refuse them", () => {
-    for (const slug of RETIRED) {
-      expect(getContentRenderer(slug)?.deprecated).toBe(true);
-    }
+  /* The counterpart of removing them: nothing in the registry may claim to be
+   * retired any more, because "deprecated" was the holding state and holding is
+   * over. A type that reappears with the flag would sit in neither state. */
+  it("leave nothing behind wearing the deprecated flag", () => {
+    expect(getAllContentRenderers().filter((r) => r.deprecated)).toEqual([]);
   });
 
-  /* The live types carry no flag. Without this, marking one by accident would take
-   * it out of the menu silently and nobody would notice until someone tried to add
-   * a room-booking display. */
-  it("leaves every live type creatable", () => {
-    const live = getAllContentRenderers().filter((r) => !r.deprecated);
-    expect(live.map((r) => r.slug).sort()).toEqual(["name-plate", "room-booking"]);
+  it("leaves exactly the live types creatable", () => {
+    expect(
+      getAllContentRenderers()
+        .map((r) => r.slug)
+        .sort()
+    ).toEqual(["name-plate", "room-booking"]);
+  });
+
+  /* Every registered type has both halves of the contract. Cheap, and it is the
+   * assertion that would have caught a half-converted renderer during the load/draw
+   * split. */
+  it("gives every live type a load and a draw", () => {
+    for (const renderer of getAllContentRenderers()) {
+      expect(typeof renderer.load, `${renderer.slug}.load`).toBe("function");
+      expect(typeof renderer.draw, `${renderer.slug}.draw`).toBe("function");
+    }
   });
 });

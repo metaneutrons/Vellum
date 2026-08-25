@@ -74,7 +74,6 @@ interface Props {
   refreshProfiles: { id: string; name: string; isDefault?: boolean }[];
   firmwareVersions: FirmwareVersion[];
   providers: { id: string; type: string; name: string }[];
-  knownDisplays: { label: string; width: number; height: number }[];
 }
 
 const selectCls =
@@ -87,7 +86,6 @@ export function DeviceTable({
   refreshProfiles,
   firmwareVersions,
   providers,
-  knownDisplays,
 }: Props) {
   const live = useDeviceLiveUpdates(rawDevices as LiveDeviceRow[]);
   const devices = live.devices as unknown as Device[];
@@ -570,7 +568,6 @@ export function DeviceTable({
           instanceId={editingContent}
           contentInstances={contentInstances}
           providers={providers}
-          knownDisplays={knownDisplays}
           onClose={() => setEditingContent(null)}
         />
       )}
