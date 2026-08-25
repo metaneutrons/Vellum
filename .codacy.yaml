@@ -1,6 +1,6 @@
 ---
-# Two exclusions, both because a tool is being applied outside the context it can
-# reason about. Neither hides a finding about shipped behaviour.
+# Three exclusions, all because a tool is being applied outside the context it can
+# reason about. None hides a finding about shipped behaviour.
 #
 # drizzle/**
 #   Codacy runs a SQL Server (T-SQL) linter over .sql files and reports things
@@ -17,6 +17,30 @@
 #   unconditionally, regardless of whether the argument is a string literal three
 #   lines above. Rewriting assertions to avoid those calls would make the tests
 #   less readable and prove nothing about the firmware.
+#
+# scripts/check-*.mjs
+#   The repository's own CI gates. Codacy reports "The application dynamically
+#   constructs file or path information" (CWE-22) wherever one of them calls
+#   readFileSync, readdirSync or existsSync on a path it assembled -- which is what
+#   a gate that walks src/ and i18n/messages/ does on every line. The rule is
+#   written for request handlers, where the path can carry an attacker's input.
+#   These files take no input at all: they are run by pnpm and by .githooks, they
+#   read fixed directories relative to the repository root, and the only way to
+#   influence the path is to already have write access to the checkout -- at which
+#   point editing the gate itself is the shorter route.
+#
+#   The pattern is deliberately NOT scripts/**. `scripts/migrate.mjs` is the
+#   container's CMD (Dockerfile line 82), so it is production code and stays under
+#   analysis, as do mdns-announce.mjs, classify-release-commit.mjs,
+#   firmware-beta-version.mjs and setup-git-hooks.mjs. Only the check-* gates are
+#   excluded, and none of them is copied into the image (the Dockerfile takes
+#   setup-git-hooks.mjs alone).
+#
+#   What this costs, stated plainly: a genuine defect in a gate script will no
+#   longer be reported by Codacy. The gates are covered instead by tsc, eslint and
+#   prettier over the whole tree, and by the fact that a broken gate fails CI
+#   loudly rather than silently -- each one is only useful while it still runs.
 exclude_paths:
   - "drizzle/**"
   - "firmware/host_test/**"
+  - "scripts/check-*.mjs"
