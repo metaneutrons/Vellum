@@ -89,5 +89,8 @@ export interface CalendarProvider {
    * one. This deliberately lives alongside the resource configuration rather
    * than on calendar events: a booking link describes a room, not a meeting.
    */
-  getBookingUrl?(params: { credentials: unknown; roomConfig: unknown }): string | null;
+  getBookingUrl?(params: {
+    credentials: unknown;
+    roomConfig: unknown;
+  }): string | null | Promise<string | null>;
 }

@@ -221,7 +221,7 @@ export async function resolveBookingUrl(
   const impl = provider ? getCalendarProvider(provider.type) : null;
   if (!provider || !impl?.getBookingUrl) return null;
   return normalizeBookingUrl(
-    impl.getBookingUrl({ credentials: provider.credentials, roomConfig: config.roomConfig })
+    await impl.getBookingUrl({ credentials: provider.credentials, roomConfig: config.roomConfig })
   );
 }
 

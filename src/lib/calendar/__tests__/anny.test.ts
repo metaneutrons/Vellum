@@ -235,12 +235,47 @@ describe("anny provider — direct booking URLs", () => {
     ]);
   });
 
-  it("does not infer a public booking URL from a resource ID or name", () => {
-    expect(
+  it("recovers a booking URL for a legacy room config from Anny's resource record", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        annyResponse([
+          {
+            id: "legacy-resource",
+            type: "resources",
+            attributes: { name: "Legacy room", slug: "legacy-room" },
+          },
+        ])
+      )
+    );
+
+    await expect(
+      annyProvider.getBookingUrl?.({
+        credentials: CREDS,
+        roomConfig: { resourceId: "legacy-resource" },
+      })
+    ).resolves.toBe("https://anny.co/b/book/legacy-room");
+  });
+
+  it("does not infer a public booking URL from a resource ID or name", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        annyResponse([
+          {
+            id: "looks-like-a-slug",
+            type: "resources",
+            attributes: { name: "looks-like-a-slug" },
+          },
+        ])
+      )
+    );
+
+    await expect(
       annyProvider.getBookingUrl?.({
         credentials: CREDS,
         roomConfig: { resourceId: "looks-like-a-slug" },
       })
-    ).toBeNull();
+    ).resolves.toBeNull();
   });
 });
