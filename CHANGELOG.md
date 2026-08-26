@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/metaneutrons/Vellum/compare/v1.19.1...v1.20.0) (2026-08-26)
+
+
+### Features
+
+* **profiles:** add source-aware night power policies ([#321](https://github.com/metaneutrons/Vellum/issues/321)) ([ed2dd86](https://github.com/metaneutrons/Vellum/commit/ed2dd860780a0b42c9e5ada8d1b999e9faa19aef))
+
 ## [1.19.1](https://github.com/metaneutrons/Vellum/compare/v1.19.0...v1.19.1) (2026-08-26)
 
 
