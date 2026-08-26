@@ -45,7 +45,7 @@
     "esp-web-tools": "^10.4.0",
     "lucide-react": "^1.33.0",
     "multicast-dns": "^7.2.5",
-    "next": "16.3.2",
+    "next": "16.3.3",
     "next-intl": "4.13.7",
     "openid-client": "^6.8.7",
     "pg": "8.23.0",
