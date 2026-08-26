@@ -483,6 +483,17 @@ export const devices = pgTable(
      * to the device's own schedule instead of a fixed window. Null until the
      * device has rendered once (connectivity falls back to a default). */
     expectedIntervalS: integer("expected_interval_s"),
+    /** Last desired power state handed to the device. This lets the console
+     * distinguish an intentional night phase from an outage. */
+    expectedDisplayState: text("expected_display_state")
+      .$type<"on" | "off">()
+      .default("on")
+      .notNull(),
+    expectedDeviceState: text("expected_device_state")
+      .$type<"awake" | "sleep">()
+      .default("awake")
+      .notNull(),
+    expectedWakeAt: timestamp("expected_wake_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -493,6 +504,11 @@ export const devices = pgTable(
      * Without one, deleting a site scans the devices table, and "displays in
      * this site" is the query the sites page runs. */
     index("devices_site_idx").on(t.siteId),
+    check("devices_expected_display_state_check", sql`${t.expectedDisplayState} IN ('on', 'off')`),
+    check(
+      "devices_expected_device_state_check",
+      sql`${t.expectedDeviceState} IN ('awake', 'sleep')`
+    ),
   ]
 );
 

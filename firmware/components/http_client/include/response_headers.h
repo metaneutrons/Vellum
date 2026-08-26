@@ -10,11 +10,15 @@ extern "C" {
 
 #define VELLUM_ERROR_BACKOFF_HEADER_LEN 64
 #define VELLUM_ETAG_HEADER_LEN 32
+#define VELLUM_POWER_VALUE_LEN 8
 
 /** Response metadata used by the render loop. Kept independent of ESP-IDF so
  * the exact wire contract can be exercised by the host test suite. */
 typedef struct {
     int sleep_duration;
+    /** Strict desired-state values. Empty means the backwards-compatible default. */
+    char sleep_mode[VELLUM_POWER_VALUE_LEN];
+    char display_state[VELLUM_POWER_VALUE_LEN];
     char error_backoff[VELLUM_ERROR_BACKOFF_HEADER_LEN];
     char etag[VELLUM_ETAG_HEADER_LEN];
 } vellum_response_headers_t;

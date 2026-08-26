@@ -97,6 +97,9 @@ esp_err_t d1001_backlight_on(void);
 /** @brief Backlight off */
 esp_err_t d1001_backlight_off(void);
 
+/** Power down the LCD rails after the display controller has been stopped. */
+esp_err_t d1001_lcd_power_off(void);
+
 /** @brief Read battery voltage in mV */
 int d1001_battery_voltage(void);
 

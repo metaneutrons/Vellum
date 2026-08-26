@@ -457,6 +457,13 @@ esp_err_t http_client_render(vellum_http_response_t *resp)
          * and therefore silently returned nothing here. That kept displays on
          * the 900 s fallback while the server expected a 60 s USB cadence. */
         resp->sleep_duration = rb.headers.sleep_duration;
+        if (rb.headers.sleep_mode[0]) {
+            strlcpy(resp->sleep_mode, rb.headers.sleep_mode, sizeof(resp->sleep_mode));
+        }
+        if (rb.headers.display_state[0]) {
+            strlcpy(resp->display_state, rb.headers.display_state,
+                    sizeof(resp->display_state));
+        }
         if (rb.headers.error_backoff[0]) {
             strlcpy(resp->error_backoff, rb.headers.error_backoff,
                     sizeof(resp->error_backoff));

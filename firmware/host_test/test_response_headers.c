@@ -14,12 +14,28 @@ void test_response_headers_capture_render_contract(void)
     vellum_response_headers_init(&headers);
 
     vellum_response_headers_capture(&headers, "X-Sleep-Duration", "67");
+    vellum_response_headers_capture(&headers, "X-Sleep-Mode", "sleep");
+    vellum_response_headers_capture(&headers, "X-Display-State", "off");
     vellum_response_headers_capture(&headers, "X-Error-Backoff", "60,300,900,3600");
     vellum_response_headers_capture(&headers, "ETag", "a1b2c3d4e5f60718");
 
     TEST_ASSERT_EQUAL_INT(67, headers.sleep_duration);
+    TEST_ASSERT_TRUE(strcmp("sleep", headers.sleep_mode) == 0);
+    TEST_ASSERT_TRUE(strcmp("off", headers.display_state) == 0);
     TEST_ASSERT_TRUE(strcmp("60,300,900,3600", headers.error_backoff) == 0);
     TEST_ASSERT_TRUE(strcmp("a1b2c3d4e5f60718", headers.etag) == 0);
+}
+
+void test_response_headers_reject_unknown_power_actions(void)
+{
+    vellum_response_headers_t headers;
+    vellum_response_headers_init(&headers);
+
+    vellum_response_headers_capture(&headers, "X-Sleep-Mode", "hibernate");
+    vellum_response_headers_capture(&headers, "X-Display-State", "dim");
+
+    TEST_ASSERT_TRUE(headers.sleep_mode[0] == '\0');
+    TEST_ASSERT_TRUE(headers.display_state[0] == '\0');
 }
 
 void test_response_headers_names_are_case_insensitive(void)
@@ -78,6 +94,7 @@ void run_response_headers_tests(void)
     RUN_TEST(test_response_headers_capture_render_contract);
     RUN_TEST(test_response_headers_names_are_case_insensitive);
     RUN_TEST(test_response_headers_reject_invalid_sleep_durations);
+    RUN_TEST(test_response_headers_reject_unknown_power_actions);
     RUN_TEST(test_response_headers_reject_oversized_values_without_truncating);
     RUN_TEST(test_response_headers_ignore_unknown_and_null_input);
 }

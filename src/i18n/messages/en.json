@@ -239,6 +239,11 @@
     "backlightSupported": "Adjustable",
     "nextExpected": "Next contact expected",
     "checkInEvery": "Checks in every",
+    "powerPolicy": {
+      "sleeping": "Scheduled sleep",
+      "displayOff": "Display scheduled off",
+      "until": "Scheduled until"
+    },
     "nvsEncryption": "NVS encryption",
     "colorModes": {
       "fullcolor": "Full colour",
@@ -541,7 +546,7 @@
     "retryStep": "Step {step}",
     "retryStepHeld": "Step {step} (held)",
     "addStep": "Add step",
-    "scheduleHint": "Override the battery interval for specific days and times. Rules are evaluated from top to bottom; the first match wins.",
+    "scheduleHint": "Set refresh, brightness and power behaviour for USB and battery operation in one phase. The first matching rule wins.",
     "templateNight": "🌙 Night (22–6)",
     "templateNightName": "Night",
     "templateWeekend": "🏖 Weekend",
@@ -568,6 +573,7 @@
     "default": "Default",
     "brightness": {
       "title": "Brightness",
+      "defaultHint": "Defaults outside scheduled phases. Phase-specific brightness is configured directly in each phase above.",
       "hint": "Only displays that report a backlight. Rules use the same days and hours as above; the first match wins.",
       "onUsb": "On USB power",
       "onBattery": "On battery",
@@ -577,6 +583,17 @@
       "noRules": "No dimming rules. The values above apply all day.",
       "night": "Night",
       "level": "Level"
+    },
+    "phase": {
+      "usb": "USB power",
+      "battery": "Battery power",
+      "display": "Display",
+      "displayOn": "On",
+      "displayOff": "Completely off",
+      "device": "Device",
+      "deviceAwake": "Stay online",
+      "deviceSleep": "Sleep until this phase ends",
+      "sleepHint": "The display is switched off before sleep. A timer or the green button wakes the device."
     },
     "scopeHint": "Cadence and brightness for a group of displays."
   },

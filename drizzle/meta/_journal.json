@@ -211,6 +211,13 @@
       "when": 1787613206088,
       "tag": "0029_device_label",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1787766946342,
+      "tag": "0030_profile_power_state",
+      "breakpoints": true
     }
   ]
 }

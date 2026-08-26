@@ -132,6 +132,7 @@ static bool s_mounted_portrait;
  * "Image rejected" until the next reboot, with no log line naming the cause.
  */
 static uint8_t *s_rgb_buf;
+static esp_lcd_panel_handle_t s_lcd_panel;
 
 /*
  * The brightness the server asked for, remembered.
@@ -195,6 +196,7 @@ static lv_display_t *lcd_init(void)
         ESP_LOGE(TAG, "lcd_jd9365_init failed");
         return NULL;
     }
+    s_lcd_panel = panel;
 
     const esp_lv_adapter_config_t adapter_cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG();
     if (esp_lv_adapter_init(&adapter_cfg) != ESP_OK) {
@@ -312,7 +314,20 @@ static esp_err_t lcd_draw_raw(const uint8_t *data, size_t len)
     return ESP_OK;
 }
 
-static void lcd_off(void) { d1001_backlight_off(); }
+static void lcd_sleep(void) { d1001_backlight_off(); }
+static void lcd_off(void)
+{
+    /* No in-process resume is attempted: the power-policy loop restarts after a
+     * timer/button/config wake. Stop continuous DSI output before removing panel
+     * power so the lane drivers cannot back-power an unpowered controller. */
+    d1001_backlight_off();
+    if (s_lcd_panel) {
+        esp_err_t err = esp_lcd_panel_disp_on_off(s_lcd_panel, false);
+        if (err != ESP_OK) ESP_LOGW(TAG, "LCD display-off command failed: %s",
+                                    esp_err_to_name(err));
+    }
+    d1001_lcd_power_off();
+}
 static void lcd_wake(void) { d1001_backlight_set(s_backlight_target); }
 
 static esp_err_t lcd_set_backlight(int percent)
@@ -336,7 +351,7 @@ static vellum_panel_t s_panel = {
     .set_backlight = lcd_set_backlight,
     .draw_raw = lcd_draw_raw,
     .update_ota_progress = lcd_update_ota_progress,
-    .sleep = lcd_off,
+    .sleep = lcd_sleep,
     .wake = lcd_wake,
     .off = lcd_off,
     /* Filled by lcd_init() from the mounting: static values here would be a

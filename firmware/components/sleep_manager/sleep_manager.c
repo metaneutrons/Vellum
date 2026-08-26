@@ -27,9 +27,6 @@ static const char *TAG = "sleep_mgr";
 static wake_reason_t s_wake_reason = WAKE_REASON_POWER_ON;
 static bool s_button_refresh_requested;
 
-/* Everything from here to the #endif serves deep sleep, which only the E-Series
- * do. Compiled for the P4 these are dead code, and gcc says so. */
-#if !defined(CONFIG_VELLUM_PANEL_D1001)
 /* The wake mask is configured for active-low buttons.  When USB power keeps
  * the MCU awake there is no deep-sleep wake event, so poll that same mask to
  * preserve the physical refresh button's behaviour. */
@@ -104,7 +101,6 @@ static void arm_button_wake(uint64_t button_wake_mask)
                  gpio, digital_level);
     }
 }
-#endif /* !CONFIG_VELLUM_PANEL_D1001 — the LCD model never deep sleeps */
 
 /**
  * @brief Classify the wake, reading ALL causes rather than one of them.
@@ -214,6 +210,17 @@ bool sleep_manager_take_button_refresh_request(void)
     bool requested = s_button_refresh_requested;
     s_button_refresh_requested = false;
     return requested;
+}
+
+void sleep_manager_enter_deep(uint32_t seconds, uint64_t button_wake_mask)
+{
+    if (seconds == 0) seconds = CONFIG_VELLUM_FALLBACK_SLEEP_SEC;
+    ESP_LOGI(TAG, "Entering requested deep sleep for %lu seconds",
+             (unsigned long)seconds);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(
+        esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL));
+    arm_button_wake(button_wake_mask);
+    esp_deep_sleep_start();
 }
 
 void sleep_manager_enter_permanent(uint64_t button_wake_mask)

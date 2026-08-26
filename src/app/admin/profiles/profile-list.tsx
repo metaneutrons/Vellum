@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
+import { upgradeRefreshProfileConfig, type PhaseBehavior, type ScheduleRule } from "@/lib/sleep";
 import {
   Search,
   Plus,
@@ -39,14 +40,6 @@ interface Profile {
   config: unknown;
   isDefault: boolean;
 }
-interface ScheduleRule {
-  name: string;
-  days: number[];
-  startHour: number;
-  endHour: number;
-  intervalS: number;
-}
-
 const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"];
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const WEEKEND = [0, 6];
@@ -83,27 +76,57 @@ const RULE_TEMPLATES: {
   {
     labelKey: "templateNight",
     nameKey: "templateNightName",
-    rule: { days: [], startHour: 22, endHour: 6, intervalS: 7200 },
+    rule: {
+      days: [],
+      startHour: 22,
+      endHour: 6,
+      usb: { intervalS: 7200, brightnessPercent: 0, display: "off", device: "awake" },
+      battery: { intervalS: 7200, brightnessPercent: 0, display: "off", device: "sleep" },
+    },
   },
   {
     labelKey: "templateWeekend",
     nameKey: "templateWeekendName",
-    rule: { days: WEEKEND, startHour: 0, endHour: 23, intervalS: 3600 },
+    rule: {
+      days: WEEKEND,
+      startHour: 0,
+      endHour: 0,
+      usb: { intervalS: 3600 },
+      battery: { intervalS: 3600 },
+    },
   },
   {
     labelKey: "templateLunch",
     nameKey: "templateLunchName",
-    rule: { days: WEEKDAYS, startHour: 12, endHour: 13, intervalS: 1800 },
+    rule: {
+      days: WEEKDAYS,
+      startHour: 12,
+      endHour: 13,
+      usb: { intervalS: 1800 },
+      battery: { intervalS: 1800 },
+    },
   },
   {
     labelKey: "templateOffice",
     nameKey: "templateOfficeName",
-    rule: { days: WEEKDAYS, startHour: 8, endHour: 18, intervalS: 300 },
+    rule: {
+      days: WEEKDAYS,
+      startHour: 8,
+      endHour: 18,
+      usb: { intervalS: 300 },
+      battery: { intervalS: 300 },
+    },
   },
   {
     labelKey: "templateCustom",
     nameKey: "templateCustomName",
-    rule: { days: [], startHour: 0, endHour: 23, intervalS: 900 },
+    rule: {
+      days: [],
+      startHour: 0,
+      endHour: 0,
+      usb: { intervalS: 900 },
+      battery: { intervalS: 900 },
+    },
   },
 ];
 
@@ -229,6 +252,7 @@ const BASE_FIELDS: {
 const MAX_BACKOFF_STEPS = 8;
 
 const DEFAULT_CONFIG = {
+  version: 2 as const,
   usbIntervalS: 60,
   batteryIntervalS: 900,
   lowBatteryIntervalS: 3600,
@@ -244,17 +268,9 @@ const DEFAULT_CONFIG = {
   brightness: {
     usbPercent: 80,
     batteryPercent: 40,
-    schedule: [] as BrightnessRule[],
+    schedule: [] as [],
   },
 };
-
-interface BrightnessRule {
-  name: string;
-  days: number[];
-  startHour: number;
-  endHour: number;
-  percent: number;
-}
 
 export function ProfileList({ profiles }: { profiles: Profile[] }) {
   const t = useTranslations("profiles");
@@ -274,16 +290,11 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   const brightness = (config.brightness ?? DEFAULT_CONFIG.brightness) as {
     usbPercent: number;
     batteryPercent: number;
-    schedule: BrightnessRule[];
+    schedule: [];
   };
   function setBrightness(patch: Partial<typeof brightness>) {
     setConfig((c) => ({ ...c, brightness: { ...brightness, ...patch } }));
   }
-  const dimRules = brightness.schedule ?? [];
-  function setDimRules(rules: BrightnessRule[]) {
-    setBrightness({ schedule: rules });
-  }
-
   const schedule = (config.schedule ?? []) as ScheduleRule[];
   function setSchedule(s: ScheduleRule[]) {
     setConfig((c) => ({ ...c, schedule: s }));
@@ -296,6 +307,13 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   }
   function updateRule(i: number, patch: Partial<ScheduleRule>) {
     setSchedule(schedule.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  }
+  function updateBehavior(i: number, source: "usb" | "battery", patch: Partial<PhaseBehavior>) {
+    setSchedule(
+      schedule.map((rule, j) =>
+        j === i ? { ...rule, [source]: { ...rule[source], ...patch } } : rule
+      )
+    );
   }
   function moveRule(i: number, dir: -1 | 1) {
     const s = [...schedule];
@@ -313,7 +331,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   function startEdit(p: Profile) {
     setEditing(p.id);
     setName(p.name);
-    setConfig(p.config as Record<string, unknown>);
+    setConfig(upgradeRefreshProfileConfig(p.config) as Record<string, unknown>);
   }
   function save() {
     startTransition(async () => {
@@ -693,13 +711,103 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
               </div>
             </div>
 
-            <label className="block text-xs font-medium text-label-secondary mb-1">
-              {t("refreshInterval")}
-            </label>
-            <IntervalPicker
-              value={rule.intervalS}
-              onChange={(v) => updateRule(i, { intervalS: v })}
-            />
+            <div className="grid gap-3 lg:grid-cols-2">
+              {(["usb", "battery"] as const).map((source) => {
+                const behavior = rule[source] ?? {};
+                const fallbackInterval =
+                  source === "usb"
+                    ? ((config.usbIntervalS as number) ?? 60)
+                    : ((config.batteryIntervalS as number) ?? 900);
+                const fallbackBrightness =
+                  source === "usb" ? brightness.usbPercent : brightness.batteryPercent;
+                return (
+                  <fieldset
+                    key={source}
+                    className="rounded-lg border border-separator bg-surface p-3 space-y-3"
+                  >
+                    <legend className="px-1 text-xs font-semibold text-label">
+                      {t(source === "usb" ? "phase.usb" : "phase.battery")}
+                    </legend>
+
+                    <div>
+                      <label className="block text-xs font-medium text-label-secondary mb-1">
+                        {t("refreshInterval")}
+                      </label>
+                      <IntervalPicker
+                        value={behavior.intervalS ?? fallbackInterval}
+                        onChange={(intervalS) => updateBehavior(i, source, { intervalS })}
+                      />
+                    </div>
+
+                    <label className="block">
+                      <span className="block text-xs font-medium text-label-secondary mb-1">
+                        {t("brightness.level")}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={behavior.brightnessPercent ?? fallbackBrightness}
+                          onChange={(e) =>
+                            updateBehavior(i, source, {
+                              brightnessPercent: Number(e.target.value),
+                            })
+                          }
+                          className="w-full"
+                        />
+                        <span className="w-10 font-mono text-xs text-label">
+                          {behavior.brightnessPercent ?? fallbackBrightness}%
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="block text-xs">
+                      <span className="block font-medium text-label-secondary mb-1">
+                        {t("phase.display")}
+                      </span>
+                      <select
+                        className={`${selectCls} w-full`}
+                        value={behavior.display ?? "on"}
+                        disabled={behavior.device === "sleep"}
+                        onChange={(e) =>
+                          updateBehavior(i, source, {
+                            display: e.target.value as "on" | "off",
+                          })
+                        }
+                      >
+                        <option value="on">{t("phase.displayOn")}</option>
+                        <option value="off">{t("phase.displayOff")}</option>
+                      </select>
+                    </label>
+
+                    <label className="block text-xs">
+                      <span className="block font-medium text-label-secondary mb-1">
+                        {t("phase.device")}
+                      </span>
+                      <select
+                        className={`${selectCls} w-full`}
+                        value={behavior.device ?? "awake"}
+                        onChange={(e) =>
+                          updateBehavior(i, source, {
+                            device: e.target.value as "awake" | "sleep",
+                            ...(e.target.value === "sleep" ? { display: "off" as const } : {}),
+                          })
+                        }
+                      >
+                        <option value="awake">{t("phase.deviceAwake")}</option>
+                        <option value="sleep">{t("phase.deviceSleep")}</option>
+                      </select>
+                    </label>
+
+                    {behavior.device === "sleep" && (
+                      <p className="text-xs text-label-tertiary">{t("phase.sleepHint")}</p>
+                    )}
+                  </fieldset>
+                );
+              })}
+            </div>
           </div>
         ))}
 
@@ -714,12 +822,11 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
           defaultIntervalS={(config.batteryIntervalS as number) ?? 900}
         />
 
-        {/* Brightness: the same rule shape as above, deliberately. An operator
-            learns days-and-hours once and applies it to both sections. Only
-            panels that report a backlight are affected; e-paper ignores it. */}
+        {/* Defaults outside a phase. Every scheduled override now lives in the
+            phase above, so there is exactly one clock in the profile. */}
         <div className="border-t border-separator pt-4 mt-4">
           <h4 className="text-sm font-medium text-label mb-1">{t("brightness.title")}</h4>
-          <p className="text-xs text-label-tertiary mb-3">{t("brightness.hint")}</p>
+          <p className="text-xs text-label-tertiary mb-3">{t("brightness.defaultHint")}</p>
 
           <div className="grid grid-cols-2 gap-3">
             {(
@@ -747,99 +854,6 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
               </label>
             ))}
           </div>
-
-          <div className="flex items-center justify-between mt-4 mb-2">
-            <span className="text-xs font-medium text-label-secondary">
-              {t("brightness.rules")}
-            </span>
-            <Button
-              variant="plain"
-              onClick={() =>
-                setDimRules([
-                  ...dimRules,
-                  { name: t("brightness.night"), days: [], startHour: 22, endHour: 6, percent: 15 },
-                ])
-              }
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              {t("brightness.addRule")}
-            </Button>
-          </div>
-
-          {dimRules.length === 0 ? (
-            <div className="text-center py-4 text-xs text-label-tertiary border border-separator rounded-lg border-dashed">
-              {t("brightness.noRules")}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {dimRules.map((rule, i) => (
-                <div key={i} className="rounded-lg border border-separator p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={rule.name}
-                      onChange={(e) =>
-                        setDimRules(
-                          dimRules.map((r, j) => (j === i ? { ...r, name: e.target.value } : r))
-                        )
-                      }
-                      placeholder={t("brightness.night")}
-                    />
-                    <button
-                      type="button"
-                      aria-label={t("brightness.removeRule")}
-                      onClick={() => setDimRules(dimRules.filter((_, j) => j !== i))}
-                      className="focus-ring rounded p-2 text-label-tertiary hover:text-red"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {(["startHour", "endHour"] as const).map((field) => (
-                      <label key={field} className="flex items-center gap-1.5 text-xs">
-                        {t(field === "startHour" ? "from" : "until")}
-                        <select
-                          className={selectCls}
-                          value={rule[field]}
-                          onChange={(e) =>
-                            setDimRules(
-                              dimRules.map((r, j) =>
-                                j === i ? { ...r, [field]: Number(e.target.value) } : r
-                              )
-                            )
-                          }
-                        >
-                          {Array.from({ length: 24 }, (_, h) => (
-                            <option key={h} value={h}>
-                              {fmtHour(h)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                    <label className="flex flex-1 items-center gap-2 text-xs">
-                      {t("brightness.level")}
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={rule.percent}
-                        onChange={(e) =>
-                          setDimRules(
-                            dimRules.map((r, j) =>
-                              j === i ? { ...r, percent: Number(e.target.value) } : r
-                            )
-                          )
-                        }
-                        className="flex-1"
-                      />
-                      <span className="w-10 font-mono text-label">{rule.percent}%</span>
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </Modal>
 

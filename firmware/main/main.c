@@ -67,6 +67,16 @@ static const char *TAG = "vellum_main";
  * otherwise refused. */
 static bool s_nvs_unavailable;
 static bool s_nvs_integrity_failed;
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+volatile bool s_button_pressed;
+static volatile bool s_power_phase_active;
+#else
+volatile bool s_button_pressed;
+#endif
+
+/* The scheduled D1001 power phase reports liveness to the stall supervisor
+ * before that supervisor's implementation appears below. */
+static void app_progress(void);
 
 /* Certificates cannot be validated safely until the RTC has a real date.
  * A provisioned NTP server is an explicit administrator override. Otherwise,
@@ -455,10 +465,16 @@ static void upload_pending_logs(void)
     if (err == ESP_OK) vellum_log_upload_confirmed(seq);
 }
 
-static uint32_t perform_render(bool *render_ok)
+typedef struct {
+    bool display_off;
+    bool deep_sleep;
+} power_directive_t;
+
+static uint32_t perform_render(bool *render_ok, power_directive_t *power)
 {
     bool ok = false;
     if (render_ok) *render_ok = false;
+    if (power) memset(power, 0, sizeof(*power));
     refresh_telemetry();
     ESP_LOGI(TAG, "Requesting render");
 
@@ -479,6 +495,13 @@ static uint32_t perform_render(bool *render_ok)
 
     if (resp.sleep_duration > 0) {
         sleep_sec = (uint32_t)resp.sleep_duration;
+    }
+    if (power) {
+        power->display_off = strcmp(resp.display_state, "off") == 0;
+        power->deep_sleep = strcmp(resp.sleep_mode, "sleep") == 0;
+        /* Sleeping with an illuminated LCD is never a meaningful or safe
+         * combination. Enforce the stronger state at the trust boundary. */
+        if (power->deep_sleep) power->display_off = true;
     }
     adopt_backoff_ladder(resp.error_backoff);
 
@@ -590,6 +613,50 @@ static uint32_t perform_render(bool *render_ok)
     return pace_retry(sleep_sec, ok);
 }
 
+#if defined(CONFIG_VELLUM_PANEL_D1001)
+static uint64_t d1001_wake_mask(void)
+{
+    return 1ULL << D1001_BUTTON;
+}
+
+/** Apply a source-specific scheduled power action after render and OTA work. */
+static void d1001_apply_power_directive(const power_directive_t *power,
+                                        uint32_t duration_s)
+{
+    if (!power || (!power->display_off && !power->deep_sleep)) return;
+
+    const bool started_on_usb = board_is_usb_powered();
+    ESP_LOGI(TAG, "Power phase: display=%s device=%s duration=%lu source=%s",
+             power->display_off ? "off" : "on",
+             power->deep_sleep ? "sleep" : "awake",
+             (unsigned long)duration_s,
+             started_on_usb ? "usb" : "battery");
+    s_power_phase_active = true;
+    board_led_indicate(BOARD_LED_STATE_IDLE);
+    vellum_display_off();
+
+    if (power->deep_sleep && !started_on_usb) {
+        sleep_manager_enter_deep(duration_s, d1001_wake_mask());
+    }
+
+    /* On USB the controller deliberately remains reachable over Web Serial.
+     * A source transition or button press restarts immediately so the server
+     * resolves the other power branch and the panel is initialized cleanly. */
+    for (uint32_t elapsed = 0; elapsed < duration_s; ++elapsed) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        app_progress();
+        if (s_button_pressed || board_is_usb_powered() != started_on_usb) {
+            s_button_pressed = false;
+            ESP_LOGI(TAG, "Leaving power phase early (%s)",
+                     board_is_usb_powered() != started_on_usb
+                         ? "power source changed" : "button");
+            esp_restart();
+        }
+    }
+    esp_restart();
+}
+#endif
+
 /**
  * May a button erase this display's configuration?
  *
@@ -682,8 +749,6 @@ static bool handle_button_action(button_action_t action)
 #else
   #define PRESSED_LEVEL 0
 #endif
-
-volatile bool s_button_pressed = false;
 
 /* -----------------------------------------------------------------------
  * Stall supervisor
@@ -810,6 +875,13 @@ static void d1001_button_task(void *arg)
 
     while (1) {
         if (gpio_get_level(btn) == PRESSED_LEVEL) {
+            if (s_power_phase_active) {
+                board_buzzer_beep(1000, 100);
+                while (gpio_get_level(btn) == PRESSED_LEVEL) {
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                }
+                esp_restart();
+            }
             int64_t start_us = esp_timer_get_time();
             bool asked = false;
             while (gpio_get_level(btn) == PRESSED_LEVEL) {
@@ -898,6 +970,12 @@ void app_main(void)
     bool nvs_unavailable = nvs_init_err != ESP_OK;
     s_nvs_integrity_failed = nvs_integrity_failed;
     s_nvs_unavailable = nvs_unavailable;
+    /* Read the reset cause before initializing a display. A D1001 timer wake can
+     * only come from an explicit scheduled power phase, so its panel must stay
+     * dark until fresh policy/content has been fetched instead of flashing the
+     * stale framebuffer at the default brightness. */
+    sleep_manager_init();
+    wake_reason_t wake = sleep_manager_get_wake_reason();
 #if defined(CONFIG_VELLUM_PANEL_D1001)
     /* D1001: board init first (power rails, I2C, IO-expander) */
     ESP_ERROR_CHECK(d1001_board_init());
@@ -907,7 +985,8 @@ void app_main(void)
         settimeofday(&tv, NULL);
         ESP_LOGI(TAG, "System clock restored from D1001 RTC");
     }
-    d1001_backlight_on();
+    ESP_ERROR_CHECK_WITHOUT_ABORT(display_set_backlight(
+        wake == WAKE_REASON_TIMER ? 0 : 80));
     /* Initialize audio before the button task can request playback. Audio is
      * optional; a missing codec must never prevent the room display from booting. */
     esp_err_t audio_err = vellum_audio_init();
@@ -947,9 +1026,6 @@ void app_main(void)
      * display simply rebooting after a long press. */
     xTaskCreate(d1001_button_task, "d1001_btn", 8192, NULL, 5, NULL);
 #endif
-
-    sleep_manager_init();
-    wake_reason_t wake = sleep_manager_get_wake_reason();
 
     /* Only show the boot screen on first power-on. Autonomous wake cycles must
      * stay silent: some boards may be power-cycled between polls and report
@@ -1239,7 +1315,8 @@ void app_main(void)
 
     /* 7. Request render and draw to display */
     bool render_ok = false;
-    uint32_t sleep_duration = perform_render(&render_ok);
+    power_directive_t power = {0};
+    uint32_t sleep_duration = perform_render(&render_ok, &power);
 
     /* Confirm a freshly-OTA'd image ONLY after a GENUINELY successful render
      * (WiFi + server + token + display all worked). Confirming after a failed
@@ -1250,7 +1327,7 @@ void app_main(void)
     /* 7b. If green button pressed during render, beep + re-render */
     while (buttons_key0_pressed()) {
         board_buzzer_beep(1000, 100);
-        sleep_duration = perform_render(&render_ok);
+        sleep_duration = perform_render(&render_ok, &power);
         if (render_ok) ota_manager_mark_valid();
     }
 
@@ -1258,7 +1335,7 @@ void app_main(void)
      * feedback, then we immediately restore the normal room view before sleep. */
     upload_pending_logs();
     if (ota_manager_check_and_apply() == OTA_CHECK_RESTORE_RENDER) {
-        sleep_duration = perform_render(&render_ok);
+        sleep_duration = perform_render(&render_ok, &power);
         if (render_ok) ota_manager_mark_valid();
     }
     /* The last word before sleeping. A board that can hold a fault colour does
@@ -1267,7 +1344,9 @@ void app_main(void)
     board_led_indicate(render_ok ? BOARD_LED_STATE_IDLE : BOARD_LED_STATE_FAULT);
 
 #if defined(CONFIG_VELLUM_PANEL_D1001)
-    /* LCD: poll loop instead of deep sleep */
+    d1001_apply_power_directive(&power, sleep_duration);
+    /* LCD normally polls; an explicit version-2 phase above can instead power
+     * the panel down or enter deep sleep. */
     ESP_LOGI(TAG, "Polling every %lu seconds", (unsigned long)sleep_duration);
     app_progress_grace(0); /* boot is over — back to the ordinary deadline */
     while (1) {
@@ -1279,7 +1358,7 @@ void app_main(void)
             s_button_pressed = false;
             ESP_LOGI(TAG, "Button → immediate refresh");
         }
-        sleep_duration = perform_render(&render_ok);
+        sleep_duration = perform_render(&render_ok, &power);
         app_progress();
         /* A good image that failed its FIRST render still confirms on the first
          * successful poll here (mark_valid is idempotent). */
@@ -1290,10 +1369,11 @@ void app_main(void)
         app_progress_grace(0);
         upload_pending_logs();
         if (ota == OTA_CHECK_RESTORE_RENDER) {
-            sleep_duration = perform_render(&render_ok);
+            sleep_duration = perform_render(&render_ok, &power);
             app_progress();
             if (render_ok) ota_manager_mark_valid();
         }
+        d1001_apply_power_directive(&power, sleep_duration);
     }
 #else
     /* 9. E-paper normally sleeps between refreshes. With external USB power
@@ -1311,7 +1391,7 @@ void app_main(void)
         if (sleep_manager_take_button_refresh_request()) {
             ESP_LOGI(TAG, "Green button confirmed — refreshing now");
         }
-        sleep_duration = perform_render(&render_ok);
+        sleep_duration = perform_render(&render_ok, &power);
         app_progress();
         if (render_ok) ota_manager_mark_valid();
         app_progress_grace(CONFIG_VELLUM_OTA_GRACE_S);
@@ -1319,7 +1399,7 @@ void app_main(void)
         app_progress_grace(0);
         upload_pending_logs();
         if (ota == OTA_CHECK_RESTORE_RENDER) {
-            sleep_duration = perform_render(&render_ok);
+            sleep_duration = perform_render(&render_ok, &power);
             app_progress();
             if (render_ok) ota_manager_mark_valid();
         }

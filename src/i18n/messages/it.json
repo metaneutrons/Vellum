@@ -239,6 +239,11 @@
     "backlightSupported": "regolabile",
     "nextExpected": "Prossimo contatto previsto",
     "checkInEvery": "Si annuncia ogni",
+    "powerPolicy": {
+      "sleeping": "Sospensione programmata",
+      "displayOff": "Display spento da programma",
+      "until": "Programmato fino a"
+    },
     "nvsEncryption": "Crittografia NVS",
     "colorModes": {
       "fullcolor": "Colori pieni",
@@ -541,7 +546,7 @@
     "retryStep": "Livello {step}",
     "retryStepHeld": "Livello {step} (mantenuto)",
     "addStep": "Aggiungi livello",
-    "scheduleHint": "Sostituisce l’intervallo a batteria per giorni e orari specifici. Le regole vengono valutate dall’alto verso il basso; prevale la prima corrispondenza.",
+    "scheduleHint": "Imposta aggiornamento, luminosità e alimentazione per USB e batteria in un’unica fase. Si applica la prima regola corrispondente.",
     "templateNight": "🌙 Notte (22–6)",
     "templateNightName": "Notte",
     "templateWeekend": "🏖 Weekend",
@@ -568,6 +573,7 @@
     "default": "Predefinito",
     "brightness": {
       "title": "Luminosità",
+      "defaultHint": "Valori predefiniti fuori dalle fasi pianificate. La luminosità di una fase si configura direttamente nella fase qui sopra.",
       "hint": "Solo display che segnalano una retroilluminazione. Le regole usano gli stessi giorni e orari di sopra; vince la prima corrispondenza.",
       "onUsb": "Con alimentazione USB",
       "onBattery": "A batteria",
@@ -577,6 +583,17 @@
       "noRules": "Nessuna regola di attenuazione. I valori sopra valgono tutto il giorno.",
       "night": "Notte",
       "level": "Livello"
+    },
+    "phase": {
+      "usb": "Alimentazione USB",
+      "battery": "Alimentazione a batteria",
+      "display": "Display",
+      "displayOn": "Acceso",
+      "displayOff": "Completamente spento",
+      "device": "Dispositivo",
+      "deviceAwake": "Resta online",
+      "deviceSleep": "Dormi fino alla fine della fase",
+      "sleepHint": "Il display viene spento prima della sospensione. Il timer o il pulsante verde riattivano il dispositivo."
     },
     "scopeHint": "Cadenza e luminosità per un gruppo di display."
   },

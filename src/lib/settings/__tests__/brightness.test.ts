@@ -58,6 +58,20 @@ describe("evaluateBrightness", () => {
     expect(la.percent).toBe(90);
   });
 
+  it("uses the phase's start day after midnight", () => {
+    const policy = brightnessPolicySchema.parse({
+      usbPercent: 80,
+      schedule: [{ name: "Friday night", days: [5], startHour: 22, endHour: 6, percent: 0 }],
+    });
+    const result = evaluateBrightness({
+      policy,
+      powerSource: "usb",
+      now: at("2026-08-29T00:00:00Z"), // Saturday 02:00 in Berlin
+      timezone: "Europe/Berlin",
+    });
+    expect(result).toEqual({ percent: 0, tier: "schedule", rule: "Friday night" });
+  });
+
   it("takes the first matching rule, as the cadence section does", () => {
     const policy = brightnessPolicySchema.parse({
       schedule: [
@@ -124,6 +138,30 @@ describe("parseBrightnessPolicy", () => {
     const policy = parseBrightnessPolicy({ brightness: { usbPercent: 55 } });
     expect(policy.usbPercent).toBe(55);
     expect(policy.batteryPercent).toBe(DEFAULT_BRIGHTNESS.batteryPercent);
+  });
+
+  it("reads source-specific brightness from the unified phase", () => {
+    const policy = parseBrightnessPolicy({
+      version: 2,
+      brightness: { usbPercent: 80, batteryPercent: 40, schedule: [] },
+      schedule: [
+        {
+          name: "night",
+          days: [],
+          startHour: 22,
+          endHour: 6,
+          usb: { brightnessPercent: 5 },
+          battery: { brightnessPercent: 0 },
+        },
+      ],
+    });
+    const now = at("2026-08-19T22:00:00Z");
+    expect(
+      evaluateBrightness({ policy, powerSource: "usb", now, timezone: "Europe/Berlin" }).percent
+    ).toBe(5);
+    expect(
+      evaluateBrightness({ policy, powerSource: "battery", now, timezone: "Europe/Berlin" }).percent
+    ).toBe(0);
   });
 
   it("discards a malformed section rather than half-applying it", () => {

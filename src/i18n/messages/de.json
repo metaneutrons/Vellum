@@ -239,6 +239,11 @@
     "backlightSupported": "regelbar",
     "nextExpected": "Nächster Kontakt erwartet",
     "checkInEvery": "Meldet sich alle",
+    "powerPolicy": {
+      "sleeping": "Geplanter Ruhezustand",
+      "displayOff": "Display planmäßig aus",
+      "until": "Geplant bis"
+    },
     "nvsEncryption": "NVS-Verschlüsselung",
     "colorModes": {
       "fullcolor": "Vollfarbe",
@@ -541,7 +546,7 @@
     "retryStep": "Stufe {step}",
     "retryStepHeld": "Stufe {step} (wird beibehalten)",
     "addStep": "Stufe hinzufügen",
-    "scheduleHint": "Überschreibt das Akkuintervall an bestimmten Tagen und Uhrzeiten. Die Regeln werden von oben nach unten geprüft; die erste Übereinstimmung gilt.",
+    "scheduleHint": "Legt Aktualisierung, Helligkeit und Energiestatus für USB- und Akkubetrieb in einer gemeinsamen Phase fest. Die erste passende Regel gilt.",
     "templateNight": "🌙 Nacht (22–6)",
     "templateNightName": "Nacht",
     "templateWeekend": "🏖 Wochenende",
@@ -568,6 +573,7 @@
     "default": "Standard",
     "brightness": {
       "title": "Helligkeit",
+      "defaultHint": "Standardwerte außerhalb geplanter Phasen. Die Helligkeit innerhalb einer Phase wird direkt oben in der Phase eingestellt.",
       "hint": "Gilt nur für Displays, die ein Backlight melden. Regeln nutzen dieselben Tage und Stunden wie oben, die erste passende gewinnt.",
       "onUsb": "Am USB-Strom",
       "onBattery": "Im Akkubetrieb",
@@ -577,6 +583,17 @@
       "noRules": "Keine Absenkungsregeln. Die Werte oben gelten ganztägig.",
       "night": "Nacht",
       "level": "Stufe"
+    },
+    "phase": {
+      "usb": "USB-/Netzbetrieb",
+      "battery": "Akkubetrieb",
+      "display": "Display",
+      "displayOn": "An",
+      "displayOff": "Vollständig aus",
+      "device": "Gerät",
+      "deviceAwake": "Online bleiben",
+      "deviceSleep": "Bis zum Ende der Phase schlafen",
+      "sleepHint": "Vor dem Schlafen wird das Display ausgeschaltet. Timer oder grüner Knopf wecken das Gerät."
     },
     "scopeHint": "Abfragerhythmus und Helligkeit für eine Gruppe von Displays."
   },
