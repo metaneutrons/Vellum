@@ -239,6 +239,11 @@
     "backlightSupported": "regulable",
     "nextExpected": "Próximo contacto previsto",
     "checkInEvery": "Se comunica cada",
+    "powerPolicy": {
+      "sleeping": "Reposo programado",
+      "displayOff": "Pantalla apagada según horario",
+      "until": "Programado hasta"
+    },
     "nvsEncryption": "Cifrado NVS",
     "colorModes": {
       "fullcolor": "Color completo",
@@ -541,7 +546,7 @@
     "retryStep": "Nivel {step}",
     "retryStepHeld": "Nivel {step} (se mantiene)",
     "addStep": "Añadir nivel",
-    "scheduleHint": "Sustituye el intervalo con batería en determinados días y horas. Las reglas se evalúan de arriba abajo; se aplica la primera coincidencia.",
+    "scheduleHint": "Define la actualización, el brillo y la energía para USB y batería en una sola fase. Se aplica la primera regla coincidente.",
     "templateNight": "🌙 Noche (22–6)",
     "templateNightName": "Noche",
     "templateWeekend": "🏖 Fin de semana",
@@ -568,6 +573,7 @@
     "default": "Predeterminado",
     "brightness": {
       "title": "Brillo",
+      "defaultHint": "Valores predeterminados fuera de las fases programadas. El brillo de cada fase se configura directamente en la fase superior.",
       "hint": "Solo pantallas que informan de retroiluminación. Las reglas usan los mismos días y horas que arriba; gana la primera coincidencia.",
       "onUsb": "Con alimentación USB",
       "onBattery": "Con batería",
@@ -577,6 +583,17 @@
       "noRules": "Sin reglas de atenuación. Los valores de arriba se aplican todo el día.",
       "night": "Noche",
       "level": "Nivel"
+    },
+    "phase": {
+      "usb": "Alimentación USB",
+      "battery": "Alimentación por batería",
+      "display": "Pantalla",
+      "displayOn": "Encendida",
+      "displayOff": "Completamente apagada",
+      "device": "Dispositivo",
+      "deviceAwake": "Permanecer en línea",
+      "deviceSleep": "Dormir hasta que termine la fase",
+      "sleepHint": "La pantalla se apaga antes de dormir. El temporizador o el botón verde despiertan el dispositivo."
     },
     "scopeHint": "Ritmo de consulta y brillo para un grupo de pantallas."
   },

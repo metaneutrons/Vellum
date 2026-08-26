@@ -34,6 +34,7 @@ import {
   orientationInputSchema,
   wifiConfigurationInputSchema,
 } from "@/lib/provisioning/remote-configuration";
+import { unifiedRefreshProfileSchema, upgradeRefreshProfileConfig } from "@/lib/sleep";
 
 /** Central RBAC guard for every server action. */
 async function requireAdmin(permission: Permission) {
@@ -988,10 +989,11 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
 
 export async function getAllRefreshProfiles() {
   await requireAdmin("content.read");
-  return withDbRead(
+  const rows = await withDbRead(
     () => db.select().from(refreshProfiles).orderBy(refreshProfiles.name),
     "get-all-refresh-profiles"
   );
+  return rows.map((row) => ({ ...row, config: upgradeRefreshProfileConfig(row.config) }));
 }
 
 /* ── Sites ─────────────────────────────────────────────────────────
@@ -1120,6 +1122,8 @@ export async function setDeviceSite(macInput: string, siteId: string | null) {
 
 export async function createRefreshProfile(name: string, config: Record<string, unknown>) {
   const actor = await requireAdmin("profiles.manage");
+  const validatedName = z.string().trim().min(1).max(120).parse(name);
+  const validatedConfig = unifiedRefreshProfileSchema.parse(config);
   try {
     await withAuditedTransaction(
       actor,
@@ -1127,10 +1131,13 @@ export async function createRefreshProfile(name: string, config: Record<string, 
         action: "profile.create",
         targetType: "refresh_profile",
         targetId: created[0].id,
-        metadata: { name },
+        metadata: { name: validatedName },
       }),
       (tx) =>
-        tx.insert(refreshProfiles).values({ name, config }).returning({ id: refreshProfiles.id }),
+        tx
+          .insert(refreshProfiles)
+          .values({ name: validatedName, config: validatedConfig })
+          .returning({ id: refreshProfiles.id }),
       "create-refresh-profile"
     );
     revalidatePath("/admin/profiles");
@@ -1146,15 +1153,23 @@ export async function updateRefreshProfile(
   config: Record<string, unknown>
 ) {
   const actor = await requireAdmin("profiles.manage");
+  const validatedId = z.string().uuid().parse(id);
+  const validatedName = z.string().trim().min(1).max(120).parse(name);
+  const validatedConfig = unifiedRefreshProfileSchema.parse(config);
   try {
     await withAuditedTransaction(
       actor,
-      { action: "profile.update", targetType: "refresh_profile", targetId: id, metadata: { name } },
+      {
+        action: "profile.update",
+        targetType: "refresh_profile",
+        targetId: validatedId,
+        metadata: { name: validatedName },
+      },
       async (tx) => {
         const updated = await tx
           .update(refreshProfiles)
-          .set({ name, config, updatedAt: new Date() })
-          .where(eq(refreshProfiles.id, id))
+          .set({ name: validatedName, config: validatedConfig, updatedAt: new Date() })
+          .where(eq(refreshProfiles.id, validatedId))
           .returning({ id: refreshProfiles.id });
         if (updated.length === 0) throw new Error("refresh_profile_not_found");
       },

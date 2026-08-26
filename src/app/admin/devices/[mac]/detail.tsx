@@ -46,6 +46,9 @@ interface Device {
   approvedAt: Date | null;
   lastSeen: Date | null;
   expectedIntervalS: number | null;
+  expectedDisplayState: "on" | "off";
+  expectedDeviceState: "awake" | "sleep";
+  expectedWakeAt: Date | null;
   logVerbose: boolean;
   siteId: string | null;
   backlightPercent: number | null;
@@ -418,6 +421,11 @@ export function DeviceDetail({
         <StatusPill tone={conn.tone} dot>
           {conn.label}
         </StatusPill>
+        {device.expectedDeviceState === "sleep" ? (
+          <StatusPill tone="neutral">{t("powerPolicy.sleeping")}</StatusPill>
+        ) : device.expectedDisplayState === "off" ? (
+          <StatusPill tone="neutral">{t("powerPolicy.displayOff")}</StatusPill>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -605,6 +613,13 @@ export function DeviceDetail({
                 ).toLocaleString(locale)}
               </div>
             )}
+            {device.expectedWakeAt &&
+              (device.expectedDeviceState === "sleep" || device.expectedDisplayState === "off") && (
+                <div>
+                  <span className="text-label-secondary">{t("powerPolicy.until")}:</span>{" "}
+                  {new Date(device.expectedWakeAt).toLocaleString(locale)}
+                </div>
+              )}
           </div>
         </Card>
       </div>

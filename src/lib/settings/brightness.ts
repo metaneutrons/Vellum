@@ -13,10 +13,9 @@
  *   a cadence rule, wrapping past midnight the same way, and the same precedence:
  *   first match wins. An expression you debug, so it stays as small as possible.
  *
- * Two separate rule lists rather than one shared list with both fields, because a
- * night dimming window from 18:00 to 07:00 has no reason to coincide with a
- * polling window. Sharing the list would force operators to duplicate rules to
- * express the ordinary case.
+ * Historical profiles had a second schedule nested below brightness. Version 2
+ * deliberately uses the profile's ordinary phases for cadence, brightness and
+ * power together: one clock, one ordering rule and one place to diagnose.
  *
  * Evaluation happens on the server and the device receives a single number. That
  * keeps clock and timezone logic out of the firmware, and a schedule change takes
@@ -32,7 +31,10 @@ export const brightnessRuleSchema = z.object({
   startHour: z.number().int().min(0).max(23),
   /** If < startHour, the rule wraps past midnight. */
   endHour: z.number().int().min(0).max(23),
-  percent: z.number().int().min(0).max(100),
+  /** Legacy rule applied to both power sources. */
+  percent: z.number().int().min(0).max(100).optional(),
+  usbPercent: z.number().int().min(0).max(100).optional(),
+  batteryPercent: z.number().int().min(0).max(100).optional(),
 });
 export type BrightnessRule = z.infer<typeof brightnessRuleSchema>;
 
@@ -56,9 +58,39 @@ export const DEFAULT_BRIGHTNESS: BrightnessPolicy = brightnessPolicySchema.parse
  */
 export function parseBrightnessPolicy(config: unknown): BrightnessPolicy {
   if (!config || typeof config !== "object") return DEFAULT_BRIGHTNESS;
-  const raw = (config as Record<string, unknown>).brightness;
+  const source = config as Record<string, unknown>;
+  const raw = source.brightness;
   const result = brightnessPolicySchema.safeParse(raw ?? {});
-  return result.success ? result.data : DEFAULT_BRIGHTNESS;
+  const base = result.success ? result.data : DEFAULT_BRIGHTNESS;
+
+  /* Version-2 profiles use the ordinary profile phases as the only clock. The
+   * legacy nested schedule remains readable so existing rows behave identically
+   * until an operator saves them in the new editor. */
+  if (source.version === 2 && Array.isArray(source.schedule)) {
+    const schedule: BrightnessRule[] = [];
+    for (const candidate of source.schedule) {
+      if (!candidate || typeof candidate !== "object") continue;
+      const phase = candidate as Record<string, unknown>;
+      const usb = phase.usb as Record<string, unknown> | undefined;
+      const battery = phase.battery as Record<string, unknown> | undefined;
+      const parsed = brightnessRuleSchema.safeParse({
+        name: phase.name,
+        days: phase.days,
+        startHour: phase.startHour,
+        endHour: phase.endHour,
+        usbPercent: usb?.brightnessPercent,
+        batteryPercent: battery?.brightnessPercent,
+      });
+      if (
+        parsed.success &&
+        (parsed.data.usbPercent != null || parsed.data.batteryPercent != null)
+      ) {
+        schedule.push(parsed.data);
+      }
+    }
+    return { ...base, schedule };
+  }
+  return base;
 }
 
 export interface BrightnessContext {
@@ -84,8 +116,18 @@ function matches(rule: BrightnessRule, now: Date, timezone?: string): boolean {
   const zoned = timezone ? new TZDate(now, timezone) : now;
   const day = zoned.getDay();
   const hour = zoned.getHours();
-  if (rule.days.length > 0 && !rule.days.includes(day)) return false;
-  if (rule.startHour <= rule.endHour) return hour >= rule.startHour && hour < rule.endHour;
+  if (rule.startHour === rule.endHour) {
+    return rule.days.length === 0 || rule.days.includes(day);
+  }
+  if (rule.startHour < rule.endHour) {
+    return (
+      (rule.days.length === 0 || rule.days.includes(day)) &&
+      hour >= rule.startHour &&
+      hour < rule.endHour
+    );
+  }
+  const phaseDay = hour < rule.endHour ? (day + 6) % 7 : day;
+  if (rule.days.length > 0 && !rule.days.includes(phaseDay)) return false;
   return hour >= rule.startHour || hour < rule.endHour;
 }
 
@@ -101,7 +143,13 @@ export function evaluateBrightness(ctx: BrightnessContext): BrightnessResult {
 
   for (const rule of policy.schedule) {
     if (matches(rule, ctx.now, ctx.timezone)) {
-      return { percent: rule.percent, tier: "schedule", rule: rule.name || undefined };
+      const percent =
+        ctx.powerSource === "usb"
+          ? (rule.usbPercent ?? rule.percent)
+          : (rule.batteryPercent ?? rule.percent);
+      if (percent != null) {
+        return { percent, tier: "schedule", rule: rule.name || undefined };
+      }
     }
   }
 

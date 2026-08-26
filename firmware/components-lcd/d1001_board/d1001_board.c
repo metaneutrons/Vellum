@@ -228,6 +228,24 @@ esp_err_t d1001_backlight_set(int percent)
 esp_err_t d1001_backlight_on(void) { return d1001_backlight_set(80); }
 esp_err_t d1001_backlight_off(void) { return d1001_backlight_set(0); }
 
+esp_err_t d1001_lcd_power_off(void)
+{
+    if (!s_io_exp) return ESP_ERR_INVALID_STATE;
+    ESP_RETURN_ON_ERROR(d1001_backlight_off(), TAG, "Backlight off failed");
+    ESP_RETURN_ON_ERROR(
+        esp_io_expander_set_level(s_io_exp, D1001_EXP_LCD_BL_EN, 0),
+        TAG, "Backlight rail off failed");
+    ESP_RETURN_ON_ERROR(
+        esp_io_expander_set_level(s_io_exp, D1001_EXP_LCD_RST, 0),
+        TAG, "LCD reset failed");
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_RETURN_ON_ERROR(
+        esp_io_expander_set_level(s_io_exp, D1001_EXP_LCD_PWR_EN, 0),
+        TAG, "LCD power rail off failed");
+    ESP_LOGI(TAG, "LCD rails powered down");
+    return ESP_OK;
+}
+
 /* ── Battery ─────────────────────────────────────────────────── */
 
 static int read_adc_mv(adc_channel_t channel, adc_cali_handle_t cali)

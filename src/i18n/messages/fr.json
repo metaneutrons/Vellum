@@ -239,6 +239,11 @@
     "backlightSupported": "réglable",
     "nextExpected": "Prochain contact attendu",
     "checkInEvery": "Se signale toutes les",
+    "powerPolicy": {
+      "sleeping": "Veille planifiée",
+      "displayOff": "Écran éteint selon le planning",
+      "until": "Planifié jusqu’à"
+    },
     "nvsEncryption": "Chiffrement NVS",
     "colorModes": {
       "fullcolor": "Couleurs complètes",
@@ -541,7 +546,7 @@
     "retryStep": "Palier {step}",
     "retryStepHeld": "Palier {step} (maintenu)",
     "addStep": "Ajouter un palier",
-    "scheduleHint": "Remplace l’intervalle sur batterie pour certains jours et horaires. Les règles sont évaluées de haut en bas ; la première correspondance est prioritaire.",
+    "scheduleHint": "Définit l’actualisation, la luminosité et l’alimentation sur USB et batterie dans une seule phase. La première règle correspondante s’applique.",
     "templateNight": "🌙 Nuit (22–6)",
     "templateNightName": "Nuit",
     "templateWeekend": "🏖 Week-end",
@@ -568,6 +573,7 @@
     "default": "Par défaut",
     "brightness": {
       "title": "Luminosité",
+      "defaultHint": "Valeurs par défaut hors des phases planifiées. La luminosité propre à une phase se règle directement dans la phase ci-dessus.",
       "hint": "Uniquement les écrans qui signalent un rétroéclairage. Les règles utilisent les mêmes jours et heures que ci-dessus ; la première correspondance gagne.",
       "onUsb": "Sur alimentation USB",
       "onBattery": "Sur batterie",
@@ -577,6 +583,17 @@
       "noRules": "Aucune règle d'atténuation. Les valeurs ci-dessus s'appliquent toute la journée.",
       "night": "Nuit",
       "level": "Niveau"
+    },
+    "phase": {
+      "usb": "Alimentation USB",
+      "battery": "Alimentation par batterie",
+      "display": "Écran",
+      "displayOn": "Allumé",
+      "displayOff": "Complètement éteint",
+      "device": "Appareil",
+      "deviceAwake": "Rester en ligne",
+      "deviceSleep": "Dormir jusqu’à la fin de la phase",
+      "sleepHint": "L’écran est éteint avant la veille. La minuterie ou le bouton vert réveille l’appareil."
     },
     "scopeHint": "Cadence et luminosité pour un groupe d'écrans."
   },

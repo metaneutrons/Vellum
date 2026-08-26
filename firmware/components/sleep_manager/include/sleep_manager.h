@@ -33,6 +33,10 @@ wake_reason_t sleep_manager_get_wake_reason(void);
  */
 void sleep_manager_enter(uint32_t seconds, uint64_t button_wake_mask);
 
+/** Enter deep sleep even on LCD models. Call only after panel power-down and
+ * only when the current power policy explicitly requested it. */
+void sleep_manager_enter_deep(uint32_t seconds, uint64_t button_wake_mask);
+
 /** Return and clear a refresh request made while USB power kept the device awake. */
 bool sleep_manager_take_button_refresh_request(void);
 

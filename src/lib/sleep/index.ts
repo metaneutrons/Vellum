@@ -4,10 +4,11 @@
  * Sleep duration computation with configurable refresh profiles.
  *
  * Priority chain:
- *   1. Content renderer override (e.g. carousel → 60s)
- *   2. Schedule rule match (weekday/time-based override)
- *   3. Device refresh profile defaults
- *   4. Hardcoded fallback
+ *   1. Battery safety
+ *   2. Explicit scheduled device sleep
+ *   3. Content renderer override (e.g. carousel → 60s)
+ *   4. Scheduled cadence
+ *   5. Event/default cadence
  *
  * Schedule rules support two modes:
  *   - "poll": Device stays awake (or light-sleeps), polls after intervalS.
@@ -17,9 +18,32 @@
 
 import { z } from "zod";
 import { TZDate } from "@date-fns/tz";
+import { brightnessPolicySchema } from "@/lib/settings/brightness";
 
-/** A time-based override rule */
-const scheduleRuleSchema = z.object({
+export const phaseBehaviorSchema = z
+  .object({
+    /** Poll cadence while this phase is active for this power source. */
+    intervalS: z.number().int().positive().optional(),
+    /** Backlight target. Zero is deliberately distinct from powering the panel off. */
+    brightnessPercent: z.number().int().min(0).max(100).optional(),
+    /** Whether the physical panel should remain powered. */
+    display: z.enum(["on", "off"]).optional(),
+    /** Whether the controller remains active or sleeps until the phase ends. */
+    device: z.enum(["awake", "sleep"]).optional(),
+  })
+  .superRefine((behavior, ctx) => {
+    if (behavior.device === "sleep" && behavior.display === "on") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["display"],
+        message: "A sleeping device cannot keep its display powered",
+      });
+    }
+  });
+export type PhaseBehavior = z.infer<typeof phaseBehaviorSchema>;
+
+/** A time-based phase. USB and battery are intentionally independent. */
+export const scheduleRuleSchema = z.object({
   /** Rule name for display in admin UI */
   name: z.string().default(""),
   /** Days this rule applies: 0=Sun, 1=Mon, ..., 6=Sat. Empty = all days. */
@@ -28,27 +52,34 @@ const scheduleRuleSchema = z.object({
   startHour: z.number().min(0).max(23),
   /** End hour (0-23). If < startHour, wraps past midnight. */
   endHour: z.number().min(0).max(23),
-  /** Override interval in seconds when this rule is active (used for mode=poll) */
-  intervalS: z.number().min(0),
+  /**
+   * Legacy cadence. Kept for read compatibility only; the editor writes the
+   * source-specific `usb` and `battery` branches below.
+   */
+  intervalS: z.number().positive().optional(),
   /**
    * Device behavior during this rule:
    * - "poll": Stay awake, refresh every intervalS seconds.
    * - "sleep": Deep sleep until endHour. No polling, display off.
    */
-  mode: z.enum(["poll", "sleep"]).default("poll"),
+  mode: z.enum(["poll", "sleep"]).optional(),
+  usb: phaseBehaviorSchema.optional(),
+  battery: phaseBehaviorSchema.optional(),
 });
 
 export type ScheduleRule = z.infer<typeof scheduleRuleSchema>;
 
 export const refreshProfileSchema = z.object({
+  /** Version 2 is the first profile whose phases carry explicit power actions. */
+  version: z.literal(2).optional(),
   usbIntervalS: z.number().default(60),
   batteryIntervalS: z.number().default(900),
   lowBatteryIntervalS: z.number().default(3600),
   lowBatteryThresholdPct: z.number().default(20),
   imminentEventWindowS: z.number().default(1200),
   wakeBeforeEventS: z.number().default(300),
-  /** Default mode when no schedule rule matches */
-  defaultMode: z.enum(["poll", "sleep"]).default("sleep"),
+  /** Legacy field. It was never consumed by firmware and must stay inert. */
+  defaultMode: z.enum(["poll", "sleep"]).optional(),
   /** Schedule rules — checked in order, first match wins */
   schedule: z.array(scheduleRuleSchema).default([]),
   /**
@@ -87,6 +118,89 @@ export const refreshProfileSchema = z.object({
 });
 
 export type RefreshProfile = z.infer<typeof refreshProfileSchema>;
+
+export const unifiedRefreshProfileSchema = refreshProfileSchema.extend({
+  version: z.literal(2),
+  brightness: brightnessPolicySchema.extend({ schedule: z.tuple([]) }),
+});
+
+export type UnifiedRefreshProfile = z.infer<typeof unifiedRefreshProfileSchema>;
+
+function phaseKey(rule: Pick<ScheduleRule, "days" | "startHour" | "endHour">): string {
+  return `${[...rule.days].sort((a, b) => a - b).join(",")}|${rule.startHour}|${rule.endHour}`;
+}
+
+/**
+ * Convert every historical profile shape into the single-phase version written
+ * by the current editor. Pure and idempotent, so it is safe on reads, saves and
+ * explicit data migrations alike.
+ *
+ * Legacy `mode=sleep` is deliberately NOT promoted. Released firmware ignored
+ * that header, and changing a dormant field into an active fleet command during
+ * an ordinary edit would violate backwards compatibility.
+ */
+export function upgradeRefreshProfileConfig(raw: unknown): UnifiedRefreshProfile {
+  const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const parsed = refreshProfileSchema.safeParse(source);
+  const base = parsed.success ? parsed.data : refreshProfileSchema.parse({});
+  const brightnessResult = brightnessPolicySchema.safeParse(source.brightness ?? {});
+  const brightness = brightnessResult.success
+    ? brightnessResult.data
+    : brightnessPolicySchema.parse({});
+
+  if (base.version === 2) {
+    return unifiedRefreshProfileSchema.parse({
+      ...base,
+      version: 2,
+      brightness: {
+        usbPercent: brightness.usbPercent,
+        batteryPercent: brightness.batteryPercent,
+        schedule: [],
+      },
+    });
+  }
+
+  const phases: ScheduleRule[] = base.schedule.map((rule) => ({
+    name: rule.name,
+    days: rule.days,
+    startHour: rule.startHour,
+    endHour: rule.endHour,
+    usb: rule.intervalS ? { intervalS: rule.intervalS } : {},
+    battery: rule.intervalS ? { intervalS: rule.intervalS } : {},
+  }));
+
+  for (const legacy of brightness.schedule) {
+    const key = phaseKey(legacy);
+    let phase = phases.find((candidate) => phaseKey(candidate) === key);
+    if (!phase) {
+      phase = {
+        name: legacy.name,
+        days: legacy.days,
+        startHour: legacy.startHour,
+        endHour: legacy.endHour,
+        usb: {},
+        battery: {},
+      };
+      phases.push(phase);
+    }
+    if (legacy.percent != null) {
+      phase.usb = { ...phase.usb, brightnessPercent: legacy.percent };
+      phase.battery = { ...phase.battery, brightnessPercent: legacy.percent };
+    }
+  }
+
+  return unifiedRefreshProfileSchema.parse({
+    ...base,
+    version: 2,
+    defaultMode: undefined,
+    schedule: phases,
+    brightness: {
+      usbPercent: brightness.usbPercent,
+      batteryPercent: brightness.batteryPercent,
+      schedule: [],
+    },
+  });
+}
 
 /** One layer of a cascade: only the keys it actually sets. */
 export type RefreshProfilePatch = Partial<RefreshProfile>;
@@ -153,6 +267,12 @@ export interface SleepResult {
   capped?: boolean;
 }
 
+export interface DisplayPowerResult {
+  state: "on" | "off";
+  tier: "schedule" | "power-default";
+  rule?: string;
+}
+
 export function parseRefreshProfile(raw: unknown): RefreshProfile {
   const result = refreshProfileSchema.safeParse(raw);
   return result.success ? result.data : DEFAULT_PROFILE;
@@ -177,12 +297,18 @@ function localParts(now: Date, timezone?: string): { day: number; hour: number }
 /** Check if a schedule rule matches the current time */
 function matchesRule(rule: ScheduleRule, now: Date, timezone?: string): boolean {
   const { day, hour } = localParts(now, timezone);
-
-  if (rule.days.length > 0 && !rule.days.includes(day)) return false;
-
+  if (rule.startHour === rule.endHour) {
+    return rule.days.length === 0 || rule.days.includes(day);
+  }
   if (rule.startHour <= rule.endHour) {
+    if (rule.days.length > 0 && !rule.days.includes(day)) return false;
     return hour >= rule.startHour && hour < rule.endHour;
   }
+  /* For a phase that crosses midnight, 02:00 Saturday belongs to the phase
+   * that STARTED Friday. Evaluating Saturday here made weekday night phases end
+   * at midnight and weekend phases start six hours too early. */
+  const phaseDay = hour < rule.endHour ? (day + 6) % 7 : day;
+  if (rule.days.length > 0 && !rule.days.includes(phaseDay)) return false;
   return hour >= rule.startHour || hour < rule.endHour;
 }
 
@@ -217,35 +343,49 @@ export function computeSleep(ctx: SleepContext): SleepResult {
       ? { ...r, durationS: p.unassignedIntervalS, capped: true }
       : r;
 
-  // 1. Content renderer override (always poll mode)
-  if (ctx.rendererOverrideS != null && ctx.rendererOverrideS > 0) {
-    return { durationS: ctx.rendererOverrideS, mode: "poll", tier: "renderer-override" };
-  }
-
-  // 2. Low battery → sleep to conserve. NOT capped: a near-dead cell outranks
+  // 1. Low battery → sleep to conserve. NOT capped: a near-dead cell outranks
   // commissioning convenience, and this is the one tier meant to be slow.
   if (ctx.powerSource === "battery" && ctx.batteryLevel < p.lowBatteryThresholdPct) {
     return { durationS: p.lowBatteryIntervalS, mode: "sleep", tier: "low-battery" };
   }
 
-  // 3. Schedule rules — first match wins
-  for (const rule of p.schedule) {
-    if (matchesRule(rule, ctx.now, ctx.timezone)) {
-      if (rule.mode === "sleep") {
-        // Sleep until the rule's endHour
-        return cap({
+  // 2. Explicit scheduled sleep outranks a renderer's preferred cadence. A
+  // carousel cannot keep an LCD awake after an administrator turned the night
+  // phase off, and commissioning must not wake it every five minutes either.
+  if (p.version === 2) {
+    for (const rule of p.schedule) {
+      if (!matchesRule(rule, ctx.now, ctx.timezone)) continue;
+      if (rule[ctx.powerSource]?.device === "sleep") {
+        return {
           durationS: secondsUntilHour(ctx.now, rule.endHour, ctx.timezone),
           mode: "sleep",
           tier: "schedule",
           rule: rule.name || undefined,
-        });
+        };
       }
-      return cap({
-        durationS: rule.intervalS,
-        mode: "poll",
-        tier: "schedule",
-        rule: rule.name || undefined,
-      });
+    }
+  }
+
+  // 3. Content renderer override (always poll mode)
+  if (ctx.rendererOverrideS != null && ctx.rendererOverrideS > 0) {
+    return { durationS: ctx.rendererOverrideS, mode: "poll", tier: "renderer-override" };
+  }
+
+  // 4. Schedule phases — first matching phase that defines cadence wins. A
+  // brightness-only phase must not accidentally alter polling.
+  for (const rule of p.schedule) {
+    if (matchesRule(rule, ctx.now, ctx.timezone)) {
+      const behavior = rule[ctx.powerSource];
+      const intervalS = behavior?.intervalS ?? rule.intervalS;
+      if (intervalS != null) {
+        const result = {
+          durationS: intervalS,
+          mode: "poll" as const,
+          tier: "schedule" as const,
+          rule: rule.name || undefined,
+        };
+        return behavior?.display === "off" ? result : cap(result);
+      }
     }
   }
 
@@ -263,7 +403,28 @@ export function computeSleep(ctx: SleepContext): SleepResult {
 
   // 5. Default based on power source
   const durationS = ctx.powerSource === "usb" ? p.usbIntervalS : p.batteryIntervalS;
-  return cap({ durationS, mode: p.defaultMode, tier: "power-default" });
+  return cap({ durationS, mode: "poll", tier: "power-default" });
+}
+
+/** Resolve whether the panel itself should remain powered for this phase. */
+export function computeDisplayPower(
+  ctx: Pick<SleepContext, "powerSource" | "now" | "profile" | "timezone">
+): DisplayPowerResult {
+  const p = ctx.profile ?? DEFAULT_PROFILE;
+  if (p.version === 2) {
+    for (const rule of p.schedule) {
+      if (!matchesRule(rule, ctx.now, ctx.timezone)) continue;
+      const behavior = rule[ctx.powerSource];
+      /* Deep sleep necessarily removes panel power. Treat an omitted display
+       * field as off too, so API-written profiles cannot create an impossible
+       * "controller asleep, LCD on" state. */
+      const state = behavior?.device === "sleep" ? "off" : behavior?.display;
+      if (state) {
+        return { state, tier: "schedule", rule: rule.name || undefined };
+      }
+    }
+  }
+  return { state: "on", tier: "power-default" };
 }
 
 /** Legacy wrapper — returns just the duration in seconds */

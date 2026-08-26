@@ -56,6 +56,20 @@ void vellum_response_headers_capture(vellum_response_headers_t *headers,
         return;
     }
 
+    if (header_name_equal(name, "X-Sleep-Mode")) {
+        if (strcmp(value, "poll") == 0 || strcmp(value, "sleep") == 0) {
+            (void)copy_complete(headers->sleep_mode, sizeof(headers->sleep_mode), value);
+        }
+        return;
+    }
+
+    if (header_name_equal(name, "X-Display-State")) {
+        if (strcmp(value, "on") == 0 || strcmp(value, "off") == 0) {
+            (void)copy_complete(headers->display_state, sizeof(headers->display_state), value);
+        }
+        return;
+    }
+
     if (header_name_equal(name, "X-Error-Backoff")) {
         (void)copy_complete(headers->error_backoff, sizeof(headers->error_backoff), value);
         return;

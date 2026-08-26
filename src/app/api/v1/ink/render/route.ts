@@ -9,7 +9,13 @@ import { validateRequest, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { canvasToPixelBuffer } from "@/lib/render";
-import { computeSleep, parseRefreshProfile, applyJitter, type RefreshProfile } from "@/lib/sleep";
+import {
+  computeDisplayPower,
+  computeSleep,
+  parseRefreshProfile,
+  applyJitter,
+  type RefreshProfile,
+} from "@/lib/sleep";
 import { settingsForDevice } from "@/lib/settings/for-device";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
@@ -54,11 +60,15 @@ async function resolveRefreshProfile(refreshProfileId: string | null) {
 function sleepHeaders(
   durationS: number,
   mode: string,
+  displayState: "on" | "off",
   profile: RefreshProfile | null
 ): Record<string, string> {
   const headers: Record<string, string> = {
-    "X-Sleep-Duration": String(Math.round(applyJitter(durationS))),
-    "X-Sleep-Mode": mode,
+    "X-Sleep-Duration": String(durationS),
+    /* Released firmware never consumed this field. Only profiles explicitly
+     * saved in the power-policy format may turn it into an active command. */
+    "X-Sleep-Mode": profile?.version === 2 ? mode : "poll",
+    "X-Display-State": displayState,
   };
   // Omitted when the profile defines no ladder; the device then keeps its normal
   // cadence on failure. See errorBackoffS in @/lib/sleep.
@@ -67,19 +77,57 @@ function sleepHeaders(
   return headers;
 }
 
+/** Resolve the exact duration sent on the wire once, so persisted expectations
+ * and the device cannot differ. A scheduled deep sleep ends exactly on the
+ * phase boundary; ordinary polls retain fleet-spreading jitter. */
+function responseDuration(durationS: number, mode: string, profile: RefreshProfile | null): number {
+  const scheduledDeepSleep = profile?.version === 2 && mode === "sleep";
+  return Math.max(1, Math.round(scheduledDeepSleep ? durationS : applyJitter(durationS)));
+}
+
 /**
  * Record the cadence just handed to this device so the admin UI can judge
  * connectivity against its own schedule (src/lib/connectivity.ts) rather than a
  * fixed window. Only writes on change — skips a round-trip on the steady-state
  * render path — and is non-fatal.
  */
-async function recordExpectedInterval(mac: string, current: number | null, durationS: number) {
+async function recordExpectedPower(
+  mac: string,
+  current: {
+    intervalS: number | null;
+    displayState: "on" | "off";
+    deviceState: "awake" | "sleep";
+    wakeAt: Date | null;
+  },
+  durationS: number,
+  displayState: "on" | "off",
+  deviceState: "awake" | "sleep"
+) {
   const rounded = Math.round(durationS);
-  if (current === rounded) return;
+  const intentionalRest = displayState === "off" || deviceState === "sleep";
+  const wakeAt = intentionalRest ? new Date(Date.now() + rounded * 1000) : null;
+  const unchanged =
+    current.intervalS === rounded &&
+    current.displayState === displayState &&
+    current.deviceState === deviceState &&
+    ((current.wakeAt === null && wakeAt === null) ||
+      (current.wakeAt !== null &&
+        wakeAt !== null &&
+        Math.abs(current.wakeAt.getTime() - wakeAt.getTime()) < 5_000));
+  if (unchanged) return;
   await withDbWrite(
-    () => db.update(devices).set({ expectedIntervalS: rounded }).where(eq(devices.mac, mac)),
-    "render-update-expected-interval"
-  ).catch((err) => log.warn("expectedIntervalS update failed", { mac, error: String(err) }));
+    () =>
+      db
+        .update(devices)
+        .set({
+          expectedIntervalS: rounded,
+          expectedDisplayState: displayState,
+          expectedDeviceState: deviceState,
+          expectedWakeAt: wakeAt,
+        })
+        .where(eq(devices.mac, mac)),
+    "render-update-expected-power"
+  ).catch((err) => log.warn("Expected power-state update failed", { mac, error: String(err) }));
 }
 
 export async function GET(request: NextRequest) {
@@ -142,11 +190,34 @@ export async function GET(request: NextRequest) {
       timezone: settings.values.timezone ?? undefined,
       hasContent: false,
     });
-    await recordExpectedInterval(validation.data.mac, device.expectedIntervalS, idle.durationS);
+    const idleDisplay = computeDisplayPower({
+      powerSource,
+      now: new Date(),
+      profile,
+      timezone: settings.values.timezone ?? undefined,
+    });
+    const idleDeviceState = profile?.version === 2 ? idle.mode : "poll";
+    const idleDisplayState = idleDeviceState === "sleep" ? "off" : idleDisplay.state;
+    const idleResponseDuration = responseDuration(idle.durationS, idle.mode, profile);
+    await recordExpectedPower(
+      validation.data.mac,
+      {
+        intervalS: device.expectedIntervalS,
+        displayState: device.expectedDisplayState,
+        deviceState: device.expectedDeviceState,
+        wakeAt: device.expectedWakeAt,
+      },
+      idleResponseDuration,
+      idleDisplayState,
+      idleDeviceState === "sleep" ? "sleep" : "awake"
+    );
     const model = request.headers.get("x-display-model")?.trim().toLowerCase() || "unknown";
     const firmware = request.headers.get("x-firmware-ver")?.trim() || "unknown";
     const etag = renderEntityTag("idle", `${IDLE_SCREEN_REVISION}:${model}:${firmware}`);
-    const headers = { ...sleepHeaders(idle.durationS, idle.mode, profile), ETag: etag };
+    const headers = {
+      ...sleepHeaders(idleResponseDuration, idle.mode, idleDisplayState, profile),
+      ETag: etag,
+    };
     if (request.headers.get("if-none-match") === etag) {
       return new Response(null, { status: 304, headers });
     }
@@ -273,8 +344,28 @@ export async function GET(request: NextRequest) {
     timezone: settings.values.timezone ?? undefined,
     rendererOverrideS: renderResult.sleepOverrideS ?? null,
   });
+  const displayPower = computeDisplayPower({
+    powerSource,
+    now,
+    profile,
+    timezone: settings.values.timezone ?? undefined,
+  });
 
-  await recordExpectedInterval(validation.data.mac, device.expectedIntervalS, sleepDuration);
+  const expectedDeviceState = profile?.version === 2 && sleepMode === "sleep" ? "sleep" : "awake";
+  const expectedDisplayState = expectedDeviceState === "sleep" ? "off" : displayPower.state;
+  const sleepResponseDuration = responseDuration(sleepDuration, sleepMode, profile);
+  await recordExpectedPower(
+    validation.data.mac,
+    {
+      intervalS: device.expectedIntervalS,
+      displayState: device.expectedDisplayState,
+      deviceState: device.expectedDeviceState,
+      wakeAt: device.expectedWakeAt,
+    },
+    sleepResponseDuration,
+    expectedDisplayState,
+    expectedDeviceState
+  );
 
   // Compute content hash for client-side caching (skip refresh if unchanged)
   const contentHash = renderEntityTag("frame", new Uint8Array(pixelBuffer));
@@ -285,7 +376,7 @@ export async function GET(request: NextRequest) {
     return new Response(null, {
       status: 304,
       headers: {
-        ...sleepHeaders(sleepDuration, sleepMode, profile),
+        ...sleepHeaders(sleepResponseDuration, sleepMode, expectedDisplayState, profile),
         ETag: contentHash,
       },
     });
@@ -300,7 +391,7 @@ export async function GET(request: NextRequest) {
           : display.colorMode === "fullcolor"
             ? "image/png"
             : "application/octet-stream",
-      ...sleepHeaders(sleepDuration, sleepMode, profile),
+      ...sleepHeaders(sleepResponseDuration, sleepMode, expectedDisplayState, profile),
       ETag: contentHash,
     },
   });

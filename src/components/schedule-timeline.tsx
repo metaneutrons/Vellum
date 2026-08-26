@@ -3,13 +3,12 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { fmtInterval } from "@/lib/duration";
+import type { ScheduleRule } from "@/lib/sleep";
 
-interface ScheduleRule {
-  name: string;
-  days: number[];
-  startHour: number;
-  endHour: number;
-  intervalS: number;
+function describeRule(rule: ScheduleRule, fallback: number): string {
+  const usb = rule.usb?.intervalS ?? rule.intervalS ?? fallback;
+  const battery = rule.battery?.intervalS ?? rule.intervalS ?? fallback;
+  return `${fmtInterval(usb)} / ${fmtInterval(battery)}`;
 }
 
 const COLORS = [
@@ -27,33 +26,58 @@ function isOvernight(r: ScheduleRule): boolean {
   return r.startHour > r.endHour;
 }
 
-function rulesOverlap(a: ScheduleRule, b: ScheduleRule): boolean {
-  // Check day overlap
-  const aDays = a.days.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : a.days;
-  const bDays = b.days.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : b.days;
-  const sharedDays = aDays.some((d) => bDays.includes(d));
-  if (!sharedDays) return false;
-
-  // Check hour overlap
-  const aHours = new Set<number>();
-  const bHours = new Set<number>();
-  for (let h = 0; h < 24; h++) {
-    if (isOvernight(a) ? h >= a.startHour || h < a.endHour : h >= a.startHour && h < a.endHour)
-      aHours.add(h);
-    if (isOvernight(b) ? h >= b.startHour || h < b.endHour : h >= b.startHour && h < b.endHour)
-      bHours.add(h);
+function matchesLocal(rule: ScheduleRule, day: number, hour: number): boolean {
+  if (rule.startHour === rule.endHour) {
+    return rule.days.length === 0 || rule.days.includes(day);
   }
-  for (const h of aHours) if (bHours.has(h)) return true;
-  return false;
+  if (rule.startHour < rule.endHour) {
+    return (
+      (rule.days.length === 0 || rule.days.includes(day)) &&
+      hour >= rule.startHour &&
+      hour < rule.endHour
+    );
+  }
+  const phaseDay = hour < rule.endHour ? (day + 6) % 7 : day;
+  return (
+    (rule.days.length === 0 || rule.days.includes(phaseDay)) &&
+    (hour >= rule.startHour || hour < rule.endHour)
+  );
+}
+
+function slots(rule: ScheduleRule): Set<number> {
+  const result = new Set<number>();
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      if (matchesLocal(rule, day, hour)) result.add(day * 24 + hour);
+    }
+  }
+  return result;
+}
+
+function rulesOverlap(a: ScheduleRule, b: ScheduleRule): boolean {
+  const aSlots = slots(a);
+  return [...slots(b)].some((slot) => aSlots.has(slot));
 }
 
 function matchesNow(rule: ScheduleRule): boolean {
   const now = new Date();
   const day = now.getDay();
   const hour = now.getHours();
-  if (rule.days.length > 0 && !rule.days.includes(day)) return false;
-  if (isOvernight(rule)) return hour >= rule.startHour || hour < rule.endHour;
-  return hour >= rule.startHour && hour < rule.endHour;
+  return matchesLocal(rule, day, hour);
+}
+
+function blocksForDay(rule: ScheduleRule, day: number): Array<{ start: number; end: number }> {
+  const blocks: Array<{ start: number; end: number }> = [];
+  let start: number | null = null;
+  for (let hour = 0; hour <= 24; hour++) {
+    const active = hour < 24 && matchesLocal(rule, day, hour);
+    if (active && start === null) start = hour;
+    if (!active && start !== null) {
+      blocks.push({ start, end: hour });
+      start = null;
+    }
+  }
+  return blocks;
 }
 
 export function ScheduleTimeline({
@@ -67,6 +91,7 @@ export function ScheduleTimeline({
   if (rules.length === 0) return null;
 
   const nowHour = new Date().getHours();
+  const today = new Date().getDay();
 
   // Detect overlaps
   const overlaps: [number, number][] = [];
@@ -109,38 +134,21 @@ export function ScheduleTimeline({
         {/* Rule blocks */}
         {rules.map((rule, i) => {
           const color = COLORS[i % COLORS.length];
-          if (isOvernight(rule)) {
-            // Two blocks: startHour→24 and 0→endHour
-            return (
-              <span key={i}>
+          return (
+            <span key={i}>
+              {blocksForDay(rule, today).map((block) => (
                 <div
+                  key={`${block.start}-${block.end}`}
                   className="absolute top-1 bottom-1 rounded-sm opacity-80"
-                  title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
+                  title={`${rule.name}: ${describeRule(rule, defaultIntervalS)}`}
                   style={{
-                    left: `${(rule.startHour / 24) * 100}%`,
-                    right: "0%",
+                    left: `${(block.start / 24) * 100}%`,
+                    width: `${((block.end - block.start) / 24) * 100}%`,
                     background: color,
                   }}
                 />
-                <div
-                  className="absolute top-1 bottom-1 rounded-sm opacity-80"
-                  title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
-                  style={{ left: "0%", width: `${(rule.endHour / 24) * 100}%`, background: color }}
-                />
-              </span>
-            );
-          }
-          return (
-            <div
-              key={i}
-              className="absolute top-1 bottom-1 rounded-sm opacity-80"
-              title={`${rule.name}: ${fmtInterval(rule.intervalS)}`}
-              style={{
-                left: `${(rule.startHour / 24) * 100}%`,
-                width: `${((rule.endHour - rule.startHour) / 24) * 100}%`,
-                background: color,
-              }}
-            />
+              ))}
+            </span>
           );
         })}
 
@@ -165,7 +173,8 @@ export function ScheduleTimeline({
               <span
                 className={`text-[10px] ${active ? "font-bold text-label" : "text-label-secondary"}`}
               >
-                {rule.name || t("ruleFallback", { number: i + 1 })} ({fmtInterval(rule.intervalS)})
+                {rule.name || t("ruleFallback", { number: i + 1 })} (
+                {describeRule(rule, defaultIntervalS)})
                 {active && <span className="ml-1 text-orange">● {t("active")}</span>}
                 {isOvernight(rule) && <span className="ml-1">🌙</span>}
               </span>

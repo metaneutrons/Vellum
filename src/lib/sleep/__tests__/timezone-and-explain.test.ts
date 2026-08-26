@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  computeDisplayPower,
   computeSleep,
   parseRefreshProfile,
   parseRefreshProfilePatch,
+  upgradeRefreshProfileConfig,
   type SleepContext,
 } from "../index";
 
@@ -48,14 +50,68 @@ describe("schedule rules in the display's timezone", () => {
     expect(["schedule", "power-default"]).toContain(r.tier);
   });
 
+  it("attributes the after-midnight portion to the day on which a phase began", () => {
+    const profile = parseRefreshProfile({
+      version: 2,
+      schedule: [
+        {
+          name: "Friday night",
+          days: [5],
+          startHour: 22,
+          endHour: 6,
+          battery: { intervalS: 7200 },
+        },
+      ],
+    });
+    const result = computeSleep({
+      ...at("2026-08-29T00:00:00Z"), // Saturday 02:00 in Berlin
+      powerSource: "battery",
+      profile,
+      timezone: "Europe/Berlin",
+    });
+    expect(result.tier).toBe("schedule");
+    expect(result.durationS).toBe(7200);
+  });
+
+  it("treats equal start and end hours as a full-day phase", () => {
+    const profile = parseRefreshProfile({
+      version: 2,
+      schedule: [
+        {
+          name: "Weekend",
+          days: [6],
+          startHour: 0,
+          endHour: 0,
+          usb: { intervalS: 3600 },
+        },
+      ],
+    });
+    const result = computeSleep({
+      ...at("2026-08-29T12:00:00Z"),
+      profile,
+      timezone: "Europe/Berlin",
+    });
+    expect(result.tier).toBe("schedule");
+    expect(result.durationS).toBe(3600);
+  });
+
   it("sleeps until the rule's end hour in the display's zone", () => {
     const sleepProfile = parseRefreshProfile({
+      version: 2,
       schedule: [
-        { name: "rest", days: [], startHour: 22, endHour: 6, intervalS: 0, mode: "sleep" },
+        {
+          name: "rest",
+          days: [],
+          startHour: 22,
+          endHour: 6,
+          usb: { intervalS: 3600, device: "awake" },
+          battery: { intervalS: 3600, device: "sleep", display: "off" },
+        },
       ],
     });
     const berlin = computeSleep({
       ...at("2026-08-19T22:00:00Z"),
+      powerSource: "battery",
       profile: sleepProfile,
       timezone: "Europe/Berlin",
     });
@@ -64,6 +120,88 @@ describe("schedule rules in the display's timezone", () => {
      * a dark panel through the first meeting. */
     expect(berlin.durationS).toBe(6 * 3600);
     expect(berlin.mode).toBe("sleep");
+  });
+
+  it("keeps USB awake while the same phase sleeps on battery", () => {
+    const profile = parseRefreshProfile({
+      version: 2,
+      schedule: [
+        {
+          name: "night",
+          days: [],
+          startHour: 22,
+          endHour: 6,
+          usb: { intervalS: 7200, device: "awake", display: "off" },
+          battery: { intervalS: 7200, device: "sleep", display: "off" },
+        },
+      ],
+    });
+    const base = { ...at("2026-08-19T22:00:00Z"), profile, timezone: "Europe/Berlin" };
+    expect(computeSleep({ ...base, powerSource: "usb" }).mode).toBe("poll");
+    expect(computeSleep({ ...base, powerSource: "battery" }).mode).toBe("sleep");
+    expect(computeDisplayPower({ ...base, powerSource: "usb" }).state).toBe("off");
+    expect(computeDisplayPower({ ...base, powerSource: "battery" }).state).toBe("off");
+  });
+
+  it("does not let content cadence or the commissioning cap defeat explicit sleep", () => {
+    const profile = parseRefreshProfile({
+      version: 2,
+      unassignedIntervalS: 300,
+      schedule: [
+        {
+          name: "night",
+          days: [],
+          startHour: 22,
+          endHour: 6,
+          battery: { intervalS: 7200, device: "sleep", display: "off" },
+        },
+      ],
+    });
+    const result = computeSleep({
+      ...at("2026-08-19T22:00:00Z"),
+      powerSource: "battery",
+      profile,
+      timezone: "Europe/Berlin",
+      rendererOverrideS: 60,
+      hasContent: false,
+    });
+    expect(result.mode).toBe("sleep");
+    expect(result.durationS).toBe(6 * 3600);
+    expect(result.capped).toBeUndefined();
+  });
+
+  it("does not activate the historical sleep field during migration", () => {
+    const legacy = parseRefreshProfile({
+      defaultMode: "sleep",
+      schedule: [
+        { name: "night", days: [], startHour: 22, endHour: 6, intervalS: 7200, mode: "sleep" },
+      ],
+    });
+    const result = computeSleep({
+      ...at("2026-08-19T22:00:00Z"),
+      profile: legacy,
+      timezone: "Europe/Berlin",
+    });
+    expect(result.mode).toBe("poll");
+  });
+
+  it("merges legacy cadence and brightness windows into one phase", () => {
+    const upgraded = upgradeRefreshProfileConfig({
+      schedule: [{ name: "Night", days: [], startHour: 22, endHour: 6, intervalS: 7200 }],
+      brightness: {
+        usbPercent: 80,
+        batteryPercent: 40,
+        schedule: [{ name: "Night", days: [], startHour: 22, endHour: 6, percent: 10 }],
+      },
+    });
+    expect(upgraded.version).toBe(2);
+    expect(upgraded.schedule).toHaveLength(1);
+    expect(upgraded.schedule[0].usb).toMatchObject({ intervalS: 7200, brightnessPercent: 10 });
+    expect(upgraded.schedule[0].battery).toMatchObject({
+      intervalS: 7200,
+      brightnessPercent: 10,
+    });
+    expect(upgraded.schedule[0].usb?.device).toBeUndefined();
   });
 });
 
