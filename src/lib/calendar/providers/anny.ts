@@ -10,6 +10,7 @@
 
 import { z } from "zod";
 import type { CalendarProvider, CalendarEvent, ResourceRef } from "../types";
+import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
 
 const ANNY_BASE = "https://b.anny.co/api/v1";
@@ -73,6 +74,9 @@ interface AnnyResponse {
 }
 
 const ANNY_PAGE_SIZE = 50;
+/* A display may poll every few minutes, while a public booking slug rarely
+ * changes. Cache successful and unsuccessful legacy lookups alike. */
+const bookingUrlCache = new TtlCache<string | null>(5 * 60_000);
 
 async function annyFetch(
   path: string,
@@ -264,6 +268,45 @@ export async function fetchAnnyResources(
   };
 }
 
+/**
+ * Recover a public booking URL for content created before Vellum persisted the
+ * slug selected in the resource picker. Anny remains the authority: an ID or
+ * room name is never converted into a booking URL; a link exists only when the
+ * live resource record explicitly carries a slug.
+ */
+async function resolveAnnyBookingUrl(
+  creds: z.infer<typeof annyCredentialSchema>,
+  room: z.infer<typeof annyRoomConfigSchema>
+): Promise<string | null> {
+  if (room.bookingUrl) return room.bookingUrl;
+
+  const orgId = creds.organizationId || extractOrgFromToken(creds.apiToken) || "";
+  if (!orgId) throw new Error("Cannot determine anny organization ID");
+
+  const cacheKey = `${orgId}:${room.resourceId}`;
+  const cached = bookingUrlCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  /* Resource pages contain parents plus their included child resources. Scan
+   * every parent page, so a selected workspace is found as reliably as a room. */
+  let page = 1;
+  let totalPages = 1;
+  while (page <= totalPages) {
+    const result = await fetchAnnyResources(creds.apiToken, orgId, undefined, page, ANNY_PAGE_SIZE);
+    const resource = result.resources.find((candidate) => candidate.id === room.resourceId);
+    if (resource?.bookingUrl) {
+      bookingUrlCache.set(cacheKey, resource.bookingUrl);
+      return resource.bookingUrl;
+    }
+
+    totalPages = Math.max(1, Math.ceil(result.total / ANNY_PAGE_SIZE));
+    page++;
+  }
+
+  bookingUrlCache.set(cacheKey, null);
+  return null;
+}
+
 export const annyProvider: CalendarProvider = {
   type: "anny",
   name: "anny.co — Room & Workspace Booking",
@@ -277,9 +320,10 @@ export const annyProvider: CalendarProvider = {
     return fetchAnnyResources(creds.apiToken, orgId, search, page ?? 1);
   },
 
-  getBookingUrl({ roomConfig }) {
+  async getBookingUrl({ credentials, roomConfig }) {
+    const creds = annyCredentialSchema.parse(credentials);
     const room = annyRoomConfigSchema.parse(roomConfig);
-    return room.bookingUrl ?? null;
+    return resolveAnnyBookingUrl(creds, room);
   },
 
   async fetchEvents({ credentials, roomConfig, windowStart, windowEnd }) {
