@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.1](https://github.com/metaneutrons/Vellum/compare/v1.19.0...v1.19.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **calendar:** recover missing Anny booking links ([#318](https://github.com/metaneutrons/Vellum/issues/318)) ([9ab9cb9](https://github.com/metaneutrons/Vellum/commit/9ab9cb9c750cc3487715aeff3c1aeb30e5b95a85))
+
 ## [1.19.0](https://github.com/metaneutrons/Vellum/compare/v1.18.0...v1.19.0) (2026-08-25)
 
 
