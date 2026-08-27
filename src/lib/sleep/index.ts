@@ -42,6 +42,46 @@ export const phaseBehaviorSchema = z
   });
 export type PhaseBehavior = z.infer<typeof phaseBehaviorSchema>;
 
+/**
+ * Complete behaviour outside scheduled phases. Unlike a phase override, every
+ * value is required: a stored profile must explain its ordinary state without
+ * relying on constants hidden in the evaluator.
+ *
+ * `device=awake` means the platform's normal cadence behaviour. Battery e-paper
+ * may still deep-sleep between polls because retaining an image needs no panel
+ * power. `device=sleep` is an explicit request to sleep between ordinary polls;
+ * on USB, firmware deliberately keeps the controller reachable and powers only
+ * the panel down for the requested interval.
+ */
+export const defaultBehaviorSchema = z
+  .object({
+    intervalS: z.number().int().min(10).max(604_800),
+    brightnessPercent: z.number().int().min(0).max(100),
+    display: z.enum(["on", "off"]),
+    device: z.enum(["awake", "sleep"]),
+  })
+  .superRefine((behavior, ctx) => {
+    if (behavior.device === "sleep" && behavior.display === "on") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["display"],
+        message: "A sleeping device cannot keep its display powered",
+      });
+    }
+  });
+export type DefaultBehavior = z.infer<typeof defaultBehaviorSchema>;
+
+export const DEFAULT_BEHAVIORS: Record<"usb" | "battery", DefaultBehavior> = {
+  usb: { intervalS: 60, brightnessPercent: 80, display: "on", device: "awake" },
+  battery: { intervalS: 900, brightnessPercent: 40, display: "on", device: "awake" },
+};
+
+export const profileDefaultsSchema = z.object({
+  usb: defaultBehaviorSchema,
+  battery: defaultBehaviorSchema,
+});
+export type ProfileDefaults = z.infer<typeof profileDefaultsSchema>;
+
 /** A time-based phase. USB and battery are intentionally independent. */
 export const scheduleRuleSchema = z.object({
   /** Rule name for display in admin UI */
@@ -77,8 +117,12 @@ export type ScheduleRule = z.infer<typeof scheduleRuleSchema>;
 
 export const refreshProfileSchema = z
   .object({
-    /** Version 2 is the first profile whose phases carry explicit power actions. */
-    version: z.literal(2).optional(),
+    /**
+     * Version 2 introduced phase power actions. Version 3 adds complete,
+     * source-specific behaviour outside phases.
+     */
+    version: z.union([z.literal(2), z.literal(3)]).optional(),
+    defaults: profileDefaultsSchema.optional(),
     usbIntervalS: z.number().int().min(10).max(604_800).default(60),
     batteryIntervalS: z.number().int().min(10).max(604_800).default(900),
     lowBatteryIntervalS: z.number().int().min(10).max(604_800).default(3600),
@@ -141,10 +185,42 @@ export const refreshProfileSchema = z
 
 export type RefreshProfile = z.infer<typeof refreshProfileSchema>;
 
-export const unifiedRefreshProfileSchema = refreshProfileSchema.safeExtend({
-  version: z.literal(2),
-  brightness: brightnessPolicySchema.extend({ schedule: z.tuple([]) }),
-});
+export const unifiedRefreshProfileSchema = refreshProfileSchema
+  .safeExtend({
+    version: z.literal(3),
+    defaults: profileDefaultsSchema,
+    brightness: brightnessPolicySchema.extend({ schedule: z.tuple([]) }),
+  })
+  .superRefine((profile, ctx) => {
+    const mirrors = [
+      ["usbIntervalS", profile.usbIntervalS, profile.defaults.usb.intervalS],
+      ["batteryIntervalS", profile.batteryIntervalS, profile.defaults.battery.intervalS],
+      ["brightness", profile.brightness.usbPercent, profile.defaults.usb.brightnessPercent],
+      ["brightness", profile.brightness.batteryPercent, profile.defaults.battery.brightnessPercent],
+    ] as const;
+    for (const [path, actual, canonical] of mirrors) {
+      if (actual !== canonical) {
+        ctx.addIssue({
+          code: "custom",
+          path: [path],
+          message: "Compatibility value must match the version-3 defaults",
+        });
+      }
+    }
+    profile.schedule.forEach((phase, index) => {
+      (["usb", "battery"] as const).forEach((source) => {
+        const override = phase[source];
+        const effectiveDevice = override?.device ?? profile.defaults[source].device;
+        if (effectiveDevice === "sleep" && override?.display === "on") {
+          ctx.addIssue({
+            code: "custom",
+            path: ["schedule", index, source, "display"],
+            message: "A phase cannot power the display while inherited controller sleep is active",
+          });
+        }
+      });
+    });
+  });
 
 export type UnifiedRefreshProfile = z.infer<typeof unifiedRefreshProfileSchema>;
 
@@ -170,26 +246,35 @@ export function upgradeRefreshProfileConfig(raw: unknown): UnifiedRefreshProfile
     ? brightnessResult.data
     : brightnessPolicySchema.parse({});
 
-  if (base.version === 2) {
-    return unifiedRefreshProfileSchema.parse({
-      ...base,
-      version: 2,
-      brightness: {
-        usbPercent: brightness.usbPercent,
-        batteryPercent: brightness.batteryPercent,
-        schedule: [],
-      },
-    });
-  }
+  const defaults: ProfileDefaults =
+    base.version === 3 && base.defaults
+      ? base.defaults
+      : {
+          usb: {
+            intervalS: base.usbIntervalS,
+            brightnessPercent: brightness.usbPercent,
+            display: "on",
+            device: "awake",
+          },
+          battery: {
+            intervalS: base.batteryIntervalS,
+            brightnessPercent: brightness.batteryPercent,
+            display: "on",
+            device: "awake",
+          },
+        };
 
-  const phases: ScheduleRule[] = base.schedule.map((rule) => ({
-    name: rule.name,
-    days: rule.days,
-    startHour: rule.startHour,
-    endHour: rule.endHour,
-    usb: rule.intervalS ? { intervalS: rule.intervalS } : {},
-    battery: rule.intervalS ? { intervalS: rule.intervalS } : {},
-  }));
+  const phases: ScheduleRule[] =
+    base.version === 2 || base.version === 3
+      ? base.schedule
+      : base.schedule.map((rule) => ({
+          name: rule.name,
+          days: rule.days,
+          startHour: rule.startHour,
+          endHour: rule.endHour,
+          usb: rule.intervalS ? { intervalS: rule.intervalS } : {},
+          battery: rule.intervalS ? { intervalS: rule.intervalS } : {},
+        }));
 
   for (const legacy of brightness.schedule) {
     const key = phaseKey(legacy);
@@ -213,12 +298,17 @@ export function upgradeRefreshProfileConfig(raw: unknown): UnifiedRefreshProfile
 
   return unifiedRefreshProfileSchema.parse({
     ...base,
-    version: 2,
+    version: 3,
+    defaults,
+    /* Keep the released fields synchronized. They are read compatibility for a
+     * deliberate server rollback, not a second source of truth in version 3. */
+    usbIntervalS: defaults.usb.intervalS,
+    batteryIntervalS: defaults.battery.intervalS,
     defaultMode: undefined,
     schedule: phases,
     brightness: {
-      usbPercent: brightness.usbPercent,
-      batteryPercent: brightness.batteryPercent,
+      usbPercent: defaults.usb.brightnessPercent,
+      batteryPercent: defaults.battery.brightnessPercent,
       schedule: [],
     },
   });
@@ -298,6 +388,8 @@ export interface SleepResult {
   rule?: string;
   /** True when unassignedIntervalS shortened the tier's own answer. */
   capped?: boolean;
+  /** Effective ordinary controller policy after phase inheritance. */
+  devicePolicy?: "awake" | "sleep";
 }
 
 export interface DisplayPowerResult {
@@ -309,6 +401,24 @@ export interface DisplayPowerResult {
 export function parseRefreshProfile(raw: unknown): RefreshProfile {
   const result = refreshProfileSchema.safeParse(raw);
   return result.success ? result.data : DEFAULT_PROFILE;
+}
+
+/** Resolve the complete ordinary behaviour, including historical profiles. */
+export function resolveDefaultBehavior(
+  profile: RefreshProfile | null | undefined,
+  powerSource: "usb" | "battery"
+): DefaultBehavior {
+  const p = profile ?? DEFAULT_PROFILE;
+  if (p.version === 3 && p.defaults) return p.defaults[powerSource];
+  return {
+    intervalS: powerSource === "usb" ? p.usbIntervalS : p.batteryIntervalS,
+    brightnessPercent:
+      powerSource === "usb"
+        ? DEFAULT_BEHAVIORS.usb.brightnessPercent
+        : DEFAULT_BEHAVIORS.battery.brightnessPercent,
+    display: "on",
+    device: "awake",
+  };
 }
 
 /**
@@ -382,6 +492,9 @@ export function computeSleep(ctx: SleepContext): SleepResult {
   const p = ctx.profile ?? DEFAULT_PROFILE;
   const activeRule = resolveActiveScheduleRule(p, ctx.now, ctx.timezone);
   const activeBehavior = activeRule?.[ctx.powerSource];
+  const defaults = resolveDefaultBehavior(p, ctx.powerSource);
+  const devicePolicy = activeBehavior?.device ?? defaults.device;
+  const ordinaryMode: SleepResult["mode"] = devicePolicy === "sleep" ? "sleep" : "poll";
 
   /* A display with nothing assigned is being commissioned, which is exactly when
    * an operator is waiting on it — so cap whatever the tiers below decide. Only
@@ -403,18 +516,25 @@ export function computeSleep(ctx: SleepContext): SleepResult {
   // 2. Explicit scheduled sleep outranks a renderer's preferred cadence. A
   // carousel cannot keep an LCD awake after an administrator turned the night
   // phase off, and commissioning must not wake it every five minutes either.
-  if (p.version === 2 && activeRule && activeBehavior?.device === "sleep") {
+  if ((p.version === 2 || p.version === 3) && activeRule && activeBehavior?.device === "sleep") {
     return {
       durationS: secondsUntilHour(ctx.now, activeRule.endHour, ctx.timezone),
       mode: "sleep",
       tier: "schedule",
       rule: activeRule.name || undefined,
+      devicePolicy,
     };
   }
 
-  // 3. Content renderer override (always poll mode)
+  // 3. Content renderer override controls cadence, while the inherited ordinary
+  // controller policy still decides whether the device waits awake or asleep.
   if (ctx.rendererOverrideS != null && ctx.rendererOverrideS > 0) {
-    return { durationS: ctx.rendererOverrideS, mode: "poll", tier: "renderer-override" };
+    return {
+      durationS: ctx.rendererOverrideS,
+      mode: ordinaryMode,
+      tier: "renderer-override",
+      devicePolicy,
+    };
   }
 
   // 4. Schedule phases — first matching phase that defines cadence wins. A
@@ -424,11 +544,13 @@ export function computeSleep(ctx: SleepContext): SleepResult {
     if (intervalS != null) {
       const result = {
         durationS: intervalS,
-        mode: "poll" as const,
+        mode: ordinaryMode,
         tier: "schedule" as const,
         rule: activeRule.name || undefined,
+        devicePolicy,
       };
-      return activeBehavior?.display === "off" ? result : cap(result);
+      const displayState = activeBehavior?.display ?? defaults.display;
+      return displayState === "off" || devicePolicy === "sleep" ? result : cap(result);
     }
   }
 
@@ -440,15 +562,20 @@ export function computeSleep(ctx: SleepContext): SleepResult {
         /* Never instruct a device to poll in a zero-delay loop when it is
          * already inside the wake-ahead window. */
         durationS: Math.max(diffS - p.wakeBeforeEventS, 10),
-        mode: "poll",
+        mode: ordinaryMode,
         tier: "imminent-event",
+        devicePolicy,
       };
     }
   }
 
   // 5. Default based on power source
-  const durationS = ctx.powerSource === "usb" ? p.usbIntervalS : p.batteryIntervalS;
-  return cap({ durationS, mode: "poll", tier: "power-default" });
+  return cap({
+    durationS: defaults.intervalS,
+    mode: ordinaryMode,
+    tier: "power-default",
+    devicePolicy,
+  });
 }
 
 /** Resolve whether the panel itself should remain powered for this phase. */
@@ -457,7 +584,7 @@ export function computeDisplayPower(
 ): DisplayPowerResult {
   const p = ctx.profile ?? DEFAULT_PROFILE;
   const rule = resolveActiveScheduleRule(p, ctx.now, ctx.timezone);
-  if (p.version === 2 && rule) {
+  if ((p.version === 2 || p.version === 3) && rule) {
     const behavior = rule[ctx.powerSource];
     /* Deep sleep necessarily removes panel power. Treat an omitted display
      * field as off too, so API-written profiles cannot create an impossible
@@ -467,7 +594,10 @@ export function computeDisplayPower(
       return { state, tier: "schedule", rule: rule.name || undefined };
     }
   }
-  return { state: "on", tier: "power-default" };
+  return {
+    state: resolveDefaultBehavior(p, ctx.powerSource).display,
+    tier: "power-default",
+  };
 }
 
 /** Legacy wrapper — returns just the duration in seconds */
