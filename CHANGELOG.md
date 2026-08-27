@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.2](https://github.com/metaneutrons/Vellum/compare/v1.20.1...v1.20.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **deps:** upgrade next to 16.3.3 ([#328](https://github.com/metaneutrons/Vellum/issues/328)) ([63fda67](https://github.com/metaneutrons/Vellum/commit/63fda676c6dcc905713d9ab6433afe68db0c9884))
+
 ## [1.20.1](https://github.com/metaneutrons/Vellum/compare/v1.20.0...v1.20.1) (2026-08-27)
 
 
