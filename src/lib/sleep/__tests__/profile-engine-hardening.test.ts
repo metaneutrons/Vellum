@@ -113,4 +113,165 @@ describe("enterprise profile policy", () => {
       })
     ).toMatchObject({ durationS: 300, tier: "imminent-event" });
   });
+
+  it("upgrades historical ordinary values into explicit source defaults", () => {
+    const profile = upgradeRefreshProfileConfig({
+      version: 2,
+      usbIntervalS: 120,
+      batteryIntervalS: 1800,
+      brightness: { usbPercent: 65, batteryPercent: 25, schedule: [] },
+    });
+
+    expect(profile).toMatchObject({
+      version: 3,
+      defaults: {
+        usb: { intervalS: 120, brightnessPercent: 65, display: "on", device: "awake" },
+        battery: {
+          intervalS: 1800,
+          brightnessPercent: 25,
+          display: "on",
+          device: "awake",
+        },
+      },
+      usbIntervalS: 120,
+      batteryIntervalS: 1800,
+      brightness: { usbPercent: 65, batteryPercent: 25, schedule: [] },
+    });
+  });
+
+  it("uses explicit ordinary display, cadence, brightness and sleep behaviour", () => {
+    const profile = upgradeRefreshProfileConfig({
+      version: 3,
+      defaults: {
+        usb: { intervalS: 90, brightnessPercent: 70, display: "on", device: "awake" },
+        battery: {
+          intervalS: 2400,
+          brightnessPercent: 15,
+          display: "off",
+          device: "sleep",
+        },
+      },
+      schedule: [],
+    });
+
+    expect(
+      computeSleep({
+        profile,
+        now,
+        powerSource: "battery",
+        batteryLevel: 80,
+        nextEventStart: null,
+      })
+    ).toMatchObject({
+      durationS: 2400,
+      mode: "sleep",
+      tier: "power-default",
+      devicePolicy: "sleep",
+    });
+    expect(computeDisplayPower({ profile, now, powerSource: "battery" })).toEqual({
+      state: "off",
+      tier: "power-default",
+    });
+    expect(
+      evaluateBrightness({
+        policy: parseBrightnessPolicy(profile),
+        now,
+        powerSource: "battery",
+      })
+    ).toMatchObject({ percent: 15, tier: "power-default" });
+  });
+
+  it("lets a phase explicitly resume normal cadence over an ordinary sleep policy", () => {
+    const profile = upgradeRefreshProfileConfig({
+      version: 3,
+      defaults: {
+        usb: { intervalS: 60, brightnessPercent: 80, display: "on", device: "awake" },
+        battery: {
+          intervalS: 1800,
+          brightnessPercent: 20,
+          display: "off",
+          device: "sleep",
+        },
+      },
+      schedule: [
+        {
+          name: "office",
+          days: [],
+          startHour: 0,
+          endHour: 0,
+          battery: { intervalS: 300, display: "on", device: "awake" },
+        },
+      ],
+    });
+
+    expect(
+      computeSleep({
+        profile,
+        now,
+        powerSource: "battery",
+        batteryLevel: 80,
+        nextEventStart: null,
+      })
+    ).toMatchObject({ durationS: 300, mode: "poll", rule: "office" });
+    expect(computeDisplayPower({ profile, now, powerSource: "battery" })).toMatchObject({
+      state: "on",
+      rule: "office",
+    });
+  });
+
+  it("rejects an illuminated panel paired with ordinary controller sleep", () => {
+    const profile = upgradeRefreshProfileConfig({});
+    expect(
+      unifiedRefreshProfileSchema.safeParse({
+        ...profile,
+        defaults: {
+          ...profile.defaults,
+          battery: { ...profile.defaults.battery, display: "on", device: "sleep" },
+        },
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects stale rollback mirrors in a version-3 write", () => {
+    const profile = upgradeRefreshProfileConfig({});
+    expect(unifiedRefreshProfileSchema.safeParse({ ...profile, usbIntervalS: 999 }).success).toBe(
+      false
+    );
+    expect(
+      unifiedRefreshProfileSchema.safeParse({
+        ...profile,
+        brightness: { ...profile.brightness, batteryPercent: 99 },
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects a phase display-on override that inherits ordinary controller sleep", () => {
+    const profile = upgradeRefreshProfileConfig({
+      version: 3,
+      defaults: {
+        usb: { intervalS: 60, brightnessPercent: 80, display: "on", device: "awake" },
+        battery: {
+          intervalS: 900,
+          brightnessPercent: 40,
+          display: "off",
+          device: "sleep",
+        },
+      },
+      schedule: [],
+    });
+    expect(
+      unifiedRefreshProfileSchema.safeParse({
+        ...profile,
+        schedule: [
+          {
+            name: "invalid inheritance",
+            days: [],
+            startHour: 0,
+            endHour: 0,
+            battery: { display: "on" },
+          },
+        ],
+      }).success
+    ).toBe(false);
+  });
 });

@@ -21,7 +21,9 @@ import { EmptyState } from "@/components/ui/misc";
 import {
   unifiedRefreshProfileSchema,
   upgradeRefreshProfileConfig,
+  type DefaultBehavior,
   type PhaseBehavior,
+  type ProfileDefaults,
   type ScheduleRule,
 } from "@/lib/sleep";
 import {
@@ -233,7 +235,7 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
   );
 }
 
-const BASE_FIELDS: {
+const POLICY_FIELDS: {
   key: string;
   labelKey: string;
   type: "interval" | "number" | "slider";
@@ -241,8 +243,6 @@ const BASE_FIELDS: {
   min?: number;
   max?: number;
 }[] = [
-  { key: "usbIntervalS", labelKey: "usbInterval", type: "interval" },
-  { key: "batteryIntervalS", labelKey: "batteryInterval", type: "interval" },
   { key: "lowBatteryIntervalS", labelKey: "lowBatteryInterval", type: "interval" },
   {
     key: "lowBatteryThresholdPct",
@@ -260,7 +260,12 @@ const BASE_FIELDS: {
 const MAX_BACKOFF_STEPS = 8;
 
 const DEFAULT_CONFIG = {
-  version: 2 as const,
+  version: 3 as const,
+  defaults: {
+    usb: { intervalS: 60, brightnessPercent: 80, display: "on", device: "awake" },
+    battery: { intervalS: 900, brightnessPercent: 40, display: "on", device: "awake" },
+  } satisfies ProfileDefaults,
+  /* Synchronized read-compatibility fields for a deliberate server rollback. */
   usbIntervalS: 60,
   batteryIntervalS: 900,
   lowBatteryIntervalS: 3600,
@@ -270,9 +275,6 @@ const DEFAULT_CONFIG = {
   unassignedIntervalS: 300,
   schedule: [] as ScheduleRule[],
   errorBackoffS: [60, 300, 900, 3600],
-  /* The second section of the profile. 80 on USB is what the firmware did
-   * unconditionally before brightness existed, so an untouched profile keeps
-   * behaving as it did. */
   brightness: {
     usbPercent: 80,
     batteryPercent: 40,
@@ -309,13 +311,36 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
     setConfig((c) => ({ ...c, errorBackoffS: steps }));
   }
 
-  const brightness = (config.brightness ?? DEFAULT_CONFIG.brightness) as {
-    usbPercent: number;
-    batteryPercent: number;
-    schedule: [];
-  };
-  function setBrightness(patch: Partial<typeof brightness>) {
-    setConfig((c) => ({ ...c, brightness: { ...brightness, ...patch } }));
+  const defaults = (config.defaults ?? DEFAULT_CONFIG.defaults) as ProfileDefaults;
+  function setDefaultBehavior(source: "usb" | "battery", patch: Partial<DefaultBehavior>) {
+    setConfig((current) => {
+      const currentDefaults = (current.defaults ?? DEFAULT_CONFIG.defaults) as ProfileDefaults;
+      const nextDefaults = {
+        ...currentDefaults,
+        [source]: { ...currentDefaults[source], ...patch },
+      };
+      const next = { ...current, defaults: nextDefaults };
+      /* Keep the v1/v2 representation truthful for rollback compatibility. */
+      if (patch.intervalS != null) {
+        Object.assign(next, {
+          [source === "usb" ? "usbIntervalS" : "batteryIntervalS"]: patch.intervalS,
+        });
+      }
+      if (patch.brightnessPercent != null) {
+        const brightness = (current.brightness ?? DEFAULT_CONFIG.brightness) as {
+          usbPercent: number;
+          batteryPercent: number;
+          schedule: [];
+        };
+        Object.assign(next, {
+          brightness: {
+            ...brightness,
+            [source === "usb" ? "usbPercent" : "batteryPercent"]: patch.brightnessPercent,
+          },
+        });
+      }
+      return next;
+    });
   }
   const schedule = (config.schedule ?? []) as ScheduleRule[];
   function setSchedule(s: ScheduleRule[]) {
@@ -467,7 +492,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
 
       <div className="space-y-3">
         {filtered.map((p) => {
-          const c = p.config as Record<string, unknown>;
+          const c = upgradeRefreshProfileConfig(p.config);
           const rules = (c.schedule ?? []) as ScheduleRule[];
           return (
             <div
@@ -493,13 +518,13 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-label-secondary tabular-nums">
                     <span className="inline-flex items-center gap-1">
                       <Clock size={14} aria-hidden="true" />
-                      {t("usbSummary", { interval: fmtInterval(c.usbIntervalS as number) })}
+                      {t("usbSummary", { interval: fmtInterval(c.defaults.usb.intervalS) })}
                     </span>
                     <span>{t("usage", { devices: p.deviceCount, sites: p.siteCount })}</span>
                     <span className="inline-flex items-center gap-1">
                       <Clock size={14} aria-hidden="true" />
                       {t("batterySummary", {
-                        interval: fmtInterval(c.batteryIntervalS as number),
+                        interval: fmtInterval(c.defaults.battery.intervalS),
                       })}
                     </span>
                   </div>
@@ -604,9 +629,104 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
           placeholder={t("namePlaceholder")}
         />
 
-        <h3 className="text-sm font-semibold text-label mb-3">{t("defaultIntervals")}</h3>
+        <h3 className="text-sm font-semibold text-label mb-1">{t("defaults.title")}</h3>
+        <p className="text-xs text-label-secondary mb-3">{t("defaults.hint")}</p>
+        <div className="grid gap-3 lg:grid-cols-2 mb-6">
+          {(["usb", "battery"] as const).map((source) => {
+            const behavior = defaults[source];
+            return (
+              <fieldset
+                key={source}
+                className="rounded-lg border border-separator bg-surface-secondary p-3 space-y-3"
+              >
+                <legend className="px-1 text-xs font-semibold text-label">
+                  {t(source === "usb" ? "phase.usb" : "phase.battery")}
+                </legend>
+
+                <div>
+                  <label className="block text-xs font-medium text-label-secondary mb-1">
+                    {t("refreshInterval")}
+                  </label>
+                  <IntervalPicker
+                    value={behavior.intervalS}
+                    onChange={(intervalS) => setDefaultBehavior(source, { intervalS })}
+                  />
+                </div>
+
+                <label className="block">
+                  <span className="block text-xs font-medium text-label-secondary mb-1">
+                    {t("brightness.level")}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={behavior.brightnessPercent}
+                      onChange={(event) =>
+                        setDefaultBehavior(source, {
+                          brightnessPercent: Number(event.target.value),
+                        })
+                      }
+                      className="w-full"
+                    />
+                    <span className="w-10 font-mono text-xs text-label">
+                      {behavior.brightnessPercent}%
+                    </span>
+                  </div>
+                </label>
+
+                <label className="block text-xs">
+                  <span className="block font-medium text-label-secondary mb-1">
+                    {t("phase.display")}
+                  </span>
+                  <select
+                    className={`${selectCls} w-full`}
+                    value={behavior.display}
+                    disabled={behavior.device === "sleep"}
+                    onChange={(event) =>
+                      setDefaultBehavior(source, {
+                        display: event.target.value as "on" | "off",
+                      })
+                    }
+                  >
+                    <option value="on">{t("phase.displayOn")}</option>
+                    <option value="off">{t("phase.displayOff")}</option>
+                  </select>
+                </label>
+
+                <label className="block text-xs">
+                  <span className="block font-medium text-label-secondary mb-1">
+                    {t("phase.device")}
+                  </span>
+                  <select
+                    className={`${selectCls} w-full`}
+                    value={behavior.device}
+                    onChange={(event) =>
+                      setDefaultBehavior(source, {
+                        device: event.target.value as "awake" | "sleep",
+                        ...(event.target.value === "sleep" ? { display: "off" as const } : {}),
+                      })
+                    }
+                  >
+                    <option value="awake">{t("defaults.deviceNormal")}</option>
+                    <option value="sleep">{t("defaults.deviceSleep")}</option>
+                  </select>
+                </label>
+
+                <p className="text-xs text-label-tertiary">
+                  {t(source === "usb" ? "defaults.usbHint" : "defaults.batteryHint")}
+                </p>
+              </fieldset>
+            );
+          })}
+        </div>
+
+        <h3 className="text-sm font-semibold text-label mb-1">{t("policyTitle")}</h3>
+        <p className="text-xs text-label-secondary mb-3">{t("policyHint")}</p>
         <div className="space-y-3 mb-6">
-          {BASE_FIELDS.map((f) => (
+          {POLICY_FIELDS.map((f) => (
             <div key={f.key}>
               <label className="block text-xs font-medium text-label-secondary mb-1">
                 {t(f.labelKey)}
@@ -807,12 +927,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
             <div className="grid gap-3 lg:grid-cols-2">
               {(["usb", "battery"] as const).map((source) => {
                 const behavior = rule[source] ?? {};
-                const fallbackInterval =
-                  source === "usb"
-                    ? ((config.usbIntervalS as number) ?? 60)
-                    : ((config.batteryIntervalS as number) ?? 900);
-                const fallbackBrightness =
-                  source === "usb" ? brightness.usbPercent : brightness.batteryPercent;
+                const fallback = defaults[source];
                 return (
                   <fieldset
                     key={source}
@@ -827,7 +942,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                         {t("refreshInterval")}
                       </label>
                       <IntervalPicker
-                        value={behavior.intervalS ?? fallbackInterval}
+                        value={behavior.intervalS ?? fallback.intervalS}
                         onChange={(intervalS) => updateBehavior(i, source, { intervalS })}
                       />
                     </div>
@@ -842,7 +957,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                           min={0}
                           max={100}
                           step={5}
-                          value={behavior.brightnessPercent ?? fallbackBrightness}
+                          value={behavior.brightnessPercent ?? fallback.brightnessPercent}
                           onChange={(e) =>
                             updateBehavior(i, source, {
                               brightnessPercent: Number(e.target.value),
@@ -851,7 +966,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                           className="w-full"
                         />
                         <span className="w-10 font-mono text-xs text-label">
-                          {behavior.brightnessPercent ?? fallbackBrightness}%
+                          {behavior.brightnessPercent ?? fallback.brightnessPercent}%
                         </span>
                       </div>
                     </label>
@@ -862,8 +977,8 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                       </span>
                       <select
                         className={`${selectCls} w-full`}
-                        value={behavior.display ?? "on"}
-                        disabled={behavior.device === "sleep"}
+                        value={behavior.display ?? fallback.display}
+                        disabled={(behavior.device ?? fallback.device) === "sleep"}
                         onChange={(e) =>
                           updateBehavior(i, source, {
                             display: e.target.value as "on" | "off",
@@ -881,7 +996,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                       </span>
                       <select
                         className={`${selectCls} w-full`}
-                        value={behavior.device ?? "awake"}
+                        value={behavior.device ?? fallback.device}
                         onChange={(e) =>
                           updateBehavior(i, source, {
                             device: e.target.value as "awake" | "sleep",
@@ -894,7 +1009,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                       </select>
                     </label>
 
-                    {behavior.device === "sleep" && (
+                    {(behavior.device ?? fallback.device) === "sleep" && (
                       <p className="text-xs text-label-tertiary">{t("phase.sleepHint")}</p>
                     )}
                   </fieldset>
@@ -928,44 +1043,10 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
 
         <ScheduleTimeline
           rules={schedule}
-          defaultUsbIntervalS={(config.usbIntervalS as number) ?? 60}
-          defaultBatteryIntervalS={(config.batteryIntervalS as number) ?? 900}
+          defaultUsbIntervalS={defaults.usb.intervalS}
+          defaultBatteryIntervalS={defaults.battery.intervalS}
           timezone={previewTimezoneValid ? previewTimezone : "UTC"}
         />
-
-        {/* Defaults outside a phase. Every scheduled override now lives in the
-            phase above, so there is exactly one clock in the profile. */}
-        <div className="border-t border-separator pt-4 mt-4">
-          <h4 className="text-sm font-medium text-label mb-1">{t("brightness.title")}</h4>
-          <p className="text-xs text-label-tertiary mb-3">{t("brightness.defaultHint")}</p>
-
-          <div className="grid grid-cols-2 gap-3">
-            {(
-              [
-                ["usbPercent", "brightness.onUsb"],
-                ["batteryPercent", "brightness.onBattery"],
-              ] as const
-            ).map(([key, labelKey]) => (
-              <label key={key} className="block">
-                <span className="block text-xs font-medium text-label-secondary mb-1">
-                  {t(labelKey)}
-                </span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={brightness[key]}
-                    onChange={(e) => setBrightness({ [key]: Number(e.target.value) })}
-                    className="w-full"
-                  />
-                  <span className="w-10 font-mono text-xs text-label">{brightness[key]}%</span>
-                </div>
-              </label>
-            ))}
-          </div>
-        </div>
       </Modal>
 
       <ConfirmDialog

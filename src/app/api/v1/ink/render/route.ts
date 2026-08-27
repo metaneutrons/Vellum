@@ -37,7 +37,7 @@ function sleepHeaders(
     "X-Sleep-Duration": String(durationS),
     /* Released firmware never consumed this field. Only profiles explicitly
      * saved in the power-policy format may turn it into an active command. */
-    "X-Sleep-Mode": profile?.version === 2 ? mode : "poll",
+    "X-Sleep-Mode": profile?.version === 2 || profile?.version === 3 ? mode : "poll",
     "X-Display-State": displayState,
   };
   // Omitted when the profile defines no ladder; the device then keeps its normal
@@ -48,10 +48,10 @@ function sleepHeaders(
 }
 
 /** Resolve the exact duration sent on the wire once, so persisted expectations
- * and the device cannot differ. A scheduled deep sleep ends exactly on the
- * phase boundary; ordinary polls retain fleet-spreading jitter. */
+ * and the device cannot differ. An intentional deep sleep ends exactly at its
+ * requested wake time; ordinary polls retain fleet-spreading jitter. */
 function responseDuration(durationS: number, mode: string, profile: RefreshProfile | null): number {
-  const scheduledDeepSleep = profile?.version === 2 && mode === "sleep";
+  const scheduledDeepSleep = (profile?.version === 2 || profile?.version === 3) && mode === "sleep";
   return Math.max(1, Math.round(scheduledDeepSleep ? durationS : applyJitter(durationS)));
 }
 
@@ -168,7 +168,8 @@ export async function GET(request: NextRequest) {
       profile,
       timezone: settings.values.timezone ?? undefined,
     });
-    const idleDeviceState = isBatteryEPaper ? "sleep" : profile?.version === 2 ? idle.mode : "poll";
+    const idleDeviceState =
+      isBatteryEPaper || (profile?.version === 3 && idle.mode === "sleep") ? "sleep" : "awake";
     const idleDisplayState = idleDeviceState === "sleep" ? "off" : idleDisplay.state;
     const idleResponseDuration = responseDuration(idle.durationS, idle.mode, profile);
     await recordExpectedPower(
@@ -181,7 +182,7 @@ export async function GET(request: NextRequest) {
       },
       idleResponseDuration,
       idleDisplayState,
-      idleDeviceState === "sleep" ? "sleep" : "awake"
+      idleDeviceState
     );
     const firmware = request.headers.get("x-firmware-ver")?.trim() || "unknown";
     const etag = renderEntityTag("idle", `${IDLE_SCREEN_REVISION}:${model}:${firmware}`);
@@ -323,7 +324,7 @@ export async function GET(request: NextRequest) {
   });
 
   const expectedDeviceState =
-    isBatteryEPaper || (profile?.version === 2 && sleepMode === "sleep") ? "sleep" : "awake";
+    isBatteryEPaper || (profile?.version === 3 && sleepMode === "sleep") ? "sleep" : "awake";
   const expectedDisplayState = expectedDeviceState === "sleep" ? "off" : displayPower.state;
   const sleepResponseDuration = responseDuration(sleepDuration, sleepMode, profile);
   await recordExpectedPower(

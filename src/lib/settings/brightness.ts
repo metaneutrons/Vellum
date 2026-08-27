@@ -61,12 +61,35 @@ export function parseBrightnessPolicy(config: unknown): BrightnessPolicy {
   const source = config as Record<string, unknown>;
   const raw = source.brightness;
   const result = brightnessPolicySchema.safeParse(raw ?? {});
-  const base = result.success ? result.data : DEFAULT_BRIGHTNESS;
+  let base = result.success ? result.data : DEFAULT_BRIGHTNESS;
+
+  /* Version 3 makes the source-specific ordinary behaviour self-contained.
+   * The legacy brightness object remains synchronized for rollback safety, but
+   * defaults is the canonical source on current servers. */
+  if (source.version === 3 && source.defaults && typeof source.defaults === "object") {
+    const defaults = source.defaults as Record<string, unknown>;
+    const usb = defaults.usb as Record<string, unknown> | undefined;
+    const battery = defaults.battery as Record<string, unknown> | undefined;
+    const usbPercent = usb?.brightnessPercent;
+    const batteryPercent = battery?.brightnessPercent;
+    if (
+      typeof usbPercent === "number" &&
+      Number.isInteger(usbPercent) &&
+      usbPercent >= 0 &&
+      usbPercent <= 100 &&
+      typeof batteryPercent === "number" &&
+      Number.isInteger(batteryPercent) &&
+      batteryPercent >= 0 &&
+      batteryPercent <= 100
+    ) {
+      base = { ...base, usbPercent, batteryPercent };
+    }
+  }
 
   /* Version-2 profiles use the ordinary profile phases as the only clock. The
    * legacy nested schedule remains readable so existing rows behave identically
    * until an operator saves them in the new editor. */
-  if (source.version === 2 && Array.isArray(source.schedule)) {
+  if ((source.version === 2 || source.version === 3) && Array.isArray(source.schedule)) {
     const schedule: BrightnessRule[] = [];
     for (const candidate of source.schedule) {
       if (!candidate || typeof candidate !== "object") continue;

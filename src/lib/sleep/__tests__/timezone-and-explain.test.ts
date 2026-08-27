@@ -194,7 +194,7 @@ describe("schedule rules in the display's timezone", () => {
         schedule: [{ name: "Night", days: [], startHour: 22, endHour: 6, percent: 10 }],
       },
     });
-    expect(upgraded.version).toBe(2);
+    expect(upgraded.version).toBe(3);
     expect(upgraded.schedule).toHaveLength(1);
     expect(upgraded.schedule[0].usb).toMatchObject({ intervalS: 7200, brightnessPercent: 10 });
     expect(upgraded.schedule[0].battery).toMatchObject({
