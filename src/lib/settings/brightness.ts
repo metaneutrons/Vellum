@@ -81,10 +81,7 @@ export function parseBrightnessPolicy(config: unknown): BrightnessPolicy {
         usbPercent: usb?.brightnessPercent,
         batteryPercent: battery?.brightnessPercent,
       });
-      if (
-        parsed.success &&
-        (parsed.data.usbPercent != null || parsed.data.batteryPercent != null)
-      ) {
+      if (parsed.success) {
         schedule.push(parsed.data);
       }
     }
@@ -150,6 +147,10 @@ export function evaluateBrightness(ctx: BrightnessContext): BrightnessResult {
       if (percent != null) {
         return { percent, tier: "schedule", rule: rule.name || undefined };
       }
+      /* First matching phase wins for the whole policy. An omitted brightness
+       * value means inherit the power default, never continue into a lower
+       * priority overlapping phase. */
+      break;
     }
   }
 

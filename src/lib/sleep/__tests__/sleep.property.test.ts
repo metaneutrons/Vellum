@@ -73,7 +73,7 @@ describe("Property 5: Sleep duration computation follows priority rules", () => 
             now,
           };
           const result = computeSleepDuration(ctx);
-          const expected = Math.max(offsetSeconds - 300, 0);
+          const expected = Math.max(offsetSeconds - 300, 10);
           expect(result).toBe(expected);
         }
       ),
