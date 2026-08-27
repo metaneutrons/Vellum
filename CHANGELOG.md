@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/metaneutrons/Vellum/compare/v1.20.2...v1.21.0) (2026-08-27)
+
+
+### Features
+
+* **profiles:** harden profile engine and editor ([#330](https://github.com/metaneutrons/Vellum/issues/330)) ([bb8daad](https://github.com/metaneutrons/Vellum/commit/bb8daad57a71709be8d9047b05e32ec5f38ed052))
+
 ## [1.20.2](https://github.com/metaneutrons/Vellum/compare/v1.20.1...v1.20.2) (2026-08-27)
 
 
