@@ -9,7 +9,10 @@ name: Firmware PR Build
 
 on:
   pull_request:
-    paths: ["firmware/**"]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/firmware-pr-build.yml"
+      - ".github/workflows/firmware.yml"
 
 permissions:
   contents: read
@@ -22,49 +25,70 @@ concurrency:
 jobs:
   compile:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - model: e1001
+          - family: esp32s3
             target: esp32s3
             base: sdkconfig.defaults.s3
-            overlay: sdkconfig.defaults.e1001
-            panel: CONFIG_VELLUM_PANEL_GDEY075T7=y
-          - model: e1002
-            target: esp32s3
-            base: sdkconfig.defaults.s3
-            overlay: sdkconfig.defaults.e1002
-            panel: CONFIG_VELLUM_PANEL_GDEP073E01=y
-          - model: e1003
-            target: esp32s3
-            base: sdkconfig.defaults.s3
-            overlay: sdkconfig.defaults.e1003
-            panel: CONFIG_VELLUM_PANEL_E1003=y
-          - model: d1001
+            models: e1001 e1002 e1003
+          - family: esp32p4
             target: esp32p4
             base: sdkconfig.defaults.p4
-            panel: CONFIG_VELLUM_PANEL_D1001=y
+            models: d1001
     container:
       image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
     defaults:
       run:
+        shell: bash
         working-directory: firmware
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Configure + compile (${{ matrix.model }} / ${{ matrix.target }}, compile-only)
+      - name: Configure + compile (${{ matrix.family }}, compile-only)
         run: |
+          set -euo pipefail
           . "$IDF_PATH/export.sh"
-          # Mirror firmware.yml's config injection; the version is a placeholder
-          # (this build is never released, only compiled).
-          DEFAULTS="${{ matrix.base }}"
-          OVERLAY="${{ matrix.overlay }}"
-          if [ -n "$OVERLAY" ]; then DEFAULTS="$DEFAULTS;$OVERLAY"; fi
-          printf 'CONFIG_VELLUM_FIRMWARE_VERSION="0.0.0-pr"\n%s\n' \
-            '${{ matrix.panel }}' > sdkconfig.ci
-          echo "0.0.0-pr" > version.txt
-          idf.py -DVELLUM_MODEL=${{ matrix.model }} \
-            -DSDKCONFIG_DEFAULTS="$DEFAULTS;sdkconfig.ci" \
-            set-target ${{ matrix.target }}
-          idf.py -DVELLUM_MODEL=${{ matrix.model }} build
+          export IDF_CCACHE_ENABLE=1
+
+          for MODEL in ${{ matrix.models }}; do
+            case "$MODEL" in
+              e1001)
+                OVERLAY=sdkconfig.defaults.e1001
+                PANEL=CONFIG_VELLUM_PANEL_GDEY075T7=y
+                ;;
+              e1002)
+                OVERLAY=sdkconfig.defaults.e1002
+                PANEL=CONFIG_VELLUM_PANEL_GDEP073E01=y
+                ;;
+              e1003)
+                OVERLAY=sdkconfig.defaults.e1003
+                PANEL=CONFIG_VELLUM_PANEL_E1003=y
+                ;;
+              d1001)
+                OVERLAY=
+                PANEL=CONFIG_VELLUM_PANEL_D1001=y
+                ;;
+              *)
+                echo "::error::Unknown model: $MODEL"
+                exit 1
+                ;;
+            esac
+
+            DEFAULTS="${{ matrix.base }}"
+            if [ -n "$OVERLAY" ]; then DEFAULTS="$DEFAULTS;$OVERLAY"; fi
+            printf 'CONFIG_VELLUM_FIRMWARE_VERSION="0.0.0-pr"\n%s\n' \
+              "$PANEL" > "sdkconfig.ci.$MODEL"
+            echo "0.0.0-pr" > version.txt
+
+            idf.py -B "build-$MODEL" \
+              -DIDF_TARGET=${{ matrix.target }} \
+              -DSDKCONFIG="$PWD/sdkconfig.$MODEL" \
+              -DVELLUM_MODEL="$MODEL" \
+              -DSDKCONFIG_DEFAULTS="$DEFAULTS;sdkconfig.ci.$MODEL" \
+              build
+          done
+
+          ccache --show-stats || true

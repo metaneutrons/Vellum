@@ -2,43 +2,28 @@ name: Docker Release
 on:
   release:
     types: [published]
-  push:
-    branches: [main]
-    paths-ignore: ["firmware/**", "*.md"]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-release-${{ github.event.release.tag_name || github.run_id }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/vellum
 
 jobs:
-  routing:
-    runs-on: ubuntu-latest
-    outputs:
-      release_component: ${{ steps.classify.outputs.release_component }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Classify Release Please commit
-        id: classify
-        env:
-          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: |
-          COMPONENT=$(node scripts/classify-release-commit.mjs "$HEAD_COMMIT_MESSAGE")
-          echo "release_component=${COMPONENT}" >> "$GITHUB_OUTPUT"
-
   # Build each arch on its NATIVE runner and push by digest (no tag yet), with an
   # SBOM + max-mode SLSA provenance attestation and a per-arch GHA build cache.
   build:
-    needs: routing
     # Server-scoped only: a firmware release (`firmware-v*`) ships no Docker image
     # and must not move the `latest` tag or push a `firmware-v*`-named image.
-    # A Release Please merge changes server release metadata, then emits a release
-    # event. Skip that push build: the release event builds the same image once,
-    # with the final version and `latest` tags.
+    # Ordinary main pushes are validated by Required CI. Publishing happens only
+    # for a server release (or an explicit recovery dispatch), eliminating the
+    # former main-build + release-build duplication.
     if: >-
-      (github.event_name != 'release' ||
-        !startsWith(github.event.release.tag_name, 'firmware')) &&
-      (github.event_name != 'push' ||
-        needs.routing.outputs.release_component == 'none')
+      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.event.release.tag_name, 'firmware')
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +68,7 @@ jobs:
           sbom: true
           provenance: mode=max
           cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
-          cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=min,scope=${{ env.PLATFORM_PAIR }}
 
       - name: Export digest
         run: |
@@ -141,7 +126,6 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable=${{ github.event_name == 'release' }}
-            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
             type=ref,event=tag
             type=sha,format=long
 

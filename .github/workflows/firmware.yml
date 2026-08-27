@@ -12,6 +12,10 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: firmware-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 env:
   IDF_VERSION: v6.0
 
@@ -232,6 +236,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: firmware-${{ matrix.model }}
+          retention-days: 1
           path: |
             firmware/vellum-${{ matrix.model }}-*.bin
             firmware/vellum-${{ matrix.model }}-*.bin.sha256

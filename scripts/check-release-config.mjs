@@ -11,6 +11,7 @@ const packageJson = readJson("package.json");
 const workflow = readFileSync(".github/workflows/release-please.yml", "utf8");
 const firmwareWorkflow = readFileSync(".github/workflows/firmware.yml", "utf8");
 const dockerWorkflow = readFileSync(".github/workflows/docker.yml", "utf8");
+const updaterWorkflow = readFileSync(".github/workflows/updater.yml", "utf8");
 const deploymentAssetsWorkflow = readFileSync(".github/workflows/deployment-assets.yml", "utf8");
 const dependabotConfig = readFileSync(".github/dependabot.yml", "utf8");
 const productionCompose = readFileSync("deploy/docker-compose.yml", "utf8");
@@ -206,15 +207,10 @@ for (const [message, expected] of releaseCommitFixtures) {
     `release commit classifier must map ${JSON.stringify(message)} to ${expected}`
   );
 }
-for (const [name, contents] of [
-  ["firmware", firmwareWorkflow],
-  ["Docker", dockerWorkflow],
-]) {
-  expect(
-    contents.includes("node scripts/classify-release-commit.mjs"),
-    `${name} workflow must use the shared release commit classifier`
-  );
-}
+expect(
+  firmwareWorkflow.includes("node scripts/classify-release-commit.mjs"),
+  "firmware workflow must use the shared release commit classifier"
+);
 expect(
   firmwareWorkflow.includes("needs.version.outputs.release_component == 'none'"),
   "firmware workflow must suppress all Release Please push builds"
@@ -224,8 +220,18 @@ expect(
   "firmware beta builds must use the tested next-patch version helper"
 );
 expect(
-  dockerWorkflow.includes("needs.routing.outputs.release_component == 'none'"),
-  "Docker workflow must suppress all Release Please push builds"
+  !dockerWorkflow.includes("push:\n") &&
+    dockerWorkflow.includes("release:\n    types: [published]") &&
+    dockerWorkflow.includes("workflow_dispatch:") &&
+    dockerWorkflow.includes("!startsWith(github.event.release.tag_name, 'firmware')"),
+  "Docker publishing must be limited to server releases and explicit recovery dispatches"
+);
+expect(
+  !updaterWorkflow.includes("push:\n") &&
+    updaterWorkflow.includes("release:\n    types: [published]") &&
+    updaterWorkflow.includes("workflow_dispatch:") &&
+    updaterWorkflow.includes("!startsWith(github.event.release.tag_name, 'firmware')"),
+  "updater publishing must be limited to server releases and explicit recovery dispatches"
 );
 
 const betaFixture = firmwareBetaVersion("1.4.2", 13, "2028a59");
