@@ -6,7 +6,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isUsableTimezone } from "@/lib/settings/device-settings";
-import { db, withDbRead } from "@/db";
+import { db, withDbRead, type DbTransaction } from "@/db";
 import { safeFetch } from "@/lib/safe-fetch";
 import {
   devices,
@@ -24,7 +24,12 @@ import { OTA_FAILED_PHASES, type RolloutState } from "@/lib/rollout";
 import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { log } from "@/lib/logger";
 import { randomBytes } from "node:crypto";
-import { requirePermission, type Permission, withAuditedTransaction } from "@/lib/access";
+import {
+  requirePermission,
+  type AuditEvent,
+  type Permission,
+  withAuditedTransaction,
+} from "@/lib/access";
 import {
   normalizeProvisioningMac,
   signUsbProvisioningAuthorization,
@@ -1172,6 +1177,71 @@ export async function createRefreshProfile(name: string, config: Record<string, 
   }
 }
 
+type ProfileUpdateResult = {
+  status: "updated" | "conflict";
+  before?: { name: string; config: unknown };
+  revision?: number;
+};
+
+function profileUpdateAudit(
+  id: string,
+  name: string,
+  config: unknown,
+  expectedRevision: number,
+  result: ProfileUpdateResult
+): AuditEvent {
+  return {
+    action: "profile.update",
+    targetType: "refresh_profile",
+    targetId: id,
+    outcome: result.status === "updated" ? "success" : "failure",
+    metadata:
+      result.status === "updated"
+        ? {
+            before: result.before,
+            after: { name, config },
+            revision: result.revision,
+          }
+        : { reason: "optimistic_lock_conflict", expectedRevision },
+  };
+}
+
+async function updateRefreshProfileRecord(
+  tx: DbTransaction,
+  input: { id: string; name: string; config: unknown; expectedRevision: number }
+): Promise<ProfileUpdateResult> {
+  const [before] = await tx
+    .select({
+      name: refreshProfiles.name,
+      config: refreshProfiles.config,
+      revision: refreshProfiles.revision,
+    })
+    .from(refreshProfiles)
+    .where(eq(refreshProfiles.id, input.id))
+    .limit(1);
+  if (!before) throw new Error("refresh_profile_not_found");
+  if (before.revision !== input.expectedRevision) return { status: "conflict" };
+
+  const updated = await tx
+    .update(refreshProfiles)
+    .set({
+      name: input.name,
+      config: input.config,
+      updatedAt: new Date(),
+      revision: sql`${refreshProfiles.revision} + 1`,
+    })
+    .where(
+      and(eq(refreshProfiles.id, input.id), eq(refreshProfiles.revision, input.expectedRevision))
+    )
+    .returning({ revision: refreshProfiles.revision });
+  if (updated.length === 0) return { status: "conflict" };
+  return {
+    status: "updated",
+    before: { name: before.name, config: before.config },
+    revision: updated[0].revision,
+  };
+}
+
 export async function updateRefreshProfile(
   id: string,
   name: string,
@@ -1184,63 +1254,23 @@ export async function updateRefreshProfile(
   const validatedConfig = unifiedRefreshProfileSchema.parse(config);
   const validatedRevision = z.number().int().positive().parse(expectedRevision);
   try {
-    const result = await withAuditedTransaction(
+    const result = await withAuditedTransaction<ProfileUpdateResult>(
       actor,
-      (result: {
-        status: "updated" | "conflict";
-        before?: { name: string; config: unknown };
-        revision?: number;
-      }) => ({
-        action: "profile.update",
-        targetType: "refresh_profile",
-        targetId: validatedId,
-        outcome: result.status === "updated" ? "success" : "failure",
-        metadata:
-          result.status === "updated"
-            ? {
-                before: result.before,
-                after: { name: validatedName, config: validatedConfig },
-                revision: result.revision,
-              }
-            : { reason: "optimistic_lock_conflict", expectedRevision: validatedRevision },
-      }),
-      async (tx) => {
-        const [before] = await tx
-          .select({
-            name: refreshProfiles.name,
-            config: refreshProfiles.config,
-            revision: refreshProfiles.revision,
-          })
-          .from(refreshProfiles)
-          .where(eq(refreshProfiles.id, validatedId))
-          .limit(1);
-        if (!before) throw new Error("refresh_profile_not_found");
-        if (before.revision !== validatedRevision) {
-          return { status: "conflict" as const };
-        }
-        const updatedAt = new Date();
-        const updated = await tx
-          .update(refreshProfiles)
-          .set({
-            name: validatedName,
-            config: validatedConfig,
-            updatedAt,
-            revision: sql`${refreshProfiles.revision} + 1`,
-          })
-          .where(
-            and(
-              eq(refreshProfiles.id, validatedId),
-              eq(refreshProfiles.revision, validatedRevision)
-            )
-          )
-          .returning({ id: refreshProfiles.id, revision: refreshProfiles.revision });
-        if (updated.length === 0) return { status: "conflict" as const };
-        return {
-          status: "updated" as const,
-          before: { name: before.name, config: before.config },
-          revision: updated[0].revision,
-        };
-      },
+      (updateResult) =>
+        profileUpdateAudit(
+          validatedId,
+          validatedName,
+          validatedConfig,
+          validatedRevision,
+          updateResult
+        ),
+      (tx) =>
+        updateRefreshProfileRecord(tx, {
+          id: validatedId,
+          name: validatedName,
+          config: validatedConfig,
+          expectedRevision: validatedRevision,
+        }),
       "update-refresh-profile",
       "repeatable read"
     );
