@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/metaneutrons/Vellum/compare/v1.21.0...v1.22.0) (2026-08-27)
+
+
+### Features
+
+* **profiles:** define explicit baseline behavior ([#332](https://github.com/metaneutrons/Vellum/issues/332)) ([0c95c26](https://github.com/metaneutrons/Vellum/commit/0c95c26afd7f0d2621ae902cf822a320881d396b))
+
 ## [1.21.0](https://github.com/metaneutrons/Vellum/compare/v1.20.2...v1.21.0) (2026-08-27)
 
 
