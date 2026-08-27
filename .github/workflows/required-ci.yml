@@ -1,0 +1,265 @@
+name: Required CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: required-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+  ENCRYPTION_KEY: ci-encryption-key-that-is-at-least-32-characters
+  SESSION_SECRET: ci-session-secret-that-is-at-least-32-characters
+  ADMIN_API_KEY: ci-admin-api-key-that-is-at-least-32-chars-long
+  ADMIN_USER: admin
+  ADMIN_PASS: ci-password-at-least-8
+
+jobs:
+  changes:
+    name: Classify Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app: ${{ steps.paths.outputs.app }}
+      deployment: ${{ steps.paths.outputs.deployment }}
+      firmware: ${{ steps.paths.outputs.firmware }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: paths
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          app=false
+          deployment=false
+          firmware=false
+
+          if [ -z "$BASE_SHA" ] || \
+             [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] || \
+             ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            app=true
+            deployment=true
+            firmware=true
+          else
+            while IFS= read -r path; do
+              case "$path" in
+                .github/workflows/required-ci.yml)
+                  app=true
+                  deployment=true
+                  firmware=true
+                  ;;
+                src/*|public/*|assets/*|drizzle/*|scripts/*|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|tsconfig.json|vitest.config.ts|next.config.ts|postcss.config.mjs|eslint.config.mjs|drizzle.config.ts|Dockerfile|.dockerignore|.env.example)
+                  app=true
+                  ;;
+              esac
+              case "$path" in
+                deploy/*|Dockerfile|.dockerignore|.github/workflows/deployment-assets.yml|.github/workflows/docker.yml|.github/workflows/updater.yml)
+                  deployment=true
+                  ;;
+              esac
+              case "$path" in
+                firmware/*|scripts/firmware-*|scripts/check-security-layouts.mjs|.github/workflows/firmware.yml|.github/workflows/firmware-pr-build.yml|.github/workflows/firmware-host-test.yml)
+                  firmware=true
+                  ;;
+              esac
+            done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          fi
+
+          {
+            echo "app=$app"
+            echo "deployment=$deployment"
+            echo "firmware=$firmware"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  quality:
+    name: Static Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Validate new commit messages
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] || \
+             ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA="$(git rev-list --max-parents=0 HEAD)"
+          fi
+          pnpm exec commitlint --from "$BASE_SHA" --to "$GITHUB_SHA" --verbose
+
+      - name: Formatting
+        run: pnpm format:check
+      - name: Lint
+        run: pnpm lint
+      - name: i18n
+        run: pnpm i18n:check
+      - name: Type check
+        run: pnpm typecheck
+      - name: Database schema and access guards
+        run: pnpm db:check
+      - name: Release configuration
+        run: pnpm release:check
+
+  test:
+    name: Test
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
+
+  build:
+    name: Build
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  deployment:
+    name: Deployment
+    needs: changes
+    if: needs.changes.outputs.deployment == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Validate updater scripts
+        run: |
+          shellcheck deploy/updater/update.sh deploy/updater/test-update.sh deploy/install.sh
+          bash deploy/updater/test-update.sh
+          node --check deploy/updater/control.mjs
+          node --test deploy/updater/control.test.mjs
+      - name: Validate production Compose stack
+        run: |
+          cp deploy/vellum.env.example deploy/.env
+          docker compose -f deploy/docker-compose.yml config --quiet
+      - name: Installer produces a complete .env
+        run: |
+          bash deploy/install.sh --from deploy --dir "$RUNNER_TEMP/vellum" \
+            --url https://vellum.example.com --tz Europe/Berlin --dry-run --yes
+          env_file="$RUNNER_TEMP/vellum/.env"
+          if grep -nE '^[A-Z_]+=(replace-with|change-me)' "$env_file"; then
+            echo "::error::installer left a placeholder in .env"
+            exit 1
+          fi
+          for key in ENCRYPTION_KEY SESSION_SECRET ADMIN_API_KEY UPDATER_TOKEN \
+                     POSTGRES_PASSWORD ADMIN_PASS VELLUM_PUBLIC_URL; do
+            grep -qE "^${key}=.+" "$env_file" || { echo "::error::${key} missing"; exit 1; }
+          done
+          secrets=$(grep -E '^(ENCRYPTION_KEY|SESSION_SECRET|ADMIN_API_KEY|UPDATER_TOKEN)=' \
+            "$env_file" | cut -d= -f2 | sort -u | wc -l)
+          [ "$secrets" -eq 4 ] || { echo "::error::secrets are not independent"; exit 1; }
+          [ "$(stat -c '%a' "$env_file")" = "600" ] || { echo "::error::.env is not 0600"; exit 1; }
+          docker compose -f "$RUNNER_TEMP/vellum/docker-compose.yml" config --quiet
+          if bash deploy/install.sh --from deploy --dir "$RUNNER_TEMP/vellum" \
+               --url https://vellum.example.com --dry-run --yes 2>/dev/null; then
+            echo "::error::installer overwrote an existing .env without --force"
+            exit 1
+          fi
+          cat deploy/install.sh | bash -s -- --from deploy \
+            --dir "$RUNNER_TEMP/vellum-piped" --dry-run
+          grep -qE '^ADMIN_PASS=.+' "$RUNNER_TEMP/vellum-piped/.env" \
+            || { echo "::error::piped install did not complete"; exit 1; }
+          grep -qE '^VELLUM_PUBLIC_URL=$' "$RUNNER_TEMP/vellum-piped/.env" \
+            || { echo "::error::unset public URL was not written empty"; exit 1; }
+      - name: Build updater image
+        run: docker build --file deploy/updater/Dockerfile deploy/updater
+
+  firmware-host:
+    name: Firmware Host Tests
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Verify host toolchain
+        run: |
+          set -euo pipefail
+          command -v cmake >/dev/null
+          test -f /usr/include/openssl/ssl.h
+      - name: Configure
+        run: cmake -S firmware/host_test -B firmware/host_test/build
+      - name: Build
+        run: cmake --build firmware/host_test/build
+      - name: Test
+        run: ctest --test-dir firmware/host_test/build --output-on-failure
+
+  required:
+    name: Required Gate
+    if: always()
+    needs: [changes, quality, test, build, deployment, firmware-host]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every applicable check
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          DEPLOYMENT_RESULT: ${{ needs.deployment.result }}
+          FIRMWARE_RESULT: ${{ needs.firmware-host.result }}
+        run: |
+          set -euo pipefail
+          failed=false
+          for entry in \
+            "changes=$CHANGES_RESULT" \
+            "quality=$QUALITY_RESULT" \
+            "test=$TEST_RESULT" \
+            "build=$BUILD_RESULT" \
+            "deployment=$DEPLOYMENT_RESULT" \
+            "firmware=$FIRMWARE_RESULT"; do
+            name=${entry%%=*}
+            result=${entry#*=}
+            case "$result" in
+              success|skipped)
+                echo "$name: $result"
+                ;;
+              *)
+                echo "::error::$name: $result"
+                failed=true
+                ;;
+            esac
+          done
+          [ "$failed" = false ]
