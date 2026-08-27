@@ -67,7 +67,7 @@ jobs:
                   ;;
               esac
               case "$path" in
-                deploy/*|Dockerfile|.dockerignore|.github/workflows/deployment-assets.yml|.github/workflows/docker.yml|.github/workflows/updater.yml)
+                deploy/*|Dockerfile|.dockerignore|package.json|pnpm-lock.yaml|.github/workflows/deployment-assets.yml|.github/workflows/docker.yml|.github/workflows/updater.yml)
                   deployment=true
                   ;;
               esac
@@ -204,6 +204,8 @@ jobs:
             || { echo "::error::unset public URL was not written empty"; exit 1; }
       - name: Build updater image
         run: docker build --file deploy/updater/Dockerfile deploy/updater
+      - name: Validate server container definition
+        run: docker build --check .
 
   firmware-host:
     name: Firmware Host Tests
