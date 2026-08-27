@@ -990,10 +990,35 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
 export async function getAllRefreshProfiles() {
   await requireAdmin("content.read");
   const rows = await withDbRead(
-    () => db.select().from(refreshProfiles).orderBy(refreshProfiles.name),
+    () =>
+      db
+        .select({
+          id: refreshProfiles.id,
+          name: refreshProfiles.name,
+          config: refreshProfiles.config,
+          isDefault: refreshProfiles.isDefault,
+          revision: refreshProfiles.revision,
+          createdAt: refreshProfiles.createdAt,
+          updatedAt: refreshProfiles.updatedAt,
+          deviceCount: sql<number>`(
+            select count(*) from ${devices}
+            where ${devices.refreshProfileId} = ${refreshProfiles.id}
+          )`,
+          siteCount: sql<number>`(
+            select count(*) from ${sites}
+            where ${sites.refreshProfileId} = ${refreshProfiles.id}
+          )`,
+        })
+        .from(refreshProfiles)
+        .orderBy(refreshProfiles.name),
     "get-all-refresh-profiles"
   );
-  return rows.map((row) => ({ ...row, config: upgradeRefreshProfileConfig(row.config) }));
+  return rows.map((row) => ({
+    ...row,
+    deviceCount: Number(row.deviceCount),
+    siteCount: Number(row.siteCount),
+    config: upgradeRefreshProfileConfig(row.config),
+  }));
 }
 
 /* ── Sites ─────────────────────────────────────────────────────────
@@ -1131,7 +1156,7 @@ export async function createRefreshProfile(name: string, config: Record<string, 
         action: "profile.create",
         targetType: "refresh_profile",
         targetId: created[0].id,
-        metadata: { name: validatedName },
+        metadata: { name: validatedName, config: validatedConfig, revision: 1 },
       }),
       (tx) =>
         tx
@@ -1150,32 +1175,78 @@ export async function createRefreshProfile(name: string, config: Record<string, 
 export async function updateRefreshProfile(
   id: string,
   name: string,
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
+  expectedRevision: number
 ) {
   const actor = await requireAdmin("profiles.manage");
   const validatedId = z.string().uuid().parse(id);
   const validatedName = z.string().trim().min(1).max(120).parse(name);
   const validatedConfig = unifiedRefreshProfileSchema.parse(config);
+  const validatedRevision = z.number().int().positive().parse(expectedRevision);
   try {
-    await withAuditedTransaction(
+    const result = await withAuditedTransaction(
       actor,
-      {
+      (result: {
+        status: "updated" | "conflict";
+        before?: { name: string; config: unknown };
+        revision?: number;
+      }) => ({
         action: "profile.update",
         targetType: "refresh_profile",
         targetId: validatedId,
-        metadata: { name: validatedName },
-      },
+        outcome: result.status === "updated" ? "success" : "failure",
+        metadata:
+          result.status === "updated"
+            ? {
+                before: result.before,
+                after: { name: validatedName, config: validatedConfig },
+                revision: result.revision,
+              }
+            : { reason: "optimistic_lock_conflict", expectedRevision: validatedRevision },
+      }),
       async (tx) => {
+        const [before] = await tx
+          .select({
+            name: refreshProfiles.name,
+            config: refreshProfiles.config,
+            revision: refreshProfiles.revision,
+          })
+          .from(refreshProfiles)
+          .where(eq(refreshProfiles.id, validatedId))
+          .limit(1);
+        if (!before) throw new Error("refresh_profile_not_found");
+        if (before.revision !== validatedRevision) {
+          return { status: "conflict" as const };
+        }
+        const updatedAt = new Date();
         const updated = await tx
           .update(refreshProfiles)
-          .set({ name: validatedName, config: validatedConfig, updatedAt: new Date() })
-          .where(eq(refreshProfiles.id, validatedId))
-          .returning({ id: refreshProfiles.id });
-        if (updated.length === 0) throw new Error("refresh_profile_not_found");
+          .set({
+            name: validatedName,
+            config: validatedConfig,
+            updatedAt,
+            revision: sql`${refreshProfiles.revision} + 1`,
+          })
+          .where(
+            and(
+              eq(refreshProfiles.id, validatedId),
+              eq(refreshProfiles.revision, validatedRevision)
+            )
+          )
+          .returning({ id: refreshProfiles.id, revision: refreshProfiles.revision });
+        if (updated.length === 0) return { status: "conflict" as const };
+        return {
+          status: "updated" as const,
+          before: { name: before.name, config: before.config },
+          revision: updated[0].revision,
+        };
       },
-      "update-refresh-profile"
+      "update-refresh-profile",
+      "repeatable read"
     );
+    if (result.status === "conflict") return { ok: false as const, reason: "conflict" as const };
     revalidatePath("/admin/profiles");
+    return { ok: true as const };
   } catch (err) {
     log.error("Failed to update refresh profile", { id, error: String(err) });
     throw err;
@@ -1187,13 +1258,57 @@ export async function deleteRefreshProfile(id: string) {
   try {
     await withAuditedTransaction(
       actor,
-      { action: "profile.delete", targetType: "refresh_profile", targetId: id },
+      (deleted: {
+        id: string;
+        name: string;
+        config: unknown;
+        deviceCount: number;
+        siteCount: number;
+      }) => ({
+        action: "profile.delete",
+        targetType: "refresh_profile",
+        targetId: id,
+        metadata: {
+          name: deleted.name,
+          config: deleted.config,
+          clearedAssignments: {
+            devices: deleted.deviceCount,
+            sites: deleted.siteCount,
+          },
+        },
+      }),
       async (tx) => {
+        const [before] = await tx
+          .select({ name: refreshProfiles.name, config: refreshProfiles.config })
+          .from(refreshProfiles)
+          .where(eq(refreshProfiles.id, id))
+          .limit(1);
+        if (!before) throw new Error("refresh_profile_not_found");
+        const [impact] = await tx
+          .select({
+            deviceCount: sql<number>`(
+              select count(*) from ${devices}
+              where ${devices.refreshProfileId} = ${id}
+            )`,
+            siteCount: sql<number>`(
+              select count(*) from ${sites}
+              where ${sites.refreshProfileId} = ${id}
+            )`,
+          })
+          .from(refreshProfiles)
+          .where(eq(refreshProfiles.id, id));
         const deleted = await tx
           .delete(refreshProfiles)
           .where(eq(refreshProfiles.id, id))
           .returning({ id: refreshProfiles.id });
         if (deleted.length === 0) throw new Error("refresh_profile_not_found");
+        return {
+          id,
+          name: before.name,
+          config: before.config,
+          deviceCount: Number(impact.deviceCount),
+          siteCount: Number(impact.siteCount),
+        };
       },
       "delete-refresh-profile"
     );

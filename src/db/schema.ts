@@ -90,6 +90,8 @@ export const refreshProfiles = pgTable(
      * rather than something application code has to remember.
      */
     isDefault: boolean("is_default").default(false).notNull(),
+    /** Monotonic optimistic-lock token; timestamps lose PostgreSQL microseconds in JS. */
+    revision: integer("revision").default(1).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

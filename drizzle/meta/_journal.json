@@ -218,6 +218,13 @@
       "when": 1787766946342,
       "tag": "0030_profile_power_state",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787836430145,
+      "tag": "0031_profile_revision",
+      "breakpoints": true
     }
   ]
 }
