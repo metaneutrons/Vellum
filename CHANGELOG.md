@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.1](https://github.com/metaneutrons/Vellum/compare/v1.20.0...v1.20.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **profiles:** widen profile editor ([#326](https://github.com/metaneutrons/Vellum/issues/326)) ([ae0fa19](https://github.com/metaneutrons/Vellum/commit/ae0fa19b1a116d0b94e51fb8c31a627180ad940a))
+
 ## [1.20.0](https://github.com/metaneutrons/Vellum/compare/v1.19.1...v1.20.0) (2026-08-26)
 
 
