@@ -23,7 +23,7 @@ import { brightnessPolicySchema } from "@/lib/settings/brightness";
 export const phaseBehaviorSchema = z
   .object({
     /** Poll cadence while this phase is active for this power source. */
-    intervalS: z.number().int().positive().optional(),
+    intervalS: z.number().int().min(10).max(604_800).optional(),
     /** Backlight target. Zero is deliberately distinct from powering the panel off. */
     brightnessPercent: z.number().int().min(0).max(100).optional(),
     /** Whether the physical panel should remain powered. */
@@ -45,18 +45,24 @@ export type PhaseBehavior = z.infer<typeof phaseBehaviorSchema>;
 /** A time-based phase. USB and battery are intentionally independent. */
 export const scheduleRuleSchema = z.object({
   /** Rule name for display in admin UI */
-  name: z.string().default(""),
+  name: z.string().trim().max(80).default(""),
   /** Days this rule applies: 0=Sun, 1=Mon, ..., 6=Sat. Empty = all days. */
-  days: z.array(z.number().min(0).max(6)).default([]),
+  days: z
+    .array(z.number().int().min(0).max(6))
+    .max(7)
+    .default([])
+    .refine((days) => new Set(days).size === days.length, {
+      message: "Schedule days must be unique",
+    }),
   /** Start hour (0-23) */
-  startHour: z.number().min(0).max(23),
+  startHour: z.number().min(0).max(23.75).multipleOf(0.25),
   /** End hour (0-23). If < startHour, wraps past midnight. */
-  endHour: z.number().min(0).max(23),
+  endHour: z.number().min(0).max(23.75).multipleOf(0.25),
   /**
    * Legacy cadence. Kept for read compatibility only; the editor writes the
    * source-specific `usb` and `battery` branches below.
    */
-  intervalS: z.number().positive().optional(),
+  intervalS: z.number().int().min(10).max(604_800).optional(),
   /**
    * Device behavior during this rule:
    * - "poll": Stay awake, refresh every intervalS seconds.
@@ -69,57 +75,73 @@ export const scheduleRuleSchema = z.object({
 
 export type ScheduleRule = z.infer<typeof scheduleRuleSchema>;
 
-export const refreshProfileSchema = z.object({
-  /** Version 2 is the first profile whose phases carry explicit power actions. */
-  version: z.literal(2).optional(),
-  usbIntervalS: z.number().default(60),
-  batteryIntervalS: z.number().default(900),
-  lowBatteryIntervalS: z.number().default(3600),
-  lowBatteryThresholdPct: z.number().default(20),
-  imminentEventWindowS: z.number().default(1200),
-  wakeBeforeEventS: z.number().default(300),
-  /** Legacy field. It was never consumed by firmware and must stay inert. */
-  defaultMode: z.enum(["poll", "sleep"]).optional(),
-  /** Schedule rules — checked in order, first match wins */
-  schedule: z.array(scheduleRuleSchema).default([]),
-  /**
-   * Retry ladder, in seconds, walked on consecutive failed render cycles: the
-   * first failure waits `errorBackoffS[0]`, the second `[1]`, and so on, holding
-   * at the last rung.
-   *
-   * It replaces doubling the normal cadence, which made recovery *worse* the
-   * slower the profile: on a 15-minute battery cadence, a single failed cycle
-   * pushed the next attempt out to 30 minutes, so a display that dropped one
-   * request stayed stale for half an hour. A ladder that starts well below the
-   * cadence recovers in a minute and still backs off to hourly if the server is
-   * genuinely gone.
-   *
-   * Not sent when empty — the device then keeps its normal cadence on failure,
-   * which is the safe direction (retries too often, never too rarely).
-   */
-  errorBackoffS: z.array(z.number().int().positive()).max(8).default([60, 300, 900, 3600]),
-  /**
-   * Ceiling on the refresh interval while a display has no content assigned.
-   *
-   * Commissioning is the one moment an operator is standing in front of the
-   * display waiting for it to react, and it used to be the slowest: the render
-   * route answered 204 before computing any cadence, so the device fell back to
-   * its firmware default of 900s and the profile never applied at all.
-   *
-   * A ceiling rather than its own interval, so it inherits the USB / battery
-   * tiers below instead of duplicating them — it can only make a display more
-   * responsive, never less. The low-battery tier is exempt (see computeSleep):
-   * protecting a critical cell outranks commissioning convenience.
-   *
-   * 300s matches VELLUM_APPROVAL_POLL_SEC in the firmware, which is already the
-   * cadence for the analogous "enrolled but waiting for an operator" state.
-   */
-  unassignedIntervalS: z.number().int().positive().default(300),
-});
+export const refreshProfileSchema = z
+  .object({
+    /** Version 2 is the first profile whose phases carry explicit power actions. */
+    version: z.literal(2).optional(),
+    usbIntervalS: z.number().int().min(10).max(604_800).default(60),
+    batteryIntervalS: z.number().int().min(10).max(604_800).default(900),
+    lowBatteryIntervalS: z.number().int().min(10).max(604_800).default(3600),
+    lowBatteryThresholdPct: z.number().int().min(1).max(100).default(20),
+    imminentEventWindowS: z.number().int().min(60).max(86_400).default(1200),
+    wakeBeforeEventS: z.number().int().min(0).max(86_400).default(300),
+    /** Legacy field. It was never consumed by firmware and must stay inert. */
+    defaultMode: z.enum(["poll", "sleep"]).optional(),
+    /** Schedule rules — checked in order, first match wins */
+    schedule: z.array(scheduleRuleSchema).max(64).default([]),
+    /**
+     * Retry ladder, in seconds, walked on consecutive failed render cycles: the
+     * first failure waits `errorBackoffS[0]`, the second `[1]`, and so on, holding
+     * at the last rung.
+     *
+     * It replaces doubling the normal cadence, which made recovery *worse* the
+     * slower the profile: on a 15-minute battery cadence, a single failed cycle
+     * pushed the next attempt out to 30 minutes, so a display that dropped one
+     * request stayed stale for half an hour. A ladder that starts well below the
+     * cadence recovers in a minute and still backs off to hourly if the server is
+     * genuinely gone.
+     *
+     * Not sent when empty — the device then keeps its normal cadence on failure,
+     * which is the safe direction (retries too often, never too rarely).
+     */
+    errorBackoffS: z
+      .array(z.number().int().positive().max(604_800))
+      .max(8)
+      .default([60, 300, 900, 3600])
+      .refine((steps) => steps.every((step, index) => index === 0 || step >= steps[index - 1]), {
+        message: "Retry delays must be non-decreasing",
+      }),
+    /**
+     * Ceiling on the refresh interval while a display has no content assigned.
+     *
+     * Commissioning is the one moment an operator is standing in front of the
+     * display waiting for it to react, and it used to be the slowest: the render
+     * route answered 204 before computing any cadence, so the device fell back to
+     * its firmware default of 900s and the profile never applied at all.
+     *
+     * A ceiling rather than its own interval, so it inherits the USB / battery
+     * tiers below instead of duplicating them — it can only make a display more
+     * responsive, never less. The low-battery tier is exempt (see computeSleep):
+     * protecting a critical cell outranks commissioning convenience.
+     *
+     * 300s matches VELLUM_APPROVAL_POLL_SEC in the firmware, which is already the
+     * cadence for the analogous "enrolled but waiting for an operator" state.
+     */
+    unassignedIntervalS: z.number().int().min(10).max(604_800).default(300),
+  })
+  .superRefine((profile, ctx) => {
+    if (profile.wakeBeforeEventS > profile.imminentEventWindowS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["wakeBeforeEventS"],
+        message: "Wake-before duration cannot exceed the imminent-event window",
+      });
+    }
+  });
 
 export type RefreshProfile = z.infer<typeof refreshProfileSchema>;
 
-export const unifiedRefreshProfileSchema = refreshProfileSchema.extend({
+export const unifiedRefreshProfileSchema = refreshProfileSchema.safeExtend({
   version: z.literal(2),
   brightness: brightnessPolicySchema.extend({ schedule: z.tuple([]) }),
 });
@@ -226,9 +248,20 @@ export function parseRefreshProfilePatch(raw: unknown): RefreshProfilePatch {
     (key) => source[key] !== undefined
   );
   if (present.length === 0) return {};
-  const mask = Object.fromEntries(present.map((key) => [key, true]));
-  const result = refreshProfileSchema.pick(mask as never).safeParse(source);
-  return result.success ? (result.data as RefreshProfilePatch) : {};
+  const patch: RefreshProfilePatch = {};
+  for (const key of present) {
+    const result = refreshProfileSchema.shape[key].safeParse(source[key]);
+    if (!result.success) return {};
+    Object.assign(patch, { [key]: result.data });
+  }
+  if (
+    patch.wakeBeforeEventS != null &&
+    patch.imminentEventWindowS != null &&
+    patch.wakeBeforeEventS > patch.imminentEventWindowS
+  ) {
+    return {};
+  }
+  return patch;
 }
 
 const DEFAULT_PROFILE: RefreshProfile = refreshProfileSchema.parse({});
@@ -289,9 +322,9 @@ export function parseRefreshProfile(raw: unknown): RefreshProfile {
  * variable.
  */
 function localParts(now: Date, timezone?: string): { day: number; hour: number } {
-  if (!timezone) return { day: now.getDay(), hour: now.getHours() };
+  if (!timezone) return { day: now.getDay(), hour: now.getHours() + now.getMinutes() / 60 };
   const zoned = new TZDate(now, timezone);
-  return { day: zoned.getDay(), hour: zoned.getHours() };
+  return { day: zoned.getDay(), hour: zoned.getHours() + zoned.getMinutes() / 60 };
 }
 
 /** Check if a schedule rule matches the current time */
@@ -322,15 +355,33 @@ function matchesRule(rule: ScheduleRule, now: Date, timezone?: string): boolean 
  */
 function secondsUntilHour(now: Date, targetHour: number, timezone?: string): number {
   const target = timezone ? new TZDate(now, timezone) : new Date(now);
-  target.setHours(targetHour, 0, 0, 0);
+  const hours = Math.floor(targetHour);
+  const minutes = Math.round((targetHour - hours) * 60);
+  target.setHours(hours, minutes, 0, 0);
   if (target.getTime() <= now.getTime()) {
     target.setDate(target.getDate() + 1);
   }
   return Math.floor((target.getTime() - now.getTime()) / 1000);
 }
 
+/**
+ * Resolve the one and only active phase. Every scheduled setting must be read
+ * from this same rule; otherwise a display can accidentally combine sleep from
+ * one phase with brightness or panel power from another.
+ */
+export function resolveActiveScheduleRule(
+  profile: RefreshProfile | null | undefined,
+  now: Date,
+  timezone?: string
+): ScheduleRule | null {
+  const p = profile ?? DEFAULT_PROFILE;
+  return p.schedule.find((rule) => matchesRule(rule, now, timezone)) ?? null;
+}
+
 export function computeSleep(ctx: SleepContext): SleepResult {
   const p = ctx.profile ?? DEFAULT_PROFILE;
+  const activeRule = resolveActiveScheduleRule(p, ctx.now, ctx.timezone);
+  const activeBehavior = activeRule?.[ctx.powerSource];
 
   /* A display with nothing assigned is being commissioned, which is exactly when
    * an operator is waiting on it — so cap whatever the tiers below decide. Only
@@ -352,18 +403,13 @@ export function computeSleep(ctx: SleepContext): SleepResult {
   // 2. Explicit scheduled sleep outranks a renderer's preferred cadence. A
   // carousel cannot keep an LCD awake after an administrator turned the night
   // phase off, and commissioning must not wake it every five minutes either.
-  if (p.version === 2) {
-    for (const rule of p.schedule) {
-      if (!matchesRule(rule, ctx.now, ctx.timezone)) continue;
-      if (rule[ctx.powerSource]?.device === "sleep") {
-        return {
-          durationS: secondsUntilHour(ctx.now, rule.endHour, ctx.timezone),
-          mode: "sleep",
-          tier: "schedule",
-          rule: rule.name || undefined,
-        };
-      }
-    }
+  if (p.version === 2 && activeRule && activeBehavior?.device === "sleep") {
+    return {
+      durationS: secondsUntilHour(ctx.now, activeRule.endHour, ctx.timezone),
+      mode: "sleep",
+      tier: "schedule",
+      rule: activeRule.name || undefined,
+    };
   }
 
   // 3. Content renderer override (always poll mode)
@@ -373,19 +419,16 @@ export function computeSleep(ctx: SleepContext): SleepResult {
 
   // 4. Schedule phases — first matching phase that defines cadence wins. A
   // brightness-only phase must not accidentally alter polling.
-  for (const rule of p.schedule) {
-    if (matchesRule(rule, ctx.now, ctx.timezone)) {
-      const behavior = rule[ctx.powerSource];
-      const intervalS = behavior?.intervalS ?? rule.intervalS;
-      if (intervalS != null) {
-        const result = {
-          durationS: intervalS,
-          mode: "poll" as const,
-          tier: "schedule" as const,
-          rule: rule.name || undefined,
-        };
-        return behavior?.display === "off" ? result : cap(result);
-      }
+  if (activeRule) {
+    const intervalS = activeBehavior?.intervalS ?? activeRule.intervalS;
+    if (intervalS != null) {
+      const result = {
+        durationS: intervalS,
+        mode: "poll" as const,
+        tier: "schedule" as const,
+        rule: activeRule.name || undefined,
+      };
+      return activeBehavior?.display === "off" ? result : cap(result);
     }
   }
 
@@ -394,7 +437,9 @@ export function computeSleep(ctx: SleepContext): SleepResult {
     const diffS = Math.floor((ctx.nextEventStart.getTime() - ctx.now.getTime()) / 1000);
     if (diffS > 0 && diffS <= p.imminentEventWindowS) {
       return {
-        durationS: Math.max(diffS - p.wakeBeforeEventS, 0),
+        /* Never instruct a device to poll in a zero-delay loop when it is
+         * already inside the wake-ahead window. */
+        durationS: Math.max(diffS - p.wakeBeforeEventS, 10),
         mode: "poll",
         tier: "imminent-event",
       };
@@ -411,17 +456,15 @@ export function computeDisplayPower(
   ctx: Pick<SleepContext, "powerSource" | "now" | "profile" | "timezone">
 ): DisplayPowerResult {
   const p = ctx.profile ?? DEFAULT_PROFILE;
-  if (p.version === 2) {
-    for (const rule of p.schedule) {
-      if (!matchesRule(rule, ctx.now, ctx.timezone)) continue;
-      const behavior = rule[ctx.powerSource];
-      /* Deep sleep necessarily removes panel power. Treat an omitted display
-       * field as off too, so API-written profiles cannot create an impossible
-       * "controller asleep, LCD on" state. */
-      const state = behavior?.device === "sleep" ? "off" : behavior?.display;
-      if (state) {
-        return { state, tier: "schedule", rule: rule.name || undefined };
-      }
+  const rule = resolveActiveScheduleRule(p, ctx.now, ctx.timezone);
+  if (p.version === 2 && rule) {
+    const behavior = rule[ctx.powerSource];
+    /* Deep sleep necessarily removes panel power. Treat an omitted display
+     * field as off too, so API-written profiles cannot create an impossible
+     * "controller asleep, LCD on" state. */
+    const state = behavior?.device === "sleep" ? "off" : behavior?.display;
+    if (state) {
+      return { state, tier: "schedule", rule: rule.name || undefined };
     }
   }
   return { state: "on", tier: "power-default" };

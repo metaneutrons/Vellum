@@ -3,20 +3,15 @@
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, withDbRead, withDbWrite } from "@/db";
-import { devices, contentInstances, themes, refreshProfiles } from "@/db/schema";
+import { devices, contentInstances, themes } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { canvasToPixelBuffer } from "@/lib/render";
-import {
-  computeDisplayPower,
-  computeSleep,
-  parseRefreshProfile,
-  applyJitter,
-  type RefreshProfile,
-} from "@/lib/sleep";
+import { computeDisplayPower, computeSleep, applyJitter, type RefreshProfile } from "@/lib/sleep";
 import { settingsForDevice } from "@/lib/settings/for-device";
+import { resolveRefreshProfile } from "@/lib/settings/refresh-profile";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { resolveDisplayCaps, mergeReportedCaps } from "@/lib/display";
@@ -25,31 +20,6 @@ import { resolveTheme, parseTheme, snapThemeToPalette, type Theme } from "@/lib/
 import { renderEntityTag } from "@/lib/render-etag";
 
 const IDLE_SCREEN_REVISION = "no-content-v1";
-
-/**
- * Resolve the refresh profile for a device: its own assignment, else the profile
- * an operator designated as the default, else null (which computeSleep turns into
- * the built-in constants).
- *
- * Mirrors how the theme is resolved further down this file. The middle step is
- * new: the device picker has always offered a "Default" option, but it resolved
- * straight to hard-coded constants, so nobody could see or change it.
- */
-async function resolveRefreshProfile(refreshProfileId: string | null) {
-  if (refreshProfileId) {
-    const [rp] = await withDbRead(
-      () =>
-        db.select().from(refreshProfiles).where(eq(refreshProfiles.id, refreshProfileId)).limit(1),
-      "render-get-refresh-profile"
-    );
-    if (rp) return parseRefreshProfile(rp.config);
-  }
-  const [fallback] = await withDbRead(
-    () => db.select().from(refreshProfiles).where(eq(refreshProfiles.isDefault, true)).limit(1),
-    "render-get-default-refresh-profile"
-  );
-  return fallback ? parseRefreshProfile(fallback.config) : null;
-}
 
 /**
  * The cadence headers every response carries — including 204 and 304, which are
@@ -169,6 +139,8 @@ export async function GET(request: NextRequest) {
    * firmware and hardware that cannot determine the source fall back
    * conservatively to battery behavior for refresh scheduling. */
   const powerSource = telemetryData?.powerSource === "usb" ? "usb" : "battery";
+  const model = request.headers.get("x-display-model")?.trim().toLowerCase() || "unknown";
+  const isBatteryEPaper = powerSource === "battery" && model.startsWith("e");
   /* Site then device, before any of the three fallbacks below. A display without a
    * site resolves exactly as it did before this layer existed. */
   const settings = await settingsForDevice(device);
@@ -196,7 +168,7 @@ export async function GET(request: NextRequest) {
       profile,
       timezone: settings.values.timezone ?? undefined,
     });
-    const idleDeviceState = profile?.version === 2 ? idle.mode : "poll";
+    const idleDeviceState = isBatteryEPaper ? "sleep" : profile?.version === 2 ? idle.mode : "poll";
     const idleDisplayState = idleDeviceState === "sleep" ? "off" : idleDisplay.state;
     const idleResponseDuration = responseDuration(idle.durationS, idle.mode, profile);
     await recordExpectedPower(
@@ -211,7 +183,6 @@ export async function GET(request: NextRequest) {
       idleDisplayState,
       idleDeviceState === "sleep" ? "sleep" : "awake"
     );
-    const model = request.headers.get("x-display-model")?.trim().toLowerCase() || "unknown";
     const firmware = request.headers.get("x-firmware-ver")?.trim() || "unknown";
     const etag = renderEntityTag("idle", `${IDLE_SCREEN_REVISION}:${model}:${firmware}`);
     const headers = {
@@ -338,7 +309,7 @@ export async function GET(request: NextRequest) {
   const { durationS: sleepDuration, mode: sleepMode } = computeSleep({
     powerSource,
     batteryLevel: telemetryData?.batteryLevel ?? 100,
-    nextEventStart: null,
+    nextEventStart: renderResult.nextEventStart ?? null,
     now,
     profile,
     timezone: settings.values.timezone ?? undefined,
@@ -351,7 +322,8 @@ export async function GET(request: NextRequest) {
     timezone: settings.values.timezone ?? undefined,
   });
 
-  const expectedDeviceState = profile?.version === 2 && sleepMode === "sleep" ? "sleep" : "awake";
+  const expectedDeviceState =
+    isBatteryEPaper || (profile?.version === 2 && sleepMode === "sleep") ? "sleep" : "awake";
   const expectedDisplayState = expectedDeviceState === "sleep" ? "off" : displayPower.state;
   const sleepResponseDuration = responseDuration(sleepDuration, sleepMode, profile);
   await recordExpectedPower(

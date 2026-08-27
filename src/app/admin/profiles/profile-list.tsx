@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import {
   createRefreshProfile,
@@ -18,7 +18,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
-import { upgradeRefreshProfileConfig, type PhaseBehavior, type ScheduleRule } from "@/lib/sleep";
+import {
+  unifiedRefreshProfileSchema,
+  upgradeRefreshProfileConfig,
+  type PhaseBehavior,
+  type ScheduleRule,
+} from "@/lib/sleep";
 import {
   Search,
   Plus,
@@ -29,7 +34,9 @@ import {
   ChevronUp,
   ChevronDown,
   Moon,
+  Copy,
 } from "lucide-react";
+import { isUsableTimezone } from "@/lib/settings/device-settings";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
@@ -39,14 +46,19 @@ interface Profile {
   name: string;
   config: unknown;
   isDefault: boolean;
+  revision: number;
+  deviceCount: number;
+  siteCount: number;
 }
 const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"];
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const WEEKEND = [0, 6];
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const HOURS = Array.from({ length: 96 }, (_, i) => i / 4);
 function fmtHour(h: number): string {
-  return `${h.toString().padStart(2, "0")}:00`;
+  const hour = Math.floor(h);
+  const minute = Math.round((h - hour) * 60);
+  return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
 }
 
 function fmtInterval(s: number): string {
@@ -132,8 +144,6 @@ const RULE_TEMPLATES: {
 
 function IntervalPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const t = useTranslations("profiles");
-  const [custom, setCustom] = useState(false);
-  const isPreset = INTERVAL_PRESETS.some((p) => p.value === value);
 
   return (
     <div>
@@ -142,38 +152,28 @@ function IntervalPicker({ value, onChange }: { value: number; onChange: (v: numb
           <Button
             key={p.value}
             size="sm"
-            variant={value === p.value && !custom ? "filled" : "gray"}
-            onClick={() => {
-              onChange(p.value);
-              setCustom(false);
-            }}
+            variant={value === p.value ? "filled" : "gray"}
+            onClick={() => onChange(p.value)}
           >
             {p.label}
           </Button>
         ))}
-        <Button
-          size="sm"
-          variant={custom || !isPreset ? "filled" : "gray"}
-          onClick={() => setCustom(true)}
-        >
-          {t("custom")}
-        </Button>
       </div>
-      {(custom || !isPreset) && (
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            min={10}
-            step={10}
-            className="w-24 min-h-8"
-            value={value}
-            onChange={(e) => onChange(parseInt(e.target.value) || 60)}
-          />
-          <span className="text-xs text-label-secondary">
-            {t("seconds")} ({fmtInterval(value)})
-          </span>
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={10}
+          max={604800}
+          step={10}
+          aria-label={t("customInterval")}
+          className="w-24 min-h-8"
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <span className="text-xs text-label-secondary">
+          {t("seconds")} ({fmtInterval(value)})
+        </span>
+      </div>
     </div>
   );
 }
@@ -190,12 +190,18 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
   return (
     <div>
       <div className="flex gap-1 mb-1">
-        <Button size="sm" variant={isAll ? "filled" : "gray"} onClick={() => onChange([])}>
+        <Button
+          size="sm"
+          variant={isAll ? "filled" : "gray"}
+          aria-pressed={isAll}
+          onClick={() => onChange([])}
+        >
           {t("all")}
         </Button>
         <Button
           size="sm"
           variant={isWeekdays ? "filled" : "gray"}
+          aria-pressed={isWeekdays}
           onClick={() => onChange([...WEEKDAYS])}
         >
           {t("weekdays")}
@@ -203,6 +209,7 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
         <Button
           size="sm"
           variant={isWeekend ? "filled" : "gray"}
+          aria-pressed={isWeekend}
           onClick={() => onChange([...WEEKEND])}
         >
           {t("weekend")}
@@ -214,6 +221,7 @@ function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[])
             key={i}
             size="sm"
             variant={days.includes(i) || days.length === 0 ? "filled" : "gray"}
+            aria-pressed={days.includes(i) || days.length === 0}
             onClick={() => toggle(i)}
             className="w-9 px-0"
           >
@@ -272,7 +280,7 @@ const DEFAULT_CONFIG = {
   },
 };
 
-export function ProfileList({ profiles }: { profiles: Profile[] }) {
+export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canManage: boolean }) {
   const t = useTranslations("profiles");
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -281,6 +289,20 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Record<string, unknown>>(DEFAULT_CONFIG);
+  const [expectedRevision, setExpectedRevision] = useState<number | null>(null);
+  const [initialState, setInitialState] = useState("");
+  const [previewTimezone, setPreviewTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  );
+
+  const validation = useMemo(() => unifiedRefreshProfileSchema.safeParse(config), [config]);
+  const previewTimezoneValid = useMemo(() => isUsableTimezone(previewTimezone), [previewTimezone]);
+  const currentState = JSON.stringify({ name: name.trim(), config });
+  const dirty = !!editing && currentState !== initialState;
+
+  function requestClose() {
+    if (!dirty || window.confirm(t("discardConfirm"))) setEditing(null);
+  }
 
   const backoff = (config.errorBackoffS ?? []) as number[];
   function setBackoff(steps: number[]) {
@@ -326,18 +348,40 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
   function startNew() {
     setEditing("new");
     setName("");
-    setConfig({ ...DEFAULT_CONFIG });
+    const fresh = structuredClone(DEFAULT_CONFIG) as Record<string, unknown>;
+    setConfig(fresh);
+    setExpectedRevision(null);
+    setInitialState(JSON.stringify({ name: "", config: fresh }));
   }
   function startEdit(p: Profile) {
     setEditing(p.id);
     setName(p.name);
-    setConfig(upgradeRefreshProfileConfig(p.config) as Record<string, unknown>);
+    const upgraded = upgradeRefreshProfileConfig(p.config) as Record<string, unknown>;
+    setConfig(upgraded);
+    setExpectedRevision(p.revision);
+    setInitialState(JSON.stringify({ name: p.name.trim(), config: upgraded }));
+  }
+  function startClone(p: Profile) {
+    const cloned = upgradeRefreshProfileConfig(p.config) as Record<string, unknown>;
+    const clonedName = t("copyName", { name: p.name });
+    setEditing("new");
+    setName(clonedName);
+    setConfig(cloned);
+    setExpectedRevision(null);
+    setInitialState(JSON.stringify({ name: clonedName.trim(), config: cloned }));
   }
   function save() {
+    if (!canManage || !name.trim() || !validation.success) return;
     startTransition(async () => {
       try {
         if (editing === "new") await createRefreshProfile(name, config);
-        else if (editing) await updateRefreshProfile(editing, name, config);
+        else if (editing && expectedRevision) {
+          const result = await updateRefreshProfile(editing, name, config, expectedRevision);
+          if (!result.ok) {
+            toast("error", t("conflict"));
+            return;
+          }
+        }
         toast("success", editing === "new" ? t("created") : t("updated"));
         setEditing(null);
       } catch {
@@ -374,6 +418,8 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
     (p) => !search || p.name.toLowerCase().includes(search.toLowerCase())
   );
   const defaultProfile = profiles.find((p) => p.isDefault);
+  const deletingProfile = profiles.find((profile) => profile.id === deleting);
+  const editingProfile = profiles.find((profile) => profile.id === editing);
 
   return (
     <div className={`mx-auto max-w-5xl ${pending ? "opacity-60 pointer-events-none" : ""}`}>
@@ -410,9 +456,13 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
             aria-label={t("search")}
           />
         </div>
-        <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>
-          {t("add")}
-        </Button>
+        {canManage ? (
+          <Button onClick={startNew} leading={<Plus size={16} aria-hidden="true" />}>
+            {t("add")}
+          </Button>
+        ) : (
+          <StatusPill>{t("readOnly")}</StatusPill>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -445,6 +495,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                       <Clock size={14} aria-hidden="true" />
                       {t("usbSummary", { interval: fmtInterval(c.usbIntervalS as number) })}
                     </span>
+                    <span>{t("usage", { devices: p.deviceCount, sites: p.siteCount })}</span>
                     <span className="inline-flex items-center gap-1">
                       <Clock size={14} aria-hidden="true" />
                       {t("batterySummary", {
@@ -454,28 +505,42 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {!p.isDefault && (
+                  {canManage && !p.isDefault && (
                     <Button size="sm" variant="plain" onClick={() => makeDefault(p.id)}>
                       {t("setAsDefault")}
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="gray"
-                    onClick={() => startEdit(p)}
-                    leading={<Pencil size={15} aria-hidden="true" />}
-                  >
-                    {t("edit")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="plain"
-                    aria-label={t("delete")}
-                    onClick={() => setDeleting(p.id)}
-                    className="text-red px-2"
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </Button>
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      variant="plain"
+                      onClick={() => startClone(p)}
+                      aria-label={t("copy")}
+                    >
+                      <Copy size={15} aria-hidden="true" />
+                    </Button>
+                  )}
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      variant="gray"
+                      onClick={() => startEdit(p)}
+                      leading={<Pencil size={15} aria-hidden="true" />}
+                    >
+                      {t("edit")}
+                    </Button>
+                  )}
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      variant="plain"
+                      aria-label={t("delete")}
+                      onClick={() => setDeleting(p.id)}
+                      className="text-red px-2"
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -493,21 +558,44 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
       {/* Create/edit profile editor */}
       <Modal
         open={!!editing}
-        onClose={() => setEditing(null)}
+        onClose={requestClose}
         title={editing === "new" ? t("newProfile") : t("editProfile")}
-        onSubmit={name ? save : undefined}
+        onSubmit={name.trim() && validation.success ? save : undefined}
         wide
         footer={
           <>
-            <Button variant="gray" onClick={() => setEditing(null)}>
+            <Button variant="gray" onClick={requestClose}>
               {t("cancel")}
             </Button>
-            <Button onClick={save} disabled={!name} loading={pending}>
+            <Button onClick={save} disabled={!name.trim() || !validation.success} loading={pending}>
               {t("save")}
             </Button>
           </>
         }
       >
+        {!validation.success && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-red/30 bg-red/10 p-3 text-xs text-red"
+          >
+            <p className="font-semibold">{t("invalidConfiguration")}</p>
+            <ul className="mt-1 list-disc pl-4">
+              {validation.error.issues.slice(0, 5).map((issue) => (
+                <li key={`${issue.path.join(".")}:${issue.message}`}>
+                  {t("invalidField", { field: issue.path.join(".") || "profile" })}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {editingProfile && (editingProfile.deviceCount > 0 || editingProfile.siteCount > 0) && (
+          <div className="mb-4 rounded-lg border border-orange/30 bg-orange/10 p-3 text-xs text-label-secondary">
+            {t("saveImpact", {
+              devices: editingProfile.deviceCount,
+              sites: editingProfile.siteCount,
+            })}
+          </div>
+        )}
         <label className="block text-sm font-medium text-label mb-1">{t("name")}</label>
         <Input
           className="mb-4"
@@ -605,7 +693,10 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
             disabled={backoff.length >= MAX_BACKOFF_STEPS}
             leading={<Plus size={14} aria-hidden="true" />}
             onClick={() =>
-              setBackoff([...backoff, backoff.length ? backoff[backoff.length - 1] * 2 : 60])
+              setBackoff([
+                ...backoff,
+                backoff.length ? Math.min(backoff[backoff.length - 1] * 2, 604800) : 60,
+              ])
             }
           >
             {t("addStep")}
@@ -616,6 +707,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
           <h3 className="text-sm font-semibold text-label">{t("scheduleRules")}</h3>
         </div>
         <p className="text-xs text-label-secondary mb-3">{t("scheduleHint")}</p>
+        <p className="text-xs text-label-tertiary mb-3">{t("capabilityHint")}</p>
 
         {/* Templates */}
         <div className="flex flex-wrap gap-1 mb-3">
@@ -685,7 +777,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                 <select
                   className={`${selectCls} w-full`}
                   value={rule.startHour}
-                  onChange={(e) => updateRule(i, { startHour: parseInt(e.target.value) })}
+                  onChange={(e) => updateRule(i, { startHour: Number(e.target.value) })}
                 >
                   {HOURS.map((h) => (
                     <option key={h} value={h}>
@@ -701,7 +793,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
                 <select
                   className={`${selectCls} w-full`}
                   value={rule.endHour}
-                  onChange={(e) => updateRule(i, { endHour: parseInt(e.target.value) })}
+                  onChange={(e) => updateRule(i, { endHour: Number(e.target.value) })}
                 >
                   {HOURS.map((h) => (
                     <option key={h} value={h}>
@@ -818,9 +910,27 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
           </div>
         )}
 
+        {schedule.length > 0 && (
+          <label className="mt-4 block text-xs font-medium text-label-secondary">
+            {t("previewTimezone")}
+            <Input
+              className="mt-1"
+              value={previewTimezone}
+              onChange={(event) => setPreviewTimezone(event.target.value)}
+              placeholder="Europe/Berlin"
+              aria-invalid={!previewTimezoneValid}
+            />
+            {!previewTimezoneValid && (
+              <span className="mt-1 block text-red">{t("invalidTimezone")}</span>
+            )}
+          </label>
+        )}
+
         <ScheduleTimeline
           rules={schedule}
-          defaultIntervalS={(config.batteryIntervalS as number) ?? 900}
+          defaultUsbIntervalS={(config.usbIntervalS as number) ?? 60}
+          defaultBatteryIntervalS={(config.batteryIntervalS as number) ?? 900}
+          timezone={previewTimezoneValid ? previewTimezone : "UTC"}
         />
 
         {/* Defaults outside a phase. Every scheduled override now lives in the
@@ -863,7 +973,14 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         onClose={() => setDeleting(null)}
         onConfirm={handleDelete}
         title={t("deleteTitle")}
-        message={t("deleteMessage")}
+        message={
+          deletingProfile
+            ? t("deleteImpact", {
+                devices: deletingProfile.deviceCount,
+                sites: deletingProfile.siteCount,
+              })
+            : t("deleteMessage")
+        }
         confirmLabel={t("delete")}
         cancelLabel={t("cancel")}
         destructive

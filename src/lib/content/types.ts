@@ -69,6 +69,12 @@ export interface DrawResult {
   canvas: Canvas;
   /** Optional: override the device's refresh profile (e.g. carousel at 60s) */
   sleepOverrideS?: number;
+  /**
+   * Next moment at which the content becomes time-sensitive. The profile engine
+   * uses this to wake shortly before a booking without understanding provider
+   * data or leaking event details into the firmware.
+   */
+  nextEventStart?: Date | null;
 }
 
 /** @deprecated Use `DrawResult`. Kept so the name still resolves in older code. */

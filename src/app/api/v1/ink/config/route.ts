@@ -3,7 +3,7 @@
 import { NextRequest } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, withDbRead, withDbWrite } from "@/db";
-import { deviceConfigurationCommands, devices, refreshProfiles } from "@/db/schema";
+import { deviceConfigurationCommands, devices } from "@/db/schema";
 import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
@@ -11,6 +11,7 @@ import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
 import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { settingsForDevice } from "@/lib/settings/for-device";
+import { resolveRefreshProfile } from "@/lib/settings/refresh-profile";
 import { evaluateBrightness, parseBrightnessPolicy } from "@/lib/settings/brightness";
 import { log } from "@/lib/logger";
 import { env } from "@/lib/env";
@@ -332,20 +333,11 @@ export async function GET(request: NextRequest) {
   let backlightPercent: number | undefined;
   if (hasBacklight && device) {
     const settings = await settingsForDevice(device);
-    const [assignedProfile] = settings.values.refreshProfileId
-      ? await withDbRead(
-          () =>
-            db
-              .select({ config: refreshProfiles.config })
-              .from(refreshProfiles)
-              .where(eq(refreshProfiles.id, settings.values.refreshProfileId as string))
-              .limit(1),
-          "config-get-brightness-profile"
-        )
-      : [];
+    const assignedProfile = await resolveRefreshProfile(settings.values.refreshProfileId);
     backlightPercent = evaluateBrightness({
-      policy: parseBrightnessPolicy(assignedProfile?.config),
-      powerSource: t?.powerSource === "battery" ? "battery" : "usb",
+      policy: parseBrightnessPolicy(assignedProfile),
+      /* Unknown source is treated conservatively exactly as /render does. */
+      powerSource: t?.powerSource === "usb" ? "usb" : "battery",
       now: new Date(),
       timezone: settings.values.timezone ?? undefined,
       override: device.backlightPercent,

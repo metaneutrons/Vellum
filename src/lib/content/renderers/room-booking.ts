@@ -977,6 +977,8 @@ export interface RoomModel {
   bookingUrl: string | null;
   isRoomFree: boolean;
   offline: boolean;
+  /** Derived from raw events before privacy policy filtering. */
+  nextEventStart?: Date | null;
 }
 
 export async function loadRoomModel(params: LoadParams): Promise<RoomModel> {
@@ -993,7 +995,13 @@ export async function loadRoomModel(params: LoadParams): Promise<RoomModel> {
       ? rawTimezone
       : (params.timezone ?? cfg.timezone);
 
-  const base = { config: cfg, timezone, now: params.now, bookingUrl: null };
+  const base = {
+    config: cfg,
+    timezone,
+    now: params.now,
+    bookingUrl: null,
+    nextEventStart: null,
+  };
 
   let events: CalendarEvent[];
   try {
@@ -1019,6 +1027,10 @@ export async function loadRoomModel(params: LoadParams): Promise<RoomModel> {
       (e) =>
         e.startTime.getTime() <= params.now.getTime() && e.endTime.getTime() > params.now.getTime()
     ),
+    nextEventStart:
+      events
+        .filter((event) => event.startTime.getTime() > params.now.getTime())
+        .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0]?.startTime ?? null,
     offline: false,
   };
 }
@@ -1074,7 +1086,10 @@ export function drawRoom(model: RoomModel, params: DrawParams): DrawResult {
     : undefined;
 
   const spec = frameSpecOf(model, params, bookingQr);
-  return { canvas: cfg.layout === "stacked" ? renderStacked(spec) : renderTimeline(spec) };
+  return {
+    canvas: cfg.layout === "stacked" ? renderStacked(spec) : renderTimeline(spec),
+    nextEventStart: model.nextEventStart ?? null,
+  };
 }
 
 export const roomBookingRenderer: ContentRenderer<RoomModel> = {

@@ -4,6 +4,7 @@
 import { useTranslations } from "next-intl";
 import { fmtInterval } from "@/lib/duration";
 import type { ScheduleRule } from "@/lib/sleep";
+import { TZDate } from "@date-fns/tz";
 
 function describeRule(rule: ScheduleRule, fallback: number): string {
   const usb = rule.usb?.intervalS ?? rule.intervalS ?? fallback;
@@ -47,8 +48,9 @@ function matchesLocal(rule: ScheduleRule, day: number, hour: number): boolean {
 function slots(rule: ScheduleRule): Set<number> {
   const result = new Set<number>();
   for (let day = 0; day < 7; day++) {
-    for (let hour = 0; hour < 24; hour++) {
-      if (matchesLocal(rule, day, hour)) result.add(day * 24 + hour);
+    for (let quarter = 0; quarter < 96; quarter++) {
+      const hour = quarter / 4;
+      if (matchesLocal(rule, day, hour)) result.add(day * 96 + quarter);
     }
   }
   return result;
@@ -59,8 +61,7 @@ function rulesOverlap(a: ScheduleRule, b: ScheduleRule): boolean {
   return [...slots(b)].some((slot) => aSlots.has(slot));
 }
 
-function matchesNow(rule: ScheduleRule): boolean {
-  const now = new Date();
+function matchesNow(rule: ScheduleRule, now: Date): boolean {
   const day = now.getDay();
   const hour = now.getHours();
   return matchesLocal(rule, day, hour);
@@ -69,7 +70,8 @@ function matchesNow(rule: ScheduleRule): boolean {
 function blocksForDay(rule: ScheduleRule, day: number): Array<{ start: number; end: number }> {
   const blocks: Array<{ start: number; end: number }> = [];
   let start: number | null = null;
-  for (let hour = 0; hour <= 24; hour++) {
+  for (let quarter = 0; quarter <= 96; quarter++) {
+    const hour = quarter / 4;
     const active = hour < 24 && matchesLocal(rule, day, hour);
     if (active && start === null) start = hour;
     if (!active && start !== null) {
@@ -82,16 +84,26 @@ function blocksForDay(rule: ScheduleRule, day: number): Array<{ start: number; e
 
 export function ScheduleTimeline({
   rules,
-  defaultIntervalS,
+  defaultUsbIntervalS,
+  defaultBatteryIntervalS,
+  timezone,
 }: {
   rules: ScheduleRule[];
-  defaultIntervalS: number;
+  defaultUsbIntervalS: number;
+  defaultBatteryIntervalS: number;
+  timezone: string;
 }) {
   const t = useTranslations("profiles");
   if (rules.length === 0) return null;
 
-  const nowHour = new Date().getHours();
-  const today = new Date().getDay();
+  let now: Date;
+  try {
+    now = new TZDate(new Date(), timezone);
+  } catch {
+    now = new Date();
+  }
+  const nowHour = now.getHours() + now.getMinutes() / 60;
+  const today = now.getDay();
 
   // Detect overlaps
   const overlaps: [number, number][] = [];
@@ -106,7 +118,10 @@ export function ScheduleTimeline({
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-medium">{t("timelineToday")}</span>
         <span className="text-xs text-label-secondary">
-          {t("timelineDefault", { interval: fmtInterval(defaultIntervalS) })}
+          {t("timelineDefault", {
+            interval: `${fmtInterval(defaultUsbIntervalS)} / ${fmtInterval(defaultBatteryIntervalS)}`,
+          })}{" "}
+          · {timezone}
         </span>
       </div>
 
@@ -140,7 +155,7 @@ export function ScheduleTimeline({
                 <div
                   key={`${block.start}-${block.end}`}
                   className="absolute top-1 bottom-1 rounded-sm opacity-80"
-                  title={`${rule.name}: ${describeRule(rule, defaultIntervalS)}`}
+                  title={`${rule.name}: ${describeRule(rule, defaultBatteryIntervalS)}`}
                   style={{
                     left: `${(block.start / 24) * 100}%`,
                     width: `${((block.end - block.start) / 24) * 100}%`,
@@ -162,7 +177,7 @@ export function ScheduleTimeline({
       {/* Legend */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
         {rules.map((rule, i) => {
-          const active = matchesNow(rule);
+          const active = matchesNow(rule, now);
           const hasOverlap = overlaps.some(([a, b]) => a === i || b === i);
           return (
             <div key={i} className="flex items-center gap-1">
@@ -174,7 +189,7 @@ export function ScheduleTimeline({
                 className={`text-[10px] ${active ? "font-bold text-label" : "text-label-secondary"}`}
               >
                 {rule.name || t("ruleFallback", { number: i + 1 })} (
-                {describeRule(rule, defaultIntervalS)})
+                {describeRule(rule, defaultBatteryIntervalS)})
                 {active && <span className="ml-1 text-orange">● {t("active")}</span>}
                 {isOvernight(rule) && <span className="ml-1">🌙</span>}
               </span>
