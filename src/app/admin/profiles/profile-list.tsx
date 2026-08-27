@@ -496,6 +496,7 @@ export function ProfileList({ profiles }: { profiles: Profile[] }) {
         onClose={() => setEditing(null)}
         title={editing === "new" ? t("newProfile") : t("editProfile")}
         onSubmit={name ? save : undefined}
+        wide
         footer={
           <>
             <Button variant="gray" onClick={() => setEditing(null)}>
