@@ -486,6 +486,12 @@
     "deleteMessage": "Supprimer ce profil ? Les appareils utiliseront les valeurs par défaut."
   },
   "profiles": {
+    "editor": {
+      "navigation": "Sections du profil",
+      "general": "Général",
+      "schedule": "Planning",
+      "advanced": "Avancé"
+    },
     "overlapHint": "Cette règle chevauche une autre règle. La première correspondance est prioritaire.",
     "all": "Tous",
     "weekdays": "Jours ouvrés",
@@ -500,6 +506,7 @@
     "days": "Jours",
     "from": "De",
     "until": "À",
+    "allDay": "Toute la journée",
     "title": "Profils d’affichage",
     "description": "Configurer les plannings de rafraîchissement",
     "add": "Ajouter un profil",

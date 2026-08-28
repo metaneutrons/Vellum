@@ -35,8 +35,12 @@ import {
   Clock,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Moon,
   Copy,
+  Settings2,
+  CalendarRange,
+  SlidersHorizontal,
 } from "lucide-react";
 import { isUsableTimezone } from "@/lib/settings/device-settings";
 
@@ -146,22 +150,32 @@ const RULE_TEMPLATES: {
 
 function IntervalPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const t = useTranslations("profiles");
+  const preset = INTERVAL_PRESETS.some((option) => option.value === value);
+  const [custom, setCustom] = useState(!preset);
 
   return (
-    <div>
-      <div className="flex flex-wrap gap-1 mb-1">
-        {INTERVAL_PRESETS.map((p) => (
-          <Button
-            key={p.value}
-            size="sm"
-            variant={value === p.value ? "filled" : "gray"}
-            onClick={() => onChange(p.value)}
-          >
-            {p.label}
-          </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        className={`${selectCls} min-w-36`}
+        aria-label={t("refreshInterval")}
+        value={custom || !preset ? "custom" : String(value)}
+        onChange={(event) => {
+          if (event.target.value === "custom") {
+            setCustom(true);
+            return;
+          }
+          setCustom(false);
+          onChange(Number(event.target.value));
+        }}
+      >
+        {INTERVAL_PRESETS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
         ))}
-      </div>
-      <div className="flex items-center gap-2">
+        <option value="custom">{t("custom")}</option>
+      </select>
+      {(custom || !preset) && (
         <Input
           type="number"
           min={10}
@@ -172,10 +186,12 @@ function IntervalPicker({ value, onChange }: { value: number; onChange: (v: numb
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
         />
-        <span className="text-xs text-label-secondary">
-          {t("seconds")} ({fmtInterval(value)})
+      )}
+      {(custom || !preset) && (
+        <span className="text-xs text-label-tertiary">
+          {t("seconds")} · {fmtInterval(value)}
         </span>
-      </div>
+      )}
     </div>
   );
 }
@@ -287,6 +303,12 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
+  const [editorSection, setEditorSection] = useState<"general" | "schedule" | "advanced">(
+    "general"
+  );
+  const [defaultSource, setDefaultSource] = useState<"usb" | "battery">("usb");
+  const [ruleSource, setRuleSource] = useState<"usb" | "battery">("usb");
+  const [expandedRule, setExpandedRule] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
@@ -348,9 +370,16 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
   }
   function addTemplate(template: (typeof RULE_TEMPLATES)[number]) {
     setSchedule([...schedule, { ...template.rule, name: t(template.nameKey) }]);
+    setExpandedRule(schedule.length);
+    setRuleSource("usb");
   }
   function removeRule(i: number) {
     setSchedule(schedule.filter((_, j) => j !== i));
+    setExpandedRule((current) => {
+      if (current == null) return null;
+      if (current === i) return null;
+      return current > i ? current - 1 : current;
+    });
   }
   function updateRule(i: number, patch: Partial<ScheduleRule>) {
     setSchedule(schedule.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -368,10 +397,15 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
     if (j < 0 || j >= s.length) return;
     [s[i], s[j]] = [s[j], s[i]];
     setSchedule(s);
+    setExpandedRule((current) => (current === i ? j : current === j ? i : current));
   }
 
   function startNew() {
     setEditing("new");
+    setEditorSection("general");
+    setDefaultSource("usb");
+    setRuleSource("usb");
+    setExpandedRule(null);
     setName("");
     const fresh = structuredClone(DEFAULT_CONFIG) as Record<string, unknown>;
     setConfig(fresh);
@@ -380,6 +414,10 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
   }
   function startEdit(p: Profile) {
     setEditing(p.id);
+    setEditorSection("general");
+    setDefaultSource("usb");
+    setRuleSource("usb");
+    setExpandedRule(null);
     setName(p.name);
     const upgraded = upgradeRefreshProfileConfig(p.config) as Record<string, unknown>;
     setConfig(upgraded);
@@ -390,6 +428,10 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
     const cloned = upgradeRefreshProfileConfig(p.config) as Record<string, unknown>;
     const clonedName = t("copyName", { name: p.name });
     setEditing("new");
+    setEditorSection("general");
+    setDefaultSource("usb");
+    setRuleSource("usb");
+    setExpandedRule(null);
     setName(clonedName);
     setConfig(cloned);
     setExpectedRevision(null);
@@ -621,367 +663,132 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
             })}
           </div>
         )}
-        <label className="block text-sm font-medium text-label mb-1">{t("name")}</label>
-        <Input
-          className="mb-4"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("namePlaceholder")}
-        />
-
-        <h3 className="text-sm font-semibold text-label mb-1">{t("defaults.title")}</h3>
-        <p className="text-xs text-label-secondary mb-3">{t("defaults.hint")}</p>
-        <div className="grid gap-3 lg:grid-cols-2 mb-6">
-          {(["usb", "battery"] as const).map((source) => {
-            const behavior = defaults[source];
-            return (
-              <fieldset
-                key={source}
-                className="rounded-lg border border-separator bg-surface-secondary p-3 space-y-3"
-              >
-                <legend className="px-1 text-xs font-semibold text-label">
-                  {t(source === "usb" ? "phase.usb" : "phase.battery")}
-                </legend>
-
-                <div>
-                  <label className="block text-xs font-medium text-label-secondary mb-1">
-                    {t("refreshInterval")}
-                  </label>
-                  <IntervalPicker
-                    value={behavior.intervalS}
-                    onChange={(intervalS) => setDefaultBehavior(source, { intervalS })}
-                  />
-                </div>
-
-                <label className="block">
-                  <span className="block text-xs font-medium text-label-secondary mb-1">
-                    {t("brightness.level")}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={behavior.brightnessPercent}
-                      onChange={(event) =>
-                        setDefaultBehavior(source, {
-                          brightnessPercent: Number(event.target.value),
-                        })
-                      }
-                      className="w-full"
-                    />
-                    <span className="w-10 font-mono text-xs text-label">
-                      {behavior.brightnessPercent}%
-                    </span>
-                  </div>
-                </label>
-
-                <label className="block text-xs">
-                  <span className="block font-medium text-label-secondary mb-1">
-                    {t("phase.display")}
-                  </span>
-                  <select
-                    className={`${selectCls} w-full`}
-                    value={behavior.display}
-                    disabled={behavior.device === "sleep"}
-                    onChange={(event) =>
-                      setDefaultBehavior(source, {
-                        display: event.target.value as "on" | "off",
-                      })
-                    }
-                  >
-                    <option value="on">{t("phase.displayOn")}</option>
-                    <option value="off">{t("phase.displayOff")}</option>
-                  </select>
-                </label>
-
-                <label className="block text-xs">
-                  <span className="block font-medium text-label-secondary mb-1">
-                    {t("phase.device")}
-                  </span>
-                  <select
-                    className={`${selectCls} w-full`}
-                    value={behavior.device}
-                    onChange={(event) =>
-                      setDefaultBehavior(source, {
-                        device: event.target.value as "awake" | "sleep",
-                        ...(event.target.value === "sleep" ? { display: "off" as const } : {}),
-                      })
-                    }
-                  >
-                    <option value="awake">{t("defaults.deviceNormal")}</option>
-                    <option value="sleep">{t("defaults.deviceSleep")}</option>
-                  </select>
-                </label>
-
-                <p className="text-xs text-label-tertiary">
-                  {t(source === "usb" ? "defaults.usbHint" : "defaults.batteryHint")}
-                </p>
-              </fieldset>
-            );
-          })}
-        </div>
-
-        <h3 className="text-sm font-semibold text-label mb-1">{t("policyTitle")}</h3>
-        <p className="text-xs text-label-secondary mb-3">{t("policyHint")}</p>
-        <div className="space-y-3 mb-6">
-          {POLICY_FIELDS.map((f) => (
-            <div key={f.key}>
-              <label className="block text-xs font-medium text-label-secondary mb-1">
-                {t(f.labelKey)}
-              </label>
-              {f.type === "interval" ? (
-                <IntervalPicker
-                  value={(config[f.key] as number) ?? 900}
-                  onChange={(v) => setConfig((c) => ({ ...c, [f.key]: v }))}
-                />
-              ) : f.type === "slider" ? (
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={f.min}
-                    max={f.max}
-                    className="flex-1 accent-accent focus-ring rounded-md"
-                    value={(config[f.key] as number) ?? f.min}
-                    onChange={(e) =>
-                      setConfig((c) => ({ ...c, [f.key]: parseInt(e.target.value) }))
-                    }
-                  />
-                  <span className="text-sm font-medium text-label w-12 text-right">
-                    {(config[f.key] as number) ?? f.min}
-                    {f.unit}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={f.min}
-                    max={f.max}
-                    className="w-24 min-h-8"
-                    value={(config[f.key] as number) ?? 0}
-                    onChange={(e) =>
-                      setConfig((c) => ({ ...c, [f.key]: parseInt(e.target.value) || 0 }))
-                    }
-                  />
-                  <span className="text-xs text-label-secondary">{f.unit}</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <h3 className="text-sm font-semibold text-label mb-1">{t("whileWaiting")}</h3>
-        <p className="text-xs text-label-secondary mb-3">{t("whileWaitingHint")}</p>
-        <div className="mb-6">
-          <IntervalPicker
-            value={(config.unassignedIntervalS as number) ?? 300}
-            onChange={(v) => setConfig((c) => ({ ...c, unassignedIntervalS: v }))}
-          />
-        </div>
-
-        <h3 className="text-sm font-semibold text-label mb-1">{t("errorRetryTitle")}</h3>
-        <p className="text-xs text-label-secondary mb-3">{t("errorRetryHint")}</p>
-        <div className="space-y-3 mb-6">
-          {backoff.map((step, i) => (
-            <div key={i}>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-label-secondary">
-                  {i === backoff.length - 1 && backoff.length > 1
-                    ? t("retryStepHeld", { step: i + 1 })
-                    : t("retryStep", { step: i + 1 })}
-                </label>
-                <Button
-                  size="sm"
-                  variant="plain"
-                  className="text-red"
-                  onClick={() => setBackoff(backoff.filter((_, j) => j !== i))}
-                >
-                  {t("remove")}
-                </Button>
-              </div>
-              <IntervalPicker
-                value={step}
-                onChange={(v) => setBackoff(backoff.map((s, j) => (j === i ? v : s)))}
-              />
-            </div>
-          ))}
-          <Button
-            size="sm"
-            variant="gray"
-            disabled={backoff.length >= MAX_BACKOFF_STEPS}
-            leading={<Plus size={14} aria-hidden="true" />}
-            onClick={() =>
-              setBackoff([
-                ...backoff,
-                backoff.length ? Math.min(backoff[backoff.length - 1] * 2, 604800) : 60,
-              ])
-            }
-          >
-            {t("addStep")}
-          </Button>
-        </div>
-
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-semibold text-label">{t("scheduleRules")}</h3>
-        </div>
-        <p className="text-xs text-label-secondary mb-3">{t("scheduleHint")}</p>
-        <p className="text-xs text-label-tertiary mb-3">{t("capabilityHint")}</p>
-
-        {/* Templates */}
-        <div className="flex flex-wrap gap-1 mb-3">
-          {RULE_TEMPLATES.map((template) => (
-            <Button
-              key={template.labelKey}
-              size="sm"
-              variant="gray"
-              onClick={() => addTemplate(template)}
+        <nav
+          className="mb-6 grid grid-cols-3 gap-1 rounded-xl bg-surface-secondary p-1"
+          role="tablist"
+          aria-label={t("editor.navigation")}
+        >
+          {(
+            [
+              ["general", "editor.general", Settings2],
+              ["schedule", "editor.schedule", CalendarRange],
+              ["advanced", "editor.advanced", SlidersHorizontal],
+            ] as const
+          ).map(([section, labelKey, Icon]) => (
+            <button
+              key={section}
+              type="button"
+              role="tab"
+              aria-selected={editorSection === section}
+              onClick={() => setEditorSection(section)}
+              className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors focus-ring ${
+                editorSection === section
+                  ? "bg-surface text-label shadow-e1"
+                  : "text-label-secondary hover:text-label"
+              }`}
             >
-              {t(template.labelKey)}
-            </Button>
-          ))}
-        </div>
-
-        {schedule.map((rule, i) => (
-          <div key={i} className="border border-separator rounded-lg p-3 mb-3 bg-surface-secondary">
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="gray"
-                  aria-label={t("moveUp")}
-                  onClick={() => moveRule(i, -1)}
-                  disabled={i === 0}
-                  className="px-1.5"
-                >
-                  <ChevronUp size={14} aria-hidden="true" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="gray"
-                  aria-label={t("moveDown")}
-                  onClick={() => moveRule(i, 1)}
-                  disabled={i === schedule.length - 1}
-                  className="px-1.5"
-                >
-                  <ChevronDown size={14} aria-hidden="true" />
-                </Button>
-                <span className="inline-flex items-center gap-1 text-xs text-label-tertiary ml-1">
-                  #{i + 1}
-                  {rule.startHour > rule.endHour && <Moon size={13} aria-label={t("overnight")} />}
+              <Icon size={16} aria-hidden="true" />
+              <span>{t(labelKey)}</span>
+              {section === "schedule" && schedule.length > 0 && (
+                <span className="rounded-full bg-accent/15 px-1.5 text-[11px] text-accent">
+                  {schedule.length}
                 </span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {editorSection === "general" && (
+          <div role="tabpanel" className="space-y-7">
+            <section>
+              <label className="mb-1.5 block text-sm font-medium text-label">{t("name")}</label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("namePlaceholder")}
+              />
+            </section>
+
+            <section>
+              <h3 className="text-base font-semibold tracking-tight text-label">
+                {t("defaults.title")}
+              </h3>
+              <p className="mt-1 text-sm text-label-secondary">{t("defaults.hint")}</p>
+
+              <div className="mt-4 grid grid-cols-2 gap-2" role="tablist">
+                {(["usb", "battery"] as const).map((source) => {
+                  const behavior = defaults[source];
+                  return (
+                    <button
+                      key={source}
+                      type="button"
+                      role="tab"
+                      aria-selected={defaultSource === source}
+                      onClick={() => setDefaultSource(source)}
+                      className={`rounded-xl border p-3 text-left transition-colors focus-ring ${
+                        defaultSource === source
+                          ? "border-accent bg-accent/10"
+                          : "border-separator bg-surface hover:bg-surface-secondary"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold text-label">
+                        {t(source === "usb" ? "phase.usb" : "phase.battery")}
+                      </span>
+                      <span className="mt-1 block text-xs text-label-secondary">
+                        {fmtInterval(behavior.intervalS)} · {behavior.brightnessPercent}% ·{" "}
+                        {t(behavior.display === "on" ? "phase.displayOn" : "phase.displayOff")}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-              <Button size="sm" variant="plain" onClick={() => removeRule(i)} className="text-red">
-                {t("remove")}
-              </Button>
-            </div>
 
-            <Input
-              className="mb-2 min-h-9"
-              placeholder={t("ruleName")}
-              value={rule.name}
-              onChange={(e) => updateRule(i, { name: e.target.value })}
-            />
-
-            <label className="block text-xs font-medium text-label-secondary mb-1">
-              {t("days")}
-            </label>
-            <DayPicker days={rule.days} onChange={(days) => updateRule(i, { days })} />
-
-            <div className="grid grid-cols-2 gap-2 mt-2 mb-2">
-              <div>
-                <label className="block text-xs font-medium text-label-secondary mb-1">
-                  {t("from")}
-                </label>
-                <select
-                  className={`${selectCls} w-full`}
-                  value={rule.startHour}
-                  onChange={(e) => updateRule(i, { startHour: Number(e.target.value) })}
-                >
-                  {HOURS.map((h) => (
-                    <option key={h} value={h}>
-                      {fmtHour(h)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-label-secondary mb-1">
-                  {t("until")}
-                </label>
-                <select
-                  className={`${selectCls} w-full`}
-                  value={rule.endHour}
-                  onChange={(e) => updateRule(i, { endHour: Number(e.target.value) })}
-                >
-                  {HOURS.map((h) => (
-                    <option key={h} value={h}>
-                      {fmtHour(h)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              {(["usb", "battery"] as const).map((source) => {
-                const behavior = rule[source] ?? {};
-                const fallback = defaults[source];
+              {([defaultSource] as const).map((source) => {
+                const behavior = defaults[source];
                 return (
-                  <fieldset
+                  <div
                     key={source}
-                    className="rounded-lg border border-separator bg-surface p-3 space-y-3"
+                    className="mt-3 overflow-hidden rounded-2xl border border-separator bg-surface-secondary/60"
                   >
-                    <legend className="px-1 text-xs font-semibold text-label">
-                      {t(source === "usb" ? "phase.usb" : "phase.battery")}
-                    </legend>
-
-                    <div>
-                      <label className="block text-xs font-medium text-label-secondary mb-1">
-                        {t("refreshInterval")}
-                      </label>
+                    <div className="flex flex-col gap-2 border-b border-separator px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm font-medium text-label">{t("refreshInterval")}</span>
                       <IntervalPicker
-                        value={behavior.intervalS ?? fallback.intervalS}
-                        onChange={(intervalS) => updateBehavior(i, source, { intervalS })}
+                        value={behavior.intervalS}
+                        onChange={(intervalS) => setDefaultBehavior(source, { intervalS })}
                       />
                     </div>
-
-                    <label className="block">
-                      <span className="block text-xs font-medium text-label-secondary mb-1">
+                    <label className="flex flex-col gap-3 border-b border-separator px-4 py-3 sm:flex-row sm:items-center">
+                      <span className="text-sm font-medium text-label sm:w-44">
                         {t("brightness.level")}
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-1 items-center gap-3">
                         <input
                           type="range"
                           min={0}
                           max={100}
                           step={5}
-                          value={behavior.brightnessPercent ?? fallback.brightnessPercent}
-                          onChange={(e) =>
-                            updateBehavior(i, source, {
-                              brightnessPercent: Number(e.target.value),
+                          value={behavior.brightnessPercent}
+                          onChange={(event) =>
+                            setDefaultBehavior(source, {
+                              brightnessPercent: Number(event.target.value),
                             })
                           }
                           className="w-full"
                         />
-                        <span className="w-10 font-mono text-xs text-label">
-                          {behavior.brightnessPercent ?? fallback.brightnessPercent}%
+                        <span className="w-11 text-right text-sm tabular-nums text-label">
+                          {behavior.brightnessPercent}%
                         </span>
                       </div>
                     </label>
-
-                    <label className="block text-xs">
-                      <span className="block font-medium text-label-secondary mb-1">
-                        {t("phase.display")}
-                      </span>
+                    <label className="flex flex-col gap-2 border-b border-separator px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm font-medium text-label">{t("phase.display")}</span>
                       <select
-                        className={`${selectCls} w-full`}
-                        value={behavior.display ?? fallback.display}
-                        disabled={(behavior.device ?? fallback.device) === "sleep"}
-                        onChange={(e) =>
-                          updateBehavior(i, source, {
-                            display: e.target.value as "on" | "off",
+                        className={`${selectCls} sm:w-72`}
+                        value={behavior.display}
+                        disabled={behavior.device === "sleep"}
+                        onChange={(event) =>
+                          setDefaultBehavior(source, {
+                            display: event.target.value as "on" | "off",
                           })
                         }
                       >
@@ -989,64 +796,462 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                         <option value="off">{t("phase.displayOff")}</option>
                       </select>
                     </label>
-
-                    <label className="block text-xs">
-                      <span className="block font-medium text-label-secondary mb-1">
-                        {t("phase.device")}
-                      </span>
+                    <label className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-sm font-medium text-label">{t("phase.device")}</span>
                       <select
-                        className={`${selectCls} w-full`}
-                        value={behavior.device ?? fallback.device}
-                        onChange={(e) =>
-                          updateBehavior(i, source, {
-                            device: e.target.value as "awake" | "sleep",
-                            ...(e.target.value === "sleep" ? { display: "off" as const } : {}),
+                        className={`${selectCls} sm:w-72`}
+                        value={behavior.device}
+                        onChange={(event) =>
+                          setDefaultBehavior(source, {
+                            device: event.target.value as "awake" | "sleep",
+                            ...(event.target.value === "sleep" ? { display: "off" as const } : {}),
                           })
                         }
                       >
-                        <option value="awake">{t("phase.deviceAwake")}</option>
-                        <option value="sleep">{t("phase.deviceSleep")}</option>
+                        <option value="awake">{t("defaults.deviceNormal")}</option>
+                        <option value="sleep">{t("defaults.deviceSleep")}</option>
                       </select>
                     </label>
+                    <p className="border-t border-separator px-4 py-3 text-xs leading-relaxed text-label-tertiary">
+                      {t(source === "usb" ? "defaults.usbHint" : "defaults.batteryHint")}
+                    </p>
+                  </div>
+                );
+              })}
+            </section>
+          </div>
+        )}
 
-                    {(behavior.device ?? fallback.device) === "sleep" && (
-                      <p className="text-xs text-label-tertiary">{t("phase.sleepHint")}</p>
+        {editorSection === "schedule" && (
+          <div role="tabpanel">
+            <div className="mb-5">
+              <h3 className="text-base font-semibold tracking-tight text-label">
+                {t("scheduleRules")}
+              </h3>
+              <p className="mt-1 text-sm text-label-secondary">{t("scheduleHint")}</p>
+            </div>
+
+            <div className="mb-4 flex flex-wrap gap-2">
+              {RULE_TEMPLATES.map((template) => (
+                <Button
+                  key={template.labelKey}
+                  size="sm"
+                  variant="gray"
+                  onClick={() => addTemplate(template)}
+                >
+                  {t(template.labelKey)}
+                </Button>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              {schedule.map((rule, i) => {
+                const open = expandedRule === i;
+                const daysLabel =
+                  rule.days.length === 0 || rule.days.length === 7
+                    ? t("all")
+                    : JSON.stringify(rule.days) === JSON.stringify(WEEKDAYS)
+                      ? t("weekdays")
+                      : JSON.stringify(rule.days) === JSON.stringify(WEEKEND)
+                        ? t("weekend")
+                        : rule.days.map((day) => t(DAY_KEYS[day])).join(", ");
+                const timeLabel =
+                  rule.startHour === rule.endHour
+                    ? t("allDay")
+                    : `${fmtHour(rule.startHour)}–${fmtHour(rule.endHour)}`;
+                const behavior = rule[ruleSource] ?? {};
+                const fallback = defaults[ruleSource];
+                return (
+                  <div
+                    key={i}
+                    className="overflow-hidden rounded-xl border border-separator bg-surface"
+                  >
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      onClick={() => {
+                        setExpandedRule(open ? null : i);
+                        setRuleSource("usb");
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-secondary focus-ring"
+                    >
+                      <ChevronRight
+                        size={17}
+                        className={`shrink-0 text-label-tertiary transition-transform ${open ? "rotate-90" : ""}`}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2 text-sm font-semibold text-label">
+                          <span className="truncate">
+                            {rule.name || t("ruleFallback", { number: i + 1 })}
+                          </span>
+                          {rule.startHour > rule.endHour && (
+                            <Moon size={13} aria-label={t("overnight")} />
+                          )}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-label-secondary">
+                          {daysLabel} · {timeLabel}
+                        </span>
+                      </span>
+                      <span className="text-xs tabular-nums text-label-tertiary">#{i + 1}</span>
+                    </button>
+
+                    {open && (
+                      <div className="border-t border-separator bg-surface-secondary/40 p-4">
+                        <div className="mb-4 flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="gray"
+                              aria-label={t("moveUp")}
+                              onClick={() => moveRule(i, -1)}
+                              disabled={i === 0}
+                              className="px-2"
+                            >
+                              <ChevronUp size={14} aria-hidden="true" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="gray"
+                              aria-label={t("moveDown")}
+                              onClick={() => moveRule(i, 1)}
+                              disabled={i === schedule.length - 1}
+                              className="px-2"
+                            >
+                              <ChevronDown size={14} aria-hidden="true" />
+                            </Button>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="plain"
+                            onClick={() => removeRule(i)}
+                            className="text-red"
+                          >
+                            {t("remove")}
+                          </Button>
+                        </div>
+
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <div className="space-y-4">
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-medium text-label-secondary">
+                                {t("ruleName")}
+                              </span>
+                              <Input
+                                value={rule.name}
+                                onChange={(e) => updateRule(i, { name: e.target.value })}
+                              />
+                            </label>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-label-secondary">
+                                {t("days")}
+                              </label>
+                              <DayPicker
+                                days={rule.days}
+                                onChange={(days) => updateRule(i, { days })}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="block">
+                                <span className="mb-1 block text-xs font-medium text-label-secondary">
+                                  {t("from")}
+                                </span>
+                                <select
+                                  className={`${selectCls} w-full`}
+                                  value={rule.startHour}
+                                  onChange={(e) =>
+                                    updateRule(i, { startHour: Number(e.target.value) })
+                                  }
+                                >
+                                  {HOURS.map((hour) => (
+                                    <option key={hour} value={hour}>
+                                      {fmtHour(hour)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="block">
+                                <span className="mb-1 block text-xs font-medium text-label-secondary">
+                                  {t("until")}
+                                </span>
+                                <select
+                                  className={`${selectCls} w-full`}
+                                  value={rule.endHour}
+                                  onChange={(e) =>
+                                    updateRule(i, { endHour: Number(e.target.value) })
+                                  }
+                                >
+                                  {HOURS.map((hour) => (
+                                    <option key={hour} value={hour}>
+                                      {fmtHour(hour)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-surface-secondary p-1">
+                              {(["usb", "battery"] as const).map((source) => (
+                                <button
+                                  key={source}
+                                  type="button"
+                                  aria-pressed={ruleSource === source}
+                                  onClick={() => setRuleSource(source)}
+                                  className={`rounded-md px-2 py-1.5 text-xs font-medium focus-ring ${
+                                    ruleSource === source
+                                      ? "bg-surface text-label shadow-e1"
+                                      : "text-label-secondary"
+                                  }`}
+                                >
+                                  {t(source === "usb" ? "phase.usb" : "phase.battery")}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="space-y-3 rounded-xl border border-separator bg-surface p-3">
+                              <label className="block">
+                                <span className="mb-1 block text-xs font-medium text-label-secondary">
+                                  {t("refreshInterval")}
+                                </span>
+                                <IntervalPicker
+                                  value={behavior.intervalS ?? fallback.intervalS}
+                                  onChange={(intervalS) =>
+                                    updateBehavior(i, ruleSource, { intervalS })
+                                  }
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="mb-1 block text-xs font-medium text-label-secondary">
+                                  {t("brightness.level")}
+                                </span>
+                                <div className="flex items-center gap-3">
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    value={behavior.brightnessPercent ?? fallback.brightnessPercent}
+                                    onChange={(e) =>
+                                      updateBehavior(i, ruleSource, {
+                                        brightnessPercent: Number(e.target.value),
+                                      })
+                                    }
+                                    className="w-full"
+                                  />
+                                  <span className="w-11 text-right text-xs tabular-nums text-label">
+                                    {behavior.brightnessPercent ?? fallback.brightnessPercent}%
+                                  </span>
+                                </div>
+                              </label>
+                              <label className="block">
+                                <span className="mb-1 block text-xs font-medium text-label-secondary">
+                                  {t("phase.display")}
+                                </span>
+                                <select
+                                  className={`${selectCls} w-full`}
+                                  value={behavior.display ?? fallback.display}
+                                  disabled={(behavior.device ?? fallback.device) === "sleep"}
+                                  onChange={(e) =>
+                                    updateBehavior(i, ruleSource, {
+                                      display: e.target.value as "on" | "off",
+                                    })
+                                  }
+                                >
+                                  <option value="on">{t("phase.displayOn")}</option>
+                                  <option value="off">{t("phase.displayOff")}</option>
+                                </select>
+                              </label>
+                              <label className="block">
+                                <span className="mb-1 block text-xs font-medium text-label-secondary">
+                                  {t("phase.device")}
+                                </span>
+                                <select
+                                  className={`${selectCls} w-full`}
+                                  value={behavior.device ?? fallback.device}
+                                  onChange={(e) =>
+                                    updateBehavior(i, ruleSource, {
+                                      device: e.target.value as "awake" | "sleep",
+                                      ...(e.target.value === "sleep"
+                                        ? { display: "off" as const }
+                                        : {}),
+                                    })
+                                  }
+                                >
+                                  <option value="awake">{t("phase.deviceAwake")}</option>
+                                  <option value="sleep">{t("phase.deviceSleep")}</option>
+                                </select>
+                              </label>
+                              {(behavior.device ?? fallback.device) === "sleep" && (
+                                <p className="text-xs leading-relaxed text-label-tertiary">
+                                  {t("phase.sleepHint")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
-                  </fieldset>
+                  </div>
                 );
               })}
             </div>
-          </div>
-        ))}
 
-        {schedule.length === 0 && (
-          <div className="text-center py-4 text-xs text-label-tertiary border border-separator rounded-lg border-dashed">
-            {t("noScheduleRules")}
-          </div>
-        )}
-
-        {schedule.length > 0 && (
-          <label className="mt-4 block text-xs font-medium text-label-secondary">
-            {t("previewTimezone")}
-            <Input
-              className="mt-1"
-              value={previewTimezone}
-              onChange={(event) => setPreviewTimezone(event.target.value)}
-              placeholder="Europe/Berlin"
-              aria-invalid={!previewTimezoneValid}
-            />
-            {!previewTimezoneValid && (
-              <span className="mt-1 block text-red">{t("invalidTimezone")}</span>
+            {schedule.length === 0 && (
+              <div className="rounded-xl border border-dashed border-separator px-4 py-8 text-center text-sm text-label-tertiary">
+                {t("noScheduleRules")}
+              </div>
             )}
-          </label>
+
+            <p className="mt-4 text-xs leading-relaxed text-label-tertiary">
+              {t("capabilityHint")}
+            </p>
+
+            {schedule.length > 0 && (
+              <label className="mt-5 block text-xs font-medium text-label-secondary">
+                {t("previewTimezone")}
+                <Input
+                  className="mt-1"
+                  value={previewTimezone}
+                  onChange={(event) => setPreviewTimezone(event.target.value)}
+                  placeholder="Europe/Berlin"
+                  aria-invalid={!previewTimezoneValid}
+                />
+                {!previewTimezoneValid && (
+                  <span className="mt-1 block text-red">{t("invalidTimezone")}</span>
+                )}
+              </label>
+            )}
+
+            <ScheduleTimeline
+              rules={schedule}
+              defaultUsbIntervalS={defaults.usb.intervalS}
+              defaultBatteryIntervalS={defaults.battery.intervalS}
+              timezone={previewTimezoneValid ? previewTimezone : "UTC"}
+            />
+          </div>
         )}
 
-        <ScheduleTimeline
-          rules={schedule}
-          defaultUsbIntervalS={defaults.usb.intervalS}
-          defaultBatteryIntervalS={defaults.battery.intervalS}
-          timezone={previewTimezoneValid ? previewTimezone : "UTC"}
-        />
+        {editorSection === "advanced" && (
+          <div role="tabpanel" className="space-y-7">
+            <section>
+              <h3 className="text-base font-semibold tracking-tight text-label">
+                {t("policyTitle")}
+              </h3>
+              <p className="mt-1 text-sm text-label-secondary">{t("policyHint")}</p>
+              <div className="mt-4 divide-y divide-separator overflow-hidden rounded-xl border border-separator bg-surface-secondary/50">
+                {POLICY_FIELDS.map((field) => (
+                  <div
+                    key={field.key}
+                    className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <span className="text-sm font-medium text-label">{t(field.labelKey)}</span>
+                    {field.type === "interval" ? (
+                      <IntervalPicker
+                        value={(config[field.key] as number) ?? 900}
+                        onChange={(value) =>
+                          setConfig((current) => ({ ...current, [field.key]: value }))
+                        }
+                      />
+                    ) : field.type === "slider" ? (
+                      <div className="flex min-w-64 items-center gap-3">
+                        <input
+                          type="range"
+                          min={field.min}
+                          max={field.max}
+                          className="flex-1 rounded-md accent-accent focus-ring"
+                          value={(config[field.key] as number) ?? field.min}
+                          onChange={(event) =>
+                            setConfig((current) => ({
+                              ...current,
+                              [field.key]: parseInt(event.target.value),
+                            }))
+                          }
+                        />
+                        <span className="w-12 text-right text-sm tabular-nums text-label">
+                          {(config[field.key] as number) ?? field.min}
+                          {field.unit}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-base font-semibold tracking-tight text-label">
+                {t("whileWaiting")}
+              </h3>
+              <p className="mt-1 text-sm leading-relaxed text-label-secondary">
+                {t("whileWaitingHint")}
+              </p>
+              <div className="mt-3 inline-flex rounded-xl border border-separator bg-surface-secondary/50 p-3">
+                <IntervalPicker
+                  value={(config.unassignedIntervalS as number) ?? 300}
+                  onChange={(value) =>
+                    setConfig((current) => ({ ...current, unassignedIntervalS: value }))
+                  }
+                />
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-base font-semibold tracking-tight text-label">
+                {t("errorRetryTitle")}
+              </h3>
+              <p className="mt-1 text-sm leading-relaxed text-label-secondary">
+                {t("errorRetryHint")}
+              </p>
+              <div className="mt-4 divide-y divide-separator overflow-hidden rounded-xl border border-separator bg-surface-secondary/50">
+                {backoff.map((step, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <span className="text-sm font-medium text-label">
+                      {i === backoff.length - 1 && backoff.length > 1
+                        ? t("retryStepHeld", { step: i + 1 })
+                        : t("retryStep", { step: i + 1 })}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <IntervalPicker
+                        value={step}
+                        onChange={(value) =>
+                          setBackoff(backoff.map((item, index) => (index === i ? value : item)))
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        variant="plain"
+                        className="text-red"
+                        aria-label={t("remove")}
+                        onClick={() => setBackoff(backoff.filter((_, index) => index !== i))}
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button
+                size="sm"
+                variant="gray"
+                className="mt-3"
+                disabled={backoff.length >= MAX_BACKOFF_STEPS}
+                leading={<Plus size={14} aria-hidden="true" />}
+                onClick={() =>
+                  setBackoff([
+                    ...backoff,
+                    backoff.length ? Math.min(backoff[backoff.length - 1] * 2, 604800) : 60,
+                  ])
+                }
+              >
+                {t("addStep")}
+              </Button>
+            </section>
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog

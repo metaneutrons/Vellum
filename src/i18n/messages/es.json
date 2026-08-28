@@ -486,6 +486,12 @@
     "deleteMessage": "¿Eliminar este perfil? Los dispositivos volverán a los valores predeterminados."
   },
   "profiles": {
+    "editor": {
+      "navigation": "Secciones del perfil",
+      "general": "General",
+      "schedule": "Horario",
+      "advanced": "Avanzado"
+    },
     "overlapHint": "Esta regla se solapa con otra. Se aplica la primera coincidencia.",
     "all": "Todos",
     "weekdays": "Días laborables",
@@ -500,6 +506,7 @@
     "days": "Días",
     "from": "Desde",
     "until": "Hasta",
+    "allDay": "Todo el día",
     "title": "Perfiles de pantalla",
     "description": "Configurar programas de actualización",
     "add": "Añadir perfil",

@@ -486,6 +486,12 @@
     "deleteMessage": "Dieses Aktualisierungsprofil löschen? Geräte wechseln zu den Standardwerten."
   },
   "profiles": {
+    "editor": {
+      "navigation": "Profilbereiche",
+      "general": "Allgemein",
+      "schedule": "Zeitplan",
+      "advanced": "Erweitert"
+    },
     "overlapHint": "Diese Regel überschneidet sich mit einer anderen. Die erste Übereinstimmung gewinnt.",
     "all": "Alle",
     "weekdays": "Werktage",
@@ -500,6 +506,7 @@
     "days": "Tage",
     "from": "Von",
     "until": "Bis",
+    "allDay": "Ganztägig",
     "title": "Betriebsprofile",
     "description": "Aktualisierungszeitpläne konfigurieren",
     "add": "Profil hinzufügen",

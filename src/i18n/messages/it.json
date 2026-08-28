@@ -486,6 +486,12 @@
     "deleteMessage": "Eliminare questo profilo? I dispositivi useranno i valori predefiniti."
   },
   "profiles": {
+    "editor": {
+      "navigation": "Sezioni del profilo",
+      "general": "Generale",
+      "schedule": "Pianificazione",
+      "advanced": "Avanzate"
+    },
     "overlapHint": "Questa regola si sovrappone a un'altra. Viene usata la prima corrispondenza.",
     "all": "Tutti",
     "weekdays": "Giorni feriali",
@@ -500,6 +506,7 @@
     "days": "Giorni",
     "from": "Da",
     "until": "A",
+    "allDay": "Tutto il giorno",
     "title": "Profili display",
     "description": "Configura i programmi di aggiornamento",
     "add": "Aggiungi profilo",
