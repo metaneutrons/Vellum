@@ -486,6 +486,12 @@
     "deleteMessage": "Delete this refresh profile? Devices using it will fall back to defaults."
   },
   "profiles": {
+    "editor": {
+      "navigation": "Profile sections",
+      "general": "General",
+      "schedule": "Schedule",
+      "advanced": "Advanced"
+    },
     "overlapHint": "This rule overlaps with another rule. First match wins.",
     "all": "All",
     "weekdays": "Weekdays",
@@ -500,6 +506,7 @@
     "days": "Days",
     "from": "From",
     "until": "Until",
+    "allDay": "All day",
     "title": "Display Profiles",
     "description": "Configure display refresh schedules",
     "add": "Add Profile",
