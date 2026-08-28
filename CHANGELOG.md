@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/metaneutrons/Vellum/compare/v1.22.0...v1.23.0) (2026-08-28)
+
+
+### Features
+
+* **profiles:** streamline editor experience ([#334](https://github.com/metaneutrons/Vellum/issues/334)) ([e106b23](https://github.com/metaneutrons/Vellum/commit/e106b23080b2741d7af128c1faa30b5225e6df55))
+
 ## [1.22.0](https://github.com/metaneutrons/Vellum/compare/v1.21.0...v1.22.0) (2026-08-27)
 
 
