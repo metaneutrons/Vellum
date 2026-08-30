@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Base image pinned by digest for reproducible, supply-chain-verifiable builds.
 # node:26-alpine (resolve a new digest with: docker buildx imagetools inspect node:26-alpine)
-FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS base
+FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS base
 
 # Node 26 no longer bundles Corepack. Bootstrap the exact pnpm version in a
 # build-only stage so pnpm and its global install layer stay out of the runtime
