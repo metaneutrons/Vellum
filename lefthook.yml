@@ -1,0 +1,50 @@
+# Replaces husky, lint-staged and commitlint in one. Installed through the
+# devDependency via the `prepare` script, so there is no second route.
+#
+# Three commands deviate from the standard template, all additive: this
+# repository carries gates the template cannot know about. `i18n:check` fails on
+# user-visible prose missing from the five message catalogues, `db:check` fails
+# when the schema and the generated migrations disagree, and `release:check`
+# asserts the release-configuration invariants. Dropping them to match a
+# template would trade working gates for tidiness.
+
+commit-msg:
+  commands:
+    conventional-commits:
+      run: sh scripts/hooks/check-commit-message.sh {1}
+
+pre-commit:
+  parallel: true
+  commands:
+    staged-guards:
+      run: sh scripts/hooks/check-staged.sh
+    secrets:
+      run: gitleaks git --pre-commit --redact --staged --verbose
+    eslint:
+      glob: "*.{ts,tsx,mts,cts}"
+      run: pnpm exec eslint --fix --max-warnings=0 {staged_files}
+      stage_fixed: true
+    i18n:
+      glob: "*.{ts,tsx,json}"
+      run: pnpm i18n:check
+    lockfile:
+      glob: "package.json"
+      run: |
+        if ! git diff --cached --name-only | grep -q '^pnpm-lock.yaml$'; then
+          echo "package.json changed, pnpm-lock.yaml did not. Run pnpm install." >&2
+          exit 1
+        fi
+
+pre-push:
+  parallel: false
+  commands:
+    secrets:
+      run: sh scripts/hooks/check-push-secrets.sh
+    i18n:
+      run: pnpm i18n:check
+    typecheck:
+      run: pnpm typecheck
+    release-config:
+      run: pnpm release:check
+    schema:
+      run: pnpm db:check
