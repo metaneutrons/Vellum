@@ -2,5 +2,15 @@
 # Release Please cannot classify free-form commit subjects. Reject them at the
 # earliest useful point; CI repeats this check because local hooks are optional.
 set -eu
-
 pnpm exec commitlint --edit "$1"
+
+# No AI attribution trailers. This is the cheap layer; the `commit-hygiene` job
+# in CI is the one that cannot be skipped with --no-verify.
+if grep -qiE 'co-authored-by:.*(claude|anthropic)' "$1"; then
+  echo "commit-msg: refusing a Co-authored-by trailer naming an assistant." >&2
+  exit 1
+fi
+if grep -qiE 'generated with.*(claude|anthropic)' "$1"; then
+  echo "commit-msg: refusing a 'Generated with' attribution line." >&2
+  exit 1
+fi
