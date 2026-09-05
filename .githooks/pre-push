@@ -1,8 +1,0 @@
-#!/bin/sh
-# Keep local pushes aligned with the fast static checks enforced by CI.
-set -eu
-
-pnpm i18n:check
-pnpm typecheck
-pnpm release:check
-pnpm db:check

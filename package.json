@@ -10,7 +10,7 @@
   "homepage": "https://github.com/metaneutrons/Vellum",
   "packageManager": "pnpm@11.20.0",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "node --env-file-if-exists=.env scripts/check-pending-migrations.mjs && next dev",
@@ -27,7 +27,7 @@
     "i18n:check": "node scripts/check-i18n.mjs",
     "release:check": "node scripts/check-release-config.mjs && node scripts/check-security-layouts.mjs",
     "db:check": "node scripts/check-schema-migrations.mjs && node scripts/check-schema-snapshot.mjs && node scripts/check-db-access.mjs",
-    "prepare": "node scripts/setup-git-hooks.mjs",
+    "prepare": "lefthook install",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
     "dev:mdns": "node scripts/mdns-announce.mjs & pnpm dev",
@@ -59,8 +59,6 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@commitlint/cli": "21.2.2",
-    "@commitlint/config-conventional": "21.2.2",
     "@testing-library/react": "16.3.2",
     "@types/node": "26.2.0",
     "@types/pg": "8.23.1",
@@ -74,7 +72,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "fast-check": "4.9.0",
     "jsdom": "30.0.1",
-    "lint-staged": "17.3.0",
+    "lefthook": "^2.1.12",
     "prettier": "3.9.6",
     "typescript": "6.0.3",
     "typescript-eslint": "8.67.0",

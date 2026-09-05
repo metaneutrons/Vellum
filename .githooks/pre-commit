@@ -1,7 +1,0 @@
-#!/bin/sh
-# Keep staged source files lint-clean and deterministically formatted without
-# making unrelated working-tree changes part of the commit.
-set -eu
-
-pnpm exec lint-staged
-pnpm i18n:check
