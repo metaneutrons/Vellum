@@ -106,8 +106,69 @@ jobs:
             echo "channel=beta" >> "$GITHUB_OUTPUT"
           fi
 
-  build:
+  # ── Preflight ────────────────────────────────────────────────────────────────
+  # Checks that the signing path will work, BEFORE four models spend ten minutes
+  # building. It changes nothing: no signature is produced, no release touched.
+  #
+  # The existing fail-closed guard sits in sign-and-release, which is after the
+  # build. That ordering means a missing or malformed key is discovered only once
+  # the expensive part is already done, and on a stable release that is a failed
+  # publish rather than a refused start.
+  #
+  # It also catches the case the fail-closed guard cannot see: a key that IS set
+  # but does not belong to the fleet. Signing with it would produce a release
+  # every device rejects, which looks like a successful publish until the first
+  # display refuses the update.
+  preflight:
+    name: Preflight (signing path)
     needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    env:
+      OTA_KMS_KEY: ${{ vars.OTA_KMS_KEY_VERSION }}
+      FIRMWARE_SIGNING_KEY: ${{ secrets.FIRMWARE_SIGNING_KEY }}
+      CHANNEL: ${{ needs.version.outputs.channel }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: A stable release must have a signing path
+        run: |
+          set -euo pipefail
+          if [ "$CHANNEL" = "stable" ] && [ -z "$OTA_KMS_KEY" ] && [ -z "$FIRMWARE_SIGNING_KEY" ]; then
+            echo "::error::No OTA signing key reachable from the 'release' environment (neither OTA_KMS_KEY_VERSION nor FIRMWARE_SIGNING_KEY). Devices are fail-closed, so a stable release must be signed."
+            exit 1
+          fi
+          echo "channel=$CHANNEL, kms=$([ -n "$OTA_KMS_KEY" ] && echo yes || echo no), local key=$([ -n "$FIRMWARE_SIGNING_KEY" ] && echo yes || echo no)"
+
+      - name: The local key must be well formed and belong to this fleet
+        if: env.FIRMWARE_SIGNING_KEY != ''
+        run: |
+          set -euo pipefail
+          # Same decode the signing step performs. A key that cannot be decoded
+          # here would fail there, after the build.
+          echo "$FIRMWARE_SIGNING_KEY" | base64 -d > preflight.key 2>/dev/null || {
+            echo "::error::FIRMWARE_SIGNING_KEY is not valid base64. The workflow decodes it with 'base64 -d' before use."
+            exit 1
+          }
+          openssl pkey -in preflight.key -noout 2>/dev/null || {
+            rm -f preflight.key
+            echo "::error::FIRMWARE_SIGNING_KEY does not decode to a private key. Expected base64 of a PKCS#8 PEM."
+            exit 1
+          }
+
+          PUB=$(openssl pkey -in preflight.key -pubout -outform DER | tail -c 32 | base64 | tr -d '\n')
+          rm -f preflight.key
+          EMB_PRIMARY=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_PUBKEY[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          EMB_NEXT=$(awk '/^[[:space:]]*config VELLUM_OTA_SIGNING_PUBKEY_NEXT[[:space:]]*$/{f=1;next} f&&/default "/{gsub(/^.*default "|".*$/,"");print;exit}' firmware/main/Kconfig.projbuild)
+          if [ "$PUB" != "$EMB_PRIMARY" ] && [ "$PUB" != "$EMB_NEXT" ]; then
+            echo "::error::The signing key's public half ($PUB) matches neither the embedded primary ($EMB_PRIMARY) nor next ($EMB_NEXT). Every fielded device would reject this release."
+            exit 1
+          fi
+          echo "Signing key is well formed and matches an embedded trusted key ✓"
+
+  build:
+    needs: [version, preflight]
     # Stable artifacts are built exactly once from `release: published`. The
     # required RELEASE_PAT guarantees that event is emitted; release-commit pushes
     # are skipped to prevent a duplicate matrix build. Normal firmware pushes build
@@ -573,8 +634,19 @@ jobs:
                   | sort_by(.publishedAt) | reverse | .[0].tagName // empty')
 
           if [ -z "$server_tag" ]; then
-            echo "::warning::No server release found; /releases/latest still points at $TAG"
-            exit 0
+            # Not a warning. The comment above calls that badge load-bearing, and
+            # it is: deploy/install.sh fetches docker-compose.yml, vellum.env.example
+            # and SHA256SUMS from /releases/latest/download, and the updater resolves
+            # /releases/latest. Leaving a firmware tag there means a fresh install
+            # pulls a release carrying none of those files, and the updater stops
+            # seeing server versions — silently, for as long as nobody looks.
+            #
+            # The firmware release itself is already published at this point, so
+            # this failure does not undo anything. It says the estate was left in a
+            # state that needs a hand: publish or restore a server release, then
+            # re-run this workflow with stable_tag to normalise the presentation.
+            echo "::error::No non-prerelease server release exists, so /releases/latest still points at $TAG. install.sh and the updater both resolve /releases/latest and would find no server assets there."
+            exit 1
           fi
 
           server_id=$(gh api "repos/$REPO/releases/tags/$server_tag" --jq .id)
