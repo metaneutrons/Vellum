@@ -27,8 +27,12 @@ kmsp11.yaml
 # rotate): keys/*.pub and keys/*digest*.bin are safe — they are not secrets.
 
 # ── Build artifacts ───────────────────────────────────────────
-/build
-/coverage
+# Unanchored, like node_modules above: a leading slash pins the pattern to the
+# repository root and silently misses the same directory in a new subproject.
+# This tree already carries firmware/ and firmware-d1001/, each needing its own
+# build entry below; a third one would have been forgotten the same way.
+build/
+coverage/
 
 # ── ESP-IDF Firmware (E-series) ───────────────────────────────
 firmware/build/
