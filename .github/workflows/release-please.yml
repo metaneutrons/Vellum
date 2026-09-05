@@ -14,24 +14,47 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    # The app credentials live in the protected environment, not as repository
+    # secrets. Deployments there are restricted to main and the release tags.
+    environment: release
     steps:
-      - name: Require release automation token
+      - name: Require the app credentials
         env:
-          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+          CLIENT_ID: ${{ vars.RELEASE_PLEASE_CLIENT_ID }}
+          PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
         run: |
-          if [ -z "$RELEASE_PAT" ]; then
-            echo "::error::RELEASE_PAT is required. Refusing to create a release whose downstream artifact workflows cannot run."
+          missing=
+          [ -n "$CLIENT_ID" ] || missing="$missing RELEASE_PLEASE_CLIENT_ID"
+          [ -n "$PRIVATE_KEY" ] || missing="$missing RELEASE_PLEASE_APP_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing from the 'release' environment:$missing. Refusing to create a release whose downstream artifact workflows cannot run."
             exit 1
           fi
+
+      - name: Mint an installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          # client-id, not app-id: the latter is deprecated in v3, and the two are
+          # different values — passing the numeric app ID here fails at issuance.
+          client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         with:
-          # A PAT is a real actor, so the release PR fires CI and a published
-          # release fires its artifact workflows. GitHub suppresses downstream
-          # events created with GITHUB_TOKEN, which can silently publish an empty
-          # release; the preflight above therefore fails closed when the PAT is
-          # unavailable instead of creating a partial release.
-          token: ${{ secrets.RELEASE_PAT }}
+          # An app installation token is a real actor, so the release PR fires CI
+          # and a published release fires its artifact workflows. GitHub suppresses
+          # downstream events created with GITHUB_TOKEN, which can silently publish
+          # an empty release; the guard above therefore fails closed when the
+          # credentials are unavailable instead of creating a partial release.
+          #
+          # It replaces a personal access token. Measured before the switch: the
+          # installation token reaches exactly this one repository, and a write
+          # against a foreign repository is refused with 403. A PAT carries
+          # whatever its owner can reach, which is not checkable from inside a run.
+          # The token also expires in an hour rather than living until revoked.
+          token: ${{ steps.app-token.outputs.token }}
           # Drive from the manifest config, NOT an inline release-type. The inline
           # `release-type: node` put the action in simple mode and IGNORED
           # release-please-config.json — so its `extra-files` rule that syncs

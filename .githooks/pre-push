@@ -16,9 +16,9 @@ call_lefthook()
   elif lefthook -h >/dev/null 2>&1
   then
     lefthook "$@"
-  elif /private/tmp/claude-501/-Volumes-Dev-Source/1c0915d7-4b35-4e70-b201-bd34f004bef3/scratchpad/wt-b2/node_modules/.pnpm/lefthook-darwin-arm64@2.1.12/node_modules/lefthook-darwin-arm64/bin/lefthook -h >/dev/null 2>&1
+  elif /private/tmp/claude-501/-Volumes-Dev-Source/1c0915d7-4b35-4e70-b201-bd34f004bef3/scratchpad/wt-key/node_modules/.pnpm/lefthook-darwin-arm64@2.1.12/node_modules/lefthook-darwin-arm64/bin/lefthook -h >/dev/null 2>&1
   then
-    /private/tmp/claude-501/-Volumes-Dev-Source/1c0915d7-4b35-4e70-b201-bd34f004bef3/scratchpad/wt-b2/node_modules/.pnpm/lefthook-darwin-arm64@2.1.12/node_modules/lefthook-darwin-arm64/bin/lefthook "$@"
+    /private/tmp/claude-501/-Volumes-Dev-Source/1c0915d7-4b35-4e70-b201-bd34f004bef3/scratchpad/wt-key/node_modules/.pnpm/lefthook-darwin-arm64@2.1.12/node_modules/lefthook-darwin-arm64/bin/lefthook "$@"
   else
     dir="$(git rev-parse --show-toplevel)"
     osArch=$(uname | tr '[:upper:]' '[:lower:]')

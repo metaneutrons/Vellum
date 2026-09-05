@@ -170,7 +170,7 @@ jobs:
   build:
     needs: [version, preflight]
     # Stable artifacts are built exactly once from `release: published`. The
-    # required RELEASE_PAT guarantees that event is emitted; release-commit pushes
+    # app installation token guarantees that event is emitted; release-commit pushes
     # are skipped to prevent a duplicate matrix build. Normal firmware pushes build
     # beta, while manual dispatch remains the guarded repair path.
     if: >-
