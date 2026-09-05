@@ -79,7 +79,16 @@ export async function GET(request: NextRequest) {
         const propId = rp.relationships?.property?.data?.id;
         const label = propId ? propLabels.get(propId) : undefined;
         if (label && rp.attributes.value != null) {
-          props[`prop.${label}`] = String(rp.attributes.value);
+          /* The value comes from the provider's JSON, so its type is a claim rather
+           * than a guarantee. An object would reach the panel as "[object Object]";
+           * JSON at least stays readable to whoever has to debug it. */
+          const raw: unknown = rp.attributes.value;
+          props[`prop.${label}`] =
+            typeof raw === "string"
+              ? raw
+              : typeof raw === "number" || typeof raw === "boolean" || typeof raw === "bigint"
+                ? String(raw)
+                : (JSON.stringify(raw) ?? "");
         }
       }
 

@@ -7,13 +7,18 @@ import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
 import { acceptInvitation, createUserSession } from "@/lib/access";
 import { SESSION_COOKIE } from "@/lib/session";
+import { formString } from "@/lib/form-data";
 
 export async function acceptInvitationAction(
   token: string,
   _previous: { error?: string } | null,
   formData: FormData
 ) {
-  const password = String(formData.get("password") ?? "");
+  /* Not String(...): FormData.get returns string | File, and a request that
+   * sends a file field here would have set the password to the literal
+   * "[object File]" — non-empty, identical for every account, and therefore
+   * guessable by anyone who knows the shape of this form. */
+  const password = formString(formData, "password");
   try {
     const user = await acceptInvitation(token, password);
     if (!user) return { error: "invalid" };

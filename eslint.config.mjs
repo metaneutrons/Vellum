@@ -19,6 +19,27 @@ export default tseslint.config(
     ],
   },
   ...tseslint.configs.strict,
+  /* Type-aware linting, enabled one rule at a time rather than by switching the
+     whole `strictTypeChecked` preset on. The preset produces 1090 findings here;
+     taken in one sweep, the handful that are real defects would be buried under a
+     thousand mechanical ones. This first block is the set that finds bugs rather
+     than style: a forgotten await, a template that stringifies an object, a call
+     into a deprecated API. */
+  {
+    /* Only the files tsconfig.json actually includes. Type-aware rules need the
+       type checker, and a .mjs config or gate script is not in the project — it
+       would fail to parse rather than be linted. Those keep the untyped rules
+       above. */
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-base-to-string": "error",
+    },
+  },
   {
     plugins: { "react-hooks": reactHooks },
     rules: {

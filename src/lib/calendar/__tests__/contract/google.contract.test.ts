@@ -38,7 +38,7 @@ function serve(events: WireEvent[]): void {
     (e) => new Date(e.end) > WINDOW.windowStart && new Date(e.start) < WINDOW.windowEnd
   );
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-    const url = String(input);
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (url.includes("oauth2.googleapis.com")) {
       /* Deliberately NOT of the form `ya29.…`. Real Google access tokens carry
        * that prefix, so a stub wearing it trips every secret scanner and each

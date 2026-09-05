@@ -74,7 +74,8 @@ function isTransientError(err: unknown): boolean {
     const cause = e.cause as Record<string, unknown>;
     if (typeof cause.code === "string" && TRANSIENT_CODES.has(cause.code)) return true;
   }
-  const msg = String(e.message ?? "");
+  // `message` is typed but not guaranteed: this arrives from a driver error.
+  const msg = typeof e.message === "string" ? e.message : "";
   return msg.includes("ECONNREFUSED") || msg.includes("ENETUNREACH") || msg.includes("ETIMEDOUT");
 }
 
@@ -100,8 +101,9 @@ export class DbResilienceManager extends EventEmitter {
   /** Start periodic health monitoring */
   startMonitoring() {
     if (this.healthCheckTimer) return;
-    this.healthCheckTimer = setInterval(() => this.probe(), HEALTH_CHECK_INTERVAL_MS);
-    this.probe();
+    // probe() catches internally and only updates state.
+    this.healthCheckTimer = setInterval(() => void this.probe(), HEALTH_CHECK_INTERVAL_MS);
+    void this.probe();
   }
 
   stopMonitoring() {

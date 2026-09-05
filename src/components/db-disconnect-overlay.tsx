@@ -78,10 +78,10 @@ export function DbDisconnectOverlay() {
       }
     }
 
-    poll();
+    void poll();
     /* Poll faster while an update is running: the sooner the server answers, the
      * sooner this overlay gets out of the way. */
-    const timer = setInterval(poll, updating ? 2_000 : POLL_INTERVAL_MS);
+    const timer = setInterval(() => void poll(), updating ? 2_000 : POLL_INTERVAL_MS);
     return () => {
       mounted = false;
       clearInterval(timer);
@@ -149,7 +149,7 @@ export function DbDisconnectOverlay() {
       } catch {
         if (!cancelled) setReconnecting(true);
       }
-      if (!cancelled) timer = setTimeout(poll, 1_500);
+      if (!cancelled) timer = setTimeout(() => void poll(), 1_500);
     };
 
     void poll();

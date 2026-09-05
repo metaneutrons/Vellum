@@ -44,7 +44,7 @@ function serve(events: WireEvent[]): void {
     meta: { page: { "current-page": 1, "last-page": 1 } },
   });
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-    const url = String(input);
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     /* The provider resolves its organization from the token before it asks for
      * bookings. */
     if (url.includes("/organizations") || url.includes("/me")) {

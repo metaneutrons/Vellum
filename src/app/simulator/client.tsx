@@ -390,7 +390,7 @@ export function SimulatorClient() {
         if (prev <= 1) {
           if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
           sleepTimerRef.current = null;
-          runCycle();
+          void runCycle();
           return 0;
         }
         return prev - 1;
@@ -405,12 +405,12 @@ export function SimulatorClient() {
 
   const handlePowerOn = () => {
     setToken(null);
-    runCycle();
+    void runCycle();
   };
 
   const handleRefresh = () => {
     appendLog("Button: Refresh pressed");
-    runCycle();
+    void runCycle();
   };
 
   const handleReport = async () => {
@@ -574,7 +574,7 @@ export function SimulatorClient() {
                 ↻
               </button>
               <button
-                onClick={handleReport}
+                onClick={() => void handleReport()}
                 disabled={state === "off" || !token}
                 title="Report Issue (Button 2)"
                 style={{ ...btnStyle, background: state === "off" ? "#333" : "#fbbf24" }}

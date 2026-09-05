@@ -222,7 +222,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
               <Button size="sm" variant="plain" onClick={() => testProvider(p.id)}>
                 {t("test")}
               </Button>
-              <Button size="sm" variant="plain" onClick={() => startEdit(p)}>
+              <Button size="sm" variant="plain" onClick={() => void startEdit(p)}>
                 {t("edit")}
               </Button>
               <Button
