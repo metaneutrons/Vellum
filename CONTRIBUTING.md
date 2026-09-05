@@ -37,6 +37,20 @@ Do not put AI attribution trailers in commits or pull request bodies — no
 `fix/first-frame-geometry`, `chore/repo-standard-class-a`. Never work directly
 on `main`; it is protected and requires the `Required Gate` check.
 
+## One-time step if you cloned before September 2026
+
+Hooks used to live in `.githooks/`, wired up through `core.hooksPath`. lefthook
+installs into the normal hook directory instead, and a leftover `core.hooksPath`
+points at a directory that no longer exists — which means **no hooks run at
+all**, silently. Clear it once:
+
+```bash
+git config --unset core.hooksPath && pnpm install
+```
+
+`pnpm install` then runs `lefthook install` through `prepare` and reports
+`sync hooks: pre-commit, commit-msg, pre-push`.
+
 ## Before you push
 
 ```bash
