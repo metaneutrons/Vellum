@@ -90,9 +90,9 @@ interface GitHubRelease {
 }
 
 const firmwareBinarySchema = z.object({
-  url: z.string().url(),
+  url: z.url(),
   size: z.number().int().nonnegative(),
-  otaUrl: z.string().url(),
+  otaUrl: z.url(),
   otaSha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
   // Beta builds may intentionally be unsigned for fail-open development
   // devices; stable-release CI separately enforces a non-empty signature.
@@ -303,7 +303,7 @@ async function discoverFirmwareCatalog(deadlineMs: number): Promise<{
           tag_name: z.string(),
           prerelease: z.boolean(),
           published_at: z.string(),
-          assets: z.array(z.object({ name: z.string(), browser_download_url: z.string().url() })),
+          assets: z.array(z.object({ name: z.string(), browser_download_url: z.url() })),
         })
       )
       .parse(await response.json()) as GitHubRelease[];

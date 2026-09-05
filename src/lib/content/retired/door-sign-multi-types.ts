@@ -13,7 +13,7 @@ import { textBoxSchema, designSchema } from "./door-sign-types";
 /* ── Resource entry ───────────────────────────────────────────── */
 
 export const resourceEntrySchema = z.object({
-  providerId: z.string().uuid(),
+  providerId: z.uuid(),
   resourceId: z.string(),
   resourceName: z.string().optional(),
 });

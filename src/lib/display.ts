@@ -201,7 +201,9 @@ function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: 
   if (caps.format && caps.colorMode) {
     return { format: caps.format, colorMode: caps.colorMode };
   }
-  // Legacy migration from quantize field
+  // Reading the deprecated field IS this function's purpose: it is the
+  // migration off it. The exception is here rather than on the field.
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   switch (caps.quantize) {
     case "jpeg":
       return { format: "jpeg", colorMode: "fullcolor" };

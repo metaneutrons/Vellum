@@ -102,9 +102,9 @@ const statusSchema = z.object({
   updateMode: z.enum(["manual", "automatic"]),
   maintenanceTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   timezone: z.string().min(1).max(100),
-  lastCheckedAt: z.string().datetime().nullable(),
-  lastCheckAttemptAt: z.string().datetime().nullable().optional(),
-  lastUpdatedAt: z.string().datetime().nullable(),
+  lastCheckedAt: z.iso.datetime().nullable(),
+  lastCheckAttemptAt: z.iso.datetime().nullable().optional(),
+  lastUpdatedAt: z.iso.datetime().nullable(),
   lastError: z.string().max(500).nullable(),
   releaseCheckStatus: z.enum(["ok", "degraded"]).optional(),
   releaseCheckError: z
@@ -118,7 +118,7 @@ const statusSchema = z.object({
     ])
     .nullable()
     .optional(),
-  releaseCheckRetryAt: z.string().datetime().nullable().optional(),
+  releaseCheckRetryAt: z.iso.datetime().nullable().optional(),
   /* Optional on purpose: the currently deployed updater predates these fields,
    * and a strict schema would reject its whole payload and report the update
    * system as unavailable. */

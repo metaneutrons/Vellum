@@ -12,7 +12,7 @@ import { z } from "zod";
 /** Docker Compose commonly supplies unset optional environment variables as
  * empty strings. Normalize those values before validating so an optional OIDC
  * configuration can be omitted without making the entire process fail. */
-const optionalEnv = <T extends z.ZodTypeAny>(schema: T) =>
+const optionalEnv = <T extends z.ZodType>(schema: T) =>
   z.preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     schema.optional()
@@ -40,19 +40,15 @@ const secret = (name: string, min: number, hint: string) =>
       `${name} still contains the example placeholder from .env.example — generate a real value (${hint})`
     );
 
-const publicOrigin = z
-  .string()
-  .url("VELLUM_PUBLIC_URL must be an absolute HTTPS origin")
-  .refine((value) => {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.pathname === "/" && !url.search && !url.hash;
-  }, "VELLUM_PUBLIC_URL must be an HTTPS origin without a path, query, or fragment");
+const publicOrigin = z.url("VELLUM_PUBLIC_URL must be an absolute HTTPS origin").refine((value) => {
+  const url = new URL(value);
+  return url.protocol === "https:" && url.pathname === "/" && !url.search && !url.hash;
+}, "VELLUM_PUBLIC_URL must be an HTTPS origin without a path, query, or fragment");
 
 /* Exported for tests: importing `env` runs loadEnv() at module load, which
  * process.exit(1)s on invalid input, so the schema is validated directly. */
 export const envSchema = z.object({
   DATABASE_URL: z
-    .string()
     .url("DATABASE_URL must be a valid URL")
     .refine(
       (value) => !PLACEHOLDER_RE.test(value),
@@ -63,13 +59,13 @@ export const envSchema = z.object({
   ADMIN_API_KEY: secret("ADMIN_API_KEY", 32, "openssl rand -hex 32"),
   ADMIN_USER: z.string().min(1, "ADMIN_USER is required"),
   ADMIN_PASS: secret("ADMIN_PASS", 8, "use a password manager"),
-  ENTRA_TENANT_ID: optionalEnv(z.string().uuid("ENTRA_TENANT_ID must be a UUID")),
-  ENTRA_CLIENT_ID: optionalEnv(z.string().uuid("ENTRA_CLIENT_ID must be a UUID")),
+  ENTRA_TENANT_ID: optionalEnv(z.uuid("ENTRA_TENANT_ID must be a UUID")),
+  ENTRA_CLIENT_ID: optionalEnv(z.uuid("ENTRA_CLIENT_ID must be a UUID")),
   ENTRA_CLIENT_SECRET: optionalEnv(
     secret("ENTRA_CLIENT_SECRET", 1, "copy it from the Entra app registration")
   ),
   VELLUM_PUBLIC_URL: optionalEnv(publicOrigin),
-  UPDATER_URL: optionalEnv(z.string().url()),
+  UPDATER_URL: optionalEnv(z.url()),
   UPDATER_TOKEN: optionalEnv(secret("UPDATER_TOKEN", 32, "openssl rand -hex 32")),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),

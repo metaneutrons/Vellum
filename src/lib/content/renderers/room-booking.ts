@@ -172,7 +172,7 @@ const bookingQrConfigSchema = z
   });
 
 export const roomBookingConfigSchema = z.object({
-  providerId: z.string().uuid(),
+  providerId: z.uuid(),
   roomConfig: z.record(z.string(), z.unknown()),
   roomName: z.string().default("Meeting Room"),
   timezone: z.string().default("UTC"),

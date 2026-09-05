@@ -56,6 +56,9 @@ function nearestColorQuantize(
 export function canvasToPixelBuffer(
   canvas: Canvas,
   palette: ColorPalette = DEFAULT_PALETTE,
+  // Accepted so callers still passing a QuantizeMode keep working; the branches
+  // below translate it into format + colorMode.
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   format: OutputFormat | QuantizeMode = "raw",
   colorMode: ColorMode = "mono",
   reserved: ReservedIndices = []
