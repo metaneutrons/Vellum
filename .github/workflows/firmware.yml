@@ -242,6 +242,15 @@ jobs:
             firmware/vellum-${{ matrix.model }}-*.bin.sha256
 
   sign-and-release:
+    # The OTA signing key lives in this protected environment, not as a
+    # repository secret: it signs images for displays that are already on walls,
+    # and a repository secret is readable by every workflow run in the repository.
+    # Deployments are restricted to main and the v* / firmware-v* tags.
+    #
+    # An environment secret takes precedence over a repository secret of the same
+    # name, so this switch is safe while both exist; the repository copy is
+    # removed only after a beta run has proven this path signs.
+    environment: release
     needs: [version, build]
     runs-on: ubuntu-latest
     permissions:
