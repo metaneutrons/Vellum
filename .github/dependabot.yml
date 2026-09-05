@@ -20,6 +20,14 @@ updates:
       pnpm-development:
         dependency-type: "development"
         update-types: ["minor", "patch"]
+    ignore:
+      # typescript-eslint declares `typescript: >=4.8.4 <6.1.0` as a peer bound,
+      # and lint runs with --max-warnings 0. A bump to 6.1 therefore produces a
+      # PR that installs but fails type-aware linting with "does not support TS
+      # 6.1". Lift this only once typescript-eslint widens the range; check with
+      # `npm view @typescript-eslint/parser peerDependencies.typescript`.
+      - dependency-name: typescript
+        versions: [">=6.1"]
 
   # ── GitHub Actions — all .github/workflows/* ──────────────────────
   - package-ecosystem: "github-actions"

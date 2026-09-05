@@ -1,0 +1,30 @@
+# Deviates from the repo-standard template in one value, deliberately.
+#
+# The template sets `indent_size = 4` for `[*]` and overrides it to 2 for the
+# languages it names. Prettier reads .editorconfig for options its own config
+# does not set, and .prettierrc here sets no `tabWidth`. Taking the template
+# verbatim therefore reformatted every file type the template does not name --
+# Markdown and CSS -- and `prettier --check .` failed on five files that were
+# correct before. This project indents with 2 throughout, so 2 is the default
+# here and the file describes the tree rather than rewriting it.
+#
+# `max_line_length` matches `printWidth` in .prettierrc; keep the two in step.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 100
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+[*.{c,h}]
+indent_size = 4
