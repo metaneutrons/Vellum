@@ -38,6 +38,20 @@ export default tseslint.config(
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-deprecated": "error",
+      /* The no-unsafe-* family is prepared but not yet armed. Of its 160
+         findings, 85 sat in tests and are switched off for those below; the
+         Microsoft Graph provider held 32 more and now parses its answer through
+         a schema. The remaining 43 are all the same shape — `await res.json()`
+         and `JSON.parse(...)`, each needing its own schema at its own boundary —
+         and they are the next block. Arming the rules before then would only put
+         main in a state where lint cannot pass.
+
+         TODO(lint): enable once the 43 remaining boundaries are typed.
+         "@typescript-eslint/no-unsafe-assignment": "error",
+         "@typescript-eslint/no-unsafe-member-access": "error",
+         "@typescript-eslint/no-unsafe-argument": "error",
+         "@typescript-eslint/no-unsafe-call": "error",
+         "@typescript-eslint/no-unsafe-return": "error", */
       "@typescript-eslint/no-base-to-string": "error",
     },
   },
@@ -71,9 +85,19 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.test.ts", "**/*.property.test.ts"],
+    files: ["**/*.test.ts", "**/*.property.test.ts", "**/*.test.tsx"],
     rules: {
       "@typescript-eslint/no-non-null-assertion": "off",
+      /* A test that drives an HTTP route reads its answer as JSON, and JSON is
+         `any` by construction. Demanding a parsed type there would mean asserting
+         the very shape under test, so the assertion would pass by definition
+         rather than by behaviour. These stay off for tests only — 85 of the 160
+         findings sat here, and none of them describes a risk in shipped code. */
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
     },
   }
 );

@@ -177,4 +177,36 @@ describe("microsoft365 — the room mailbox as organizer", () => {
     const [event] = await fetchEvents();
     expect(event.organizer).toBe("Maria Warnking");
   });
+
+  /* Graph omits fields rather than sending nulls, and this provider used to read
+   * the answer as `any`: `new Date(evt.start?.dateTime + "Z")` on an event without
+   * a start produced the string "undefinedZ", so an Invalid Date travelled on into
+   * the timeline instead of the event being rejected. The schema at the boundary
+   * drops such an event now. */
+  it("drops an event Graph sent without a start or end time", async () => {
+    graphGet.mockResolvedValueOnce({
+      value: [
+        { subject: "kein Anfang", end: { dateTime: "2026-09-06T11:00:00" } },
+        { subject: "kein Ende", start: { dateTime: "2026-09-06T10:00:00" } },
+      ],
+    });
+    await expect(fetchEvents()).resolves.toEqual([]);
+  });
+
+  /* One malformed entry must not cost the whole day. A sign showing four of five
+   * bookings is worth more than one showing an error. */
+  it("keeps the usable events when one entry is malformed", async () => {
+    graphGet.mockResolvedValueOnce({
+      value: [
+        { subject: "kaputt", start: { dateTime: 42 } },
+        {
+          subject: "brauchbar",
+          start: { dateTime: "2026-09-06T10:00:00" },
+          end: { dateTime: "2026-09-06T11:00:00" },
+        },
+      ],
+    });
+    const events = await fetchEvents();
+    expect(events.map((e) => e.subject)).toEqual(["brauchbar"]);
+  });
 });
