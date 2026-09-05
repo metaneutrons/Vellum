@@ -59,7 +59,7 @@ room-booking displays) + **ESP32 firmware** (`firmware/`). AGPL-3.0. Repo
   (`vitest --run`), `test:coverage`, `i18n:check`, `release:check`,
   `db:check`, `db:generate`, `db:migrate` (the idempotent `scripts/migrate.mjs`
   runner), `dev:mdns` / `mdns`.
-- **`.githooks/pre-commit` runs lint-staged with Prettier and zero-warning
+- **`lefthook` pre-commit runs ESLint on staged files with zero-warning
   ESLint**; generated/vendor inputs are explicitly excluded. **`.githooks/pre-push`
   runs `i18n:check`, `typecheck`, `release:check` (and
   `db:check`)** — each is also a required CI job. Run them before pushing or the

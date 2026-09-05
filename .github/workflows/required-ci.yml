@@ -108,7 +108,17 @@ jobs:
              ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
             BASE_SHA="$(git rev-list --max-parents=0 HEAD)"
           fi
-          pnpm exec commitlint --from "$BASE_SHA" --to "$GITHUB_SHA" --verbose
+          # The same script the commit-msg hook runs, so local and CI cannot
+          # drift apart. It covers Conventional Commits and attribution
+          # trailers in one place; commitlint is gone with lint-staged.
+          rc=0
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            git log -1 --format='%B' "$sha" > /tmp/msg.$$
+            sh scripts/hooks/check-commit-message.sh /tmp/msg.$$ || rc=1
+            rm -f /tmp/msg.$$
+          done < <(git rev-list --no-merges "$BASE_SHA".."$GITHUB_SHA")
+          exit $rc
 
       - name: Formatting
         run: pnpm format:check
@@ -227,10 +237,61 @@ jobs:
       - name: Test
         run: ctest --test-dir firmware/host_test/build --output-on-failure
 
+  commit-hygiene:
+    name: Commit Hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      # Local hooks are optional -- a contributor can skip them with --no-verify
+      # and a tool that writes commits may not run them at all. This is the layer
+      # that cannot be bypassed. The repository already carries 111 commits with
+      # an assistant trailer from before this check existed; rewriting that
+      # history costs more than it is worth, so the job only guards new commits.
+      - name: Reject AI attribution trailers
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$BASE_SHA" ] || \
+             [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] || \
+             ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "No usable base commit; checking HEAD only."
+            range="$HEAD_SHA~1..$HEAD_SHA"
+          else
+            range="$BASE_SHA..$HEAD_SHA"
+          fi
+
+          failed=false
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            body=$(git log -1 --format='%B' "$sha")
+            ident=$(git log -1 --format='%an <%ae> %cn <%ce>' "$sha")
+            if printf '%s' "$body" | grep -qiE 'co-authored-by:.*(claude|anthropic)'; then
+              echo "::error::$sha carries a Co-authored-by trailer naming an assistant"
+              failed=true
+            fi
+            if printf '%s' "$body" | grep -qiE 'generated with.*(claude|anthropic)'; then
+              echo "::error::$sha carries a 'Generated with' attribution line"
+              failed=true
+            fi
+            if printf '%s' "$ident" | grep -qi 'noreply@anthropic\.com'; then
+              echo "::error::$sha has an assistant address as author or committer"
+              failed=true
+            fi
+          done < <(git rev-list --no-merges "$range")
+
+          [ "$failed" = false ]
+
   required:
     name: Required Gate
     if: always()
-    needs: [changes, quality, test, build, deployment, firmware-host]
+    needs: [changes, quality, test, build, deployment, firmware-host, commit-hygiene]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -242,6 +303,7 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           DEPLOYMENT_RESULT: ${{ needs.deployment.result }}
           FIRMWARE_RESULT: ${{ needs.firmware-host.result }}
+          HYGIENE_RESULT: ${{ needs.commit-hygiene.result }}
         run: |
           set -euo pipefail
           failed=false
@@ -251,7 +313,8 @@ jobs:
             "test=$TEST_RESULT" \
             "build=$BUILD_RESULT" \
             "deployment=$DEPLOYMENT_RESULT" \
-            "firmware=$FIRMWARE_RESULT"; do
+            "firmware=$FIRMWARE_RESULT" \
+            "commit-hygiene=$HYGIENE_RESULT"; do
             name=${entry%%=*}
             result=${entry#*=}
             case "$result" in

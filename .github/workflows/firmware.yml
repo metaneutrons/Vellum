@@ -242,6 +242,15 @@ jobs:
             firmware/vellum-${{ matrix.model }}-*.bin.sha256
 
   sign-and-release:
+    # The OTA signing key lives in this protected environment, not as a
+    # repository secret: it signs images for displays that are already on walls,
+    # and a repository secret is readable by every workflow run in the repository.
+    # Deployments are restricted to main and the v* / firmware-v* tags.
+    #
+    # An environment secret takes precedence over a repository secret of the same
+    # name, so this switch is safe while both exist; the repository copy is
+    # removed only after a beta run has proven this path signs.
+    environment: release
     needs: [version, build]
     runs-on: ubuntu-latest
     permissions:
@@ -577,7 +586,7 @@ jobs:
 
       - name: Create beta release with images (manifest uploaded last, below)
         if: needs.version.outputs.channel != 'stable'
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Vellum Firmware v${{ needs.version.outputs.version }}"
@@ -589,7 +598,7 @@ jobs:
 
       - name: Add manifest to beta release (last, after all images)
         if: needs.version.outputs.channel != 'stable'
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Vellum Firmware v${{ needs.version.outputs.version }}"

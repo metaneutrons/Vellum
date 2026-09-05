@@ -269,5 +269,28 @@ roadmap item.
 
 ## 8. Reporting
 
-Report suspected vulnerabilities privately to the maintainer rather than via a
-public issue.
+Report suspected vulnerabilities through **private vulnerability reporting**:
+
+<https://github.com/metaneutrons/Vellum/security/advisories/new>
+
+A public issue is the wrong channel because it publishes the weakness while
+every deployed instance is still unpatched, and these displays sit on walls and
+update themselves. If you have already opened one, say so in the advisory
+instead of deleting it — deletion does not un-publish it, and knowing it is out
+there changes how fast the fix has to ship.
+
+The report stays private until a fix is available, and it lets the maintainer
+open a draft advisory and request a CVE from the same place.
+
+Expect an acknowledgement within **72 hours** and an assessment within **7
+days**. If a report goes unanswered past that, treat the silence as a delivery
+failure rather than a decision and follow up.
+
+Please include the affected version (server and firmware), the panel model where
+it applies, and what an attacker gains. Strip tokens, PSKs and private key
+material from anything you attach — the device token and the WiFi PSK appear in
+device logs.
+
+This is a small project without a bounty programme. What it offers instead is a
+fix released through the normal signed channel and credit in the advisory unless
+you prefer otherwise.
