@@ -54,7 +54,7 @@ export function ServerUpdatePanel({
        * Avoid issuing the same status request from two mounted components; this
        * timer resumes the panel automatically after the overlay closes. */
       if (readUpdateWindow() !== null) {
-        timer = window.setTimeout(refresh, 1_500);
+        timer = window.setTimeout(() => void refresh(), 1_500);
         return;
       }
       let nextState = status.state;
@@ -73,7 +73,7 @@ export function ServerUpdatePanel({
       } finally {
         if (!cancelled) {
           timer = window.setTimeout(
-            refresh,
+            () => void refresh(),
             serverUpdatePollInterval(nextState, false, transientFailureCount.current)
           );
         }
@@ -81,7 +81,7 @@ export function ServerUpdatePanel({
     };
     const openWindow = readUpdateWindow() !== null;
     timer = window.setTimeout(
-      refresh,
+      () => void refresh(),
       serverUpdatePollInterval(status.state, openWindow, transientFailureCount.current)
     );
     return () => {
@@ -350,7 +350,7 @@ export function ServerUpdatePanel({
                 disabled={
                   actionPending || status.state === "updating" || status.state === "checking"
                 }
-                onClick={() => runAction("check")}
+                onClick={() => void runAction("check")}
                 className="min-h-10 px-3 rounded-md bg-fill-tertiary text-sm font-semibold disabled:opacity-50 focus-ring"
               >
                 {status.state === "checking" ? t("serverChecking") : t("serverCheck")}
@@ -419,7 +419,7 @@ export function ServerUpdatePanel({
             )}
             <button
               disabled={actionPending || !scheduleDirty || !maintenanceTime || !timezone}
-              onClick={saveSchedule}
+              onClick={() => void saveSchedule()}
               className="min-h-8 px-3 rounded-md bg-accent text-on-accent text-sm font-semibold disabled:opacity-50 focus-ring"
             >
               {t("serverSaveSchedule")}
@@ -431,7 +431,7 @@ export function ServerUpdatePanel({
       <ConfirmDialog
         open={confirmUpdate}
         onClose={() => setConfirmUpdate(false)}
-        onConfirm={() => runAction("apply")}
+        onConfirm={() => void runAction("apply")}
         pending={actionPending}
         title={t("serverConfirmTitle")}
         message={`${t("serverConfirmMessage", { version: status.availableVersion ?? "" })}\n\n${t("serverConfirmSteps")}\n\n${t("serverConfirmDowntime")}`}

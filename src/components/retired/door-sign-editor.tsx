@@ -315,7 +315,7 @@ export function DoorSignEditor({
             <input
               type="file"
               accept="image/png,image/svg+xml,image/jpeg"
-              onChange={handleBgUpload}
+              onChange={(e) => void handleBgUpload(e)}
               className="text-xs w-full text-label-secondary file:mr-2 file:rounded-md file:border-0 file:bg-fill-tertiary file:px-2 file:py-1 file:text-label hover:file:bg-fill-secondary focus-ring rounded"
             />
             {activeDesign.backgroundAssetId && (

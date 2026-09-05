@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formString, formTrimmed } from "@/lib/form-data";
 import {
   Clipboard,
   EyeOff,
@@ -220,9 +221,9 @@ export function AccessManager({ directory, labels }: { directory: Directory; lab
           action={(form) =>
             run(async () => {
               const result = await inviteUser({
-                email: String(form.get("email")),
-                displayName: String(form.get("name")),
-                roleId: String(form.get("role")),
+                email: formTrimmed(form, "email"),
+                displayName: formTrimmed(form, "name"),
+                roleId: formString(form, "role"),
               });
               setToken(`${window.location.origin}/invite/${result}`);
               setNotice(labels.inviteCreated);
@@ -334,7 +335,10 @@ export function AccessManager({ directory, labels }: { directory: Directory; lab
                     (value): value is Permission =>
                       typeof value === "string" && PERMISSIONS.includes(value as Permission)
                   );
-                const result = await createAutomationAccount(String(form.get("name")), permissions);
+                const result = await createAutomationAccount(
+                  formTrimmed(form, "name"),
+                  permissions
+                );
                 setToken(result.token);
                 setTokenCopied(false);
                 setNotice(labels.accountCreated);
@@ -399,7 +403,7 @@ export function AccessManager({ directory, labels }: { directory: Directory; lab
             run(async () => {
               await updateOidcProvisioningPolicy(
                 form.get("autoProvision") === "on",
-                String(form.get("defaultRole"))
+                formString(form, "defaultRole")
               );
               setNotice(null);
             })
@@ -418,7 +422,11 @@ export function AccessManager({ directory, labels }: { directory: Directory; lab
             {labels.defaultRole}
             <select
               name="defaultRole"
-              defaultValue={String(directory.policy["access.oidcDefaultRole"] ?? "viewer")}
+              defaultValue={
+                typeof directory.policy["access.oidcDefaultRole"] === "string"
+                  ? directory.policy["access.oidcDefaultRole"]
+                  : "viewer"
+              }
               className="rounded-md border border-separator bg-surface px-2 py-1.5 focus-ring"
             >
               {directory.roles
@@ -470,10 +478,11 @@ export function AccessManager({ directory, labels }: { directory: Directory; lab
             </Button>
             <Button
               leading={<Clipboard size={15} aria-hidden="true" />}
-              onClick={async () => {
+              onClick={() => {
                 if (!token) return;
-                await navigator.clipboard.writeText(token);
-                setTokenCopied(true);
+                void navigator.clipboard.writeText(token).then(() => {
+                  setTokenCopied(true);
+                });
               }}
             >
               {tokenCopied ? labels.copied : labels.copy}

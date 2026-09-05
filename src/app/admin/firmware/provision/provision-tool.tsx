@@ -275,7 +275,7 @@ export function ProvisionTool({
                 {tx("disconnect")}
               </Button>
             ) : (
-              <Button type="button" onClick={connect} loading={connecting} disabled={connecting}>
+              <Button type="button" onClick={() => void connect()} loading={connecting} disabled={connecting}>
                 {tx("connectButton")}
               </Button>
             )}
@@ -303,7 +303,7 @@ export function ProvisionTool({
               <Button
                 type="button"
                 variant="gray"
-                onClick={doScan}
+                onClick={() => void doScan()}
                 loading={scanning}
                 disabled={!supported || !connected || busy || scanning || connecting}
               >
@@ -450,7 +450,7 @@ export function ProvisionTool({
             leading={<span aria-hidden="true">🔌</span>}
             loading={busy}
             disabled={!canSubmit}
-            onClick={provision}
+            onClick={() => void provision()}
           >
             {busy ? t("provisioning") : t("button")}
           </Button>

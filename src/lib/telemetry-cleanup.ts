@@ -9,8 +9,10 @@ const RETENTION_DAYS = 90;
 const INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export function scheduleTelemetryCleanup() {
-  runCleanup();
-  setInterval(runCleanup, INTERVAL_MS);
+  // runCleanup catches internally; void records that the result is dropped
+  // deliberately rather than by oversight.
+  void runCleanup();
+  setInterval(() => void runCleanup(), INTERVAL_MS);
 }
 
 async function runCleanup() {

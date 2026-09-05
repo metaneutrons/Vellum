@@ -82,7 +82,7 @@ export function ResourcePicker({ providerId, resourceId, resourceName, onChange 
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchResources(search), 300);
+    debounceRef.current = setTimeout(() => void fetchResources(search), 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -136,7 +136,7 @@ export function ResourcePicker({ providerId, resourceId, resourceName, onChange 
           type="button"
           onClick={() => {
             setOpen(true);
-            fetchResources("");
+            void fetchResources("");
           }}
           className="w-full min-h-11 px-3 rounded-md bg-surface-secondary border border-separator text-[15px] text-label text-left focus-ring transition hover:bg-surface-hover flex justify-between items-center gap-2"
         >
@@ -157,7 +157,7 @@ export function ResourcePicker({ providerId, resourceId, resourceName, onChange 
           }}
           onFocus={() => {
             setOpen(true);
-            if (!results.length) fetchResources("");
+            if (!results.length) void fetchResources("");
           }}
           aria-label={t("search")}
         />
