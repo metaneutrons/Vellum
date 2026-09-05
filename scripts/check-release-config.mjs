@@ -178,11 +178,30 @@ expect(
   workflow.includes("manifest-file: .release-please-manifest.json"),
   "release workflow must use the version manifest"
 );
+/* The property this protects is not which credential is used but that the
+ * workflow refuses to run without one. release-please must act as a real actor,
+ * because GitHub suppresses downstream events created with GITHUB_TOKEN — a
+ * release would publish with none of its artifact workflows firing, and nothing
+ * would say so. Falling back to GITHUB_TOKEN is therefore the failure this
+ * forbids, in whichever form it is written.
+ *
+ * The credential moved from a personal access token to a GitHub App installation
+ * token on 2026-09-06; the app's reach is one repository and its token expires
+ * within the hour, neither of which is checkable for a PAT. */
 expect(
-  workflow.includes("Require release automation token") &&
-    workflow.includes("token: ${{ secrets.RELEASE_PAT }}") &&
-    !workflow.includes("secrets.RELEASE_PAT || secrets.GITHUB_TOKEN"),
-  "release automation must fail closed without RELEASE_PAT"
+  workflow.includes("Require the app credentials") &&
+    workflow.includes("token: ${{ steps.app-token.outputs.token }}") &&
+    workflow.includes("client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }}") &&
+    workflow.includes("private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}"),
+  "release automation must mint an app installation token"
+);
+expect(
+  !workflow.includes("secrets.GITHUB_TOKEN") && !workflow.includes("|| github.token"),
+  "release automation must not fall back to GITHUB_TOKEN"
+);
+expect(
+  workflow.includes("environment: release"),
+  "release automation must read its credentials from the protected environment"
 );
 
 const releaseCommitFixtures = [
