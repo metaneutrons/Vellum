@@ -269,10 +269,15 @@ roadmap item.
 
 ## 8. Reporting
 
-Report suspected vulnerabilities through **private vulnerability reporting**,
-never as a public issue:
+Report suspected vulnerabilities through **private vulnerability reporting**:
 
 <https://github.com/metaneutrons/Vellum/security/advisories/new>
+
+A public issue is the wrong channel because it publishes the weakness while
+every deployed instance is still unpatched, and these displays sit on walls and
+update themselves. If you have already opened one, say so in the advisory
+instead of deleting it — deletion does not un-publish it, and knowing it is out
+there changes how fast the fix has to ship.
 
 The report stays private until a fix is available, and it lets the maintainer
 open a draft advisory and request a CVE from the same place.
