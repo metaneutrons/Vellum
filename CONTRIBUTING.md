@@ -16,8 +16,9 @@ outside the scheme produces a wrong version or a missing entry.
 ```
 
 Types in use: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`, `perf`,
-`build`, `style`, `revert`. Anything else is rejected by `commitlint` in the
-`commit-msg` hook and again in CI.
+`build`, `style`, `revert`. Anything else is rejected by
+`scripts/hooks/check-commit-message.sh`, which runs in the `commit-msg` hook
+and again in CI, so the two cannot drift apart.
 
 Two consequences worth knowing:
 

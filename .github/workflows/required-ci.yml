@@ -108,7 +108,17 @@ jobs:
              ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
             BASE_SHA="$(git rev-list --max-parents=0 HEAD)"
           fi
-          pnpm exec commitlint --from "$BASE_SHA" --to "$GITHUB_SHA" --verbose
+          # The same script the commit-msg hook runs, so local and CI cannot
+          # drift apart. It covers Conventional Commits and attribution
+          # trailers in one place; commitlint is gone with lint-staged.
+          rc=0
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            git log -1 --format='%B' "$sha" > /tmp/msg.$$
+            sh scripts/hooks/check-commit-message.sh /tmp/msg.$$ || rc=1
+            rm -f /tmp/msg.$$
+          done < <(git rev-list --no-merges "$BASE_SHA".."$GITHUB_SHA")
+          exit $rc
 
       - name: Formatting
         run: pnpm format:check
