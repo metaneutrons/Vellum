@@ -37,6 +37,7 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-deprecated": "error",
       "@typescript-eslint/no-base-to-string": "error",
     },
   },

@@ -13,7 +13,7 @@ import type { CalendarProvider, CalendarEvent } from "../types";
 import { safeFetch } from "@/lib/safe-fetch";
 
 export const icalCredentialSchema = z.object({
-  url: z.string().url(),
+  url: z.url(),
 });
 
 export const icalRoomConfigSchema = z.object({});

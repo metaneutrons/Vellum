@@ -1041,9 +1041,9 @@ const siteInputSchema = z.object({
     .min(1)
     .max(100)
     .refine(isUsableTimezone, { message: "unknown timezone" }),
-  refreshProfileId: z.string().uuid().nullish(),
-  themeId: z.string().uuid().nullish(),
-  contentInstanceId: z.string().uuid().nullish(),
+  refreshProfileId: z.uuid().nullish(),
+  themeId: z.uuid().nullish(),
+  contentInstanceId: z.uuid().nullish(),
 });
 
 export async function getAllSites() {
@@ -1131,7 +1131,7 @@ export async function deleteSite(id: string) {
 export async function setDeviceSite(macInput: string, siteId: string | null) {
   const actor = await requireAdmin("devices.provision");
   const mac = normalizeProvisioningMac(macInput);
-  const target = siteId ? z.string().uuid().parse(siteId) : null;
+  const target = siteId ? z.uuid().parse(siteId) : null;
   await withAuditedTransaction(
     actor,
     {
@@ -1249,7 +1249,7 @@ export async function updateRefreshProfile(
   expectedRevision: number
 ) {
   const actor = await requireAdmin("profiles.manage");
-  const validatedId = z.string().uuid().parse(id);
+  const validatedId = z.uuid().parse(id);
   const validatedName = z.string().trim().min(1).max(120).parse(name);
   const validatedConfig = unifiedRefreshProfileSchema.parse(config);
   const validatedRevision = z.number().int().positive().parse(expectedRevision);

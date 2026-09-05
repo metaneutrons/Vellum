@@ -65,7 +65,7 @@ export const seatOccupantSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("calendar"),
-    providerId: z.string().uuid(),
+    providerId: z.uuid(),
     resourceId: z.string().min(1),
     /** Passed to the provider; some need it to resolve the resource. */
     resourceName: z.string().optional(),
@@ -84,7 +84,7 @@ export const seatOccupantSchema = z.discriminatedUnion("kind", [
      * anny's resource id and its public slug are unrelated, so a guessed link
      * leads somewhere wrong or nowhere.
      */
-    bookingUrl: z.string().url().max(256).optional(),
+    bookingUrl: z.url().max(256).optional(),
   }),
 ]);
 

@@ -17,7 +17,7 @@ export const m365CredentialSchema = z.object({
 });
 
 export const m365RoomConfigSchema = z.object({
-  roomEmail: z.string().email(),
+  roomEmail: z.email(),
 });
 
 export const microsoft365Provider: CalendarProvider = {

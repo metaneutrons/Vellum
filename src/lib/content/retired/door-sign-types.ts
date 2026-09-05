@@ -39,14 +39,14 @@ export const textBoxSchema = z.object({
 });
 
 export const designSchema = z.object({
-  backgroundAssetId: z.string().uuid().nullable().default(null),
+  backgroundAssetId: z.uuid().nullable().default(null),
   textBoxes: z.array(textBoxSchema).default([]),
   freeTextBoxes: z.array(textBoxSchema).default([]),
   backgroundColor: z.string().default("#FFFFFF"),
 });
 
 export const doorSignConfigSchema = z.object({
-  providerId: z.string().uuid(),
+  providerId: z.uuid(),
   resourceId: z.string(),
   resourceName: z.string().optional(),
   locale: z.string().default("de"),

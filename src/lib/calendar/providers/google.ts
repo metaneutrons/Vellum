@@ -12,7 +12,7 @@ import crypto from "crypto";
 import type { CalendarProvider, CalendarEvent } from "../types";
 
 export const googleCredentialSchema = z.object({
-  clientEmail: z.string().email(),
+  clientEmail: z.email(),
   privateKey: z.string().min(1),
 });
 

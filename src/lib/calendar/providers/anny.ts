@@ -34,7 +34,7 @@ export const annyRoomConfigSchema = z.object({
   resourceId: z.string().min(1),
   resourceName: z.string().optional(),
   /** Persisted from Anny's resource slug; never infer this from a display name. */
-  bookingUrl: z.string().url().max(256).optional(),
+  bookingUrl: z.url().max(256).optional(),
 });
 
 interface AnnyBooking {

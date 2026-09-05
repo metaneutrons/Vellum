@@ -15,6 +15,11 @@ export const serverMigrationPayloadSchema = z.object({
     .trim()
     .max(255)
     .refine((value) => !/[\r\n]/.test(value), "server_url_contains_line_break")
+    // order matters here.
+    // Order matters here: z.url() would validate before .trim(), .max(255) and the
+    // line-break refinement have run, so the top-level form is not equivalent at
+    // this position in the chain.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     .url()
     .refine((value) => {
       const url = new URL(value);
