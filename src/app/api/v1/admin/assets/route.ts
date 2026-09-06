@@ -8,6 +8,7 @@ import { UUID_RE } from "@/lib/validation";
 import {
   getRequestPrincipal,
   hasPermission,
+  insertedRow,
   requestHasPermission,
   withAuditedTransaction,
 } from "@/lib/access";
@@ -113,12 +114,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const [row] = await withAuditedTransaction(
+  const rows = await withAuditedTransaction(
     principal,
     (created: { id: string }[]) => ({
       action: "asset.create",
       targetType: "asset",
-      targetId: created[0].id,
+      targetId: insertedRow(created, "asset").id,
       metadata: { name, mimeType: file.type, width, height },
     }),
     (tx) =>
@@ -129,6 +130,7 @@ export async function POST(request: Request) {
     "insert-asset"
   );
 
+  const row = insertedRow(rows, "asset");
   return Response.json({ id: row.id, name, mimeType: file.type, width, height }, { status: 201 });
 }
 

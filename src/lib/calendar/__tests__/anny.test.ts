@@ -62,10 +62,10 @@ describe("anny provider — recurring series", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get("page[number]")).toBe("1");
-    expect(new URL(fetchMock.mock.calls[1][0]).searchParams.get("page[number]")).toBe("2");
+    expect(new URL(fetchMock.mock.calls[0]![0]).searchParams.get("page[number]")).toBe("1");
+    expect(new URL(fetchMock.mock.calls[1]![0]).searchParams.get("page[number]")).toBe("2");
     expect(events).toHaveLength(1);
-    expect(events[0].subject).toBe("Green Office");
+    expect(events[0]!.subject).toBe("Green Office");
   });
 
   it("excludes the series-master envelope but keeps the in-window occurrence", async () => {
@@ -116,8 +116,8 @@ describe("anny provider — recurring series", () => {
     });
 
     expect(events).toHaveLength(1);
-    expect(events[0].startTime.toISOString()).toBe("2026-07-14T13:00:00.000Z");
-    expect(events[0].endTime.toISOString()).toBe("2026-07-14T14:00:00.000Z");
+    expect(events[0]!.startTime.toISOString()).toBe("2026-07-14T13:00:00.000Z");
+    expect(events[0]!.endTime.toISOString()).toBe("2026-07-14T14:00:00.000Z");
   });
 
   it("regression: room is free between occurrences of a multi-week series", async () => {
@@ -205,7 +205,7 @@ describe("anny provider — recurring series", () => {
     });
 
     expect(events).toHaveLength(1);
-    expect(events[0].subject).toBe("Besprechung");
+    expect(events[0]!.subject).toBe("Besprechung");
   });
 });
 

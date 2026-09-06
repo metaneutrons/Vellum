@@ -35,7 +35,7 @@ export default getRequestConfig(async () => {
   const acceptLang = headerStore.get("accept-language") ?? "";
   const detected = acceptLang
     .split(",")
-    .map((s) => s.split(";")[0].trim().split("-")[0].toLowerCase())
+    .map((s) => s.split(";")[0]?.trim().split("-")[0]?.toLowerCase() ?? "")
     .find((l) => locales.includes(l as Locale));
 
   const locale = (detected as Locale) ?? defaultLocale;

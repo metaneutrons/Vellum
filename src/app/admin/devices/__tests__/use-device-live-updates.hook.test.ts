@@ -59,12 +59,12 @@ describe("useDeviceLiveUpdates", () => {
       initialProps: before,
     });
 
-    expect(result.current.devices[0].content_instance_id).toBe("old");
+    expect(result.current.devices[0]!.content_instance_id).toBe("old");
 
     // What revalidatePath() produces after updateDevice: same route, new rows.
     rerender([device("A", "new"), device("B", null)]);
 
-    expect(result.current.devices[0].content_instance_id).toBe("new");
+    expect(result.current.devices[0]!.content_instance_id).toBe("new");
     expect(result.current.devices.map((d) => d.mac)).toEqual(["A", "B"]);
   });
 
@@ -76,7 +76,7 @@ describe("useDeviceLiveUpdates", () => {
     rerender([device("C", null), device("B", "assigned"), device("A", null)]);
 
     expect(result.current.devices.map((d) => d.mac)).toEqual(["A", "B", "C"]);
-    expect(result.current.devices[1].content_instance_id).toBe("assigned");
+    expect(result.current.devices[1]!.content_instance_id).toBe("assigned");
   });
 
   it("drops a device the server no longer reports", () => {
@@ -102,7 +102,7 @@ describe("useDeviceLiveUpdates", () => {
     rerender();
 
     expect(result.current.devices.map((d) => d.mac)).toEqual(["A", "B"]);
-    expect(result.current.devices[0].content_instance_id).toBe("assigned");
+    expect(result.current.devices[0]!.content_instance_id).toBe("assigned");
   });
 
   it("subscribes to the device event stream and closes it on unmount", () => {

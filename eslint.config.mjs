@@ -97,7 +97,15 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.test.ts", "**/*.property.test.ts", "**/*.test.tsx"],
+    /* Anything under a __tests__ directory is test code too, even when it is a
+       shared helper rather than a *.test.ts file. */
+    files: [
+      "**/*.test.ts",
+      "**/*.property.test.ts",
+      "**/*.test.tsx",
+      "**/__tests__/**/*.ts",
+      "**/__tests__/**/*.tsx",
+    ],
     rules: {
       "@typescript-eslint/no-non-null-assertion": "off",
       /* A test that drives an HTTP route reads its answer as JSON, and JSON is

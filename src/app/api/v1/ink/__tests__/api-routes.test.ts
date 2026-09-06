@@ -441,7 +441,7 @@ describe("GET /api/v1/ink/config — display model resolution", () => {
     const res = await configHandler(req);
     expect(res.status).toBe(200);
 
-    const [firmwareVer, displayModel] = vi.mocked(resolveOta).mock.calls[0];
+    const [firmwareVer, displayModel] = vi.mocked(resolveOta).mock.calls[0]!;
     expect(firmwareVer).toBe("1.3.2");
     expect(displayModel).toBe("d1001");
   });
@@ -455,7 +455,7 @@ describe("GET /api/v1/ink/config — display model resolution", () => {
 
     const res = await configHandler(req);
     expect(res.status).toBe(200);
-    expect(vi.mocked(resolveOta).mock.calls[0][1]).toBe("unknown");
+    expect(vi.mocked(resolveOta).mock.calls[0]![1]).toBe("unknown");
   });
 
   it("ignores a blank X-Display-Model instead of resolving an empty model", async () => {
@@ -467,7 +467,7 @@ describe("GET /api/v1/ink/config — display model resolution", () => {
 
     const res = await configHandler(req);
     expect(res.status).toBe(200);
-    expect(vi.mocked(resolveOta).mock.calls[0][1]).toBe("unknown");
+    expect(vi.mocked(resolveOta).mock.calls[0]![1]).toBe("unknown");
   });
 });
 

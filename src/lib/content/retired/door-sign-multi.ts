@@ -93,7 +93,7 @@ async function loadMultiModel(params: LoadParams): Promise<DoorSignMultiModel> {
 
   const rows: MultiRow[] = config.resources.map((resource, i) => {
     const current =
-      allEvents[i].find((e) => params.now >= e.startTime && params.now < e.endTime) ?? null;
+      allEvents[i]?.find((e) => params.now >= e.startTime && params.now < e.endTime) ?? null;
     const context: TemplateContext = {
       resource_name: resource.resourceName ?? "",
       status: current ? "Belegt" : "Frei",
@@ -128,7 +128,9 @@ export function drawDoorSignMulti(model: DoorSignMultiModel, params: DrawParams)
   const rowH = Math.round((height - rowAreaTop) / rows.length);
 
   for (let i = 0; i < rows.length; i++) {
-    const { context, occupied } = rows[i];
+    const row = rows[i];
+    if (!row) continue;
+    const { context, occupied } = row;
     const rowY = rowAreaTop + i * rowH;
 
     // Render row template TextBoxes — positions are relative to the row

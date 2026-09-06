@@ -152,9 +152,16 @@ export const refreshProfileSchema = z
       .array(z.number().int().positive().max(604_800))
       .max(8)
       .default([60, 300, 900, 3600])
-      .refine((steps) => steps.every((step, index) => index === 0 || step >= steps[index - 1]), {
-        message: "Retry delays must be non-decreasing",
-      }),
+      .refine(
+        /* No predecessor means no constraint; index 0 is already excluded. */
+        (steps) =>
+          steps.every(
+            (step, index) => index === 0 || step >= (steps[index - 1] ?? Number.NEGATIVE_INFINITY)
+          ),
+        {
+          message: "Retry delays must be non-decreasing",
+        }
+      ),
     /**
      * Ceiling on the refresh interval while a display has no content assigned.
      *

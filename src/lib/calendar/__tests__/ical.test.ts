@@ -16,7 +16,7 @@ describe("iCal parser", () => {
     const ics = vevent(
       "SUMMARY:Standup\r\nDTSTART;TZID=Europe/Berlin:20260423T080000\r\nDTEND;TZID=Europe/Berlin:20260423T083000"
     );
-    const [ev] = parseIcs(ics, WSTART, WEND);
+    const ev = parseIcs(ics, WSTART, WEND)[0]!;
     expect(ev.subject).toBe("Standup");
     expect(ev.startTime.toISOString()).toBe("2026-04-23T06:00:00.000Z");
     expect(ev.endTime.toISOString()).toBe("2026-04-23T06:30:00.000Z");
@@ -26,7 +26,7 @@ describe("iCal parser", () => {
     const ics = vevent(
       "SUMMARY:Holiday\r\nDTSTART;VALUE=DATE:20260423\r\nDTEND;VALUE=DATE:20260424"
     );
-    const [ev] = parseIcs(ics, WSTART, WEND);
+    const ev = parseIcs(ics, WSTART, WEND)[0]!;
     expect(ev).toBeDefined();
     expect(ev.subject).toBe("Holiday");
     expect(ev.startTime.toISOString()).toBe("2026-04-23T00:00:00.000Z");
@@ -35,13 +35,13 @@ describe("iCal parser", () => {
 
   it("bare 8-digit DTSTART is treated as all-day", () => {
     const ics = vevent("SUMMARY:AllDay\r\nDTSTART:20260423\r\nDTEND:20260424");
-    const [ev] = parseIcs(ics, WSTART, WEND);
+    const ev = parseIcs(ics, WSTART, WEND)[0]!;
     expect(ev.startTime.toISOString()).toBe("2026-04-23T00:00:00.000Z");
   });
 
   it("honors a trailing Z as UTC", () => {
     const ics = vevent("SUMMARY:UTC\r\nDTSTART:20260423T080000Z\r\nDTEND:20260423T090000Z");
-    const [ev] = parseIcs(ics, WSTART, WEND);
+    const ev = parseIcs(ics, WSTART, WEND)[0]!;
     expect(ev.startTime.toISOString()).toBe("2026-04-23T08:00:00.000Z");
   });
 

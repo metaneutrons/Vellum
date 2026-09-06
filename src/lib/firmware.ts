@@ -616,12 +616,13 @@ export async function resolveOta(
 /** Compare two semver strings. Returns >0 if a>b, <0 if a<b, 0 if equal. Exported for dashboard fleet stats. */
 export function compareSemver(a: string, b: string): number {
   // Strip build metadata (+sha)
-  const cleanA = a.replace(/^v/, "").split("+")[0];
-  const cleanB = b.replace(/^v/, "").split("+")[0];
+  /* split() always yields at least one element, so the fallbacks never apply. */
+  const cleanA = a.replace(/^v/, "").split("+")[0] ?? "";
+  const cleanB = b.replace(/^v/, "").split("+")[0] ?? "";
 
   // Split into version and pre-release
-  const [verA, preA] = cleanA.split("-", 2);
-  const [verB, preB] = cleanB.split("-", 2);
+  const [verA = "", preA] = cleanA.split("-", 2);
+  const [verB = "", preB] = cleanB.split("-", 2);
 
   // Compare major.minor.patch
   const pa = verA.split(".").map(Number);

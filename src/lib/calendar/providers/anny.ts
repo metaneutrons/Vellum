@@ -18,8 +18,12 @@ const ANNY_BASE = "https://b.anny.co/api/v1";
 /** Extract organization (tenant) ID from anny JWT token */
 export function extractOrgFromToken(token: string): string | null {
   try {
-    /* A JWT payload is whatever the issuer put there; only `tenant` is read. */
-    const payload: unknown = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    /* A JWT payload is whatever the issuer put there; only `tenant` is read. A
+     * token without a payload segment is caught below either way, but saying so
+     * here keeps the throw out of Buffer.from. */
+    const segment = token.split(".")[1];
+    if (segment === undefined) return null;
+    const payload: unknown = JSON.parse(Buffer.from(segment, "base64url").toString());
     const parsed = z.object({ tenant: z.string().optional() }).safeParse(payload);
     return parsed.success ? (parsed.data.tenant ?? null) : null;
   } catch {

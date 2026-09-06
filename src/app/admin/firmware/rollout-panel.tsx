@@ -53,7 +53,7 @@ function RolloutRow({
     start(async () => {
       try {
         await setRollout(v.version, v.channel, next, pct);
-        toast("success", t("rolloutUpdated", { version: v.version, state: t(`state${next[0].toUpperCase()}${next.slice(1)}` as "stateFull"), percent: next === "canary" || next === "percent" ? ` ${pct}%` : "" }));
+        toast("success", t("rolloutUpdated", { version: v.version, state: t(`state${next.charAt(0).toUpperCase()}${next.slice(1)}` as "stateFull"), percent: next === "canary" || next === "percent" ? ` ${pct}%` : "" }));
       } catch {
         toast("error", t("rolloutUpdateFailed"));
       }
@@ -78,7 +78,7 @@ function RolloutRow({
       </div>
 
       <div className="flex items-center gap-2">
-        <StatusPill tone={stateTone(state)} dot>{t(`state${state[0].toUpperCase()}${state.slice(1)}` as "stateFull")}</StatusPill>
+        <StatusPill tone={stateTone(state)} dot>{t(`state${state.charAt(0).toUpperCase()}${state.slice(1)}` as "stateFull")}</StatusPill>
         <select
           className={selectCls}
           value={state}
@@ -86,7 +86,7 @@ function RolloutRow({
           onChange={(e) => apply(e.target.value as RolloutState, percent)}
         >
           {STATES.map((s) => (
-          <option key={s} value={s}>{t(`state${s[0].toUpperCase()}${s.slice(1)}` as "stateFull")}</option>
+          <option key={s} value={s}>{t(`state${s.charAt(0).toUpperCase()}${s.slice(1)}` as "stateFull")}</option>
           ))}
         </select>
         {showPct && (

@@ -87,7 +87,7 @@ describe("planBlockText", () => {
       ["Projektbesprechung", "Maria Warnking"],
       ["Maria Warnking (Hochschule Hannover)", "Maria Warnking"],
       ["Jour fixe", "Prof. Dr. Fabian Schmieder"],
-    ]) {
+    ] as const) {
       for (let capacity = 1; capacity <= 6; capacity++) {
         const plan = planBlockText(subject, occupant, capacity);
         const shown = `${plan.primary} ${plan.secondary}`;

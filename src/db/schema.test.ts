@@ -106,10 +106,10 @@ describe("foreign-key performance", () => {
     const leadingColumns = [
       ...config.indexes.map((candidate) => candidate.config.columns[0]),
       ...config.primaryKeys.map((candidate) => candidate.columns[0]),
-    ];
+    ].filter((column) => column !== undefined);
 
     for (const foreignKey of config.foreignKeys) {
-      const localColumn = foreignKey.reference().columns[0];
+      const localColumn = foreignKey.reference().columns[0]!;
       expect(
         leadingColumns.some((column) => "name" in column && column.name === localColumn.name),
         `${config.name}.${localColumn.name} needs a leading index`

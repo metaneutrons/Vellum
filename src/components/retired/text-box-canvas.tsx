@@ -49,6 +49,7 @@ export function TextBoxCanvas({
     const el = containerRef.current;
     if (!el) return;
     const obs = new ResizeObserver(([entry]) => {
+      if (!entry) return;
       const w = entry.contentRect.width;
       setContainerSize({ w, h: w / aspectRatio });
     });

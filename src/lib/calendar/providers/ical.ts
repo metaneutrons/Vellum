@@ -30,14 +30,15 @@ export function parseIcs(ics: string, windowStart: Date, windowEnd: Date): Calen
   const blocks = ics.split("BEGIN:VEVENT");
 
   for (let i = 1; i < blocks.length; i++) {
-    const block = blocks[i].split("END:VEVENT")[0];
+    const block = blocks[i]?.split("END:VEVENT")[0];
+    if (block === undefined) continue;
     // Value only (params discarded) — for SUMMARY/ORGANIZER/CLASS.
     const get = (key: string): string =>
       block.match(new RegExp(`^${key}[^:]*:(.+)$`, "m"))?.[1]?.trim() ?? "";
     // Property with its parameters (e.g. `;TZID=Europe/Berlin` / `;VALUE=DATE`).
     const getProp = (key: string): { params: string; value: string } | null => {
-      const m = block.match(new RegExp(`^${key}([^:]*):(.+)$`, "m"));
-      return m ? { params: m[1], value: m[2].trim() } : null;
+      const [, params, value] = block.match(new RegExp(`^${key}([^:]*):(.+)$`, "m")) ?? [];
+      return params !== undefined && value !== undefined ? { params, value: value.trim() } : null;
     };
 
     const startProp = getProp("DTSTART");
@@ -79,6 +80,10 @@ function parseIcsDateTime(value: string, params: string): { date: Date; allDay: 
   const m = v.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?$/);
   if (!m) return null;
   const [, y, mo, d, hh = "00", mm = "00", ss = "00", z] = m;
+  /* The date groups are not optional in the pattern, so a match always fills
+   * them. Returning null keeps the impossible case inside this function's
+   * contract instead of letting `+undefined` reach Date.UTC as NaN. */
+  if (y === undefined || mo === undefined || d === undefined) return null;
   const [yr, moIdx, day, h, mi, s] = [+y, +mo - 1, +d, +hh, +mm, +ss];
 
   const isAllDay = /VALUE=DATE(?!-)/i.test(params) || !m[4];

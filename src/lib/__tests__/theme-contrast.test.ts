@@ -77,7 +77,7 @@ describe("the built-in themes, per panel", () => {
 
   it("is readable on every panel once guarded", () => {
     for (const key of Object.keys(DISPLAY_REGISTRY)) {
-      const reg = DISPLAY_REGISTRY[key];
+      const reg = DISPLAY_REGISTRY[key]!;
       const T = snapThemeToPalette(resolveTheme(reg.palette.length), reg.palette);
       for (const [bg, pref] of pairs(T)) {
         expect(
@@ -178,9 +178,9 @@ describe("header accents", () => {
 
   it("keeps the hues' lightness order, so an operator's expectation survives", () => {
     const order = ["blue", "red", "green", "yellow"];
-    const lightness = order.map((k) => contrastRatio(ACCENTS[k].grey, "#000000"));
+    const lightness = order.map((k) => contrastRatio(ACCENTS[k]!.grey, "#000000"));
     for (let i = 1; i < lightness.length; i++) {
-      expect(lightness[i], order[i]).toBeGreaterThan(lightness[i - 1]);
+      expect(lightness[i]!, order[i]).toBeGreaterThan(lightness[i - 1]!);
     }
   });
 

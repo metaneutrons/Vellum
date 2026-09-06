@@ -138,7 +138,7 @@ function owedStacked(events: CalendarEvent[], now: Date): string[] {
   const upcoming = events
     .filter((e) => e.endTime > now)
     .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-  return upcoming.length > 0 ? [upcoming[0].organizer] : [];
+  return upcoming.length > 0 ? [upcoming[0]!.organizer] : [];
 }
 
 /* Every two hours of the working day, which is also every position a booking can
@@ -166,7 +166,7 @@ function timelineFrame(events: DisplayEvent[], display: ResolvedDisplay, now: Da
     surface: factory,
   });
   expect(recordings).toHaveLength(1);
-  return recordings[0];
+  return recordings[0]!;
 }
 
 function expectSound(recording: Recording, expectation: FrameExpectation, where: string) {
@@ -199,7 +199,7 @@ describe("room booking, timeline: every panel", () => {
     for (const hhmm of ["08:30", "09:30", "10:30"])
       it(`${p} / long booking / ${hhmm}Z`, () => {
         const display = panel(p);
-        const shape = SHAPES[1];
+        const shape = SHAPES[1]!;
         const now = at(hhmm);
         expectSound(
           timelineFrame(applyRoomPolicy(shape.events, "Show All", "de"), display, now),
@@ -244,7 +244,7 @@ function frameOf(draw: (surface: SurfaceFactory) => void): Recording {
   const { factory, recordings } = recordingFactory();
   draw(factory);
   expect(recordings).toHaveLength(1);
-  return recordings[0];
+  return recordings[0]!;
 }
 
 describe("room booking, offline screen", () => {
@@ -339,7 +339,7 @@ describe("name plate", () => {
         const model: PlateModel = {
           config,
           bands: config.seats.map((seat, i) =>
-            band(seat, { occupant: names[i] }, false, count > 1)
+            band(seat, { occupant: names[i]! }, false, count > 1)
           ),
           now: at("10:30"),
           timezone: "Europe/Berlin",
@@ -409,7 +409,7 @@ describe("name plate", () => {
         const config = parsePlate([calendarSeat("Föhr 1")], c.showStatus);
         const model: PlateModel = {
           config,
-          bands: [band(config.seats[0], c.state, c.showStatus, false)],
+          bands: [band(config.seats[0]!, c.state, c.showStatus, false)],
           now: at("10:30"),
           timezone: "Europe/Berlin",
         };

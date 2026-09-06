@@ -56,7 +56,9 @@ interface Profile {
   deviceCount: number;
   siteCount: number;
 }
-const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"];
+/* `as const` keeps the seven keys as literals, so a weekday index resolves to a
+ * known message key instead of a possibly absent string. */
+const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"] as const;
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const WEEKEND = [0, 6];
 
@@ -394,8 +396,11 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
   function moveRule(i: number, dir: -1 | 1) {
     const s = [...schedule];
     const j = i + dir;
-    if (j < 0 || j >= s.length) return;
-    [s[i], s[j]] = [s[j], s[i]];
+    const from = s[i];
+    const to = s[j];
+    if (j < 0 || j >= s.length || !from || !to) return;
+    s[i] = to;
+    s[j] = from;
     setSchedule(s);
     setExpandedRule((current) => (current === i ? j : current === j ? i : current));
   }
@@ -854,7 +859,11 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                       ? t("weekdays")
                       : JSON.stringify(rule.days) === JSON.stringify(WEEKEND)
                         ? t("weekend")
-                        : rule.days.map((day) => t(DAY_KEYS[day])).join(", ");
+                        : rule.days
+                            .map((day) => DAY_KEYS[day])
+                            .filter((key) => key !== undefined)
+                            .map((key) => t(key))
+                            .join(", ");
                 const timeLabel =
                   rule.startHour === rule.endHour
                     ? t("allDay")
@@ -1243,7 +1252,10 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                 onClick={() =>
                   setBackoff([
                     ...backoff,
-                    backoff.length ? Math.min(backoff[backoff.length - 1] * 2, 604800) : 60,
+                    (() => {
+                      const previous = backoff[backoff.length - 1];
+                      return previous ? Math.min(previous * 2, 604800) : 60;
+                    })(),
                   ])
                 }
               >

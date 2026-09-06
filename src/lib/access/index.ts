@@ -354,7 +354,7 @@ export async function authenticateLocalUser(
     "local-auth-find"
   );
   let user: (typeof existing)[number] | null = existing[0] ?? null;
-  if (!user) user = await ensureBootstrapOwner(identity, password);
+  user ??= await ensureBootstrapOwner(identity, password);
   if (user?.status !== "active" || !verifyPassword(password, user.passwordHash)) return null;
   await withDbTransaction(
     () =>
