@@ -43,6 +43,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { isUsableTimezone } from "@/lib/settings/device-settings";
+import { recordNumber } from "@/lib/record-value";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
@@ -540,7 +541,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
       <div className="space-y-3">
         {filtered.map((p) => {
           const c = upgradeRefreshProfileConfig(p.config);
-          const rules = (c.schedule ?? []) as ScheduleRule[];
+          const rules = c.schedule;
           return (
             <div
               key={p.id}
@@ -1157,7 +1158,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                     <span className="text-sm font-medium text-label">{t(field.labelKey)}</span>
                     {field.type === "interval" ? (
                       <IntervalPicker
-                        value={(config[field.key] as number) ?? 900}
+                        value={recordNumber(config, field.key, 900)}
                         onChange={(value) =>
                           setConfig((current) => ({ ...current, [field.key]: value }))
                         }
@@ -1169,7 +1170,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                           min={field.min}
                           max={field.max}
                           className="flex-1 rounded-md accent-accent focus-ring"
-                          value={(config[field.key] as number) ?? field.min}
+                          value={recordNumber(config, field.key, field.min ?? 0)}
                           onChange={(event) =>
                             setConfig((current) => ({
                               ...current,
@@ -1178,7 +1179,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                           }
                         />
                         <span className="w-12 text-right text-sm tabular-nums text-label">
-                          {(config[field.key] as number) ?? field.min}
+                          {recordNumber(config, field.key, field.min ?? 0)}
                           {field.unit}
                         </span>
                       </div>
@@ -1197,7 +1198,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
               </p>
               <div className="mt-3 inline-flex rounded-xl border border-separator bg-surface-secondary/50 p-3">
                 <IntervalPicker
-                  value={(config.unassignedIntervalS as number) ?? 300}
+                  value={recordNumber(config, "unassignedIntervalS", 300)}
                   onChange={(value) =>
                     setConfig((current) => ({ ...current, unassignedIntervalS: value }))
                   }

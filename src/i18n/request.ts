@@ -36,9 +36,11 @@ export default getRequestConfig(async () => {
   const detected = acceptLang
     .split(",")
     .map((s) => s.split(";")[0]?.trim().split("-")[0]?.toLowerCase() ?? "")
-    .find((l) => locales.includes(l as Locale));
+    /* A type predicate rather than a cast afterwards: the membership check is
+       what makes it a Locale, so it should be what narrows the type. */
+    .find((candidate): candidate is Locale => (locales as readonly string[]).includes(candidate));
 
-  const locale = (detected as Locale) ?? defaultLocale;
+  const locale = detected ?? defaultLocale;
   return {
     locale,
     messages: await loadMessages(locale),

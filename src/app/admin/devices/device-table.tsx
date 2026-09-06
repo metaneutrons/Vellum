@@ -552,7 +552,7 @@ export function DeviceTable({
         <ConfirmDialog
           open={!!deleting}
           title={t("deleteConfirm")}
-          message={t("deleteMessage", { mac: deleting ?? "" })}
+          message={t("deleteMessage", { mac: deleting })}
           confirmLabel={t("delete")}
           destructive
           onConfirm={() => {

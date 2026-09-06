@@ -48,7 +48,9 @@ const RELEASES_PER_PAGE = 50;
  */
 const MAX_RELEASE_PAGES = 40;
 
-export type FirmwareChannel = "stable" | "beta";
+import type { FirmwareChannel } from "@/lib/firmware-channel";
+
+export { asFirmwareChannel, FIRMWARE_CHANNELS, type FirmwareChannel } from "@/lib/firmware-channel";
 
 export interface FirmwareBinary {
   /** Merged full-flash image (bootloader+partition-table+ota_data+app) written

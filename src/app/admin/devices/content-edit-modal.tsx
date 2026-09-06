@@ -10,6 +10,7 @@ import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
+import { asRecord, recordString } from "@/lib/record-value";
 
 interface ContentInstance {
   id: string;
@@ -41,9 +42,7 @@ export function ContentEditModal({ instanceId, contentInstances, providers, onCl
   const tc = useTranslations("contentTypes");
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(instance?.name ?? "");
-  const [config, setConfig] = useState<Record<string, unknown>>(
-    (instance?.config as Record<string, unknown>) ?? {}
-  );
+  const [config, setConfig] = useState<Record<string, unknown>>(asRecord(instance?.config));
 
   if (!instance) return null;
 
@@ -89,7 +88,7 @@ export function ContentEditModal({ instanceId, contentInstances, providers, onCl
           </label>
           <select
             className={`${selectCls} mb-3`}
-            value={(config.providerId as string) ?? ""}
+            value={recordString(config, "providerId")}
             onChange={(e) => setConfig({ ...config, providerId: e.target.value })}
           >
             <option value="">{t("selectProvider")}</option>
@@ -105,7 +104,7 @@ export function ContentEditModal({ instanceId, contentInstances, providers, onCl
           </label>
           <Input
             className="mb-3"
-            value={(config.roomName as string) ?? ""}
+            value={recordString(config, "roomName")}
             onChange={(e) => setConfig({ ...config, roomName: e.target.value })}
           />
 
@@ -114,7 +113,7 @@ export function ContentEditModal({ instanceId, contentInstances, providers, onCl
           </label>
           <Input
             className="mb-3"
-            value={(config.timezone as string) ?? "Europe/Berlin"}
+            value={recordString(config, "timezone", "Europe/Berlin")}
             onChange={(e) => setConfig({ ...config, timezone: e.target.value })}
           />
 
@@ -123,7 +122,7 @@ export function ContentEditModal({ instanceId, contentInstances, providers, onCl
           </label>
           <select
             className={`${selectCls} mb-3`}
-            value={(config.policy as string) ?? "Show All"}
+            value={recordString(config, "policy", "Show All")}
             onChange={(e) => setConfig({ ...config, policy: e.target.value })}
           >
             {ROOM_POLICIES.map((p) => (

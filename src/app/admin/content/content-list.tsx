@@ -47,6 +47,7 @@ interface Props {
 import { ResourcePicker } from "@/components/resource-picker";
 import { NamePlateEditor } from "@/components/name-plate-editor";
 import { ROOM_POLICIES } from "@/lib/content/renderers/room-booking-types";
+import { recordNumber, recordString } from "@/lib/record-value";
 
 /**
  * What each date format looks like, shown in the CONTENT's language.
@@ -115,7 +116,7 @@ function RoomBookingEditor({
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("provider")}</label>
       <select
         className={`${selectCls} mb-3`}
-        value={(config.providerId as string) ?? ""}
+        value={recordString(config, "providerId")}
         onChange={(e) => onChange({ ...config, providerId: e.target.value })}
       >
         <option value="">{tCommon("select")}</option>
@@ -130,7 +131,7 @@ function RoomBookingEditor({
       <Input
         className="mb-3"
         placeholder={t("roomNamePlaceholder")}
-        value={(config.roomName as string) ?? ""}
+        value={recordString(config, "roomName")}
         onChange={(e) => onChange({ ...config, roomName: e.target.value })}
       />
 
@@ -175,14 +176,14 @@ function RoomBookingEditor({
       <TimezonePicker
         label={t("timezone")}
         className="mb-3"
-        value={(config.timezone as string) ?? "Europe/Berlin"}
+        value={recordString(config, "timezone", "Europe/Berlin")}
         onChange={(v) => onChange({ ...config, timezone: v })}
       />
 
       <LocalePicker
         label={t("locale")}
         className="mb-3"
-        value={(config.locale as string) ?? "en"}
+        value={recordString(config, "locale", "en")}
         onChange={(v) => onChange({ ...config, locale: v })}
       />
 
@@ -191,12 +192,12 @@ function RoomBookingEditor({
       </label>
       <select
         className={`${selectCls} mb-3`}
-        value={(config.dateFormat as string) ?? "PPPP"}
+        value={recordString(config, "dateFormat", "PPPP")}
         onChange={(e) => onChange({ ...config, dateFormat: e.target.value })}
       >
         {DATE_FORMAT_SAMPLES.map(([pattern, style]) => (
           <option key={pattern} value={pattern}>
-            {new Intl.DateTimeFormat((config.locale as string) ?? "en", {
+            {new Intl.DateTimeFormat(recordString(config, "locale", "en"), {
               dateStyle: style,
             }).format(DATE_SAMPLE)}
           </option>
@@ -206,7 +207,7 @@ function RoomBookingEditor({
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("layout")}</label>
       <select
         className={`${selectCls} mb-3`}
-        value={(config.layout as string) ?? "timeline"}
+        value={recordString(config, "layout", "timeline")}
         onChange={(e) => onChange({ ...config, layout: e.target.value })}
       >
         <option value="timeline">{t("timeline")}</option>
@@ -216,7 +217,7 @@ function RoomBookingEditor({
       <label className="block text-sm font-medium text-label-secondary mb-1">{t("policy")}</label>
       <select
         className={`${selectCls} mb-3`}
-        value={(config.policy as string) ?? "Show All"}
+        value={recordString(config, "policy", "Show All")}
         onChange={(e) => onChange({ ...config, policy: e.target.value })}
       >
         {ROOM_POLICIES.map((p) => (
@@ -283,7 +284,7 @@ function RoomBookingEditor({
         min={0}
         step={30}
         placeholder="120"
-        value={(config.cacheTtlS as number) ?? 120}
+        value={recordNumber(config, "cacheTtlS", 120)}
         onChange={(e) => onChange({ ...config, cacheTtlS: parseInt(e.target.value) || 120 })}
       />
     </>

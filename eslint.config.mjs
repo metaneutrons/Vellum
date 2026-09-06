@@ -65,6 +65,12 @@ export default tseslint.config(
       "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
       "@typescript-eslint/no-base-to-string": "error",
+      /* Armed once the boundaries it complains about carried real checks rather
+         than assertions. Its findings split three ways: dead defensive code, a
+         chain the type already ruled out, and — the majority here — a `??` behind
+         an `as` that had removed the very nullability the fallback was for. Only
+         the first two are safe to simply delete. */
+      "@typescript-eslint/no-unnecessary-condition": "error",
     },
   },
   {

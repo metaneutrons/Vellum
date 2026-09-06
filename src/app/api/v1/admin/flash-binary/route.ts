@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
-import { getManifestsByChannel, type FirmwareChannel } from "@/lib/firmware";
+import { getManifestsByChannel } from "@/lib/firmware";
+import { FIRMWARE_CHANNELS, asFirmwareChannel } from "@/lib/firmware-channel";
 import { safeFetch } from "@/lib/safe-fetch";
 import { requestHasPermission } from "@/lib/access";
 
@@ -17,7 +18,14 @@ export async function GET(request: NextRequest) {
   if (!(await requestHasPermission(request, "firmware.flash")))
     return Response.json({ error: "Forbidden" }, { status: 403 });
   const model = request.nextUrl.searchParams.get("model");
-  const channel = request.nextUrl.searchParams.get("channel") as FirmwareChannel | null;
+  /* An unknown channel is rejected rather than quietly read as stable: this
+   * route serves a specific binary, so answering for a different channel than
+   * the caller asked for would be worse than a 400. */
+  const requestedChannel = request.nextUrl.searchParams.get("channel");
+  const channel =
+    requestedChannel !== null && (FIRMWARE_CHANNELS as readonly string[]).includes(requestedChannel)
+      ? asFirmwareChannel(requestedChannel)
+      : null;
   const version = request.nextUrl.searchParams.get("version");
 
   if (!model || !channel || !version) {

@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { CalendarProvider, CalendarEvent, ResourceRef } from "../types";
 import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
+import { recordString } from "@/lib/record-value";
 
 const ANNY_BASE = "https://b.anny.co/api/v1";
 
@@ -283,7 +284,7 @@ export async function fetchAnnyResources(
     resources,
     /* The page total counts PARENTS, which is what paging is over. Reporting the
      * flattened length instead would make the last page look short. */
-    total: (result.meta?.page?.total as number) ?? resources.length,
+    total: result.meta?.page?.total ?? resources.length,
   };
 }
 
@@ -376,8 +377,8 @@ export const annyProvider: CalendarProvider = {
     const customers = new Map<string, { given: string; family: string; full: string }>();
     for (const inc of included) {
       if (inc.type === "customers") {
-        const given = ((inc.attributes.given_name as string) ?? "").trim();
-        const family = ((inc.attributes.family_name as string) ?? "").trim();
+        const given = recordString(inc.attributes, "given_name").trim();
+        const family = recordString(inc.attributes, "family_name").trim();
         customers.set(inc.id, { given, family, full: `${given} ${family}`.trim() });
       }
     }

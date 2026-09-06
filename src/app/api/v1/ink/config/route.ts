@@ -8,7 +8,8 @@ import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
-import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
+import { resolveOta } from "@/lib/firmware";
+import { asFirmwareChannel } from "@/lib/firmware-channel";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { settingsForDevice } from "@/lib/settings/for-device";
 import { resolveRefreshProfile } from "@/lib/settings/refresh-profile";
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
   const ota = await resolveOta(
     firmwareVer,
     displayModel,
-    (device?.firmwareChannel as FirmwareChannel) ?? "stable",
+    asFirmwareChannel(device?.firmwareChannel),
     device?.firmwarePinVersion ?? null,
     validation.data.mac,
     t
