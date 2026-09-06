@@ -154,7 +154,7 @@ export async function createUsbProvisioningAuthorization(input: {
         .where(eq(devices.mac, mac))
         .limit(1);
       const device = rows[0];
-      if (!device || device.status !== "approved" || !device.token) {
+      if (device?.status !== "approved" || !device.token) {
         throw new Error("device_not_authorizable");
       }
       return signUsbProvisioningAuthorization({

@@ -200,7 +200,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
                       {t("testing")}
                     </span>
                   );
-                if (r && r.ok)
+                if (r?.ok)
                   return (
                     <span className="inline-flex items-center gap-1 text-xs text-green">
                       <Check size={13} aria-hidden="true" />

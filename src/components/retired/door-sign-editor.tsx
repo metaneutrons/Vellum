@@ -75,7 +75,7 @@ export function DoorSignEditor({
         setDynamicVars(vars);
         if (onPropertiesResolved) onPropertiesResolved(props);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error("Failed to load resource properties:", err);
         setDynamicVars([]);
       });

@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const t = extractTelemetry(request.headers);
     if (t)
-      logTelemetry({ ...t, mac: parsed.data.mac, timestamp: new Date() }).catch((error) =>
+      logTelemetry({ ...t, mac: parsed.data.mac, timestamp: new Date() }).catch((error: unknown) =>
         log.warn("Report telemetry persistence failed", {
           mac: parsed.data.mac,
           error: String(error),

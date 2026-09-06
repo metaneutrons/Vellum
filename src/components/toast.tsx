@@ -16,7 +16,11 @@ interface ToastContextValue {
   toast: (type: ToastType, message: string) => void;
 }
 
-const ToastContext = createContext<ToastContextValue>({ toast: () => {} });
+const ToastContext = createContext<ToastContextValue>({
+  toast: () => {
+    /* no provider mounted: dropping the toast is the correct default */
+  },
+});
 
 export function useToast() {
   return useContext(ToastContext);

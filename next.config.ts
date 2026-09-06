@@ -22,6 +22,9 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["@napi-rs/canvas"],
   allowedDevOrigins: ["192.168.16.5", "192.168.18.1", "10.10.10.10"],
+  // Next.js types
+  // this hook as returning a promise.
+  // eslint-disable-next-line @typescript-eslint/require-await
   async headers() {
     // Baseline security headers on every response. NOTE: the CSP here is a
     // deliberately non-breaking subset (clickjacking / <base> / plugins / form

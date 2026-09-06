@@ -107,7 +107,7 @@ function pinningDispatcher(): Agent {
             }
             deliver(addrs[0].address);
           })
-          .catch((e: Error) => callback(e, ""));
+          .catch((e: unknown) => callback(e instanceof Error ? e : new Error(String(e)), ""));
       },
     },
   });

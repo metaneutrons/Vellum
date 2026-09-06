@@ -12,7 +12,9 @@ export async function GET(request: Request) {
   if (!(await requestHasPermission(request, "devices.read")))
     return Response.json({ error: "Forbidden" }, { status: 403 });
 
-  let cleanup = () => {};
+  let cleanup = () => {
+    /* replaced once the stream is wired up */
+  };
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;

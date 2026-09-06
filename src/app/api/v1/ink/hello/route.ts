@@ -33,11 +33,12 @@ export async function POST(request: NextRequest) {
 
     const t = extractTelemetry(request.headers);
     if (t)
-      logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch((error) =>
-        log.warn("Hello telemetry persistence failed", {
-          mac: validation.data.mac,
-          error: String(error),
-        })
+      logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch(
+        (error: unknown) =>
+          log.warn("Hello telemetry persistence failed", {
+            mac: validation.data.mac,
+            error: String(error),
+          })
       );
 
     return Response.json(okResponse(result));

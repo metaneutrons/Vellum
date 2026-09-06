@@ -103,7 +103,7 @@ export async function POST(request: Request) {
         error: String(error),
       },
       "failure"
-    ).catch((auditError) =>
+    ).catch((auditError: unknown) =>
       log.error("Failed to record server update failure", { error: String(auditError) })
     );
     throw error;
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
       availableVersion: result.availableVersion,
     },
     result.supported ? "success" : "failure"
-  ).catch((error) =>
+  ).catch((error: unknown) =>
     log.error("Failed to record server update completion", { error: String(error) })
   );
   if (!result.supported) return Response.json(result, { status: 503 });

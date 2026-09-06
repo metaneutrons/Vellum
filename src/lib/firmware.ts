@@ -213,7 +213,7 @@ async function hydrateFirmwareCatalog(): Promise<void> {
       "firmware-catalog-initialize"
     );
     await reloadFirmwareCatalogState();
-  })().catch((err) => {
+  })().catch((err: unknown) => {
     // Permit a later request to retry hydration after a transient DB outage.
     catalogHydration = null;
     throw err;
@@ -430,7 +430,7 @@ async function refreshFirmwareCatalog(): Promise<void> {
 
 function scheduleFirmwareRefresh(): void {
   if (refreshInFlight || !firmwareRefreshDue(nextRefreshAt, Date.now())) return;
-  void refreshFirmwareCatalog().catch((err) =>
+  void refreshFirmwareCatalog().catch((err: unknown) =>
     log.warn("Firmware catalog background refresh failed", { error: String(err) })
   );
 }
@@ -673,7 +673,9 @@ export async function syncAutoPoll(): Promise<void> {
 
   if (enabled) {
     pollTimer = setInterval(() => {
-      getAllManifests().catch(() => {});
+      getAllManifests().catch(() => {
+        /* warm-up only; a failure here is retried on the next real request */
+      });
     }, intervalMs);
     log.info("Firmware auto-poll enabled", { intervalS: intervalMs / 1000 });
   }

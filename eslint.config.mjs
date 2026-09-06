@@ -43,6 +43,27 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "error",
       "@typescript-eslint/no-unsafe-call": "error",
       "@typescript-eslint/no-unsafe-return": "error",
+      /* no-unnecessary-type-assertion is deliberately absent. Its autofix removes
+         27 casts here and creates ten new no-unsafe findings doing it: the casts
+         it calls unnecessary are the ones holding `any` in check, so it and the
+         no-unsafe family disagree about the same lines. Revisit once those
+         boundaries carry schemas rather than assertions. */
+      "@typescript-eslint/require-await": "error",
+      /* With primitives ignored. Almost every `||` here is deliberate: the code
+         uses it to catch the EMPTY STRING as well as null, and `??` would let it
+         through. `device.label?.trim() || contentName?.trim() || device.mac`
+         depends on exactly that, and its tests assert that a blank name counts as
+         no name. Applying the rule blindly would have broken it — and the same
+         shape appears in header parsing, credential fallbacks and `disabled ||
+         loading`. The rule keeps its value where a nullable object or number is
+         meant. */
+      "@typescript-eslint/prefer-nullish-coalescing": [
+        "error",
+        { ignorePrimitives: { string: true, boolean: true, number: true } },
+      ],
+      "@typescript-eslint/no-empty-function": "error",
+      "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
+      "@typescript-eslint/prefer-optional-chain": "error",
       "@typescript-eslint/no-base-to-string": "error",
     },
   },
@@ -89,6 +110,14 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-return": "off",
+      /* A mock stands in for something async, so it returns a promise without
+         ever awaiting one — `vi.fn(async () => ({ ok: true }))` is the shape, not
+         an oversight. 69 of the 71 require-await findings were exactly that. */
+      "@typescript-eslint/require-await": "off",
+      /* A test that asserts on a thrown value wants the value, not a re-narrowing
+         of `unknown` at every catch. */
+      "@typescript-eslint/use-unknown-in-catch-callback-variable": "off",
+      "@typescript-eslint/no-empty-function": "off",
     },
   }
 );

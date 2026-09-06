@@ -22,10 +22,10 @@ export async function register() {
      * when an operator re-saves the setting, so a transient boot error silently
      * disabled firmware polling for the life of the process. Hydration itself
      * needs no retry here; getAllManifests() re-attempts it. */
-    await initializeFirmwareCatalog().catch((err) =>
+    await initializeFirmwareCatalog().catch((err: unknown) =>
       log.warn("Firmware catalog hydration skipped", { error: String(err) })
     );
-    await syncAutoPoll().catch((err) =>
+    await syncAutoPoll().catch((err: unknown) =>
       log.warn("Firmware auto-poll sync skipped", { error: String(err) })
     );
   }
