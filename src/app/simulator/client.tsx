@@ -281,7 +281,7 @@ export function SimulatorClient() {
       appendLog(`  → ${res.status} ${JSON.stringify(json.data?.status)}`);
 
       if (json.data?.status === "approved") {
-        if (json.data?.encryptedToken) {
+        if (json.data.encryptedToken) {
           appendLog("  → Decrypting token via ECDH...");
           try {
             const token = await decryptToken(json.data.encryptedToken, kp.privateKey);
@@ -292,7 +292,7 @@ export function SimulatorClient() {
             return null;
           }
         }
-        if (json.data?.token) {
+        if (json.data.token) {
           appendLog("  → Plaintext token (legacy)");
           return json.data.token;
         }

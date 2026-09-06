@@ -108,7 +108,7 @@ class DeviceEventHub {
       this.reconnectTimer = null;
       void this.ensureConnected();
     }, RECONNECT_MS);
-    this.reconnectTimer.unref?.();
+    this.reconnectTimer.unref();
   }
 
   private disconnect(): void {

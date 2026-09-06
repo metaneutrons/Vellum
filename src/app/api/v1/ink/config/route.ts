@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   // device self-heal on its next poll instead of needing a re-enrolment.
   const firmwareVer = request.headers.get("x-firmware-ver") ?? "0.0.0";
   const headerModel = request.headers.get("x-display-model")?.trim() || null;
-  const storedModel = (device?.displayCaps as { model?: string })?.model ?? null;
+  const storedModel = (device?.displayCaps as { model?: string } | null)?.model ?? null;
   const displayModel = headerModel ?? storedModel ?? "unknown";
   const t = extractTelemetry(request.headers);
 

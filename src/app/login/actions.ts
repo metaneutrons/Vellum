@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from "@/lib/session";
 import { loginLimiter, getClientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { authenticateLocalUser, createUserSession } from "@/lib/access";
+import { formString, formTrimmed } from "@/lib/form-data";
 
 export async function loginAction(_prev: unknown, formData: FormData) {
   // Rate-limit by client IP to blunt brute-force attempts.
@@ -18,10 +19,9 @@ export async function loginAction(_prev: unknown, formData: FormData) {
     return { error: "Too many attempts. Try again later." };
   }
 
-  const user = formData.get("user") as string;
-  const pass = formData.get("pass") as string;
+  const identity = formTrimmed(formData, "user");
+  const pass = formString(formData, "pass");
 
-  const identity = user?.trim();
   const principal = identity && pass ? await authenticateLocalUser(identity, pass) : null;
   if (!principal) {
     log.warn("Failed admin login", { ip });

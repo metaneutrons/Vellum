@@ -90,7 +90,7 @@ function pinningDispatcher(): Agent {
         const host = hostname.replace(/^\[|\]$/g, "");
         const deliver = (address: string) => {
           const family = isIP(address);
-          if (options?.all) callback(null, [{ address, family }]);
+          if (options.all) callback(null, [{ address, family }]);
           else callback(null, address, family);
         };
         if (isIP(host)) {

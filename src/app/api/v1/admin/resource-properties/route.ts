@@ -92,7 +92,8 @@ export async function GET(request: NextRequest) {
         };
       }[]) {
         if (rp.relationships?.resource?.data?.id !== resourceId) continue;
-        const propId = rp.relationships?.property?.data?.id;
+        /* The check above already skipped an entry without relationships. */
+        const propId = rp.relationships.property?.data?.id;
         const label = propId ? propLabels.get(propId) : undefined;
         if (label && rp.attributes.value != null) {
           /* The value comes from the provider's JSON, so its type is a claim rather
