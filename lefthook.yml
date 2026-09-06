@@ -29,11 +29,7 @@ pre-commit:
       run: pnpm i18n:check
     lockfile:
       glob: "package.json"
-      run: |
-        if ! git diff --cached --name-only | grep -q '^pnpm-lock.yaml$'; then
-          echo "package.json changed, pnpm-lock.yaml did not. Run pnpm install." >&2
-          exit 1
-        fi
+      run: sh scripts/hooks/check-lockfile.sh
 
 pre-push:
   parallel: false
