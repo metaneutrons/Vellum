@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.23.1](https://github.com/metaneutrons/Vellum/compare/v1.23.0...v1.23.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **calendar:** parse the Graph answer instead of reading it as any ([#351](https://github.com/metaneutrons/Vellum/issues/351)) ([38635be](https://github.com/metaneutrons/Vellum/commit/38635be412b49776e84e05c0b26186f8437047f3))
+* **security:** close the defects the strict type and lint work found ([#357](https://github.com/metaneutrons/Vellum/issues/357)) ([dbd79bc](https://github.com/metaneutrons/Vellum/commit/dbd79bc84beb9782120018cc604646aab4bdcdc5))
+
 ## [1.23.0](https://github.com/metaneutrons/Vellum/compare/v1.22.0...v1.23.0) (2026-08-28)
 
 
