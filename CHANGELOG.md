@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.2](https://github.com/metaneutrons/Vellum/compare/v1.23.1...v1.23.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **docker:** skip the hook install when there is no git to install into ([#359](https://github.com/metaneutrons/Vellum/issues/359)) ([f176e9a](https://github.com/metaneutrons/Vellum/commit/f176e9aaf7695ae16f353eb58f79d41a9b3bf8f8))
+
 ## [1.23.1](https://github.com/metaneutrons/Vellum/compare/v1.23.0...v1.23.1) (2026-09-06)
 
 
