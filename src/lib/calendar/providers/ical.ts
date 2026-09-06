@@ -32,14 +32,29 @@ export function parseIcs(ics: string, windowStart: Date, windowEnd: Date): Calen
   for (let i = 1; i < blocks.length; i++) {
     const block = blocks[i]?.split("END:VEVENT")[0];
     if (block === undefined) continue;
-    // Value only (params discarded) — for SUMMARY/ORGANIZER/CLASS.
-    const get = (key: string): string =>
-      block.match(new RegExp(`^${key}[^:]*:(.+)$`, "m"))?.[1]?.trim() ?? "";
-    // Property with its parameters (e.g. `;TZID=Europe/Berlin` / `;VALUE=DATE`).
-    const getProp = (key: string): { params: string; value: string } | null => {
-      const [, params, value] = block.match(new RegExp(`^${key}([^:]*):(.+)$`, "m")) ?? [];
-      return params !== undefined && value !== undefined ? { params, value: value.trim() } : null;
+    /* Split once and look up by prefix rather than building a RegExp per property.
+     * The keys are literals from this file, so the old `new RegExp(`^${key}...`)`
+     * was not injectable, but a constructor fed a variable is worth not writing at
+     * all — and one pass over the lines beats compiling a pattern per lookup. */
+    const lines = block.split(/\r?\n/);
+
+    /** The first line naming this property, split at its first colon. */
+    const findProp = (key: string): { params: string; value: string } | null => {
+      for (const line of lines) {
+        if (!line.startsWith(key)) continue;
+        const colon = line.indexOf(":");
+        /* Everything between the key and the colon is the parameter list, and it
+         * cannot itself contain a colon — same shape the pattern matched. */
+        if (colon < key.length) continue;
+        return { params: line.slice(key.length, colon), value: line.slice(colon + 1).trim() };
+      }
+      return null;
     };
+
+    // Value only (params discarded) — for SUMMARY/ORGANIZER/CLASS.
+    const get = (key: string): string => findProp(key)?.value ?? "";
+    // Property with its parameters (e.g. `;TZID=Europe/Berlin` / `;VALUE=DATE`).
+    const getProp = findProp;
 
     const startProp = getProp("DTSTART");
     if (!startProp) continue;
