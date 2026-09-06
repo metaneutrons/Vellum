@@ -80,6 +80,12 @@ const errorAnswer = z.object({ error: z.string().optional() });
 /* Persisted UI state, not a protocol: a stale or hand-edited entry must not take
  * the page down, so unknown keys are dropped rather than rejected. */
 
+/* A catch binds `unknown`, and interpolating that straight into a log line can
+ * print "[object Object]" where the reason should be. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function SimulatorClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<DeviceState>("off");
@@ -301,7 +307,7 @@ export function SimulatorClient() {
             appendLog("  → Token decrypted successfully");
             return token;
           } catch (err) {
-            appendLog(`  → Decrypt failed: ${err}`);
+            appendLog(`  → Decrypt failed: ${messageOf(err)}`);
             return null;
           }
         }
@@ -430,7 +436,7 @@ export function SimulatorClient() {
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setState("error");
-      appendLog(`ERROR: ${err}`);
+      appendLog(`ERROR: ${messageOf(err)}`);
       drawText("Error", String(err));
       setSleepSec(60);
       setSleepRemaining(60);
@@ -490,7 +496,7 @@ export function SimulatorClient() {
       });
       appendLog(`  → report: ${res.status}`);
     } catch (err) {
-      appendLog(`  → report error: ${err}`);
+      appendLog(`  → report error: ${messageOf(err)}`);
     }
   };
 

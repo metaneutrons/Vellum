@@ -94,20 +94,25 @@ function pinningDispatcher(): Agent {
           else callback(null, address, family);
         };
         if (isIP(host)) {
-          if (isBlockedAddress(host))
-            return callback(new Error(`safeFetch: blocked address ${host}`), "");
-          return deliver(host);
+          if (isBlockedAddress(host)) {
+            callback(new Error(`safeFetch: blocked address ${host}`), "");
+          } else {
+            deliver(host);
+          }
+          return;
         }
         lookup(host, { all: true })
           .then((addrs) => {
             const first = addrs[0];
-            if (!first) return callback(new Error(`safeFetch: cannot resolve ${host}`), "");
+            if (!first) {
+              callback(new Error(`safeFetch: cannot resolve ${host}`), "");
+              return;
+            }
             for (const a of addrs) {
-              if (isBlockedAddress(a.address))
-                return callback(
-                  new Error(`safeFetch: blocked address ${a.address} for host ${host}`),
-                  ""
-                );
+              if (isBlockedAddress(a.address)) {
+                callback(new Error(`safeFetch: blocked address ${a.address} for host ${host}`), "");
+                return;
+              }
             }
             deliver(first.address);
           })

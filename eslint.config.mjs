@@ -65,6 +65,21 @@ export default tseslint.config(
       "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
       "@typescript-eslint/no-base-to-string": "error",
+      /* With the arrow shorthand allowed. The rule's point is a `return f()` that
+         hides a void call behind something that looks like a value; `onClick={() =>
+         setOpen(true)}` is not that, and armed bare it produced 286 findings in
+         production code against 7 real ones. */
+      "@typescript-eslint/no-confusing-void-expression": [
+        "error",
+        { ignoreArrowShorthand: true, ignoreVoidOperator: true },
+      ],
+      /* Numbers and booleans are fine in a template; the rule exists for objects
+         and for `unknown` out of a catch, which stringify to "[object Object]".
+         Bare it flagged 164 in production, 3 of which were the real thing. */
+      "@typescript-eslint/restrict-template-expressions": [
+        "error",
+        { allowNumber: true, allowBoolean: true },
+      ],
       /* Armed once the boundaries it complains about carried real checks rather
          than assertions. Its findings split three ways: dead defensive code, a
          chain the type already ruled out, and — the majority here — a `??` behind
