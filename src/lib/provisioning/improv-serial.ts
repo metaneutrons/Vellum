@@ -239,14 +239,22 @@ export class ImprovParser {
       if (this.buf.length < 10) break; // need full header + len + checksum
 
       const len = this.buf[8];
+      /* Unreachable: the length check above covers index 8. */
+      if (len === undefined) break;
       const frameLen = 10 + len;
       if (this.buf.length < frameLen) break; // wait for the rest
 
       const frame = this.buf.slice(0, frameLen);
-      const ok =
-        frame[6] === IMPROV_VERSION && checksum(frame.slice(0, 9 + len)) === frame[9 + len];
-      if (ok) {
-        out.push({ type: frame[7], payload: new Uint8Array(frame.slice(9, 9 + len)) });
+      /* Every index below lies inside frameLen, which the wait above ensures. */
+      const type = frame[7];
+      const trailer = frame[9 + len];
+      if (
+        frame[6] === IMPROV_VERSION &&
+        type !== undefined &&
+        trailer !== undefined &&
+        checksum(frame.slice(0, 9 + len)) === trailer
+      ) {
+        out.push({ type, payload: new Uint8Array(frame.slice(9, 9 + len)) });
         this.buf.splice(0, frameLen);
       } else {
         // Bad frame (or "IMPROV" appearing in console text) — resync past it.
@@ -272,16 +280,23 @@ export class ImprovParser {
   }
 }
 
-/** Decode an RPC_RESULT payload into its length-prefixed strings. */
-export function decodeRpcResult(payload: Uint8Array): { cmd: number; strings: string[] } {
+/** Decode an RPC_RESULT payload into its length-prefixed strings. A payload too
+ * short to hold a command byte yields `cmd: undefined`, which matches no command
+ * and is what every caller then skips over. */
+export function decodeRpcResult(payload: Uint8Array): {
+  cmd: number | undefined;
+  strings: string[];
+} {
   const cmd = payload[0];
-  const dataLen = payload[1];
+  const dataLen = payload[1] ?? 0;
   const strings: string[] = [];
   let pos = 2;
   const end = Math.min(2 + dataLen, payload.length);
   const dec = new TextDecoder();
   while (pos < end) {
     const slen = payload[pos++];
+    /* Unreachable: end never exceeds the payload length. */
+    if (slen === undefined) break;
     strings.push(dec.decode(payload.slice(pos, pos + slen)));
     pos += slen;
   }
@@ -469,7 +484,12 @@ const ERROR_TEXT: Record<number, string> = {
 };
 
 /** Convert a device-side Improv error code into a user-facing explanation. */
-export function improvErrorMessage(error: number): string {
+export function improvErrorMessage(error: number | undefined): string {
+  /* An ERROR_STATE frame carries its code in the first payload byte, but a
+   * malformed frame can arrive with an empty payload. Reading a code that is not
+   * there used to reach `undefined.toString(16)` and throw a TypeError over the
+   * operator's actual error. */
+  if (error === undefined) return "Display reported an error without a code.";
   return ERROR_TEXT[error] ?? `Device error 0x${error.toString(16)}.`;
 }
 
@@ -824,7 +844,9 @@ export interface ScanResult {
 export function decodeScanNetwork(strings: string[]): WifiNetwork | null {
   if (strings.length < 3) return null; // empty result = list terminator
   const [ssid, rssi, auth] = strings;
-  if (!ssid) return null;
+  /* The length check above covers all three, but only a value the compiler can
+   * see narrows the type. */
+  if (!ssid || rssi === undefined) return null;
   return { ssid, rssi: Number.parseInt(rssi, 10) || 0, secured: auth === "YES" };
 }
 

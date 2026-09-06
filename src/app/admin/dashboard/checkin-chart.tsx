@@ -52,13 +52,17 @@ export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
   // Build a smooth line through the points with a Catmull-Rom → cubic-Bézier
   // conversion, keeping the curve gentle (tension factor 6).
   function smoothPath(pts: { x: number; y: number }[]): string {
-    if (pts.length === 0) return "";
-    if (pts.length === 1) return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+    const first = pts[0];
+    if (!first) return "";
+    const move = `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`;
+    if (pts.length === 1) return move;
+    let d = move;
     for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] ?? pts[i];
       const p1 = pts[i];
       const p2 = pts[i + 1];
+      /* The loop stops one short of the end, so both exist. */
+      if (!p1 || !p2) continue;
+      const p0 = pts[i - 1] ?? p1;
       const p3 = pts[i + 2] ?? p2;
       const c1x = p1.x + (p2.x - p0.x) / 6;
       const c1y = p1.y + (p2.y - p0.y) / 6;
@@ -72,9 +76,11 @@ export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
   const linePath = smoothPath(coords);
   // Close the line path down to the baseline to form the filled area.
   const baseline = PAD_T + plotH;
+  const firstCoord = coords[0];
+  const lastCoord = coords[coords.length - 1];
   const areaPath =
-    coords.length > 0
-      ? `${linePath} L ${coords[coords.length - 1].x.toFixed(1)} ${baseline.toFixed(1)} L ${coords[0].x.toFixed(1)} ${baseline.toFixed(1)} Z`
+    firstCoord && lastCoord
+      ? `${linePath} L ${lastCoord.x.toFixed(1)} ${baseline.toFixed(1)} L ${firstCoord.x.toFixed(1)} ${baseline.toFixed(1)} Z`
       : "";
 
   // Three faint gridlines at 0 / 50 / 100% of the plot height.
@@ -177,6 +183,8 @@ export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
           {/* X-axis day labels */}
           {n > 0 &&
             labelIdxs.map((i) => {
+              const point = points[i];
+              if (!point) return null;
               const x = toX(i);
               const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
               return (
@@ -188,7 +196,7 @@ export function CheckinChart({ checkins }: { checkins: Checkin[] }) {
                   className="fill-label-tertiary text-[10px]"
                   fontSize="10"
                 >
-                  {formatDay(points[i].day)}
+                  {formatDay(point.day)}
                 </text>
               );
             })}
