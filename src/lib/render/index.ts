@@ -32,10 +32,13 @@ function nearestColorQuantize(
 ): Buffer {
   const output = Buffer.alloc(width * height);
   for (let i = 0; i < width * height; i++) {
+    /* imageData is a typed array: an index read yields a number, never
+     * undefined, whatever noUncheckedIndexedAccess says about it, so the
+     * fallbacks below never apply. */
     output[i] = nearestPaletteIndex(
-      imageData[i * 4],
-      imageData[i * 4 + 1],
-      imageData[i * 4 + 2],
+      imageData[i * 4] ?? 0,
+      imageData[i * 4 + 1] ?? 0,
+      imageData[i * 4 + 2] ?? 0,
       palette,
       reserved
     );
@@ -121,16 +124,18 @@ export function quantizeToIndices(
     const AA_THRESHOLD = 3000;
     const hasReserved = reserved.length > 0;
     for (let i = 0; i < width * height; i++) {
-      const r = data[i * 4],
-        g = data[i * 4 + 1],
-        b = data[i * 4 + 2];
+      const r = data[i * 4] ?? 0,
+        g = data[i * 4 + 1] ?? 0,
+        b = data[i * 4 + 2] ?? 0;
       let bestDist = Infinity;
       let bestR = 0,
         bestG = 0,
         bestB = 0;
       for (let p = 0; p < palette.length; p++) {
         if (hasReserved && reserved.includes(p)) continue;
-        const [pr, pg, pb] = palette[p];
+        const entry = palette[p];
+        if (!entry) continue;
+        const [pr, pg, pb] = entry;
         const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
         if (dist < bestDist) {
           bestDist = dist;
@@ -184,7 +189,7 @@ export function previewImage(
   const octx = out.getContext("2d");
   const image = octx.createImageData(width, height);
   for (let i = 0; i < width * height; i++) {
-    const [r, g, b] = palette[indices[i]] ?? [0, 0, 0];
+    const [r, g, b] = palette[indices[i] ?? 0] ?? [0, 0, 0];
     image.data[i * 4] = r;
     image.data[i * 4 + 1] = g;
     image.data[i * 4 + 2] = b;
@@ -203,8 +208,9 @@ function packTo1bit(input: Buffer, width: number, height: number): Buffer {
   const output = Buffer.alloc(Math.ceil((width * height) / 8));
   for (let i = 0; i < width * height; i++) {
     // Palette index 0 = black = bit 0, index 1 = white = bit 1
-    if (input[i] > 0) {
-      output[Math.floor(i / 8)] |= 0x80 >> (i % 8);
+    if ((input[i] ?? 0) > 0) {
+      /* Buffer.alloc zero-fills, so an untouched byte really is 0. */
+      output[Math.floor(i / 8)] = (output[Math.floor(i / 8)] ?? 0) | (0x80 >> (i % 8));
     }
   }
   return output;
@@ -218,7 +224,9 @@ function packTo1bit(input: Buffer, width: number, height: number): Buffer {
 function packTo4bit(input: Buffer, width: number, height: number): Buffer {
   const output = Buffer.alloc((width * height) / 2);
   for (let i = 0; i < width * height; i += 2) {
-    output[i / 2] = ((input[i] & 0x0f) << 4) | (input[i + 1] & 0x0f);
+    /* An odd pixel count leaves the second nibble without a source pixel, which
+     * is the one place here where the fallback is reached. */
+    output[i / 2] = (((input[i] ?? 0) & 0x0f) << 4) | ((input[i + 1] ?? 0) & 0x0f);
   }
   return output;
 }

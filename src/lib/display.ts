@@ -87,24 +87,30 @@ const DEFAULT_CAPS: DisplayCaps = {
   orientations: [],
 };
 
+/** One panel model in the SSOT registry. */
+type DisplayRegistryEntry = {
+  name: string;
+  width: number;
+  height: number;
+  format: OutputFormat;
+  colorMode: ColorMode;
+  palette: [number, number, number][];
+  /** See displayCapsSchema — positions that are pixel codes but not usable colors. */
+  reservedPaletteIndices?: number[];
+  orientations: ("portrait" | "landscape")[];
+};
+
+/** The models this repo ships firmware for. Lookups by an arbitrary string stay
+ * possible (devices report their model as free text) but these four are known to
+ * exist, so accessing them needs no undefined check. */
+export type KnownDisplayModel = "e1001" | "e1002" | "e1003" | "d1001";
+
 /**
  * SSOT display registry — all known display models.
  * Add new displays here; all other code imports from this registry.
  */
-export const DISPLAY_REGISTRY: Record<
-  string,
-  {
-    name: string;
-    width: number;
-    height: number;
-    format: OutputFormat;
-    colorMode: ColorMode;
-    palette: [number, number, number][];
-    /** See displayCapsSchema — positions that are pixel codes but not usable colors. */
-    reservedPaletteIndices?: number[];
-    orientations: ("portrait" | "landscape")[];
-  }
-> = {
+export const DISPLAY_REGISTRY: Record<string, DisplayRegistryEntry> &
+  Record<KnownDisplayModel, DisplayRegistryEntry> = {
   e1001: {
     name: 'E1001 (7.5" BW)',
     width: 800,
@@ -395,4 +401,11 @@ export const KNOWN_DISPLAYS: DisplaySize[] = Object.entries(DISPLAY_REGISTRY)
   )
   .filter((d, i, arr) => arr.findIndex((x) => x.width === d.width && x.height === d.height) === i);
 
-export const DEFAULT_DISPLAY: DisplaySize = KNOWN_DISPLAYS[0];
+/* E1001 is a declared key of the registry and lists a landscape orientation, so
+ * the list above is never empty. The fallback exists only because a derived array
+ * cannot state that in its type. */
+export const DEFAULT_DISPLAY: DisplaySize = KNOWN_DISPLAYS[0] ?? {
+  label: `E1001 ${DISPLAY_REGISTRY.e1001.width}×${DISPLAY_REGISTRY.e1001.height}`,
+  width: DISPLAY_REGISTRY.e1001.width,
+  height: DISPLAY_REGISTRY.e1001.height,
+};

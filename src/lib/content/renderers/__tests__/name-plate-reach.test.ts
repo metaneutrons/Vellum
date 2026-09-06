@@ -40,8 +40,8 @@ function reachMetres(n: number): { rowMode: boolean; metres: number } {
    * and the strip holds only the freshness mark, which is the 34 px form. */
   const bands = seatBands(n, 800, 480 - 34, 29, 75);
   const plan = choosePlan(t, narrow ? [t.ff, narrow] : [t.ff], contents, {
-    bandW: bands[0].w,
-    bandH: bands[0].h,
+    bandW: bands[0]!.w,
+    bandH: bands[0]!.h,
     shortSide: 480,
     reserved: 0,
     scale: 1,
@@ -56,7 +56,7 @@ function reachMetres(n: number): { rowMode: boolean; metres: number } {
 describe("reading distance", () => {
   it("matches what the editor promises, to a tenth of a metre", () => {
     for (const n of [1, 2, 3, 4]) {
-      expect(reachMetres(n).metres).toBeCloseTo(READING_DISTANCE_M[n], 1);
+      expect(reachMetres(n).metres).toBeCloseTo(READING_DISTANCE_M[n]!, 1);
     }
   });
 
@@ -67,7 +67,7 @@ describe("reading distance", () => {
   it("never improves when a seat is added", () => {
     const reach = [1, 2, 3, 4].map((n) => reachMetres(n).metres);
     for (let i = 1; i < reach.length; i++) {
-      expect(reach[i]).toBeLessThan(reach[i - 1]);
+      expect(reach[i]!).toBeLessThan(reach[i - 1]!);
     }
   });
 

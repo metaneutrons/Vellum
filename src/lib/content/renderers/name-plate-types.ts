@@ -164,7 +164,7 @@ export function resolveRoomName(config: NamePlateConfig): string | null {
       .map((s) => (s.occupant.kind === "calendar" ? s.occupant.parentName?.trim() : undefined))
       .filter((n): n is string => !!n)
   );
-  return parents.size === 1 ? [...parents][0] : null;
+  return parents.size === 1 ? ([...parents][0] ?? null) : null;
 }
 
 /**

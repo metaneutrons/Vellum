@@ -30,22 +30,22 @@ describe("seatBands", () => {
   it("stacks bands in order without overlapping", () => {
     const bands = seatBands(4, 800, 480, 20);
     for (let i = 1; i < bands.length; i++) {
-      expect(bands[i].y).toBeGreaterThanOrEqual(bands[i - 1].y + bands[i - 1].h);
+      expect(bands[i]!.y).toBeGreaterThanOrEqual(bands[i - 1]!.y + bands[i - 1]!.h);
     }
   });
 
   it("stays inside the padded area", () => {
     const pad = 20;
     const bands = seatBands(3, 800, 480, pad);
-    expect(bands[0].y).toBeGreaterThanOrEqual(pad);
-    const last = bands[bands.length - 1];
+    expect(bands[0]!.y).toBeGreaterThanOrEqual(pad);
+    const last = bands[bands.length - 1]!;
     expect(last.y + last.h).toBeLessThanOrEqual(480 - pad + 1); /* rounding */
   });
 
   /* Gaps go BETWEEN bands only. Counting the edge twice is how a four-seat plate
    * would silently get less usable height than three seats deserve. */
   it("spends gap only between bands, so one seat uses the whole area", () => {
-    const [single] = seatBands(1, 800, 480, 20);
+    const single = seatBands(1, 800, 480, 20)[0]!;
     expect(single.h).toBe(440);
     expect(single.y).toBe(20);
   });
@@ -59,7 +59,7 @@ describe("seatBands", () => {
   it("uses the same rule in portrait", () => {
     const bands = seatBands(4, 480, 800, 20);
     for (const b of bands) expect(b.w).toBe(440);
-    expect(bands[0].h).toBeGreaterThan(seatBands(4, 800, 480, 20)[0].h);
+    expect(bands[0]!.h).toBeGreaterThan(seatBands(4, 800, 480, 20)[0]!.h);
   });
 });
 
@@ -381,7 +381,7 @@ describe("namePlateConfigSchema", () => {
     const cfg = namePlateConfigSchema.parse({
       seats: [{ occupant: { kind: "static", name: "Müller" } }],
     });
-    expect(cfg.seats[0].occupant.kind).toBe("static");
+    expect(cfg.seats[0]!.occupant.kind).toBe("static");
     expect(cfg.showStatus).toBe(false);
   });
 
@@ -462,14 +462,14 @@ describe("seatBands with a header", () => {
   it("keeps every band below the header and inside the panel", () => {
     const headerH = 75;
     const bands = seatBands(4, 800, 480, 20, headerH);
-    expect(bands[0].y).toBeGreaterThanOrEqual(headerH);
-    const last = bands[bands.length - 1];
+    expect(bands[0]!.y).toBeGreaterThanOrEqual(headerH);
+    const last = bands[bands.length - 1]!;
     expect(last.y + last.h).toBeLessThanOrEqual(480 - 20 + 1);
   });
 
   it("gives seats less height than it would without a header", () => {
-    const withHeader = seatBands(4, 800, 480, 20, 75)[0].h;
-    const without = seatBands(4, 800, 480, 20)[0].h;
+    const withHeader = seatBands(4, 800, 480, 20, 75)[0]!.h;
+    const without = seatBands(4, 800, 480, 20)[0]!.h;
     expect(withHeader).toBeLessThan(without);
   });
 });

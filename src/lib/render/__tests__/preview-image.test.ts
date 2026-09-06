@@ -65,8 +65,8 @@ describe("previewImage", () => {
     /* 1 bpp, MSB first: bit set means index 1. Unpacking the device's own bytes
      * has to reproduce the indices the preview paints from. */
     for (let i = 0; i < W * H; i++) {
-      const bit = (packed[Math.floor(i / 8)] >> (7 - (i % 8))) & 1;
-      expect(bit, `pixel ${i}`).toBe(indices[i] > 0 ? 1 : 0);
+      const bit = (packed[Math.floor(i / 8)]! >> (7 - (i % 8))) & 1;
+      expect(bit, `pixel ${i}`).toBe(indices[i]! > 0 ? 1 : 0);
     }
   });
 
@@ -79,8 +79,8 @@ describe("previewImage", () => {
 
     // 4 bpp, two pixels per byte, high nibble first.
     for (let i = 0; i < W * H; i++) {
-      const nibble = i % 2 === 0 ? packed[i / 2] >> 4 : packed[(i - 1) / 2] & 0x0f;
-      expect(nibble, `pixel ${i}`).toBe(indices[i] & 0x0f);
+      const nibble = i % 2 === 0 ? packed[i / 2]! >> 4 : packed[(i - 1) / 2]! & 0x0f;
+      expect(nibble, `pixel ${i}`).toBe(indices[i]! & 0x0f);
     }
   });
 
@@ -128,7 +128,7 @@ describe("previewImage", () => {
     const pixels = await pixelsOf(out.body, W, H);
 
     for (let i = 0; i < W * H; i++) {
-      const [r, g, b] = reg.palette[indices[i]];
+      const [r, g, b] = reg.palette[indices[i]!]!;
       expect([pixels[i * 4], pixels[i * 4 + 1], pixels[i * 4 + 2]], `pixel ${i}`).toEqual([
         r,
         g,

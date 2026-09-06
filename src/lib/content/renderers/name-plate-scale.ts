@@ -36,7 +36,9 @@ export const CAP_RATIO = 0.72;
  * table. A first cut used round numbers 30 % under the limit, which cost the
  * four-line case 0.8 m of reading distance for nothing.
  */
-export const SURNAME_SHARE = [1.0, 0.75, 0.55, 0.44, 0.37];
+/* `as const` makes this a tuple, so the first entry is known to exist and can
+ * serve as the fallback for a computed lookup. */
+export const SURNAME_SHARE = [1.0, 0.75, 0.55, 0.44, 0.37] as const;
 
 /** The surname's share of its band in ROW mode, where there is one line. */
 export const ROW_SHARE = 0.8;
