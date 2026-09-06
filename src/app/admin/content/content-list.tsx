@@ -405,7 +405,7 @@ export function ContentList({ instances, types, providers, initialEditId }: Prop
                   return (
                     <span className="text-xs text-label-tertiary animate-pulse">{t("test")}…</span>
                   );
-                if (r && r.ok)
+                if (r?.ok)
                   return (
                     <span className="inline-flex items-center gap-1 text-xs text-green">
                       <Check size={13} aria-hidden="true" />

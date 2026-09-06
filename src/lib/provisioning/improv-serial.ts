@@ -388,7 +388,9 @@ async function closeSerial(
   }
   reader?.releaseLock();
   writer?.releaseLock();
-  await port.close().catch(() => {});
+  await port.close().catch(() => {
+    /* the port is going away regardless; a close error changes nothing */
+  });
 }
 
 interface ReadySerialConnection {
@@ -588,7 +590,11 @@ export class SerialProvisioningSession {
   async provision(opts: ProvisionOptions): Promise<ProvisionResult> {
     return this.exclusive(async () => {
       this.assertConnected();
-      const onPhase = opts.onPhase ?? (() => {});
+      const onPhase =
+        opts.onPhase ??
+        (() => {
+          /* progress is optional for callers that only await the result */
+        });
       let legacyTimeFallbackAttempted = false;
       let provisionedAt: number | undefined;
       let redirectUrl: string | undefined;

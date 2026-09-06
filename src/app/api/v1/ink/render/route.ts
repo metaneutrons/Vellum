@@ -97,7 +97,9 @@ async function recordExpectedPower(
         })
         .where(eq(devices.mac, mac)),
     "render-update-expected-power"
-  ).catch((err) => log.warn("Expected power-state update failed", { mac, error: String(err) }));
+  ).catch((err: unknown) =>
+    log.warn("Expected power-state update failed", { mac, error: String(err) })
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -118,7 +120,7 @@ export async function GET(request: NextRequest) {
   const telemetryData = extractTelemetry(request.headers);
   if (telemetryData) {
     void logTelemetry({ ...telemetryData, mac: validation.data.mac, timestamp: new Date() }).catch(
-      (err) =>
+      (err: unknown) =>
         log.warn("Telemetry logging failed", { mac: validation.data.mac, error: String(err) })
     );
   }
@@ -235,7 +237,7 @@ export async function GET(request: NextRequest) {
       () =>
         db.update(devices).set({ displayCaps: reportedCaps }).where(eq(devices.mac, device.mac)),
       "render-adopt-reported-display-caps"
-    ).catch((error) =>
+    ).catch((error: unknown) =>
       log.warn("Failed to persist reported display capabilities", {
         mac: device.mac,
         error: String(error),

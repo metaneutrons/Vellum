@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
           .set({ displayCaps: adoptedCaps })
           .where(eq(devices.mac, validation.data.mac)),
       "config-adopt-reported-display-caps"
-    ).catch((error) =>
+    ).catch((error: unknown) =>
       log.warn("Failed to persist reported display capabilities", {
         mac: validation.data.mac,
         error: String(error),
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
           .set({ displayCaps: completedCaps })
           .where(eq(devices.mac, validation.data.mac)),
       "config-backfill-display-caps"
-    ).catch((error) =>
+    ).catch((error: unknown) =>
       log.warn("Failed to persist display capability backfill", {
         mac: validation.data.mac,
         error: String(error),
@@ -301,7 +301,7 @@ export async function GET(request: NextRequest) {
             )
           ),
       "config-mark-command-delivered"
-    ).catch((error) =>
+    ).catch((error: unknown) =>
       log.warn("Failed to mark device configuration command delivered", {
         mac: validation.data.mac,
         commandId: activeCommand.id,
@@ -311,11 +311,12 @@ export async function GET(request: NextRequest) {
   }
 
   if (t)
-    logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch((error) =>
-      log.warn("Config telemetry persistence failed", {
-        mac: validation.data.mac,
-        error: String(error),
-      })
+    logTelemetry({ ...t, mac: validation.data.mac, timestamp: new Date() }).catch(
+      (error: unknown) =>
+        log.warn("Config telemetry persistence failed", {
+          mac: validation.data.mac,
+          error: String(error),
+        })
     );
 
   /* Backlight brightness, resolved to a single number the device just applies.

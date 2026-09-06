@@ -352,8 +352,7 @@ export async function authenticateLocalUser(
   );
   let user: (typeof existing)[number] | null = existing[0] ?? null;
   if (!user) user = await ensureBootstrapOwner(identity, password);
-  if (!user || user.status !== "active" || !verifyPassword(password, user.passwordHash))
-    return null;
+  if (user?.status !== "active" || !verifyPassword(password, user.passwordHash)) return null;
   await withDbTransaction(
     () =>
       db.transaction(async (tx) => {
@@ -649,7 +648,7 @@ async function principalFromServiceToken(token: string): Promise<Principal | nul
         .set({ lastUsedAt: new Date() })
         .where(eq(serviceAccounts.id, account.id)),
     "service-account-last-used"
-  ).catch((error) =>
+  ).catch((error: unknown) =>
     log.warn("Failed to update service account last-used timestamp", {
       accountId: account.id,
       error: String(error),

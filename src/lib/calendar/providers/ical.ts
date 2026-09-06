@@ -47,14 +47,12 @@ export function parseIcs(ics: string, windowStart: Date, windowEnd: Date): Calen
 
     const endProp = getProp("DTEND");
     let end = endProp ? parseIcsDateTime(endProp.value, endProp.params) : null;
-    if (!end) {
-      // Missing DTEND: all-day events span one day; timed events are treated as
-      // ending at DTSTART (window filtering still works).
-      end = {
-        date: new Date(start.date.getTime() + (start.allDay ? 86_400_000 : 0)),
-        allDay: start.allDay,
-      };
-    }
+    // Missing DTEND: all-day events span one day; timed events are treated as
+    // ending at DTSTART (window filtering still works).
+    end ??= {
+      date: new Date(start.date.getTime() + (start.allDay ? 86_400_000 : 0)),
+      allDay: start.allDay,
+    };
     if (end.date <= windowStart || start.date >= windowEnd) continue;
 
     events.push({

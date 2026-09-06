@@ -7,7 +7,7 @@ export type DeviceSnapshot = Record<string, unknown> & { mac: string };
 
 /** One authoritative shape for initial RSC render and live delta refreshes. */
 export async function getDeviceSnapshots(macs?: readonly string[]): Promise<DeviceSnapshot[]> {
-  if (macs && macs.length === 0) return [];
+  if (macs?.length === 0) return [];
   const filter = macs
     ? sql`WHERE d.mac IN (${sql.join(
         macs.map((mac) => sql`${mac}`),

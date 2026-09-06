@@ -124,7 +124,7 @@ export function useDeviceLiveUpdates(initialDevices: LiveDeviceRow[]) {
           setState(event.status);
         } else if (event.type === "changed" && event.mac) {
           pendingMacs.current.add(event.mac);
-          if (!batchTimer.current) batchTimer.current = setTimeout(flushPending, 250);
+          batchTimer.current ??= setTimeout(flushPending, 250);
         }
       } catch {
         // Ignore malformed events; the periodic authoritative sync repairs state.
