@@ -11,6 +11,7 @@ import { z } from "zod";
 import { useTranslations } from "next-intl";
 import { TextBoxCanvas } from "@/components/retired/text-box-canvas";
 import {
+  DEFAULT_DISPLAY,
   KNOWN_DISPLAYS,
   type DisplaySize,
   type Design,
@@ -47,8 +48,10 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
   const displays = knownDisplays ?? KNOWN_DISPLAYS;
   const currentDisplay =
     activeDisplay === "default"
-      ? displays[0]
-      : (displays.find((d) => `${d.width}x${d.height}` === activeDisplay) ?? displays[0]);
+      ? (displays[0] ?? DEFAULT_DISPLAY)
+      : (displays.find((d) => `${d.width}x${d.height}` === activeDisplay) ??
+        displays[0] ??
+        DEFAULT_DISPLAY);
 
   /* Two defects lived here. The response is `{ resources, total }`, and the whole
    * object was put into state typed as an array, so `.map()` over it never

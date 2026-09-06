@@ -326,6 +326,9 @@ async function ensureBootstrapOwner(identity: string, password: string) {
               passwordHash: hashPassword(password),
             })
             .returning();
+          /* An insert without ON CONFLICT returns its row or throws, so this only
+           * turns an impossible case into a legible error. */
+          if (!created) throw new Error("Creating the bootstrap owner returned no row.");
           await tx.insert(userRoleAssignments).values({ userId: created.id, roleId: "owner" });
           await tx.insert(auditLogs).values({
             actorType: "bootstrap",
@@ -351,7 +354,7 @@ export async function authenticateLocalUser(
     "local-auth-find"
   );
   let user: (typeof existing)[number] | null = existing[0] ?? null;
-  if (!user) user = await ensureBootstrapOwner(identity, password);
+  user ??= await ensureBootstrapOwner(identity, password);
   if (user?.status !== "active" || !verifyPassword(password, user.passwordHash)) return null;
   await withDbTransaction(
     () =>
@@ -375,7 +378,7 @@ export async function authenticateLocalUser(
 
 export async function createUserSession(
   userId: string,
-  metadata: { ip?: string; userAgent?: string } = {}
+  metadata: { ip?: string | undefined; userAgent?: string | undefined } = {}
 ): Promise<string> {
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
   const sessionId = crypto.randomUUID();
@@ -503,6 +506,7 @@ export async function acceptInvitation(
                 passwordHash: hashPassword(password),
               })
               .returning({ id: adminUsers.id, displayName: adminUsers.displayName });
+            if (!created) throw new Error("Accepting the invitation returned no user row.");
             userId = created.id;
             displayName = created.displayName;
           }
@@ -556,23 +560,26 @@ export async function createServiceAccount(
             createdBy: actor.id,
           })
           .returning({ id: serviceAccounts.id });
+        const row = created[0];
+        if (!row) throw new Error("Creating the service account returned no row.");
         for (const permission of input.permissions) {
           await tx
             .insert(serviceAccountPermissions)
-            .values({ serviceAccountId: created[0].id, permission });
+            .values({ serviceAccountId: row.id, permission });
         }
         await tx.insert(auditLogs).values({
           actorType: actor.type,
           actorId: actor.id,
           action: "access.service_account.create",
           targetType: "service_account",
-          targetId: created[0].id,
+          targetId: row.id,
           metadata: { permissions: input.permissions },
         });
         return created;
       }),
     "create-service-account"
   );
+  if (!account) throw new Error("Creating the service account returned no row.");
   return { id: account.id, token };
 }
 
@@ -716,6 +723,19 @@ export async function writeAudit(
  * Callers never observe a successful mutation without the corresponding audit
  * event, nor a misleading failure after the mutation already committed.
  */
+/**
+ * The row an insert returned, for the audit record that names it.
+ *
+ * An insert without ON CONFLICT either returns exactly one row or throws, so an
+ * empty result is unreachable. Saying so out loud beats reading `rows[0].id` off
+ * nothing and writing "Cannot read properties of undefined" into an audit trail.
+ */
+export function insertedRow<T>(rows: T[], what: string): T {
+  const row = rows[0];
+  if (!row) throw new Error(`Creating the ${what} returned no row.`);
+  return row;
+}
+
 export async function withAuditedTransaction<T>(
   actor: Principal,
   event: AuditEvent | ((result: T) => AuditEvent),

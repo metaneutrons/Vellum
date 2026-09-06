@@ -176,6 +176,8 @@ export function snapThemeToPalette(theme: Theme, palette: [number, number, numbe
     if (byLightness) {
       const target = luminance(hex);
       let best = palette[0];
+      /* Nothing to snap to on an empty palette, so the colour stays as it is. */
+      if (!best) return hex;
       let bestDelta = Infinity;
       for (const entry of palette) {
         const delta = Math.abs(luminance(toHex(entry)) - target);

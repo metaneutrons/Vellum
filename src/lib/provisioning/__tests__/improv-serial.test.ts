@@ -40,37 +40,37 @@ afterEach(() => {
  */
 function firmwareParse(frame: Uint8Array): {
   ok: boolean;
-  ssid?: string;
-  pass?: string;
-  url?: string;
-  token?: string;
-  ntp?: string;
-  time?: string;
+  ssid?: string | undefined;
+  pass?: string | undefined;
+  url?: string | undefined;
+  token?: string | undefined;
+  ntp?: string | undefined;
+  time?: string | undefined;
 } {
   const b = Array.from(frame);
   if (b.length < 10) return { ok: false };
   for (let i = 0; i < 6; i++) if (b[i] !== IMPROV_HEADER[i]) return { ok: false };
   if (b[6] !== IMPROV_VERSION) return { ok: false };
-  const dataLen = b[8];
+  const dataLen = b[8]!;
   if (b.length < 10 + dataLen) return { ok: false };
   let cs = 0;
-  for (let i = 0; i < 9 + dataLen; i++) cs = (cs + b[i]) & 0xff;
-  if (cs !== b[9 + dataLen]) return { ok: false };
+  for (let i = 0; i < 9 + dataLen; i++) cs = (cs + b[i]!) & 0xff;
+  if (cs !== b[9 + dataLen]!) return { ok: false };
   if (b[7] !== ImprovType.RPC_COMMAND) return { ok: false };
 
   // improv_handle_rpc: data = b[9..], len = dataLen
   const data = b.slice(9, 9 + dataLen);
   const cmd = data[0];
-  const cmdLen = data[1];
+  const cmdLen = data[1]!;
   if (2 + cmdLen > data.length) return { ok: false };
   if (cmd !== ImprovCmd.WIFI_SETTINGS) return { ok: true };
 
   // improv_handle_wifi_settings: p = data[2..], len = cmdLen
   const p = data.slice(2, 2 + cmdLen);
   const dec = new TextDecoder();
-  const ssidLen = p[0];
+  const ssidLen = p[0]!;
   const ssid = dec.decode(Uint8Array.from(p.slice(1, 1 + ssidLen)));
-  const passLen = p[1 + ssidLen];
+  const passLen = p[1 + ssidLen]!;
   const pass = dec.decode(Uint8Array.from(p.slice(2 + ssidLen, 2 + ssidLen + passLen)));
   let url: string | undefined;
   let token: string | undefined;
@@ -78,24 +78,24 @@ function firmwareParse(frame: Uint8Array): {
   let time: string | undefined;
   let pos = 2 + ssidLen + passLen;
   if (pos < p.length) {
-    const urlLen = p[pos];
+    const urlLen = p[pos]!;
     if (pos + 1 + urlLen <= p.length) {
       if (urlLen > 0) url = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + urlLen)));
       pos += 1 + urlLen; // advance past URL (even if empty)
       if (pos < p.length) {
-        const tokLen = p[pos];
+        const tokLen = p[pos]!;
         if (tokLen > 0 && pos + 1 + tokLen <= p.length) {
           token = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + tokLen)));
         }
         pos += 1 + tokLen;
         if (pos < p.length) {
-          const ntpLen = p[pos];
+          const ntpLen = p[pos]!;
           if (ntpLen > 0 && pos + 1 + ntpLen <= p.length) {
             ntp = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + ntpLen)));
           }
           pos += 1 + ntpLen;
           if (pos < p.length) {
-            const timeLen = p[pos];
+            const timeLen = p[pos]!;
             if (timeLen > 0 && pos + 1 + timeLen === p.length) {
               time = dec.decode(Uint8Array.from(p.slice(pos + 1, pos + 1 + timeLen)));
             }
@@ -219,10 +219,10 @@ describe("Improv WIFI_SETTINGS encoding", () => {
 
   it("computes an 8-bit sum checksum over the first 9+len bytes", () => {
     const frame = encodeWifiSettings("a", "b", "c");
-    const len = frame[8];
+    const len = frame[8]!;
     let cs = 0;
-    for (let i = 0; i < 9 + len; i++) cs = (cs + frame[i]) & 0xff;
-    expect(frame[9 + len]).toBe(cs);
+    for (let i = 0; i < 9 + len; i++) cs = (cs + frame[i]!) & 0xff;
+    expect(frame[9 + len]!).toBe(cs);
     expect(frame.length).toBe(10 + len);
   });
 });
@@ -252,7 +252,16 @@ describe("WIFI_SETTINGS payload-size guard", () => {
   // The payload becomes a single-byte cmd_len, so it must stay ≤253 or the
   // length wraps and the firmware silently rejects (or misreads) the frame.
   it("predicts the exact encoded payload length (matches the real frame)", () => {
-    const cases: [string, string, string?, string?, string?, number?][] = [
+    /* `undefined` steht hier für ein Feld, das der Aufrufer bewusst nicht setzt,
+       nicht für ein weggelassenes Argument. */
+    const cases: [
+      string,
+      string,
+      string | undefined,
+      string | undefined,
+      string | undefined,
+      number?,
+    ][] = [
       ["MyNet", "s3cret!!", "https://vellum.example.com", undefined, undefined],
       ["Net", "pw", "https://v.io", "a".repeat(64), undefined],
       ["Net", "pw", undefined, "tok123", undefined],
@@ -265,7 +274,7 @@ describe("WIFI_SETTINGS payload-size guard", () => {
       const frame = encodeWifiSettings(ssid, pass, url, tok, ntp, time);
       // frame[8] is data_len = cmd_len + 2 (cmd byte + cmd_len byte); the payload
       // is cmd_len, so predicted length === data_len - 2.
-      expect(wifiSettingsPayloadLength(ssid, pass, url, tok, ntp, time)).toBe(frame[8] - 2);
+      expect(wifiSettingsPayloadLength(ssid, pass, url, tok, ntp, time)).toBe(frame[8]! - 2);
     }
   });
 
@@ -291,6 +300,23 @@ describe("ImprovParser (device → browser)", () => {
     );
   });
 
+  /* A device can send ERROR_STATE with no payload at all. Reading the code that
+   * is not there used to reach `undefined.toString(16)`, so the operator got a
+   * TypeError instead of the error the display was reporting. */
+  it("names an error frame that carries no code", () => {
+    const [frame] = new ImprovParser().push(encodeFrame(ImprovType.ERROR_STATE, []));
+    expect(frame!.payload).toHaveLength(0);
+    expect(improvErrorMessage(frame!.payload[0])).toBe("Display reported an error without a code.");
+  });
+
+  it("decodes an RPC result whose payload is too short to name a command", () => {
+    expect(decodeRpcResult(new Uint8Array([]))).toEqual({ cmd: undefined, strings: [] });
+    expect(decodeRpcResult(new Uint8Array([ImprovCmd.SCAN_WIFI]))).toEqual({
+      cmd: ImprovCmd.SCAN_WIFI,
+      strings: [],
+    });
+  });
+
   it("extracts a state frame surrounded by console text noise", () => {
     const stateFrame = encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.PROVISIONED]);
     const noise = new TextEncoder().encode("vellum> Improv: WiFi connected\r\n");
@@ -298,8 +324,8 @@ describe("ImprovParser (device → browser)", () => {
 
     const frames = new ImprovParser().push(stream);
     expect(frames).toHaveLength(1);
-    expect(frames[0].type).toBe(ImprovType.CURRENT_STATE);
-    expect(frames[0].payload[0]).toBe(ImprovState.PROVISIONED);
+    expect(frames[0]!.type).toBe(ImprovType.CURRENT_STATE);
+    expect(frames[0]!.payload[0]).toBe(ImprovState.PROVISIONED);
   });
 
   it("reassembles a frame split across chunk boundaries", () => {
@@ -309,18 +335,18 @@ describe("ImprovParser (device → browser)", () => {
     expect(p.push(frame.slice(4, 8))).toHaveLength(0); // still partial
     const out = p.push(frame.slice(8));
     expect(out).toHaveLength(1);
-    expect(out[0].type).toBe(ImprovType.ERROR_STATE);
-    expect(out[0].payload[0]).toBe(0x03);
+    expect(out[0]!.type).toBe(ImprovType.ERROR_STATE);
+    expect(out[0]!.payload[0]).toBe(0x03);
   });
 
   it("rejects a frame with a bad checksum and resyncs to the next", () => {
     const good = encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.PROVISIONING]);
     const bad = Uint8Array.from(good);
-    bad[bad.length - 1] ^= 0xff; // corrupt checksum
+    bad[bad.length - 1]! ^= 0xff; // corrupt checksum
     const out = new ImprovParser().push(new Uint8Array([...bad, ...good]));
     // the corrupted copy is dropped; the clean one still parses
     expect(out.length).toBeGreaterThanOrEqual(1);
-    expect(out[out.length - 1].payload[0]).toBe(ImprovState.PROVISIONING);
+    expect(out[out.length - 1]!.payload[0]).toBe(ImprovState.PROVISIONING);
   });
 
   it("encodes a SCAN_WIFI command with an empty payload", () => {
@@ -348,7 +374,7 @@ describe("ImprovParser (device → browser)", () => {
     const inner = [s0.length, ...s0];
     const payload = [ImprovCmd.WIFI_SETTINGS, inner.length, ...inner];
     const frame = encodeFrame(ImprovType.RPC_RESULT, payload);
-    const [f] = new ImprovParser().push(frame);
+    const f = new ImprovParser().push(frame)[0]!;
     const { cmd, strings } = decodeRpcResult(f.payload);
     expect(cmd).toBe(ImprovCmd.WIFI_SETTINGS);
     expect(strings[0]).toBe("http://192.168.1.50/");
@@ -375,7 +401,7 @@ describe("Web Serial scan lifecycle", () => {
     const writable = new WritableStream<Uint8Array>({
       write(chunk) {
         const cmd = chunk[9];
-        commands.push(cmd);
+        commands.push(cmd!);
         if (cmd === ImprovCmd.GET_STATE) {
           controller.enqueue(encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.READY]));
         } else if (cmd === ImprovCmd.GET_PROVISIONING_SECURITY) {

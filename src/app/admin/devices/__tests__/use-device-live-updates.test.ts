@@ -51,7 +51,7 @@ describe("mergeDeviceRows", () => {
     );
 
     expect(merged.map((device) => device.mac)).toEqual(["A", "B", "C"]);
-    expect(merged[0].content_instance_id).toBe("new");
-    expect(merged[2].content_instance_id).toBe("keep");
+    expect(merged[0]!.content_instance_id).toBe("new");
+    expect(merged[2]!.content_instance_id).toBe("keep");
   });
 });

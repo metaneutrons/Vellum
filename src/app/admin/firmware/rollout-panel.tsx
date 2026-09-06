@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Rocket, OctagonX, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-type RolloutState = "full" | "canary" | "percent" | "paused" | "halted";
-const STATES: RolloutState[] = ["paused", "canary", "percent", "full", "halted"];
+import { asRolloutState, ROLLOUT_STATES, type RolloutState } from "@/lib/rollout-state";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
@@ -53,7 +52,7 @@ function RolloutRow({
     start(async () => {
       try {
         await setRollout(v.version, v.channel, next, pct);
-        toast("success", t("rolloutUpdated", { version: v.version, state: t(`state${next[0].toUpperCase()}${next.slice(1)}` as "stateFull"), percent: next === "canary" || next === "percent" ? ` ${pct}%` : "" }));
+        toast("success", t("rolloutUpdated", { version: v.version, state: t(`state${next.charAt(0).toUpperCase()}${next.slice(1)}` as "stateFull"), percent: next === "canary" || next === "percent" ? ` ${pct}%` : "" }));
       } catch {
         toast("error", t("rolloutUpdateFailed"));
       }
@@ -78,15 +77,15 @@ function RolloutRow({
       </div>
 
       <div className="flex items-center gap-2">
-        <StatusPill tone={stateTone(state)} dot>{t(`state${state[0].toUpperCase()}${state.slice(1)}` as "stateFull")}</StatusPill>
+        <StatusPill tone={stateTone(state)} dot>{t(`state${state.charAt(0).toUpperCase()}${state.slice(1)}` as "stateFull")}</StatusPill>
         <select
           className={selectCls}
           value={state}
           aria-label={t("rolloutState", { version: v.version })}
           onChange={(e) => apply(e.target.value as RolloutState, percent)}
         >
-          {STATES.map((s) => (
-          <option key={s} value={s}>{t(`state${s[0].toUpperCase()}${s.slice(1)}` as "stateFull")}</option>
+          {ROLLOUT_STATES.map((s) => (
+          <option key={s} value={s}>{t(`state${s.charAt(0).toUpperCase()}${s.slice(1)}` as "stateFull")}</option>
           ))}
         </select>
         {showPct && (
@@ -120,7 +119,7 @@ export function RolloutPanel({ overview, versions }: Props) {
   const t = useTranslations("firmware");
   const rolloutOf = (version: string, channel: string) => {
     const r = overview.rollouts.find((x) => x.version === version && x.channel === channel);
-    return { state: (r?.state as RolloutState) ?? "full", percent: r?.percent ?? 0 };
+    return { state: asRolloutState(r?.state), percent: r?.percent ?? 0 };
   };
   const adoptionOf = (version: string) =>
     overview.adoption.find((a) => a.version === version)?.count ?? 0;

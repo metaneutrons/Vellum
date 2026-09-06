@@ -136,7 +136,7 @@ describe("placeholder rejection", () => {
     });
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error.issues[0].message).toMatch(/openssl rand -hex 32/);
+    expect(result.error.issues[0]!.message).toMatch(/openssl rand -hex 32/);
   });
 
   it("does not flag legitimate secrets that merely mention change", () => {

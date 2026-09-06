@@ -27,8 +27,15 @@ export const LAYER_ORDER: readonly LayerName[] = ["builtin", "site", "profile", 
 
 export interface Layer<T> {
   name: LayerName;
-  /** Only the keys this layer actually sets. See the note on `undefined` below. */
-  values: Partial<T> | null | undefined;
+  /**
+   * Only the keys this layer actually sets. See the note on `undefined` below.
+   *
+   * Written out rather than as `Partial<T>`: a key present with the value
+   * `undefined` counts as unset here, and that is the module's documented
+   * contract. `Partial<T>` states the opposite once the compiler distinguishes an
+   * absent key from one holding `undefined`.
+   */
+  values: { [K in keyof T]?: T[K] | undefined } | null | undefined;
 }
 
 export interface Resolved<T> {

@@ -41,7 +41,7 @@ export interface TextStyle {
   /** Default regular: only the surname and the header are set bold. */
   bold?: boolean;
   /** Overrides the body family, for the surname rank when it is set narrow. */
-  family?: string;
+  family?: string | undefined;
   /**
    * Passed to `fillText`, which SQUEEZES rather than clips. Every caller here has
    * already fitted its text to this width, so it is a backstop and not the layout.
@@ -158,12 +158,15 @@ export function drawStack(
 
   let y = band.y + (band.h - blockH) / 2;
   lines.forEach((line, i) => {
-    /* y is the cap TOP of this line, so the baseline sits one cap height below. */
-    drawLeft(t, line.text, band.x, Math.round(y + capHeights[i]), {
+    /* y is the cap TOP of this line, so the baseline sits one cap height below.
+     * capHeights is built from the same `lines` in the caller, so index i exists;
+     * the fallback keeps a mismatched pair from drawing at NaN. */
+    const capHeight = capHeights[i] ?? 0;
+    drawLeft(t, line.text, band.x, Math.round(y + capHeight), {
       ...line.style,
       maxWidth: stackWidth,
     });
-    y += capHeights[i] + (gaps[i] ?? 0);
+    y += capHeight + (gaps[i] ?? 0);
   });
 }
 
@@ -266,8 +269,11 @@ export function drawSeparators(
   const thickness = Math.max(2, Math.round(2 * scale));
   ctx.fillStyle = color;
   for (let i = 1; i < bands.length; i++) {
-    const y = Math.round((bands[i - 1].y + bands[i - 1].h + bands[i].y) / 2);
-    ctx.fillRect(bands[i].x, y, bands[i].w, thickness);
+    const above = bands[i - 1];
+    const below = bands[i];
+    if (!above || !below) continue;
+    const y = Math.round((above.y + above.h + below.y) / 2);
+    ctx.fillRect(below.x, y, below.w, thickness);
   }
 }
 

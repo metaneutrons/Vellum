@@ -33,11 +33,11 @@ export interface WireEvent {
   subject: string;
   /** null means the source knows of no organizer for this booking. */
   organizerName: string | null;
-  organizerEmail?: string;
+  organizerEmail?: string | undefined;
   /** ISO 8601. Deliberately allowed to carry an offset other than Z. */
   start: string;
   end: string;
-  isPrivate?: boolean;
+  isPrivate?: boolean | undefined;
 }
 
 export type ContractCase = "shape" | "offsets" | "private" | "noOrganizer" | "unordered";
@@ -127,7 +127,7 @@ export function describeProviderContract(name: string, contract: ProviderContrac
       contract.serve([
         plainEvent({ start: "2026-08-25T12:00:00+02:00", end: "2026-08-25T13:00:00+02:00" }),
       ]);
-      const [event] = await fetchEvents();
+      const event = (await fetchEvents())[0]!;
       expect(event.startTime.toISOString()).toBe("2026-08-25T10:00:00.000Z");
       expect(event.endTime.toISOString()).toBe("2026-08-25T11:00:00.000Z");
     });
@@ -155,7 +155,7 @@ export function describeProviderContract(name: string, contract: ProviderContrac
      * here — a room mailbox that auto-accepts is the common way to get one. */
     maybe("noOrganizer")("returns a STRING organizer even when nobody is named", async () => {
       contract.serve([plainEvent({ organizerName: null, organizerEmail: undefined })]);
-      const [event] = await fetchEvents();
+      const event = (await fetchEvents())[0]!;
       expect(typeof event.organizer).toBe("string");
     });
 

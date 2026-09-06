@@ -30,15 +30,31 @@ export function parseIcs(ics: string, windowStart: Date, windowEnd: Date): Calen
   const blocks = ics.split("BEGIN:VEVENT");
 
   for (let i = 1; i < blocks.length; i++) {
-    const block = blocks[i].split("END:VEVENT")[0];
-    // Value only (params discarded) — for SUMMARY/ORGANIZER/CLASS.
-    const get = (key: string): string =>
-      block.match(new RegExp(`^${key}[^:]*:(.+)$`, "m"))?.[1]?.trim() ?? "";
-    // Property with its parameters (e.g. `;TZID=Europe/Berlin` / `;VALUE=DATE`).
-    const getProp = (key: string): { params: string; value: string } | null => {
-      const m = block.match(new RegExp(`^${key}([^:]*):(.+)$`, "m"));
-      return m ? { params: m[1], value: m[2].trim() } : null;
+    const block = blocks[i]?.split("END:VEVENT")[0];
+    if (block === undefined) continue;
+    /* Split once and look up by prefix rather than building a RegExp per property.
+     * The keys are literals from this file, so the old `new RegExp(`^${key}...`)`
+     * was not injectable, but a constructor fed a variable is worth not writing at
+     * all — and one pass over the lines beats compiling a pattern per lookup. */
+    const lines = block.split(/\r?\n/);
+
+    /** The first line naming this property, split at its first colon. */
+    const findProp = (key: string): { params: string; value: string } | null => {
+      for (const line of lines) {
+        if (!line.startsWith(key)) continue;
+        const colon = line.indexOf(":");
+        /* Everything between the key and the colon is the parameter list, and it
+         * cannot itself contain a colon — same shape the pattern matched. */
+        if (colon < key.length) continue;
+        return { params: line.slice(key.length, colon), value: line.slice(colon + 1).trim() };
+      }
+      return null;
     };
+
+    // Value only (params discarded) — for SUMMARY/ORGANIZER/CLASS.
+    const get = (key: string): string => findProp(key)?.value ?? "";
+    // Property with its parameters (e.g. `;TZID=Europe/Berlin` / `;VALUE=DATE`).
+    const getProp = findProp;
 
     const startProp = getProp("DTSTART");
     if (!startProp) continue;
@@ -79,6 +95,10 @@ function parseIcsDateTime(value: string, params: string): { date: Date; allDay: 
   const m = v.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?$/);
   if (!m) return null;
   const [, y, mo, d, hh = "00", mm = "00", ss = "00", z] = m;
+  /* The date groups are not optional in the pattern, so a match always fills
+   * them. Returning null keeps the impossible case inside this function's
+   * contract instead of letting `+undefined` reach Date.UTC as NaN. */
+  if (y === undefined || mo === undefined || d === undefined) return null;
   const [yr, moIdx, day, h, mi, s] = [+y, +mo - 1, +d, +hh, +mm, +ss];
 
   const isAllDay = /VALUE=DATE(?!-)/i.test(params) || !m[4];

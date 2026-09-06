@@ -152,9 +152,16 @@ export const refreshProfileSchema = z
       .array(z.number().int().positive().max(604_800))
       .max(8)
       .default([60, 300, 900, 3600])
-      .refine((steps) => steps.every((step, index) => index === 0 || step >= steps[index - 1]), {
-        message: "Retry delays must be non-decreasing",
-      }),
+      .refine(
+        /* No predecessor means no constraint; index 0 is already excluded. */
+        (steps) =>
+          steps.every(
+            (step, index) => index === 0 || step >= (steps[index - 1] ?? Number.NEGATIVE_INFINITY)
+          ),
+        {
+          message: "Retry delays must be non-decreasing",
+        }
+      ),
     /**
      * Ceiling on the refresh interval while a display has no content assigned.
      *
@@ -363,7 +370,7 @@ export interface SleepContext {
   now: Date;
   profile?: RefreshProfile | null;
   rendererOverrideS?: number | null;
-  timezone?: string;
+  timezone?: string | undefined;
   /**
    * False while the display has nothing assigned to render. Caps the result at
    * `unassignedIntervalS` so assigning content during setup takes effect
@@ -385,7 +392,7 @@ export interface SleepResult {
    * without re-deriving the chain by hand. */
   tier?: SleepTier;
   /** Name of the schedule rule that matched, when one did. */
-  rule?: string;
+  rule?: string | undefined;
   /** True when unassignedIntervalS shortened the tier's own answer. */
   capped?: boolean;
   /** Effective ordinary controller policy after phase inheritance. */
@@ -395,7 +402,7 @@ export interface SleepResult {
 export interface DisplayPowerResult {
   state: "on" | "off";
   tier: "schedule" | "power-default";
-  rule?: string;
+  rule?: string | undefined;
 }
 
 export function parseRefreshProfile(raw: unknown): RefreshProfile {

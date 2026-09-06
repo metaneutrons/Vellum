@@ -26,12 +26,16 @@ import { Agent, fetch as undiciFetch } from "undici";
 const MAX_REDIRECTS = 4;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-function ipToBytes(ip: string): number[] | null {
-  if (isIP(ip) === 4) {
-    const p = ip.split(".").map(Number);
-    return p.length === 4 && p.every((n) => n >= 0 && n <= 255) ? p : null;
-  }
-  return null;
+/* The tuple return type carries the four-octet guarantee to the caller. With a
+ * plain number[] every octet reads as possibly undefined, and each range check
+ * below then quietly evaluates to false — a guard that fails open. */
+function ipToBytes(ip: string): [number, number, number, number] | null {
+  if (isIP(ip) !== 4) return null;
+  const p = ip.split(".").map(Number);
+  if (p.length !== 4) return null;
+  const [a, b, c, d] = p;
+  if (a === undefined || b === undefined || c === undefined || d === undefined) return null;
+  return p.every((n) => n >= 0 && n <= 255) ? [a, b, c, d] : null;
 }
 
 /** True for loopback / link-local / private / unique-local / metadata ranges. */
@@ -86,26 +90,31 @@ function pinningDispatcher(): Agent {
         const host = hostname.replace(/^\[|\]$/g, "");
         const deliver = (address: string) => {
           const family = isIP(address);
-          if (options?.all) callback(null, [{ address, family }]);
+          if (options.all) callback(null, [{ address, family }]);
           else callback(null, address, family);
         };
         if (isIP(host)) {
-          if (isBlockedAddress(host))
-            return callback(new Error(`safeFetch: blocked address ${host}`), "");
-          return deliver(host);
+          if (isBlockedAddress(host)) {
+            callback(new Error(`safeFetch: blocked address ${host}`), "");
+          } else {
+            deliver(host);
+          }
+          return;
         }
         lookup(host, { all: true })
           .then((addrs) => {
-            if (addrs.length === 0)
-              return callback(new Error(`safeFetch: cannot resolve ${host}`), "");
-            for (const a of addrs) {
-              if (isBlockedAddress(a.address))
-                return callback(
-                  new Error(`safeFetch: blocked address ${a.address} for host ${host}`),
-                  ""
-                );
+            const first = addrs[0];
+            if (!first) {
+              callback(new Error(`safeFetch: cannot resolve ${host}`), "");
+              return;
             }
-            deliver(addrs[0].address);
+            for (const a of addrs) {
+              if (isBlockedAddress(a.address)) {
+                callback(new Error(`safeFetch: blocked address ${a.address} for host ${host}`), "");
+                return;
+              }
+            }
+            deliver(first.address);
           })
           .catch((e: unknown) => callback(e instanceof Error ? e : new Error(String(e)), ""));
       },

@@ -55,8 +55,10 @@ export function DoorSignEditor({
 
   const currentDisplay =
     activeDisplay === "default"
-      ? displays[0]
-      : (displays.find((d) => `${d.width}x${d.height}` === activeDisplay) ?? displays[0]);
+      ? (displays[0] ?? DEFAULT_DISPLAY)
+      : (displays.find((d) => `${d.width}x${d.height}` === activeDisplay) ??
+        displays[0] ??
+        DEFAULT_DISPLAY);
 
   const aspectRatio = currentDisplay.width / currentDisplay.height;
 
@@ -86,6 +88,7 @@ export function DoorSignEditor({
     const el = containerRef.current;
     if (!el) return;
     const obs = new ResizeObserver(([entry]) => {
+      if (!entry) return;
       const w = entry.contentRect.width;
       setContainerSize({ w, h: w / aspectRatio });
     });

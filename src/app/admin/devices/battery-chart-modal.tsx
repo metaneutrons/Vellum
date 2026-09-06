@@ -77,8 +77,10 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
     }
   }
 
-  const tMin = points.length > 0 ? points[0].t : Date.now() - 86400000;
-  const tMax = points.length > 0 ? points[points.length - 1].t : Date.now();
+  const firstPoint = points[0];
+  const lastPoint = points[points.length - 1];
+  const tMin = firstPoint ? firstPoint.t : Date.now() - 86400000;
+  const tMax = lastPoint ? lastPoint.t : Date.now();
   const tRange = Math.max(tMax - tMin, 1);
 
   const toX = (t: number) => PAD + ((t - tMin) / tRange) * chartW;
@@ -189,13 +191,8 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
             strokeLinejoin="round"
           />
           {/* Current value */}
-          {points.length > 0 && (
-            <circle
-              cx={toX(points[points.length - 1].t)}
-              cy={toY(points[points.length - 1].v)}
-              r="3"
-              fill="var(--color-accent)"
-            />
+          {lastPoint && (
+            <circle cx={toX(lastPoint.t)} cy={toY(lastPoint.v)} r="3" fill="var(--color-accent)" />
           )}
         </svg>
       )}
@@ -211,8 +208,12 @@ export function BatteryChartModal({ mac, open, onClose }: Props) {
           const sumXY = recent.reduce((s, p, i) => s + i * p.v, 0);
           const sumX2 = recent.reduce((s, _, i) => s + i * i, 0);
           const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-          const avgInterval = (recent[n - 1].t - recent[0].t) / (n - 1);
-          const currentV = recent[n - 1].v;
+          /* The block only renders from ten samples up, so both ends are there. */
+          const oldest = recent[0];
+          const newest = recent[n - 1];
+          if (!oldest || !newest) return null;
+          const avgInterval = (newest.t - oldest.t) / (n - 1);
+          const currentV = newest.v;
           const targetV = 3.3;
           if (slope < 0) {
             const stepsToEmpty = (targetV - currentV) / slope;

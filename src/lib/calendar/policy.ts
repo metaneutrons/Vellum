@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import type { CalendarEvent, DisplayEvent, RoomPolicy } from "@/lib/types";
 
-const RESERVED_TEXT: Record<string, string> = {
+/* The `en` member is what the lookups below fall back to, so the type says it
+ * is there rather than leaving the fallback possibly undefined. */
+const RESERVED_TEXT: Record<string, string> & { en: string } = {
   en: "Reserved",
   de: "Reserviert",
   fr: "Réservé",
@@ -10,7 +12,7 @@ const RESERVED_TEXT: Record<string, string> = {
   es: "Reservado",
 };
 
-const BOOKED_BY_TEXT: Record<string, string> = {
+const BOOKED_BY_TEXT: Record<string, string> & { en: string } = {
   en: "Booked by",
   de: "Gebucht von",
   fr: "Réservé par",

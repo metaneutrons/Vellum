@@ -33,8 +33,8 @@ describe("Property 1: Room policy transforms public and private events correctly
         expect(result).toHaveLength(events.length);
 
         for (let i = 0; i < events.length; i++) {
-          const src = events[i];
-          const out = result[i];
+          const src = events[i]!;
+          const out = result[i]!;
 
           // Time range always preserved
           expect(out.startTime).toEqual(src.startTime);
@@ -74,8 +74,8 @@ describe('Property 2: "Hide Subject" policy replaces all subjects with "Reserved
         expect(result).toHaveLength(events.length);
 
         for (let i = 0; i < events.length; i++) {
-          const src = events[i];
-          const out = result[i];
+          const src = events[i]!;
+          const out = result[i]!;
 
           expect(out.displaySubject).toBe("Reserved");
           expect(out.startTime).toEqual(src.startTime);

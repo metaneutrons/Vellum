@@ -12,14 +12,19 @@ import { z } from "zod";
 import type { CalendarProvider, CalendarEvent, ResourceRef } from "../types";
 import { TtlCache } from "@/lib/cache";
 import { log } from "@/lib/logger";
+import { recordString } from "@/lib/record-value";
 
 const ANNY_BASE = "https://b.anny.co/api/v1";
 
 /** Extract organization (tenant) ID from anny JWT token */
 export function extractOrgFromToken(token: string): string | null {
   try {
-    /* A JWT payload is whatever the issuer put there; only `tenant` is read. */
-    const payload: unknown = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    /* A JWT payload is whatever the issuer put there; only `tenant` is read. A
+     * token without a payload segment is caught below either way, but saying so
+     * here keeps the throw out of Buffer.from. */
+    const segment = token.split(".")[1];
+    if (segment === undefined) return null;
+    const payload: unknown = JSON.parse(Buffer.from(segment, "base64url").toString());
     const parsed = z.object({ tenant: z.string().optional() }).safeParse(payload);
     return parsed.success ? (parsed.data.tenant ?? null) : null;
   } catch {
@@ -72,7 +77,7 @@ interface AnnyPage {
 interface AnnyResponse {
   data: unknown[];
   included?: unknown[];
-  meta?: { page?: AnnyPage };
+  meta?: { page?: AnnyPage } | undefined;
 }
 
 /* The JSON:API envelope this provider relies on. Only the three fields the code
@@ -279,7 +284,7 @@ export async function fetchAnnyResources(
     resources,
     /* The page total counts PARENTS, which is what paging is over. Reporting the
      * flattened length instead would make the last page look short. */
-    total: (result.meta?.page?.total as number) ?? resources.length,
+    total: result.meta?.page?.total ?? resources.length,
   };
 }
 
@@ -372,8 +377,8 @@ export const annyProvider: CalendarProvider = {
     const customers = new Map<string, { given: string; family: string; full: string }>();
     for (const inc of included) {
       if (inc.type === "customers") {
-        const given = ((inc.attributes.given_name as string) ?? "").trim();
-        const family = ((inc.attributes.family_name as string) ?? "").trim();
+        const given = recordString(inc.attributes, "given_name").trim();
+        const family = recordString(inc.attributes, "family_name").trim();
         customers.set(inc.id, { given, family, full: `${given} ${family}`.trim() });
       }
     }

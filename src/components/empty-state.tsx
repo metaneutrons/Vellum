@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 interface EmptyStateProps {
   icon?: string;
   title: string;
-  description?: string;
+  description?: string | undefined;
   action?: ReactNode;
 }
 

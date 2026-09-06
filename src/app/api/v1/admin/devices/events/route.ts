@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         () => !closed && controller.enqueue(encoder.encode(": keepalive\n\n")),
         15_000
       );
-      heartbeat.unref?.();
+      heartbeat.unref();
 
       cleanup = () => {
         if (closed) return;

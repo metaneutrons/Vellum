@@ -25,6 +25,7 @@ import { encryptCredentials, decryptCredentials } from "@/lib/encryption";
 import { log } from "@/lib/logger";
 import { randomBytes } from "node:crypto";
 import {
+  insertedRow,
   requirePermission,
   type AuditEvent,
   type Permission,
@@ -227,7 +228,7 @@ export async function queueDeviceServerMigration(macInput: string, serverUrlInpu
           createdBy: actor.type === "user" ? actor.id : null,
         })
         .returning({ id: deviceConfigurationCommands.id });
-      return rows[0];
+      return insertedRow(rows, "configuration command");
     },
     "queue-device-server-migration",
     "serializable"
@@ -379,7 +380,7 @@ export async function queueDeviceOrientation(macInput: string, orientationInput:
           createdBy: actor.type === "user" ? actor.id : null,
         })
         .returning({ id: deviceConfigurationCommands.id });
-      return rows[0];
+      return insertedRow(rows, "configuration command");
     },
     "queue-device-orientation",
     "serializable"
@@ -441,7 +442,7 @@ export async function queueDeviceWifiConfiguration(
             inArray(deviceConfigurationCommands.status, ["pending", "delivered"])
           )
         );
-      const [created] = await tx
+      const created = await tx
         .insert(deviceConfigurationCommands)
         .values({
           mac,
@@ -450,7 +451,7 @@ export async function queueDeviceWifiConfiguration(
           createdBy: actor.type === "user" ? actor.id : null,
         })
         .returning({ id: deviceConfigurationCommands.id });
-      return created;
+      return insertedRow(created, "configuration command");
     },
     "queue-device-wifi-configuration",
     "serializable"
@@ -564,7 +565,7 @@ export async function createTheme(name: string, config: Record<string, string>) 
     (created: { id: string }[]) => ({
       action: "theme.create",
       targetType: "theme",
-      targetId: created[0].id,
+      targetId: insertedRow(created, "theme").id,
       metadata: { name },
     }),
     (tx) => tx.insert(themes).values({ name, config }).returning({ id: themes.id }),
@@ -620,7 +621,7 @@ export async function createProvider(
       (created: { id: string }[]) => ({
         action: "provider.create",
         targetType: "provider",
-        targetId: created[0].id,
+        targetId: insertedRow(created, "provider").id,
         metadata: { type, name },
       }),
       (tx) =>
@@ -753,7 +754,7 @@ export async function createContentInstance(
     (created: { id: string }[]) => ({
       action: "content.create",
       targetType: "content",
-      targetId: created[0].id,
+      targetId: insertedRow(created, "content").id,
       metadata: { typeSlug, name },
     }),
     (tx) =>
@@ -893,15 +894,24 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
   try {
     const { decryptCredentials: decrypt } = await import("@/lib/encryption");
     const credentials = decrypt(provider.encryptedCredentials) as Record<string, string>;
+    /* The stored blob holds whatever the provider was configured with, so a field
+     * can be absent. Naming the missing one beats handing undefined to an SDK, or
+     * pasting the string "undefined" into an authority URL. The catch below turns
+     * this into the operator's message. */
+    const need = (field: string): string => {
+      const value = credentials[field];
+      if (!value) throw new Error(`Stored credentials are missing "${field}".`);
+      return value;
+    };
 
     if (provider.type === "microsoft365") {
       // Test: get OAuth token from Microsoft Graph
       const { ConfidentialClientApplication } = await import("@azure/msal-node");
       const cca = new ConfidentialClientApplication({
         auth: {
-          clientId: credentials.clientId,
-          clientSecret: credentials.clientSecret,
-          authority: `https://login.microsoftonline.com/${credentials.tenantId}`,
+          clientId: need("clientId"),
+          clientSecret: need("clientSecret"),
+          authority: `https://login.microsoftonline.com/${need("tenantId")}`,
         },
       });
       const token = await cca.acquireTokenByClientCredential({
@@ -916,7 +926,7 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
     if (provider.type === "google") {
       // Test: exchange JWT for access token (same as provider does)
       const { createJwt } = await import("@/lib/calendar/providers/google");
-      const jwt = createJwt(credentials.clientEmail, credentials.privateKey);
+      const jwt = createJwt(need("clientEmail"), need("privateKey"));
       const res = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -934,7 +944,7 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
       // safeFetch (not raw fetch): the URL comes from stored provider credentials,
       // so it must go through the SSRF guard that blocks private/link-local/loopback
       // targets — otherwise "Test connection" is an authenticated SSRF primitive.
-      const res = await safeFetch(credentials.url, { timeoutMs: 10_000 });
+      const res = await safeFetch(need("url"), { timeoutMs: 10_000 });
       if (!res.ok) return { ok: false, message: `HTTP ${res.status} from iCal URL` };
       const text = await res.text();
       return {
@@ -948,9 +958,9 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
     if (provider.type === "anny") {
       const { fetchAnnyResources, extractOrgFromToken } =
         await import("@/lib/calendar/providers/anny");
-      const orgId = credentials.organizationId || extractOrgFromToken(credentials.apiToken) || "";
+      const orgId = credentials.organizationId || extractOrgFromToken(need("apiToken")) || "";
       if (!orgId) return { ok: false, message: "Cannot extract organization ID from token" };
-      const result = await fetchAnnyResources(credentials.apiToken, orgId);
+      const result = await fetchAnnyResources(need("apiToken"), orgId);
       return { ok: true, message: `Connected — ${result.total} resources found` };
     }
 
@@ -1061,7 +1071,7 @@ export async function createSite(input: unknown) {
     (created: { id: string }[]) => ({
       action: "site.create",
       targetType: "site",
-      targetId: created[0].id,
+      targetId: insertedRow(created, "site").id,
       metadata: { name: data.name, timezone: data.timezone },
     }),
     (tx) =>
@@ -1162,7 +1172,7 @@ export async function createRefreshProfile(name: string, config: Record<string, 
       (created: { id: string }[]) => ({
         action: "profile.create",
         targetType: "refresh_profile",
-        targetId: created[0].id,
+        targetId: insertedRow(created, "refresh profile").id,
         metadata: { name: validatedName, config: validatedConfig, revision: 1 },
       }),
       (tx) =>
@@ -1236,11 +1246,12 @@ async function updateRefreshProfileRecord(
       and(eq(refreshProfiles.id, input.id), eq(refreshProfiles.revision, input.expectedRevision))
     )
     .returning({ revision: refreshProfiles.revision });
-  if (updated.length === 0) return { status: "conflict" };
+  const bumped = updated[0];
+  if (!bumped) return { status: "conflict" };
   return {
     status: "updated",
     before: { name: before.name, config: before.config },
-    revision: updated[0].revision,
+    revision: bumped.revision,
   };
 }
 
@@ -1329,6 +1340,7 @@ export async function deleteRefreshProfile(id: string) {
           })
           .from(refreshProfiles)
           .where(eq(refreshProfiles.id, id));
+        if (!impact) throw new Error("refresh_profile_not_found");
         const deleted = await tx
           .delete(refreshProfiles)
           .where(eq(refreshProfiles.id, id))

@@ -7,11 +7,18 @@ import { useTranslations } from "next-intl";
 export default function AdminError({ error, reset }: { error: Error; reset: () => void }) {
   const t = useTranslations("error");
 
+  /* React hands the boundary whatever was thrown, and the `Error` in the prop type
+   * is Next's convention rather than a promise. A thrown string carries no
+   * `message`, so reading it through `unknown` keeps the error page from throwing
+   * an error of its own. */
+  const thrown: unknown = error;
+  const message = thrown instanceof Error ? thrown.message : String(thrown);
+
   const isDbError =
-    error.message?.includes("connect") ||
-    error.message?.includes("ECONNREFUSED") ||
-    error.message?.includes("Failed query") ||
-    error.message?.includes("timeout");
+    message.includes("connect") ||
+    message.includes("ECONNREFUSED") ||
+    message.includes("Failed query") ||
+    message.includes("timeout");
 
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -21,7 +28,7 @@ export default function AdminError({ error, reset }: { error: Error; reset: () =
           {isDbError ? t("dbUnavailable") : t("somethingWrong")}
         </h2>
         <p className="text-label-secondary mb-6">
-          {isDbError ? t("dbHint") : error.message || t("unexpected")}
+          {isDbError ? t("dbHint") : message || t("unexpected")}
         </p>
         <button
           onClick={reset}

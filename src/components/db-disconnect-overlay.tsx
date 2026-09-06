@@ -337,7 +337,7 @@ export function DbDisconnectOverlay() {
           {lastError && (
             <div className="truncate">
               {t("errorLabel")}:{" "}
-              <span className="text-gray-400">{lastError.split(":").slice(-1)[0].trim()}</span>
+              <span className="text-gray-400">{lastError.split(":").slice(-1)[0]?.trim()}</span>
             </div>
           )}
         </div>

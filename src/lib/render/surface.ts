@@ -152,12 +152,13 @@ function recordingProxy(real: SKRSContext2D, recording: Recording): SKRSContext2
       condensed: squeeze < 1,
       squeeze,
     });
-    return maxWidth === undefined ? real.fillText(text, x, y) : real.fillText(text, x, y, maxWidth);
+    if (maxWidth === undefined) real.fillText(text, x, y);
+    else real.fillText(text, x, y, maxWidth);
   };
 
   const onFillRect = (x: number, y: number, w: number, h: number) => {
     recording.fills.push({ x, y, width: w, height: h, color: asColor(real.fillStyle) });
-    return real.fillRect(x, y, w, h);
+    real.fillRect(x, y, w, h);
   };
 
   const onBitmap = (prop: string | symbol) => {

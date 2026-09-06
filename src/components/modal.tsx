@@ -12,7 +12,7 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  onSubmit?: () => void;
+  onSubmit?: (() => void) | undefined;
   wide?: boolean;
 }
 
@@ -40,9 +40,9 @@ export function Modal({ open, onClose, title, children, footer, onSubmit, wide }
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && onSubmit) onSubmit();
       if (e.key === "Tab") {
         const elements = focusable();
-        if (elements.length === 0) return;
         const first = elements[0];
         const last = elements[elements.length - 1];
+        if (!first || !last) return; // nothing focusable inside the dialog
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last.focus();

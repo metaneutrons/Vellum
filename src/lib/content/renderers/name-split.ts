@@ -174,7 +174,7 @@ function readingOrder(input: string): string {
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
-  while (parts.length > 1 && isSuffix(parts[parts.length - 1])) parts.pop();
+  while (parts.length > 1 && isSuffix(parts[parts.length - 1] ?? "")) parts.pop();
   if (parts.length >= 2) return `${parts[1]} ${parts[0]}`;
   return parts[0] ?? "";
 }
@@ -197,11 +197,11 @@ export function splitName(raw: string): NameRanks {
   /* Front, then back. Both loops keep at least one token, so a name that is
    * nothing but a title still has a surname to draw. */
   const titles: string[] = [];
-  while (tokens.length > 1 && isTitle(tokens[0])) {
+  while (tokens.length > 1 && isTitle(tokens[0] ?? "")) {
     const head = tokens.shift();
     if (head) titles.push(head);
   }
-  while (tokens.length > 1 && isSuffix(tokens[tokens.length - 1])) tokens.pop();
+  while (tokens.length > 1 && isSuffix(tokens[tokens.length - 1] ?? "")) tokens.pop();
 
   const shouted = shoutedSurname(tokens);
   const start = shouted === null ? surnameStart(tokens) : 0;
@@ -230,7 +230,7 @@ export function splitName(raw: string): NameRanks {
 function shoutedSurname(tokens: string[]): string | null {
   if (tokens.length < 2) return null;
   const shouted = tokens.filter(isShout);
-  return shouted.length === 1 ? shouted[0] : null;
+  return shouted.length === 1 ? (shouted[0] ?? null) : null;
 }
 
 /**
@@ -241,6 +241,6 @@ function shoutedSurname(tokens: string[]): string | null {
  */
 function surnameStart(tokens: string[]): number {
   let start = tokens.length - 1;
-  while (start > 0 && PARTICLES.has(normalize(tokens[start - 1]))) start--;
+  while (start > 0 && PARTICLES.has(normalize(tokens[start - 1] ?? ""))) start--;
   return start;
 }

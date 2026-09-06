@@ -196,12 +196,12 @@ describe("schedule rules in the display's timezone", () => {
     });
     expect(upgraded.version).toBe(3);
     expect(upgraded.schedule).toHaveLength(1);
-    expect(upgraded.schedule[0].usb).toMatchObject({ intervalS: 7200, brightnessPercent: 10 });
-    expect(upgraded.schedule[0].battery).toMatchObject({
+    expect(upgraded.schedule[0]!.usb).toMatchObject({ intervalS: 7200, brightnessPercent: 10 });
+    expect(upgraded.schedule[0]!.battery).toMatchObject({
       intervalS: 7200,
       brightnessPercent: 10,
     });
-    expect(upgraded.schedule[0].usb?.device).toBeUndefined();
+    expect(upgraded.schedule[0]!.usb?.device).toBeUndefined();
   });
 });
 

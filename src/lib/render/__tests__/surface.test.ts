@@ -27,7 +27,7 @@ describe("recordingSurface: the ink box", () => {
     const { ctx, recording } = recordingSurface(400, 100);
     ctx.font = `32px ${FF}`;
     ctx.fillText("Warnking", 50, 60);
-    const [t] = recording.texts;
+    const t = recording.texts[0]!;
     expect(t.text).toBe("Warnking");
     expect(t.box.left).toBeCloseTo(50, 0);
     expect(t.box.right).toBeGreaterThan(150);
@@ -42,7 +42,7 @@ describe("recordingSurface: the ink box", () => {
     ctx.font = `32px ${FF}`;
     ctx.textAlign = "right";
     ctx.fillText("Warnking", 300, 60);
-    const [t] = recording.texts;
+    const t = recording.texts[0]!;
     expect(t.box.right).toBeLessThanOrEqual(300);
     expect(t.box.left).toBeLessThan(200);
   });
@@ -52,7 +52,7 @@ describe("recordingSurface: the ink box", () => {
     ctx.font = `32px ${FF}`;
     ctx.textAlign = "center";
     ctx.fillText("Warnking", 200, 60);
-    const [t] = recording.texts;
+    const t = recording.texts[0]!;
     const mid = (t.box.left + t.box.right) / 2;
     /* Within a couple of pixels rather than exactly: the box is the INK, and the
      * right side bearing of the last glyph is not the left bearing of the first. */
@@ -64,7 +64,7 @@ describe("recordingSurface: the ink box", () => {
     ctx.font = `32px ${FF}`;
     ctx.textBaseline = "top";
     ctx.fillText("Warnking", 10, 20);
-    const [t] = recording.texts;
+    const t = recording.texts[0]!;
     /* The claim is that the ink starts AT the pen rather than an ascent above it,
      * which is where an alphabetic baseline would put it: at 32 px that would be
      * near y - 24. A pixel or two of overshoot above the em box is the font's
@@ -79,15 +79,15 @@ describe("recordingSurface: condensing", () => {
     const { ctx, recording } = recordingSurface(400, 100);
     ctx.font = `16px ${FF}`;
     ctx.fillText("Warnking", 10, 50, 300);
-    expect(recording.texts[0].condensed).toBe(false);
-    expect(recording.texts[0].squeeze).toBe(1);
+    expect(recording.texts[0]!.condensed).toBe(false);
+    expect(recording.texts[0]!.squeeze).toBe(1);
   });
 
   it("reports the ratio when maxWidth squeezes the text, and narrows the box", () => {
     const { ctx, recording } = recordingSurface(400, 100);
     ctx.font = `32px ${FF}`;
     ctx.fillText("Prof. Dr. Fabian Schmieder", 10, 50, 60);
-    const [t] = recording.texts;
+    const t = recording.texts[0]!;
     expect(t.condensed).toBe(true);
     expect(t.squeeze).toBeLessThan(0.5);
     /* Canvas condenses rather than clipping, so the ink stays inside maxWidth.
@@ -140,7 +140,7 @@ describe("recordingFactory", () => {
     const { factory, recordings } = recordingFactory();
     factory(10, 10).ctx.fillText("first", 0, 5);
     factory(20, 20).ctx.fillText("second", 0, 5);
-    expect(recordings.map((r) => r.texts[0].text)).toEqual(["first", "second"]);
+    expect(recordings.map((r) => r.texts[0]!.text)).toEqual(["first", "second"]);
     expect(recordings.map((r) => r.width)).toEqual([10, 20]);
   });
 });

@@ -24,7 +24,7 @@ describe("errorBackoffS", () => {
   it("is ascending, so walking it always backs off", () => {
     const { errorBackoffS } = parseRefreshProfile({});
     for (let i = 1; i < errorBackoffS.length; i++) {
-      expect(errorBackoffS[i]).toBeGreaterThan(errorBackoffS[i - 1]);
+      expect(errorBackoffS[i]!).toBeGreaterThan(errorBackoffS[i - 1]!);
     }
   });
 

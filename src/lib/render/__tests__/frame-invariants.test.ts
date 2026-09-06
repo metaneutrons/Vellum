@@ -39,8 +39,8 @@ describe("bounds", () => {
     });
     const out = checkFrame(rec);
     expect(out).toHaveLength(1);
-    expect(out[0].invariant).toBe("bounds");
-    expect(out[0].detail).toContain("right");
+    expect(out[0]!.invariant).toBe("bounds");
+    expect(out[0]!.detail).toContain("right");
   });
 
   it("fails for text above the top edge", () => {
@@ -70,7 +70,7 @@ describe("contrast", () => {
     });
     const out = checkFrame(rec);
     expect(out.map((v) => v.invariant)).toEqual(["contrast"]);
-    expect(out[0].detail).toContain("1.00:1");
+    expect(out[0]!.detail).toContain("1.00:1");
   });
 
   it("fails for white on white, which is how the mono theme failed", () => {
@@ -100,7 +100,7 @@ describe("contrast", () => {
       ctx.fillStyle = "#FFFFFF";
       ctx.fillText("Warnking", 20, 100);
     });
-    expect(groundsUnder(rec, rec.texts[0])).toEqual(["#000000"]);
+    expect(groundsUnder(rec, rec.texts[0]!)).toEqual(["#000000"]);
     expect(checkFrame(rec)).toEqual([]);
   });
 
@@ -109,7 +109,7 @@ describe("contrast", () => {
     s.ctx.font = `24px ${FF}`;
     s.ctx.fillStyle = "#FEFEFE";
     s.ctx.fillText("Warnking", 20, 100);
-    expect(groundsUnder(s.recording, s.recording.texts[0])).toEqual([]);
+    expect(groundsUnder(s.recording, s.recording.texts[0]!)).toEqual([]);
     expect(checkFrame(s.recording)).toEqual([]);
   });
 
@@ -120,7 +120,7 @@ describe("contrast", () => {
       ctx.fillStyle = "#FFFFFF";
       ctx.fillText("Warnking", 20, 100);
     });
-    expect(groundsUnder(rec, rec.texts[0]).sort()).toEqual(["#000000", "#FFFFFF"]);
+    expect(groundsUnder(rec, rec.texts[0]!).sort()).toEqual(["#000000", "#FFFFFF"]);
     /* White is unreadable on the white half, and that is the finding. */
     expect(checkFrame(rec).map((v) => v.invariant)).toEqual(["contrast"]);
   });
@@ -148,7 +148,7 @@ describe("reads", () => {
   it("fails when the string is nowhere", () => {
     const out = checkFrame(sound(), { mustRead: ["Lukas Thiele"] });
     expect(out.map((v) => v.invariant)).toEqual(["reads"]);
-    expect(out[0].detail).toContain("Lukas Thiele");
+    expect(out[0]!.detail).toContain("Lukas Thiele");
   });
 
   it("names every missing string, not just the first", () => {
@@ -195,7 +195,7 @@ describe("state", () => {
       exactlyOneOf: ["FREI", "BELEGT"],
     });
     expect(out.map((v) => v.invariant)).toEqual(["state"]);
-    expect(out[0].detail).toContain("no state label");
+    expect(out[0]!.detail).toContain("no state label");
   });
 
   it("fails when both appear, because the sign then says nothing", () => {
@@ -205,7 +205,7 @@ describe("state", () => {
       ctx.fillText("BELEGT", 20, 140);
     });
     const out = checkFrame(rec, { exactlyOneOf: ["FREI", "BELEGT"] });
-    expect(out[0].detail).toContain("ambiguous");
+    expect(out[0]!.detail).toContain("ambiguous");
   });
 
   it("is not checked at all when no labels are given", () => {

@@ -109,7 +109,9 @@ export function ScheduleTimeline({
   const overlaps: [number, number][] = [];
   for (let i = 0; i < rules.length; i++) {
     for (let j = i + 1; j < rules.length; j++) {
-      if (rulesOverlap(rules[i], rules[j])) overlaps.push([i, j]);
+      const left = rules[i];
+      const right = rules[j];
+      if (left && right && rulesOverlap(left, right)) overlaps.push([i, j]);
     }
   }
 

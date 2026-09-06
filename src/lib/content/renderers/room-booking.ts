@@ -14,9 +14,17 @@ import { TZDate } from "@date-fns/tz";
 import { de, fr, it, es, enUS } from "date-fns/locale";
 import type { Locale as DateLocale } from "date-fns";
 
-const DATE_LOCALES: Record<string, DateLocale> = { en: enUS, de, fr, it, es };
+/* `en` is the fallback for both lookups, so the type carries that guarantee. */
+const DATE_LOCALES: Record<string, DateLocale> & { en: DateLocale } = {
+  en: enUS,
+  de,
+  fr,
+  it,
+  es,
+};
 
-const BADGE_TEXT: Record<string, { free: string; busy: string }> = {
+type BadgeText = { free: string; busy: string };
+const BADGE_TEXT: Record<string, BadgeText> & { en: BadgeText } = {
   en: { free: "FREE", busy: "BUSY" },
   de: { free: "FREI", busy: "BELEGT" },
   fr: { free: "LIBRE", busy: "OCCUPÉ" },
@@ -285,7 +293,8 @@ export function computeTimelineLayout<T extends DisplayEvent>(
     // First column free by the time this event starts (touching ends may share).
     let col = 0;
     for (col = 0; col < columns.length; col++) {
-      if (columns[col].end <= y1) break;
+      /* col stays inside the loop bound, so the column is always there. */
+      if ((columns[col]?.end ?? 0) <= y1) break;
     }
     if (col === columns.length) columns.push({ end: 0 });
     columns[col] = { end: y2 };
@@ -569,8 +578,8 @@ export interface FrameSpec {
   dateFormat?: string;
   /** Hours the timeline window steps by. Ignored by the stacked layout. */
   timelineShiftH?: number;
-  bookingQr?: BookingQrRenderOptions;
-  surface?: SurfaceFactory;
+  bookingQr?: BookingQrRenderOptions | undefined;
+  surface?: SurfaceFactory | undefined;
 }
 
 /** What `openFrame` settles once, so neither layout settles it twice. */
@@ -685,7 +694,7 @@ export interface OfflineSpec {
   width: number;
   height: number;
   locale?: string;
-  surface?: SurfaceFactory;
+  surface?: SurfaceFactory | undefined;
 }
 
 /**

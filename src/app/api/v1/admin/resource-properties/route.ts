@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 
       // Build property label map from included
       const propLabels = new Map<string, string>();
-      for (const inc of (data.included ?? []) as {
+      for (const inc of data.included as {
         id: string;
         type: string;
         attributes: { label?: string };
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Filter for our resource and resolve values
-      for (const rp of (data.data ?? []) as {
+      for (const rp of data.data as {
         attributes: { value: unknown };
         relationships?: {
           resource?: { data?: { id: string } };
@@ -92,7 +92,8 @@ export async function GET(request: NextRequest) {
         };
       }[]) {
         if (rp.relationships?.resource?.data?.id !== resourceId) continue;
-        const propId = rp.relationships?.property?.data?.id;
+        /* The check above already skipped an entry without relationships. */
+        const propId = rp.relationships.property?.data?.id;
         const label = propId ? propLabels.get(propId) : undefined;
         if (label && rp.attributes.value != null) {
           /* The value comes from the provider's JSON, so its type is a claim rather
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
               ? raw
               : typeof raw === "number" || typeof raw === "boolean" || typeof raw === "bigint"
                 ? String(raw)
-                : (JSON.stringify(raw) ?? "");
+                : JSON.stringify(raw);
         }
       }
 

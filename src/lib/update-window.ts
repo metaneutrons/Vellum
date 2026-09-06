@@ -95,9 +95,13 @@ function reachedVersion(current: string | null, target: string | null): boolean 
   const a = versionParts(current);
   const b = versionParts(target);
   if (!a || !b) return current !== null && target !== null && current === target;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index] !== b[index]) return a[index] > b[index];
-  }
+  /* Both are fixed three-part tuples, so comparing them field by field needs no
+   * bounds reasoning at all. */
+  const [aMajor, aMinor, aPatch] = a;
+  const [bMajor, bMinor, bPatch] = b;
+  if (aMajor !== bMajor) return aMajor > bMajor;
+  if (aMinor !== bMinor) return aMinor > bMinor;
+  if (aPatch !== bPatch) return aPatch > bPatch;
   return true;
 }
 

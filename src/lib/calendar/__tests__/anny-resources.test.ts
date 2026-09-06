@@ -41,8 +41,8 @@ describe("flattenAnnyResources", () => {
    * only the name plate wants the individual desks. */
   it("keeps the room itself selectable", () => {
     const out = flattenAnnyResources([room("1", "Room", ["2"])], [seat("2", "Desk")]);
-    expect(out[0].id).toBe("1");
-    expect(out[0].parentId).toBeUndefined();
+    expect(out[0]!.id).toBe("1");
+    expect(out[0]!.parentId).toBeUndefined();
   });
 
   /* Without the parent's name a flat list of "Sylt 1, Föhr 2, Amrum 1" is
@@ -62,7 +62,7 @@ describe("flattenAnnyResources", () => {
   it("leaves a room without children as a single entry", () => {
     const out = flattenAnnyResources([room("173420", "Besprechungsraum 1J.2.17")], []);
     expect(out).toHaveLength(1);
-    expect(out[0].parentId).toBeUndefined();
+    expect(out[0]!.parentId).toBeUndefined();
   });
 
   /* An archived resource is still returned by the API. Offering one would set up
@@ -105,12 +105,12 @@ describe("flattenAnnyResources", () => {
    * because a resource id and its public slug are unrelated. */
   it("builds a booking url only from a slug the provider supplied", () => {
     const [withSlug] = flattenAnnyResources([room("1", "Room A")], []);
-    expect(withSlug.bookingUrl).toBe("https://anny.co/b/book/room-a");
+    expect(withSlug!.bookingUrl).toBe("https://anny.co/b/book/room-a");
 
     const [withoutSlug] = flattenAnnyResources(
       [{ id: "1", type: "resources", attributes: { name: "Room A" } }],
       []
     );
-    expect(withoutSlug.bookingUrl).toBeUndefined();
+    expect(withoutSlug!.bookingUrl).toBeUndefined();
   });
 });

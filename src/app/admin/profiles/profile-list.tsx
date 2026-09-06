@@ -43,6 +43,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { isUsableTimezone } from "@/lib/settings/device-settings";
+import { recordNumber } from "@/lib/record-value";
 
 const selectCls =
   "min-h-8 px-2.5 rounded-md bg-surface-secondary border border-separator text-[13px] text-label focus-ring";
@@ -56,7 +57,9 @@ interface Profile {
   deviceCount: number;
   siteCount: number;
 }
-const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"];
+/* `as const` keeps the seven keys as literals, so a weekday index resolves to a
+ * known message key instead of a possibly absent string. */
+const DAY_KEYS = ["daySun", "dayMon", "dayTue", "dayWed", "dayThu", "dayFri", "daySat"] as const;
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const WEEKEND = [0, 6];
 
@@ -394,8 +397,11 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
   function moveRule(i: number, dir: -1 | 1) {
     const s = [...schedule];
     const j = i + dir;
-    if (j < 0 || j >= s.length) return;
-    [s[i], s[j]] = [s[j], s[i]];
+    const from = s[i];
+    const to = s[j];
+    if (j < 0 || j >= s.length || !from || !to) return;
+    s[i] = to;
+    s[j] = from;
     setSchedule(s);
     setExpandedRule((current) => (current === i ? j : current === j ? i : current));
   }
@@ -535,7 +541,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
       <div className="space-y-3">
         {filtered.map((p) => {
           const c = upgradeRefreshProfileConfig(p.config);
-          const rules = (c.schedule ?? []) as ScheduleRule[];
+          const rules = c.schedule;
           return (
             <div
               key={p.id}
@@ -854,7 +860,11 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                       ? t("weekdays")
                       : JSON.stringify(rule.days) === JSON.stringify(WEEKEND)
                         ? t("weekend")
-                        : rule.days.map((day) => t(DAY_KEYS[day])).join(", ");
+                        : rule.days
+                            .map((day) => DAY_KEYS[day])
+                            .filter((key) => key !== undefined)
+                            .map((key) => t(key))
+                            .join(", ");
                 const timeLabel =
                   rule.startHour === rule.endHour
                     ? t("allDay")
@@ -1148,7 +1158,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                     <span className="text-sm font-medium text-label">{t(field.labelKey)}</span>
                     {field.type === "interval" ? (
                       <IntervalPicker
-                        value={(config[field.key] as number) ?? 900}
+                        value={recordNumber(config, field.key, 900)}
                         onChange={(value) =>
                           setConfig((current) => ({ ...current, [field.key]: value }))
                         }
@@ -1160,7 +1170,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                           min={field.min}
                           max={field.max}
                           className="flex-1 rounded-md accent-accent focus-ring"
-                          value={(config[field.key] as number) ?? field.min}
+                          value={recordNumber(config, field.key, field.min ?? 0)}
                           onChange={(event) =>
                             setConfig((current) => ({
                               ...current,
@@ -1169,7 +1179,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                           }
                         />
                         <span className="w-12 text-right text-sm tabular-nums text-label">
-                          {(config[field.key] as number) ?? field.min}
+                          {recordNumber(config, field.key, field.min ?? 0)}
                           {field.unit}
                         </span>
                       </div>
@@ -1188,7 +1198,7 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
               </p>
               <div className="mt-3 inline-flex rounded-xl border border-separator bg-surface-secondary/50 p-3">
                 <IntervalPicker
-                  value={(config.unassignedIntervalS as number) ?? 300}
+                  value={recordNumber(config, "unassignedIntervalS", 300)}
                   onChange={(value) =>
                     setConfig((current) => ({ ...current, unassignedIntervalS: value }))
                   }
@@ -1243,7 +1253,10 @@ export function ProfileList({ profiles, canManage }: { profiles: Profile[]; canM
                 onClick={() =>
                   setBackoff([
                     ...backoff,
-                    backoff.length ? Math.min(backoff[backoff.length - 1] * 2, 604800) : 60,
+                    (() => {
+                      const previous = backoff[backoff.length - 1];
+                      return previous ? Math.min(previous * 2, 604800) : 60;
+                    })(),
                   ])
                 }
               >

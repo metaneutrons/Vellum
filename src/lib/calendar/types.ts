@@ -30,17 +30,17 @@ export interface CalendarEvent {
    * Both absent means "this provider does not know", never "this person has no
    * surname".
    */
-  organizerGiven?: string;
-  organizerSurname?: string;
+  organizerGiven?: string | undefined;
+  organizerSurname?: string | undefined;
 }
 
 /** One bookable thing a provider knows about: a room, a desk, a resource. */
 export interface ResourceRef {
   id: string;
   name: string;
-  description?: string;
+  description?: string | undefined;
   /** Public booking link, when the provider exposes one for this resource. */
-  bookingUrl?: string;
+  bookingUrl?: string | undefined;
   /**
    * The resource this one sits inside, when it is a seat within a room.
    *
@@ -50,8 +50,8 @@ export interface ResourceRef {
    * door wants one band per SEAT, so the seats have to be selectable, and a bare
    * list of them would be unreadable without saying which room they belong to.
    */
-  parentId?: string;
-  parentName?: string;
+  parentId?: string | undefined;
+  parentName?: string | undefined;
 }
 
 export interface CalendarProvider {
@@ -75,8 +75,8 @@ export interface CalendarProvider {
    */
   listResources?(params: {
     credentials: unknown;
-    search?: string;
-    page?: number;
+    search?: string | undefined;
+    page?: number | undefined;
   }): Promise<{ resources: ResourceRef[]; total?: number }>;
   fetchEvents(params: {
     credentials: unknown;

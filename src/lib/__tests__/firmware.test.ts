@@ -88,7 +88,7 @@ describe("firmware manifest trust boundary", () => {
     const manifest = parseFirmwareManifest(payload, "firmware-v1.4.12-beta.1", true);
     expect(manifest.tag).toBe("firmware-v1.4.12-beta.1");
     expect(manifest.channel).toBe("beta");
-    expect(manifest.binaries.e1002.otaSignature).toBe("");
+    expect(manifest.binaries.e1002!.otaSignature).toBe("");
   });
 
   it("rejects malformed hashes before they can become OTA offers", () => {

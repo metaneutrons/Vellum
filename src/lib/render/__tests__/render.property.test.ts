@@ -206,7 +206,7 @@ describe("Property 9: Stale calendar data triggers fail-safe", () => {
           for (let x = 100; x < 700 && !centerHasContent; x++) {
             const idx = (y * 800 + x) * 4;
             // Look for black text pixels (the "System Offline" message)
-            if (pixels[idx] < 50 && pixels[idx + 1] < 50 && pixels[idx + 2] < 50) {
+            if (pixels[idx]! < 50 && pixels[idx + 1]! < 50 && pixels[idx + 2]! < 50) {
               centerHasContent = true;
             }
           }
@@ -256,9 +256,9 @@ describe("Property 9: Stale calendar data triggers fail-safe", () => {
           for (let x = 100; x < 700 && !hasOfflineText; x++) {
             const idx = (y * 800 + x) * 4;
             if (
-              offlineData.data[idx] < 50 &&
-              offlineData.data[idx + 1] < 50 &&
-              offlineData.data[idx + 2] < 50
+              offlineData.data[idx]! < 50 &&
+              offlineData.data[idx + 1]! < 50 &&
+              offlineData.data[idx + 2]! < 50
             ) {
               hasOfflineText = true;
             }

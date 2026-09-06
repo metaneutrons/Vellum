@@ -24,7 +24,9 @@
     "noImplicitOverride": true,
     "useUnknownInCatchVariables": true,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true
   },
   "include": [
     "next-env.d.ts",

@@ -167,8 +167,9 @@ function stateFromEvent(
  * desk it books, and a scan that books the wrong desk is worse than no code.
  */
 function plateBookingUrl(config: NamePlateConfig, isFree: boolean): string | null {
-  if (config.seats.length !== 1) return null;
-  const occupant = config.seats[0].occupant;
+  const sole = config.seats.length === 1 ? config.seats[0] : undefined;
+  if (!sole) return null;
+  const occupant = sole.occupant;
   const url = occupant.kind === "calendar" ? (occupant.bookingUrl ?? null) : null;
   return shouldShowBookingQr(config.bookingQr, isFree, url) ? url : null;
 }
@@ -232,11 +233,16 @@ async function resolveContents(
   locale: string,
   labels: StatusLabels
 ): Promise<BandContent[]> {
+  /* Each seat travels with its own resolved state instead of being matched up by
+   * index afterwards, so the two can never drift apart. */
   const resolved = await Promise.all(
-    config.seats.map((s) => resolveSeat(s, now, timezone, locale, labels))
+    config.seats.map(async (seat) => ({
+      seat,
+      state: await resolveSeat(seat, now, timezone, locale, labels),
+    }))
   );
-  return config.seats.map((seat, i) =>
-    bandContent(seat, resolved[i], config.showStatus, labels, config.seats.length > 1)
+  return resolved.map(({ seat, state }) =>
+    bandContent(seat, state, config.showStatus, labels, config.seats.length > 1)
   );
 }
 
@@ -286,7 +292,10 @@ function drawBands(
 ): void {
   const { sizes, nameWidth, gutterW, rowMode } = plan;
   bands.forEach((band, i) => {
+    /* contents is produced per band by the caller, so the pair lines up; a band
+     * without content would otherwise draw undefined fields. */
     const content = contents[i];
+    if (!content) return;
     if (rowMode) drawRow(t, band, content, sizes, colors, gutterW, nameWidth);
     else drawStack(t, band, content, sizes, colors, nameWidth);
     if (usesPills && content.pill) {
@@ -418,7 +427,7 @@ function planPlate(
   /* Only a single-seat plate puts its state in the footer; with more seats each band
    * carries its own pill, so the strip holds nothing but the freshness mark and can
    * be shorter. Settled before the frame, because it decides the frame. */
-  const soleState = config.seats.length === 1 ? contents[0].pill : null;
+  const soleState = config.seats.length === 1 ? (contents[0]?.pill ?? null) : null;
   const { shortSide, pad, scale, headerH, footerH } = plateFrame(
     config,
     width,
@@ -508,7 +517,10 @@ interface StatusLabels {
   book: string;
 }
 
-const LABELS_BY_LANG: Record<string, StatusLabels> = {
+/* `en` is spelled out in the type because it is the fallback every other lookup
+ * lands on: a Record alone would make it optional, and the one entry that must
+ * exist would be the one the type cannot promise. */
+const LABELS_BY_LANG: Record<string, StatusLabels> & { en: StatusLabels } = {
   de: {
     free: "Frei",
     busy: "Belegt",
@@ -552,6 +564,8 @@ const LABELS_BY_LANG: Record<string, StatusLabels> = {
 };
 
 function statusLabels(locale: string): StatusLabels {
+  /* A record read with a runtime key: the language may be anything the config
+   * carries, which is why the fallback was always there. */
   return LABELS_BY_LANG[locale.slice(0, 2).toLowerCase()] ?? LABELS_BY_LANG.en;
 }
 

@@ -51,6 +51,11 @@ const PROVIDER_TYPES = {
 } as const;
 
 type ProviderType = keyof typeof PROVIDER_TYPES;
+
+/* A stored provider row can carry a type this build no longer knows, so looking
+ * one up by plain string may miss. Widening the literal map states that; casting
+ * the row's own type into the union would claim the opposite. */
+const PROVIDER_TYPES_BY_NAME: Record<string, { category: string } | undefined> = PROVIDER_TYPES;
 interface Provider {
   id: string;
   type: string;
@@ -182,7 +187,7 @@ export function ProviderList({ providers }: { providers: Provider[] }) {
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <span className="font-medium text-label truncate">{p.name}</span>
               <StatusPill tone="accent">
-                {PROVIDER_TYPES[p.type as ProviderType]?.category ?? "data"}
+                {PROVIDER_TYPES_BY_NAME[p.type]?.category ?? "data"}
               </StatusPill>
               <StatusPill tone="neutral">{p.type}</StatusPill>
             </div>

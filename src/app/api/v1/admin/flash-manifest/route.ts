@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
-import { getManifestsByChannel, type FirmwareChannel } from "@/lib/firmware";
+import { getManifestsByChannel } from "@/lib/firmware";
+import { asFirmwareChannel } from "@/lib/firmware-channel";
 import { requestHasPermission } from "@/lib/access";
 
 /**
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
   if (!(await requestHasPermission(request, "firmware.flash")))
     return Response.json({ error: "Forbidden" }, { status: 403 });
   const model = request.nextUrl.searchParams.get("model") ?? "e1002";
-  const channel = (request.nextUrl.searchParams.get("channel") ?? "stable") as FirmwareChannel;
+  const channel = asFirmwareChannel(request.nextUrl.searchParams.get("channel"));
   const version = request.nextUrl.searchParams.get("version");
 
   const manifests = await getManifestsByChannel(channel);

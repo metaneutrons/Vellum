@@ -23,10 +23,16 @@ import { db, withDbRead } from "@/db";
 import { firmwareRollouts, otaEvents } from "@/db/schema";
 import { log } from "@/lib/logger";
 
-export type RolloutState = "paused" | "canary" | "percent" | "full" | "halted";
+import { asRolloutState } from "@/lib/rollout-state";
+
+export {
+  asRolloutState,
+  DEFAULT_ROLLOUT_STATE,
+  ROLLOUT_STATES,
+  type RolloutState,
+} from "@/lib/rollout-state";
 
 /** Default when a version has no rollout row: ship as before (no gating). */
-export const DEFAULT_ROLLOUT_STATE: RolloutState = "full";
 
 /** OTA phases that mark a target version as PERSISTENTLY failed for a device —
  *  a bad signature/model/hash (verify_fail) or an image that booted but failed
@@ -107,7 +113,7 @@ export async function isDeviceInRollout(
     return false;
   }
 
-  const state = (rollout?.state as RolloutState) ?? DEFAULT_ROLLOUT_STATE;
+  const state = asRolloutState(rollout?.state);
   switch (state) {
     case "halted":
     case "paused":

@@ -136,7 +136,7 @@ export function DeviceTable({
       d.mac.toLowerCase().includes(q) ||
       (d.label ?? "").toLowerCase().includes(q) ||
       (d.firmware_version ?? "").toLowerCase().includes(q) ||
-      ((d.display_caps as { model?: string })?.model ?? "").includes(q)
+      ((d.display_caps as { model?: string } | null)?.model ?? "").includes(q)
     );
   });
 
@@ -552,7 +552,7 @@ export function DeviceTable({
         <ConfirmDialog
           open={!!deleting}
           title={t("deleteConfirm")}
-          message={t("deleteMessage", { mac: deleting ?? "" })}
+          message={t("deleteMessage", { mac: deleting })}
           confirmLabel={t("delete")}
           destructive
           onConfirm={() => {

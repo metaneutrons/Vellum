@@ -70,7 +70,7 @@ describe("safeFetch — response handling with pinning", () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("hello-body");
     expect(res.headers.get("content-type")).toBe("text/plain");
-    const init = mockedFetch.mock.calls[0][1];
+    const init = mockedFetch.mock.calls[0]![1];
     expect(init?.dispatcher).toBeDefined(); // the pin is wired in
   });
 

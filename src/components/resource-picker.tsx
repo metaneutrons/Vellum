@@ -9,17 +9,17 @@ import { useTranslations } from "next-intl";
 interface Resource {
   id: string;
   name: string;
-  description?: string;
-  bookingUrl?: string;
+  description?: string | undefined;
+  bookingUrl?: string | undefined;
   /** Set when this is a seat inside a room; see ResourceRef in calendar/types. */
-  parentId?: string;
-  parentName?: string;
+  parentId?: string | undefined;
+  parentName?: string | undefined;
 }
 
 interface Props {
   providerId: string;
   resourceId: string;
-  resourceName?: string;
+  resourceName?: string | undefined;
   /**
    * `parentName` is the room a seat sits in, when the provider reports one. The
    * name plate stores it so its header can name the room without the operator

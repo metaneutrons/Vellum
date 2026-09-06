@@ -85,7 +85,7 @@ describe("window rounding", () => {
       roomConfig: ROOM,
       ...displayWindow("2026-08-25T12:34:56.000Z"),
     });
-    const call = fetchEvents.mock.calls[0][0];
+    const call = fetchEvents.mock.calls[0]![0];
     expect(call.windowStart.toISOString()).toBe("2026-08-25T08:00:00.000Z");
     expect(call.windowEnd.toISOString()).toBe("2026-08-26T01:00:00.000Z");
   });

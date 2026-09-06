@@ -253,6 +253,7 @@ export async function resolveEntraUser(
               .insert(adminUsers)
               .values({ email: identity.email, displayName: identity.displayName })
               .returning();
+            if (!created) throw new Error("Creating the federated user returned no row.");
             user = created;
             await tx.insert(userRoleAssignments).values({ userId: user.id, roleId });
           }

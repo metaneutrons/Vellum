@@ -121,7 +121,7 @@ describe("microsoft365 — the room mailbox as organizer", () => {
       [plainEvent({ organizerName: "Besprechungsraum 1J.1.18", organizerEmail: ROOM_EMAIL })],
       [attendee("Maria Warnking", "warnking@example.org")]
     );
-    const [event] = await fetchEvents();
+    const event = (await fetchEvents())[0]!;
     expect(event.organizer).toBe("Maria Warnking");
   });
 
@@ -129,7 +129,7 @@ describe("microsoft365 — the room mailbox as organizer", () => {
    * the right answer and the renderers handle it; naming the room would not be. */
   it("returns an empty organizer when the room organised it and invited nobody", async () => {
     serve([plainEvent({ organizerName: "Besprechungsraum 1J.1.18", organizerEmail: ROOM_EMAIL })]);
-    const [event] = await fetchEvents();
+    const event = (await fetchEvents())[0]!;
     expect(event.organizer).toBe("");
   });
 
@@ -138,7 +138,7 @@ describe("microsoft365 — the room mailbox as organizer", () => {
       [plainEvent({ organizerName: "Maria Warnking", organizerEmail: "warnking@example.org" })],
       [attendee("Der Raum", ROOM_EMAIL), attendee("Maria Warnking", "warnking@example.org")]
     );
-    const [event] = await fetchEvents();
+    const event = (await fetchEvents())[0]!;
     expect(event.organizer).toBe("Maria Warnking");
   });
 
@@ -150,7 +150,7 @@ describe("microsoft365 — the room mailbox as organizer", () => {
         attendee("Fabian Schmieder", "schmieder@example.org"),
       ]
     );
-    const [event] = await fetchEvents();
+    const event = (await fetchEvents())[0]!;
     expect(event.organizer).toBe("Maria Warnking (+2)");
   });
 
@@ -165,7 +165,7 @@ describe("microsoft365 — the room mailbox as organizer", () => {
         attendee("Fünf", "5@example.org"),
       ]
     );
-    const [event] = await fetchEvents();
+    const event = (await fetchEvents())[0]!;
     expect(event.organizer).toBe("Eins, Zwei, Drei (+2)");
   });
 
@@ -174,7 +174,7 @@ describe("microsoft365 — the room mailbox as organizer", () => {
       [plainEvent({ organizerName: "Raum", organizerEmail: ROOM_EMAIL.toUpperCase() })],
       [attendee("Maria Warnking", "warnking@example.org")]
     );
-    const [event] = await fetchEvents();
+    const event = (await fetchEvents())[0]!;
     expect(event.organizer).toBe("Maria Warnking");
   });
 

@@ -74,7 +74,7 @@ describe("encryptForDevice — X25519 ECDH + HKDF-SHA256 + AES-256-GCM", () => {
     const { kp, pubB64 } = deviceKeyPair();
     const enc = encryptForDevice("secret-token", pubB64);
     const bytes = Buffer.from(enc.ciphertext, "base64");
-    bytes[0] ^= 0xff; // flip a bit
+    bytes[0]! ^= 0xff; // flip a bit
     const tampered = { ...enc, ciphertext: bytes.toString("base64") };
     expect(() => decryptAsDevice(tampered, kp.privateKey)).toThrow();
   });

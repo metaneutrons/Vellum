@@ -48,7 +48,9 @@ const RELEASES_PER_PAGE = 50;
  */
 const MAX_RELEASE_PAGES = 40;
 
-export type FirmwareChannel = "stable" | "beta";
+import type { FirmwareChannel } from "@/lib/firmware-channel";
+
+export { asFirmwareChannel, FIRMWARE_CHANNELS, type FirmwareChannel } from "@/lib/firmware-channel";
 
 export interface FirmwareBinary {
   /** Merged full-flash image (bootloader+partition-table+ota_data+app) written
@@ -65,13 +67,13 @@ export interface FirmwareBinary {
   otaSize: number;
   /** Id of the key that produced otaSignature. A non-authoritative fast-path
    *  hint for the device's trust store; older manifests omit it. */
-  otaKeyId?: string;
+  otaKeyId?: string | undefined;
   /** Runtime compatibility contract. Optional only for legacy manifests; the
    * server then derives a reversible development layout from the model. */
-  partitionLayout?: "e-series-v1" | "e-series-secure-v1" | "d1001-v1";
-  securityProfile?: "development" | "testsecure" | "secureboot" | "production";
-  requiresSecureBoot?: boolean;
-  requiresFlashEncryption?: boolean;
+  partitionLayout?: "e-series-v1" | "e-series-secure-v1" | "d1001-v1" | undefined;
+  securityProfile?: "development" | "testsecure" | "secureboot" | "production" | undefined;
+  requiresSecureBoot?: boolean | undefined;
+  requiresFlashEncryption?: boolean | undefined;
 }
 
 export interface FirmwareManifest {
@@ -616,12 +618,13 @@ export async function resolveOta(
 /** Compare two semver strings. Returns >0 if a>b, <0 if a<b, 0 if equal. Exported for dashboard fleet stats. */
 export function compareSemver(a: string, b: string): number {
   // Strip build metadata (+sha)
-  const cleanA = a.replace(/^v/, "").split("+")[0];
-  const cleanB = b.replace(/^v/, "").split("+")[0];
+  /* split() always yields at least one element, so the fallbacks never apply. */
+  const cleanA = a.replace(/^v/, "").split("+")[0] ?? "";
+  const cleanB = b.replace(/^v/, "").split("+")[0] ?? "";
 
   // Split into version and pre-release
-  const [verA, preA] = cleanA.split("-", 2);
-  const [verB, preB] = cleanB.split("-", 2);
+  const [verA = "", preA] = cleanA.split("-", 2);
+  const [verB = "", preB] = cleanB.split("-", 2);
 
   // Compare major.minor.patch
   const pa = verA.split(".").map(Number);

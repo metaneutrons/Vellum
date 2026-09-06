@@ -8,7 +8,8 @@ import { renderQuerySchema } from "@/lib/validation";
 import { validateRequest, okResponse, errorResponse } from "@/lib/api-response";
 import { validateToken } from "@/lib/auth";
 import { apiLimiter, getClientIp, applyRateLimit } from "@/lib/rate-limit";
-import { resolveOta, type FirmwareChannel } from "@/lib/firmware";
+import { resolveOta } from "@/lib/firmware";
+import { asFirmwareChannel } from "@/lib/firmware-channel";
 import { extractTelemetry, logTelemetry } from "@/lib/telemetry";
 import { settingsForDevice } from "@/lib/settings/for-device";
 import { resolveRefreshProfile } from "@/lib/settings/refresh-profile";
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
   // device self-heal on its next poll instead of needing a re-enrolment.
   const firmwareVer = request.headers.get("x-firmware-ver") ?? "0.0.0";
   const headerModel = request.headers.get("x-display-model")?.trim() || null;
-  const storedModel = (device?.displayCaps as { model?: string })?.model ?? null;
+  const storedModel = (device?.displayCaps as { model?: string } | null)?.model ?? null;
   const displayModel = headerModel ?? storedModel ?? "unknown";
   const t = extractTelemetry(request.headers);
 
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
   const ota = await resolveOta(
     firmwareVer,
     displayModel,
-    (device?.firmwareChannel as FirmwareChannel) ?? "stable",
+    asFirmwareChannel(device?.firmwareChannel),
     device?.firmwarePinVersion ?? null,
     validation.data.mac,
     t
