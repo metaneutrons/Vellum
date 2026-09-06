@@ -12,7 +12,7 @@ export type UpdateMainPhase = (typeof UPDATE_MAIN_PHASES)[number];
 export type UpdateProgressPhase = UpdateMainPhase | "done" | "rolling-back" | "failed";
 export type UpdateStepState = "pending" | "active" | "done" | "failed";
 
-export type UpdateProgress = {
+export interface UpdateProgress {
   phase: UpdateProgressPhase;
   detail: string | null;
   at: string | null;
@@ -20,12 +20,12 @@ export type UpdateProgress = {
   /** The step that originally failed. It remains stable while rollback runs. */
   failedPhase?: UpdateProgressPhase | null | undefined;
   rollbackAttempted?: boolean | undefined;
-};
+}
 
-export type UpdateProgressRow = {
+export interface UpdateProgressRow {
   phase: UpdateMainPhase | "rolling-back";
   state: UpdateStepState;
-};
+}
 
 /** Convert the updater journal into stable UI rows. Terminal states deliberately
  * remain visible: the operator must be able to see which step failed and whether

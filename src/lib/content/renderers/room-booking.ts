@@ -23,7 +23,10 @@ const DATE_LOCALES: Record<string, DateLocale> & { en: DateLocale } = {
   es,
 };
 
-type BadgeText = { free: string; busy: string };
+interface BadgeText {
+  free: string;
+  busy: string;
+}
 const BADGE_TEXT: Record<string, BadgeText> & { en: BadgeText } = {
   en: { free: "FREE", busy: "BUSY" },
   de: { free: "FREI", busy: "BELEGT" },

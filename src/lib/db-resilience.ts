@@ -89,7 +89,7 @@ export class DbResilienceManager extends EventEmitter {
   private lastSuccessAt: Date | null = null;
   private totalRetries = 0;
   private totalFailures = 0;
-  private circuitOpenedAt: number = 0;
+  private circuitOpenedAt = 0;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   private _checkDbFn: (() => Promise<void>) | null = null;
 

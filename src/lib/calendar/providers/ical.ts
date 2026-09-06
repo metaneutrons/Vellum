@@ -92,7 +92,7 @@ export function parseIcs(ics: string, windowStart: Date, windowEnd: Date): Calen
  */
 function parseIcsDateTime(value: string, params: string): { date: Date; allDay: boolean } | null {
   const v = value.replace(/[^0-9TZ]/g, "");
-  const m = v.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?$/);
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?$/.exec(v);
   if (!m) return null;
   const [, y, mo, d, hh = "00", mm = "00", ss = "00", z] = m;
   /* The date groups are not optional in the pattern, so a match always fills
@@ -106,7 +106,7 @@ function parseIcsDateTime(value: string, params: string): { date: Date; allDay: 
 
   if (z) return { date: new Date(Date.UTC(yr, moIdx, day, h, mi, s)), allDay: false };
 
-  const tzid = params.match(/TZID=([^;:]+)/i)?.[1]?.trim();
+  const tzid = /TZID=([^;:]+)/i.exec(params)?.[1]?.trim();
   if (tzid) {
     const t = new TZDate(yr, moIdx, day, h, mi, s, tzid).getTime();
     return isNaN(t) ? null : { date: new Date(t), allDay: false };
@@ -116,7 +116,7 @@ function parseIcsDateTime(value: string, params: string): { date: Date; allDay: 
 
 /** Extract display name from ORGANIZER:CN=Name:mailto:... */
 function extractOrganizerName(raw: string): string {
-  const cn = raw.match(/CN=([^;:]+)/i);
+  const cn = /CN=([^;:]+)/i.exec(raw);
   return cn?.[1]?.replace(/"/g, "") ?? "";
 }
 

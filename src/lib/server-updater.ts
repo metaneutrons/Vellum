@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { z } from "zod";
 import type { UpdateProgress } from "@/lib/update-progress";
 
-export type ServerUpdateStatus = {
+export interface ServerUpdateStatus {
   supported: boolean;
   availabilityReason: "ready" | "not-configured" | "unreachable" | "invalid-response";
   state:
@@ -55,7 +55,7 @@ export type ServerUpdateStatus = {
    * this journal — written by the updater and read back after the container is
    * up again — is the only progress the UI can show. */
   progress: UpdateProgress | null;
-};
+}
 
 function unavailable(
   availabilityReason: Exclude<ServerUpdateStatus["availabilityReason"], "ready">

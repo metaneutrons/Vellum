@@ -8,7 +8,7 @@ describe("Credential encryption round-trip", () => {
     expect(typeof encrypted).toBe("string");
     expect(encrypted).not.toContain("abc");
 
-    const decrypted = decryptCredentials<typeof original>(encrypted);
+    const decrypted = decryptCredentials(encrypted);
     expect(decrypted).toEqual(original);
   });
 

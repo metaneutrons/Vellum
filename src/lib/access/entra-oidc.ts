@@ -17,15 +17,20 @@ const TX_TTL_SECONDS = 10 * 60;
 const ENTRA_CALLBACK_PATH = "/api/auth/oidc/entra/callback";
 let discovered: Promise<oidc.Configuration> | undefined;
 
-type Transaction = { state: string; nonce: string; verifier: string; expiresAt: number };
-export type EntraIdentity = {
+interface Transaction {
+  state: string;
+  nonce: string;
+  verifier: string;
+  expiresAt: number;
+}
+export interface EntraIdentity {
   issuer: string;
   subject: string;
   tenantId: string;
   email: string;
   displayName: string;
   groups: string[];
-};
+}
 
 export function isEntraConfigured(): boolean {
   return !!(

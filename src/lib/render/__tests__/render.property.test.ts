@@ -42,9 +42,9 @@ describe("Property 7: Dithered output contains only palette indices and preserve
         expect(result.length).toBe(width * height);
 
         // Every entry is a valid palette index
-        for (let i = 0; i < result.length; i++) {
-          expect(result[i]).toBeGreaterThanOrEqual(0);
-          expect(result[i]).toBeLessThan(palette.length);
+        for (const index of result) {
+          expect(index).toBeGreaterThanOrEqual(0);
+          expect(index).toBeLessThan(palette.length);
         }
       }),
       { numRuns: 100 }

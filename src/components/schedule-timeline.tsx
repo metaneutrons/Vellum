@@ -67,8 +67,8 @@ function matchesNow(rule: ScheduleRule, now: Date): boolean {
   return matchesLocal(rule, day, hour);
 }
 
-function blocksForDay(rule: ScheduleRule, day: number): Array<{ start: number; end: number }> {
-  const blocks: Array<{ start: number; end: number }> = [];
+function blocksForDay(rule: ScheduleRule, day: number): { start: number; end: number }[] {
+  const blocks: { start: number; end: number }[] = [];
   let start: number | null = null;
   for (let quarter = 0; quarter <= 96; quarter++) {
     const hour = quarter / 4;

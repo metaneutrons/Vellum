@@ -86,7 +86,7 @@ export function resolveDeviceSettings(input: {
     timezone: null,
   };
 
-  const layers: Array<Layer<DeviceSettings>> = [
+  const layers: Layer<DeviceSettings>[] = [
     /* The workspace default is the least specific thing that can name a value, so
      * it enters as the builtin layer rather than as one of its own. */
     { name: "builtin", values: present(input.workspace) as Partial<DeviceSettings> },

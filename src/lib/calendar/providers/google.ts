@@ -80,13 +80,13 @@ export const googleProvider: CalendarProvider = {
     if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);
 
     const json = (await res.json()) as {
-      items?: Array<{
+      items?: {
         summary?: string;
         organizer?: { displayName?: string };
         start?: { dateTime?: string };
         end?: { dateTime?: string };
         visibility?: string;
-      }>;
+      }[];
     };
 
     return (json.items ?? [])

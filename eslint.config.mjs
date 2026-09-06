@@ -65,6 +65,32 @@ export default tseslint.config(
       "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
       "@typescript-eslint/no-base-to-string": "error",
+      /* The stylistic tail, all autofixable and none of it load-bearing. */
+      "@typescript-eslint/consistent-type-definitions": "error",
+      "@typescript-eslint/consistent-indexed-object-style": "error",
+      "@typescript-eslint/array-type": "error",
+      "@typescript-eslint/no-inferrable-types": "error",
+      "@typescript-eslint/prefer-regexp-exec": "error",
+      "@typescript-eslint/prefer-for-of": "error",
+      "@typescript-eslint/no-unnecessary-type-parameters": "error",
+      "@typescript-eslint/no-useless-default-assignment": "error",
+      "@typescript-eslint/no-duplicate-type-constituents": "error",
+      /* no-meaningless-void-operator is absent for the same family of reasons: its
+         fix strips the `void` from `void remaining;`, which was there to say the
+         value is deliberately unused — and the bare expression it leaves behind
+         then trips no-unused-expressions. The marker IS the point.
+
+/* no-unnecessary-type-conversion is deliberately absent, for the same reason
+         as no-unnecessary-type-assertion above: its six findings here are all
+         `Number(count)` on a Drizzle `sql<number>` aggregate. Postgres returns
+         count(*) as bigint and the driver hands that over as a STRING, so the
+         declared number is a claim and the conversion is what makes it true.
+         Applying the fix would put "3" where a number is expected.
+         Measured against the dev database, not assumed.
+
+         non-nullable-type-assertion-style is absent too: its fix rewrites
+         `x as string` into `x!`, which no-non-null-assertion forbids in production
+         code. The two rules disagree about the same six lines. */
       /* With the arrow shorthand allowed. The rule's point is a `return f()` that
          hides a void call behind something that looks like a value; `onClick={() =>
          setOpen(true)}` is not that, and armed bare it produced 286 findings in
