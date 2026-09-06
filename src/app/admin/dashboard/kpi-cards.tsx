@@ -25,7 +25,7 @@ interface TileProps {
   sub: string;
   /** Tint the big figure to match a status (e.g. red when attention > 0). */
   valueTone?: "label" | "red";
-  href?: string;
+  href?: string | undefined;
 }
 
 const TILE_BASE =

@@ -41,7 +41,7 @@ interface Props {
   instances: ContentInstance[];
   types: ContentType[];
   providers: Provider[];
-  initialEditId?: string | null;
+  initialEditId?: string | null | undefined;
 }
 
 import { ResourcePicker } from "@/components/resource-picker";

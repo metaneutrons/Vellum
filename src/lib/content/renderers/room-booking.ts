@@ -578,8 +578,8 @@ export interface FrameSpec {
   dateFormat?: string;
   /** Hours the timeline window steps by. Ignored by the stacked layout. */
   timelineShiftH?: number;
-  bookingQr?: BookingQrRenderOptions;
-  surface?: SurfaceFactory;
+  bookingQr?: BookingQrRenderOptions | undefined;
+  surface?: SurfaceFactory | undefined;
 }
 
 /** What `openFrame` settles once, so neither layout settles it twice. */
@@ -694,7 +694,7 @@ export interface OfflineSpec {
   width: number;
   height: number;
   locale?: string;
-  surface?: SurfaceFactory;
+  surface?: SurfaceFactory | undefined;
 }
 
 /**

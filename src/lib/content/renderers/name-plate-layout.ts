@@ -103,7 +103,7 @@ export interface SeatState {
    * surname knows something no heuristic can recover. anny does; Microsoft Graph
    * does not.
    */
-  ranks?: NameRanks;
+  ranks?: NameRanks | undefined;
   /** The seat's own name from the provider, for the caption fallback. */
   placeLabel?: string;
   /** "bis 12:00" and the like. Only shown when the plate shows status. */

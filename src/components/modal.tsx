@@ -12,7 +12,7 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  onSubmit?: () => void;
+  onSubmit?: (() => void) | undefined;
   wide?: boolean;
 }
 

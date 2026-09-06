@@ -67,13 +67,13 @@ export interface FirmwareBinary {
   otaSize: number;
   /** Id of the key that produced otaSignature. A non-authoritative fast-path
    *  hint for the device's trust store; older manifests omit it. */
-  otaKeyId?: string;
+  otaKeyId?: string | undefined;
   /** Runtime compatibility contract. Optional only for legacy manifests; the
    * server then derives a reversible development layout from the model. */
-  partitionLayout?: "e-series-v1" | "e-series-secure-v1" | "d1001-v1";
-  securityProfile?: "development" | "testsecure" | "secureboot" | "production";
-  requiresSecureBoot?: boolean;
-  requiresFlashEncryption?: boolean;
+  partitionLayout?: "e-series-v1" | "e-series-secure-v1" | "d1001-v1" | undefined;
+  securityProfile?: "development" | "testsecure" | "secureboot" | "production" | undefined;
+  requiresSecureBoot?: boolean | undefined;
+  requiresFlashEncryption?: boolean | undefined;
 }
 
 export interface FirmwareManifest {

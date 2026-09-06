@@ -118,7 +118,7 @@ export interface BrightnessContext {
   powerSource: "usb" | "battery";
   now: Date;
   /** The display's zone. Absent falls back to the server clock, as elsewhere. */
-  timezone?: string;
+  timezone?: string | undefined;
   /** An operator's value for this one display, which outranks everything. */
   override?: number | null;
 }
@@ -129,7 +129,7 @@ export interface BrightnessResult {
   percent: number;
   tier: BrightnessTier;
   /** Name of the rule that matched, when one did. */
-  rule?: string;
+  rule?: string | undefined;
 }
 
 function matches(rule: BrightnessRule, now: Date, timezone?: string): boolean {

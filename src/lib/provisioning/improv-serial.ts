@@ -331,24 +331,24 @@ export type ProvisionPhase =
 
 export interface ProvisionResult {
   ok: boolean;
-  redirectUrl?: string;
-  error?: string;
+  redirectUrl?: string | undefined;
+  error?: string | undefined;
 }
 
 export interface ProvisionOptions {
   ssid: string;
   password: string;
-  serverUrl?: string;
+  serverUrl?: string | undefined;
   /** Optional administrator NTP server. Overrides DHCP and firmware fallbacks. */
-  ntpServer?: string;
+  ntpServer?: string | undefined;
   /** Optional pre-provisioning voucher token for zero-touch enrolment. */
-  deviceToken?: string;
+  deviceToken?: string | undefined;
   /** Browser UTC Unix time, persisted to a hardware RTC when the model has one. */
-  provisionedAtUnix?: number;
+  provisionedAtUnix?: number | undefined;
   /** Progress callback for UI. */
-  onPhase?: (phase: ProvisionPhase, detail?: string) => void;
+  onPhase?: ((phase: ProvisionPhase, detail?: string) => void) | undefined;
   /** Overall timeout for the device to report PROVISIONED/error (ms). */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /** Server-side admin authorization used only when the attached device is enrolled. */
   authorize?: (request: UsbProvisioningAuthorizationRequest) => Promise<string>;
 }
@@ -377,7 +377,7 @@ export interface ProvisioningSecurity {
   supported: boolean;
   locked: boolean;
   mac?: string;
-  challenge?: string;
+  challenge?: string | undefined;
   /** Only set when `supported` is false, to say which of the two it was. */
   failure?: ProvisioningSecurityFailure;
 }
@@ -836,7 +836,7 @@ export interface WifiNetwork {
 export interface ScanResult {
   ok: boolean;
   networks: WifiNetwork[];
-  error?: string;
+  error?: string | undefined;
 }
 
 /** Decode a SCAN_WIFI RPC_RESULT (`[ssid, rssi, "YES"|"NO"]`) into a network. */

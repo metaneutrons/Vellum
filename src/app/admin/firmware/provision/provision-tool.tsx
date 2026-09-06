@@ -36,7 +36,7 @@ const MAX_NTP_SERVER_LEN = 255;
 export function ProvisionTool({
   firmware,
 }: {
-  firmware?: { channel: "stable" | "beta"; version: string };
+  firmware?: { channel: "stable" | "beta"; version: string } | undefined;
 }) {
   const t = useTranslations("provision");
   const tx = useTranslations("provisionExtras");

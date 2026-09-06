@@ -21,16 +21,27 @@ const FIRMWARE_VER = "sim-1.0.0";
 type DeviceState =
   "off" | "booting" | "connecting_wifi" | "hello" | "rendering" | "sleeping" | "error" | "pending";
 
-interface SimConfig {
-  serverUrl: string;
-  mac: string;
-  displayModel: string;
-  orientation: "portrait" | "landscape";
-  batteryLevel: number;
-  batteryVoltage: number;
-  powerSource: "usb" | "battery";
-  wifiRssi: number;
-}
+/* One declaration for the shape and for what is persisted. The saved-config
+ * schema used to be written out separately and had drifted: it read `battery`,
+ * `power` and `display` while the whole config was being stringified under
+ * `batteryLevel`, `powerSource` and `displayModel`, so those three settings were
+ * written on every change and silently dropped on every reload. Deriving both
+ * from one schema makes that drift unrepresentable. */
+const simConfigSchema = z.object({
+  serverUrl: z.string(),
+  mac: z.string(),
+  displayModel: z.string(),
+  orientation: z.enum(["portrait", "landscape"]),
+  batteryLevel: z.number(),
+  batteryVoltage: z.number(),
+  powerSource: z.enum(["usb", "battery"]),
+  wifiRssi: z.number(),
+});
+
+type SimConfig = z.infer<typeof simConfigSchema>;
+
+/** What a stored config may contain: any subset of the fields above. */
+const savedConfig = simConfigSchema.partial();
 
 const DEFAULT_CONFIG: SimConfig = {
   serverUrl: "",
@@ -68,16 +79,6 @@ const errorAnswer = z.object({ error: z.string().optional() });
 
 /* Persisted UI state, not a protocol: a stale or hand-edited entry must not take
  * the page down, so unknown keys are dropped rather than rejected. */
-const savedConfig = z
-  .object({
-    mac: z.string().optional(),
-    serverUrl: z.string().optional(),
-    battery: z.number().optional(),
-    power: z.enum(["battery", "usb"]).optional(),
-    display: z.string().optional(),
-    orientation: z.enum(["portrait", "landscape"]).optional(),
-  })
-  .partial();
 
 export function SimulatorClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -94,7 +95,19 @@ export function SimulatorClient() {
       const saved = localStorage.getItem("vellum-sim-config");
       if (saved) {
         const parsed = savedConfig.safeParse(JSON.parse(saved));
-        if (parsed.success) setConfig((c) => ({ ...c, ...parsed.data }));
+        if (parsed.success) {
+          const saved = parsed.data;
+          setConfig((c) => ({
+            serverUrl: saved.serverUrl ?? c.serverUrl,
+            mac: saved.mac ?? c.mac,
+            displayModel: saved.displayModel ?? c.displayModel,
+            orientation: saved.orientation ?? c.orientation,
+            batteryLevel: saved.batteryLevel ?? c.batteryLevel,
+            batteryVoltage: saved.batteryVoltage ?? c.batteryVoltage,
+            powerSource: saved.powerSource ?? c.powerSource,
+            wifiRssi: saved.wifiRssi ?? c.wifiRssi,
+          }));
+        }
       }
     } catch {
       /* ignore */

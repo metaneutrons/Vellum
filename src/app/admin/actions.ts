@@ -910,7 +910,7 @@ export async function testDataProvider(id: string): Promise<{ ok: boolean; messa
       const cca = new ConfidentialClientApplication({
         auth: {
           clientId: need("clientId"),
-          clientSecret: credentials.clientSecret,
+          clientSecret: need("clientSecret"),
           authority: `https://login.microsoftonline.com/${need("tenantId")}`,
         },
       });

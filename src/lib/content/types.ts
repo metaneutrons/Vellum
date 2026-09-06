@@ -40,7 +40,7 @@ export interface LoadParams {
    * schedule logic used the server clock, so two parts of the same response could
    * disagree about what time it was at the display.
    */
-  timezone?: string;
+  timezone?: string | undefined;
 }
 
 /** Everything `draw` may look at. Note what is missing: the clock. */
@@ -59,7 +59,7 @@ export interface DrawParams {
    * asserting them inside the renderers needs the assertions written once per
    * renderer and gets them written nowhere.
    */
-  surface?: SurfaceFactory;
+  surface?: SurfaceFactory | undefined;
 }
 
 /** Both halves at once, for the two routes that do the whole job. */

@@ -18,8 +18,8 @@ export type UpdateProgress = {
   at: string | null;
   startedAt: string | null;
   /** The step that originally failed. It remains stable while rollback runs. */
-  failedPhase?: UpdateProgressPhase | null;
-  rollbackAttempted?: boolean;
+  failedPhase?: UpdateProgressPhase | null | undefined;
+  rollbackAttempted?: boolean | undefined;
 };
 
 export type UpdateProgressRow = {

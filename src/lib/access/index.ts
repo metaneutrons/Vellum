@@ -378,7 +378,7 @@ export async function authenticateLocalUser(
 
 export async function createUserSession(
   userId: string,
-  metadata: { ip?: string; userAgent?: string } = {}
+  metadata: { ip?: string | undefined; userAgent?: string | undefined } = {}
 ): Promise<string> {
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
   const sessionId = crypto.randomUUID();

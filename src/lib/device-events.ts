@@ -64,7 +64,10 @@ class DeviceEventHub {
     }
   }
 
-  private readonly onNotification = (message: { channel: string; payload?: string }) => {
+  private readonly onNotification = (message: {
+    channel: string;
+    payload?: string | undefined;
+  }) => {
     if (message.channel !== CHANNEL || !message.payload) return;
     try {
       const event = JSON.parse(message.payload) as { mac?: unknown };

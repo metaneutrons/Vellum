@@ -370,7 +370,7 @@ export interface SleepContext {
   now: Date;
   profile?: RefreshProfile | null;
   rendererOverrideS?: number | null;
-  timezone?: string;
+  timezone?: string | undefined;
   /**
    * False while the display has nothing assigned to render. Caps the result at
    * `unassignedIntervalS` so assigning content during setup takes effect
@@ -392,7 +392,7 @@ export interface SleepResult {
    * without re-deriving the chain by hand. */
   tier?: SleepTier;
   /** Name of the schedule rule that matched, when one did. */
-  rule?: string;
+  rule?: string | undefined;
   /** True when unassignedIntervalS shortened the tier's own answer. */
   capped?: boolean;
   /** Effective ordinary controller policy after phase inheritance. */
@@ -402,7 +402,7 @@ export interface SleepResult {
 export interface DisplayPowerResult {
   state: "on" | "off";
   tier: "schedule" | "power-default";
-  rule?: string;
+  rule?: string | undefined;
 }
 
 export function parseRefreshProfile(raw: unknown): RefreshProfile {

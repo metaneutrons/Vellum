@@ -22,8 +22,8 @@ export function Field({
   children,
 }: {
   label?: string;
-  hint?: string;
-  error?: string;
+  hint?: string | undefined;
+  error?: string | undefined;
   htmlFor?: string;
   children: ReactNode;
 }) {

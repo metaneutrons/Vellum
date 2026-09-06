@@ -33,11 +33,11 @@ export interface WireEvent {
   subject: string;
   /** null means the source knows of no organizer for this booking. */
   organizerName: string | null;
-  organizerEmail?: string;
+  organizerEmail?: string | undefined;
   /** ISO 8601. Deliberately allowed to carry an offset other than Z. */
   start: string;
   end: string;
-  isPrivate?: boolean;
+  isPrivate?: boolean | undefined;
 }
 
 export type ContractCase = "shape" | "offsets" | "private" | "noOrganizer" | "unordered";

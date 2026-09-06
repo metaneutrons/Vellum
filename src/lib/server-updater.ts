@@ -175,7 +175,7 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
         Authorization: `Bearer ${env.UPDATER_TOKEN}`,
         ...(body ? { "content-type": "application/json" } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body ? { body: JSON.stringify(body) } : {}),
       cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });

@@ -41,7 +41,7 @@ export interface TextStyle {
   /** Default regular: only the surname and the header are set bold. */
   bold?: boolean;
   /** Overrides the body family, for the surname rank when it is set narrow. */
-  family?: string;
+  family?: string | undefined;
   /**
    * Passed to `fillText`, which SQUEEZES rather than clips. Every caller here has
    * already fitted its text to this width, so it is a backstop and not the layout.

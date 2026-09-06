@@ -34,7 +34,7 @@ export type OriginRejection = "missing" | "malformed" | "mismatch";
 
 export interface OriginVerdict {
   ok: boolean;
-  reason?: OriginRejection;
+  reason?: OriginRejection | undefined;
   /** What the deployment believes it is. Safe to log; never a secret. */
   expected?: string;
   /** What the browser claimed. */

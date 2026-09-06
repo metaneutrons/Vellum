@@ -40,12 +40,12 @@ afterEach(() => {
  */
 function firmwareParse(frame: Uint8Array): {
   ok: boolean;
-  ssid?: string;
-  pass?: string;
-  url?: string;
-  token?: string;
-  ntp?: string;
-  time?: string;
+  ssid?: string | undefined;
+  pass?: string | undefined;
+  url?: string | undefined;
+  token?: string | undefined;
+  ntp?: string | undefined;
+  time?: string | undefined;
 } {
   const b = Array.from(frame);
   if (b.length < 10) return { ok: false };
@@ -252,7 +252,16 @@ describe("WIFI_SETTINGS payload-size guard", () => {
   // The payload becomes a single-byte cmd_len, so it must stay ≤253 or the
   // length wraps and the firmware silently rejects (or misreads) the frame.
   it("predicts the exact encoded payload length (matches the real frame)", () => {
-    const cases: [string, string, string?, string?, string?, number?][] = [
+    /* `undefined` steht hier für ein Feld, das der Aufrufer bewusst nicht setzt,
+       nicht für ein weggelassenes Argument. */
+    const cases: [
+      string,
+      string,
+      string | undefined,
+      string | undefined,
+      string | undefined,
+      number?,
+    ][] = [
       ["MyNet", "s3cret!!", "https://vellum.example.com", undefined, undefined],
       ["Net", "pw", "https://v.io", "a".repeat(64), undefined],
       ["Net", "pw", undefined, "tok123", undefined],

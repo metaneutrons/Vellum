@@ -77,7 +77,7 @@ interface AnnyPage {
 interface AnnyResponse {
   data: unknown[];
   included?: unknown[];
-  meta?: { page?: AnnyPage };
+  meta?: { page?: AnnyPage } | undefined;
 }
 
 /* The JSON:API envelope this provider relies on. Only the three fields the code
