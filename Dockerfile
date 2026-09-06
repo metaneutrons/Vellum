@@ -13,7 +13,6 @@ RUN npm install --global --ignore-scripts pnpm@11.20.0
 FROM package-manager AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY scripts/setup-git-hooks.mjs ./scripts/setup-git-hooks.mjs
 # Frozen install gives exact-lockfile reproducibility. pnpm-workspace.yaml keeps
 # dependency build scripts denied by default and explicitly permits only the
 # reviewed native/tooling packages. Standard Docker layer caching keeps this
