@@ -973,12 +973,14 @@ export async function testContentInstance(id: string): Promise<{ ok: boolean; me
     const renderer = getContentRenderer(instance.typeSlug);
     if (!renderer) return { ok: false, message: `Unknown renderer: ${instance.typeSlug}` };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const config = renderer.configSchema.parse(instance.config) as any;
+    /* Each renderer parses its own config shape, so what comes back here is
+     * only known to be "some renderer's config". The branches below narrow it by
+     * type slug before handing it to that renderer's own function. */
+    const config: unknown = renderer.configSchema.parse(instance.config);
 
     if (instance.typeSlug === "room-booking") {
       const { fetchEvents } = await import("@/lib/content/renderers/room-booking");
-      const events = await fetchEvents(config);
+      const events = await fetchEvents(config as Parameters<typeof fetchEvents>[0]);
       return { ok: true, message: `OK — ${events.length} events today` };
     }
 

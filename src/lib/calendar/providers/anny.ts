@@ -18,8 +18,10 @@ const ANNY_BASE = "https://b.anny.co/api/v1";
 /** Extract organization (tenant) ID from anny JWT token */
 export function extractOrgFromToken(token: string): string | null {
   try {
-    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
-    return payload.tenant ?? null;
+    /* A JWT payload is whatever the issuer put there; only `tenant` is read. */
+    const payload: unknown = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    const parsed = z.object({ tenant: z.string().optional() }).safeParse(payload);
+    return parsed.success ? (parsed.data.tenant ?? null) : null;
   } catch {
     return null;
   }
@@ -73,6 +75,19 @@ interface AnnyResponse {
   meta?: { page?: AnnyPage };
 }
 
+/* The JSON:API envelope this provider relies on. Only the three fields the code
+ * reads are described; everything inside `data` stays `unknown` and is narrowed
+ * where it is used. `.catch` on the envelope is deliberate: a malformed answer
+ * becomes an empty result rather than an exception, because a room sign that
+ * shows nothing is better than one that shows a stack trace. */
+const annyEnvelope = z
+  .object({
+    data: z.array(z.unknown()).default([]),
+    included: z.array(z.unknown()).optional(),
+    meta: z.object({ page: z.unknown().optional() }).optional(),
+  })
+  .catch({ data: [] });
+
 const ANNY_PAGE_SIZE = 50;
 /* A display may poll every few minutes, while a public booking slug rarely
  * changes. Cache successful and unsuccessful legacy lookups alike. */
@@ -104,7 +119,7 @@ async function annyFetch(
     throw new Error(`anny API ${res.status}: ${text.slice(0, 200)}`);
   }
 
-  return res.json();
+  return annyEnvelope.parse(await res.json()) as AnnyResponse;
 }
 
 /** Fetch every page for anny endpoints whose result set can exceed one page. */

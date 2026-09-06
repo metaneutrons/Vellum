@@ -3,6 +3,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 
 export type LiveDeviceRow = Record<string, unknown> & { mac: string };
 export type DeviceLiveState = "connecting" | "live" | "reconnecting";
@@ -24,6 +25,12 @@ export function mergeDeviceRows(
   const added = incoming.filter((device) => !known.has(device.mac));
   return [...added, ...retained];
 }
+
+const liveEvent = z.object({
+  type: z.string().optional(),
+  mac: z.string().optional(),
+  status: z.custom<DeviceLiveState>().optional(),
+});
 
 export function useDeviceLiveUpdates(initialDevices: LiveDeviceRow[]) {
   const [devices, setDevices] = useState(initialDevices);
@@ -104,11 +111,10 @@ export function useDeviceLiveUpdates(initialDevices: LiveDeviceRow[]) {
     source.onerror = () => setState("reconnecting");
     source.onmessage = (message) => {
       try {
-        const event = JSON.parse(message.data) as {
-          type?: string;
-          mac?: string;
-          status?: DeviceLiveState;
-        };
+        /* A server-sent event carries text; what is in it is a claim until parsed. */
+        const parsed = liveEvent.safeParse(JSON.parse(message.data as string));
+        if (!parsed.success) return;
+        const event = parsed.data;
         if (event.type === "sync") {
           void refresh();
         } else if (

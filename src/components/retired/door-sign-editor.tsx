@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { z } from "zod";
 import { Rnd } from "react-rnd";
 import { useTranslations } from "next-intl";
 import { Plus, Trash2 } from "lucide-react";
@@ -147,8 +148,10 @@ export function DoorSignEditor({
       form.append("name", file.name);
       const res = await fetch("/api/v1/admin/assets", { method: "POST", body: form });
       if (res.ok) {
-        const { id } = await res.json();
-        updateDesign({ ...activeDesign, backgroundAssetId: id });
+        const uploaded = z.object({ id: z.string() }).safeParse(await res.json());
+        if (uploaded.success) {
+          updateDesign({ ...activeDesign, backgroundAssetId: uploaded.data.id });
+        }
       }
     },
     [activeDesign, updateDesign]

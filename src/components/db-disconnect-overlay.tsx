@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { AlertTriangle, CheckCircle2, LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ServerUpdateProgress } from "@/components/server-update-progress";
@@ -45,6 +46,19 @@ interface DbHealth {
  * the failure count — use the tokens, because those have to stay recognisable
  * against the rest of the admin.
  */
+/* Only the branch this overlay reacts to. A health endpoint that answers
+ * something else leaves the overlay as it is rather than throwing inside a
+ * poll loop. */
+const healthAnswer = z.object({
+  database: z.object({
+    connected: z.boolean(),
+    circuit: z.enum(["closed", "open", "half-open"]),
+    consecutiveFailures: z.number(),
+    lastError: z.string().nullable(),
+    lastErrorAt: z.string().nullable(),
+  }),
+});
+
 export function DbDisconnectOverlay() {
   const t = useTranslations("common");
   const [health, setHealth] = useState<DbHealth | null>(null);
@@ -66,9 +80,9 @@ export function DbDisconnectOverlay() {
     async function poll() {
       try {
         const res = await fetch("/api/v1/health", { cache: "no-store" });
-        const data = await res.json();
-        if (!mounted) return;
-        const db = data.database as DbHealth;
+        const parsed = healthAnswer.safeParse(await res.json());
+        if (!mounted || !parsed.success) return;
+        const db = parsed.data.database;
         setHealth(db);
         setVisible(db.circuit === "open" || (!db.connected && db.consecutiveFailures >= 3));
       } catch {

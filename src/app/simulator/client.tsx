@@ -3,6 +3,7 @@
 "use client";
 
 import { SIMULATOR_MAC } from "@/lib/simulator";
+import { z } from "zod";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DISPLAY_REGISTRY } from "@/lib/display";
@@ -44,6 +45,40 @@ const DEFAULT_CONFIG: SimConfig = {
 
 /* ── Simulator Component ──────────────────────────────────────────── */
 
+/* The simulator talks to the same endpoints a panel does, so its answers arrive
+ * as JSON — `any` until something says otherwise. These schemas are what says
+ * otherwise; they describe only the fields this file reads. */
+const helloAnswer = z.object({
+  data: z
+    .object({
+      status: z.string().optional(),
+      encryptedToken: z
+        .object({
+          ciphertext: z.string(),
+          nonce: z.string(),
+          serverPublicKey: z.string(),
+        })
+        .optional(),
+      token: z.string().optional(),
+    })
+    .optional(),
+});
+
+const errorAnswer = z.object({ error: z.string().optional() });
+
+/* Persisted UI state, not a protocol: a stale or hand-edited entry must not take
+ * the page down, so unknown keys are dropped rather than rejected. */
+const savedConfig = z
+  .object({
+    mac: z.string().optional(),
+    serverUrl: z.string().optional(),
+    battery: z.number().optional(),
+    power: z.enum(["battery", "usb"]).optional(),
+    display: z.string().optional(),
+    orientation: z.enum(["portrait", "landscape"]).optional(),
+  })
+  .partial();
+
 export function SimulatorClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<DeviceState>("off");
@@ -57,7 +92,10 @@ export function SimulatorClient() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("vellum-sim-config");
-      if (saved) setConfig((c) => ({ ...c, ...JSON.parse(saved) }));
+      if (saved) {
+        const parsed = savedConfig.safeParse(JSON.parse(saved));
+        if (parsed.success) setConfig((c) => ({ ...c, ...parsed.data }));
+      }
     } catch {
       /* ignore */
     }
@@ -239,7 +277,7 @@ export function SimulatorClient() {
         }),
         signal,
       });
-      const json = await res.json();
+      const json = helloAnswer.parse(await res.json());
       appendLog(`  → ${res.status} ${JSON.stringify(json.data?.status)}`);
 
       if (json.data?.status === "approved") {
@@ -256,7 +294,7 @@ export function SimulatorClient() {
         }
         if (json.data?.token) {
           appendLog("  → Plaintext token (legacy)");
-          return json.data.token as string;
+          return json.data.token;
         }
       }
       if (json.data?.status === "pending") {
@@ -315,8 +353,13 @@ export function SimulatorClient() {
         appendLog("  → 404 Not Found");
         drawText("Device Not Found", "Register this device in the Vellum Console");
       } else {
-        const body = await res.json().catch(() => null);
-        const msg = body?.error ?? `HTTP ${res.status}`;
+        const body = await res
+          .json()
+          .then((b: unknown) => errorAnswer.safeParse(b))
+          .catch(() => null);
+        const msg = body?.success
+          ? (body.data.error ?? `HTTP ${res.status}`)
+          : `HTTP ${res.status}`;
         appendLog(`  → error: ${msg}`);
         drawText("Error", msg);
       }

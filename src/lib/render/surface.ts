@@ -173,8 +173,13 @@ function recordingProxy(real: SKRSContext2D, recording: Recording): SKRSContext2
       if (prop === "fillText") return onFillText;
       if (prop === "fillRect") return onFillRect;
       if (prop === "drawImage" || prop === "putImageData") return onBitmap(prop);
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
+      /* A proxy's get is dynamic by definition: `prop` is whatever the caller
+       * asked for, so Reflect.get can only answer `unknown`. Narrowing it to a
+       * function is the one distinction this handler needs. */
+      const value: unknown = Reflect.get(target, prop, receiver);
+      return typeof value === "function"
+        ? (value as (...a: unknown[]) => unknown).bind(target)
+        : value;
     },
     set(target, prop, value) {
       return Reflect.set(target, prop, value);
