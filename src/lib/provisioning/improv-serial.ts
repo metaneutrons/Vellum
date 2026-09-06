@@ -457,7 +457,6 @@ async function openReadyImprovConnection(
 
       pendingRead = undefined;
       if (outcome.result.done) throw new Error("Serial connection closed unexpectedly.");
-      if (!outcome.result.value) continue;
       if (parser.push(outcome.result.value).length > 0) {
         return { reader, writer };
       }
@@ -801,7 +800,7 @@ export class SerialProvisioningSession {
       this.closed = true;
       throw new Error("Serial connection closed unexpectedly.");
     }
-    return outcome.result.value ? this.parser.push(outcome.result.value) : [];
+    return this.parser.push(outcome.result.value);
   }
 
   private exclusive<T>(operation: () => Promise<T>): Promise<T> {

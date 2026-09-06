@@ -184,10 +184,10 @@ export function DeviceDetail({
     typeof reportedModel === "string" && reportedModel.length > 0
       ? reportedModel.toLowerCase()
       : "<model>";
-  /* `quantize` is the LEGACY shape, migrated to format + colorMode in
-   * lib/display.ts. No device in the estate reports it, so the card's "Quantize"
-   * row read "—" on every single display while the panel's colour mode, palette
-   * size, orientation and backlight sat unread in the same object. */
+  /* `quantize` was the LEGACY shape, superseded by format + colorMode. No device
+   * in the estate reports it, so the card's "Quantize" row read "—" on every
+   * single display while the panel's colour mode, palette size, orientation and
+   * backlight sat unread in the same object. */
   const caps = device.displayCaps as {
     model?: string;
     width?: number;

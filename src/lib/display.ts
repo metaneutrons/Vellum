@@ -40,8 +40,6 @@ export const displayCapsSchema = z.object({
   format: z.enum(["raw", "jpeg"]).default("raw"),
   /** Color mode of the display hardware */
   colorMode: z.enum(["fullcolor", "indexed", "grayscale", "mono"]).default("mono"),
-  /** @deprecated Use format + colorMode instead. Kept for migration. */
-  quantize: z.enum(["color", "grayscale", "mono", "none", "jpeg"]).optional(),
   /** Orientations the device supports. Empty = fixed (no rotation). */
   orientations: z.array(z.enum(["portrait", "landscape"])).default([]),
   /**
@@ -202,30 +200,6 @@ export function completeDisplayCaps(raw: unknown, model: string): DisplayCaps | 
   return result.success ? result.data : null;
 }
 
-/** Migrate legacy quantize field to format + colorMode */
-function migrateQuantize(caps: DisplayCaps): { format: OutputFormat; colorMode: ColorMode } {
-  if (caps.format && caps.colorMode) {
-    return { format: caps.format, colorMode: caps.colorMode };
-  }
-  // Reading the deprecated field IS this function's purpose: it is the
-  // migration off it. The exception is here rather than on the field.
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  switch (caps.quantize) {
-    case "jpeg":
-      return { format: "jpeg", colorMode: "fullcolor" };
-    case "color":
-      return { format: "raw", colorMode: "indexed" };
-    case "grayscale":
-      return { format: "raw", colorMode: "grayscale" };
-    case "mono":
-      return { format: "raw", colorMode: "mono" };
-    case "none":
-      return { format: "raw", colorMode: "fullcolor" };
-    default:
-      return { format: caps.format ?? "raw", colorMode: caps.colorMode ?? "mono" };
-  }
-}
-
 /**
  * Parse and validate display capabilities from a JSONB value.
  * Swaps width/height to match desired orientation.
@@ -278,7 +252,7 @@ export function resolveDisplayCaps(
   const result = displayCapsSchema.safeParse(raw);
   const caps = result.success ? result.data : DEFAULT_CAPS;
 
-  const { format, colorMode } = migrateQuantize(caps);
+  const { format, colorMode } = caps;
 
   /*
    * Landscape is the default, deliberately, and there is no third "derive it from
