@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { getProviderWithCredentials } from "@/lib/providers";
 import { extractOrgFromToken } from "@/lib/calendar/providers/anny";
 import { UUID_RE } from "@/lib/validation";
@@ -10,6 +11,19 @@ import { requestHasPermission } from "@/lib/access";
  * Resolve resource properties from anny for a given provider + resource.
  * Called at config time (editor save), not at render time.
  */
+/* The shape this route needs out of anny. `.catch` keeps one malformed page from
+ * failing the whole property lookup — the admin UI then shows fewer options
+ * rather than an error. */
+const annyEnvelope = z
+  .object({
+    data: z.array(z.unknown()).default([]),
+    included: z.array(z.unknown()).default([]),
+    meta: z
+      .object({ page: z.object({ "last-page": z.number().optional() }).optional() })
+      .optional(),
+  })
+  .catch({ data: [], included: [] });
+
 export async function GET(request: NextRequest) {
   /* content.manage, not providers.manage_secrets: resolving a room's properties is
    * a content task, and the old gate is held by no role but owner and
@@ -53,7 +67,9 @@ export async function GET(request: NextRequest) {
       });
 
       if (!res.ok) break;
-      const data = await res.json();
+      /* anny's JSON:API envelope. Only what this route reads is described; the
+       * entries keep their own casts below, which the loop already had. */
+      const data = annyEnvelope.parse(await res.json());
 
       // Build property label map from included
       const propLabels = new Map<string, string>();

@@ -27,6 +27,19 @@ const stateKeys = {
 
 const COMPOSE_UPGRADE_URL = `${REPO_URL}/blob/main/README.md#upgrade-an-existing-compose-installation`;
 
+/* `response.json()` is `any`, and this endpoint is our own API answering with a
+ * ServerUpdateStatus — the server's type is the authority, so restating all
+ * twenty fields as a schema would duplicate it rather than check anything. What
+ * is worth checking is that this is a status at all: an error page or a proxy
+ * response must not slip through as state. */
+async function readStatus(response: Response): Promise<ServerUpdateStatus | null> {
+  const body: unknown = await response.json();
+  if (typeof body === "object" && body !== null && "state" in body && "supported" in body) {
+    return body as ServerUpdateStatus;
+  }
+  return null;
+}
+
 export function ServerUpdatePanel({
   initialStatus,
   canUpdate,
@@ -60,7 +73,7 @@ export function ServerUpdatePanel({
       let nextState = status.state;
       try {
         const response = await fetch("/api/v1/admin/server-update", { cache: "no-store" });
-        const value: ServerUpdateStatus | null = response.ok ? await response.json() : null;
+        const value = response.ok ? await readStatus(response) : null;
         if (cancelled || !value) return;
         nextState = value.state;
         transientFailureCount.current =
@@ -118,7 +131,8 @@ export function ServerUpdatePanel({
         );
         return;
       }
-      const next: ServerUpdateStatus = await response.json();
+      const next = await readStatus(response);
+      if (!next) return;
       setStatus(next);
       if (action === "apply") {
         /* Open immediately after the updater accepts the request. The global
@@ -157,7 +171,8 @@ export function ServerUpdatePanel({
         );
         return;
       }
-      setStatus(await response.json());
+      const saved = await readStatus(response);
+      if (saved) setStatus(saved);
       setScheduleDirty(false);
       toast("success", t("serverScheduleSaved"));
     } catch {

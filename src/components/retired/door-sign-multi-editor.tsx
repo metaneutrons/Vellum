@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
+import { z } from "zod";
 import { useTranslations } from "next-intl";
 import { TextBoxCanvas } from "@/components/retired/text-box-canvas";
 import {
@@ -63,8 +64,15 @@ export function DoorSignMultiEditor({ config, onChange, providers, knownDisplays
       const params = new URLSearchParams({ providerId: selectedProvider });
       if (resourceSearch) params.set("search", resourceSearch);
       fetch(`/api/v1/admin/provider-resources?${params}`)
-        .then((r) => (r.ok ? r.json() : { resources: [] }))
-        .then((body) => setAvailableResources(body.resources ?? []))
+        .then((r): Promise<unknown> => (r.ok ? r.json() : Promise.resolve({ resources: [] })))
+        .then((body) => {
+          const parsed = z
+            .object({
+              resources: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
+            })
+            .safeParse(body);
+          setAvailableResources(parsed.success ? parsed.data.resources : []);
+        })
         .catch(() => setAvailableResources([]));
     }, 300);
     return () => clearTimeout(handle);

@@ -1,11 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Fabian Schmieder. All rights reserved.
 import { getRequestConfig } from "next-intl/server";
+import type { AbstractIntlMessages } from "next-intl";
 import { cookies, headers } from "next/headers";
 
 export const locales = ["en", "de", "fr", "it", "es"] as const;
 export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
+
+/* A dynamic JSON import is `any`: TypeScript cannot know which file the template
+ * resolves to. next-intl expects the message tree, so the assertion is made once
+ * here rather than at each call site — and the shape is checked by the i18n gate
+ * (`scripts/check-i18n.mjs`), which compares every locale against the source. */
+async function loadMessages(locale: string): Promise<AbstractIntlMessages> {
+  const mod = (await import(`./messages/${locale}.json`)) as {
+    default: AbstractIntlMessages;
+  };
+  return mod.default;
+}
 
 export default getRequestConfig(async () => {
   // 1. Check cookie (manual override)
@@ -14,7 +26,7 @@ export default getRequestConfig(async () => {
   if (cookieLocale && locales.includes(cookieLocale as Locale)) {
     return {
       locale: cookieLocale,
-      messages: (await import(`./messages/${cookieLocale}.json`)).default,
+      messages: await loadMessages(cookieLocale),
     };
   }
 
@@ -29,6 +41,6 @@ export default getRequestConfig(async () => {
   const locale = (detected as Locale) ?? defaultLocale;
   return {
     locale,
-    messages: (await import(`./messages/${locale}.json`)).default,
+    messages: await loadMessages(locale),
   };
 });
