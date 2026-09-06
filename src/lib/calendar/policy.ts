@@ -26,7 +26,7 @@ const BOOKED_BY_TEXT: Record<string, string> & { en: string } = {
 export function applyRoomPolicy(
   events: CalendarEvent[],
   policy: RoomPolicy,
-  locale: string = "en"
+  locale = "en"
 ): DisplayEvent[] {
   const reserved = RESERVED_TEXT[locale] ?? RESERVED_TEXT.en;
   const bookedBy = BOOKED_BY_TEXT[locale] ?? BOOKED_BY_TEXT.en;

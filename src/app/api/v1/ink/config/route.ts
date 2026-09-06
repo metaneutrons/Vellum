@@ -28,6 +28,7 @@ import {
   orientationPayloadSchema,
   wifiConfigurationInputSchema,
 } from "@/lib/provisioning/remote-configuration";
+import { asRecord } from "@/lib/record-value";
 
 export async function GET(request: NextRequest) {
   const rateLimited = applyRateLimit(apiLimiter, getClientIp(request));
@@ -225,7 +226,7 @@ export async function GET(request: NextRequest) {
     const payload = encryptedWifiPayloadSchema.safeParse(activeCommand.payload);
     try {
       if (!payload.success) throw new Error("invalid_encrypted_wifi_payload");
-      const secret = decryptCredentials<{ password: unknown }>(payload.data.encryptedPassword);
+      const secret = asRecord(decryptCredentials(payload.data.encryptedPassword));
       const parsed = wifiConfigurationInputSchema.parse({
         ssid: payload.data.ssid,
         password: secret.password,

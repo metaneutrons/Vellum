@@ -65,10 +65,10 @@ export interface Resolved<T> {
  * PARTIAL schema: a full parse would fill every absent key with its default and
  * the layer would silently reset everything it never mentioned.
  */
-export function cascade<T extends object>(base: T, layers: Array<Layer<T>>): Resolved<T> {
+export function cascade<T extends object>(base: T, layers: Layer<T>[]): Resolved<T> {
   const values = { ...base };
   const from: Partial<Record<keyof T, LayerName>> = {};
-  for (const key of Object.keys(base) as Array<keyof T>) {
+  for (const key of Object.keys(base) as (keyof T)[]) {
     from[key] = "builtin";
   }
 

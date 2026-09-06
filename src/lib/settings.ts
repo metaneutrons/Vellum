@@ -9,7 +9,7 @@ import { db, withDbRead, withDbWrite, type DbTransaction } from "@/db";
 import { settings } from "@/db/schema";
 
 /** All known settings with their defaults. */
-type SettingsMap = {
+interface SettingsMap {
   "firmware.autoPoll": boolean;
   "firmware.pollIntervalS": number;
   "access.oidcAutoProvision": boolean;
@@ -18,7 +18,7 @@ type SettingsMap = {
   "access.passkeyPolicy": "recommended" | "required";
   "access.rememberDeviceDays": number;
   "access.fourEyesRequired": boolean;
-};
+}
 
 const DEFAULTS: SettingsMap = {
   "firmware.autoPoll": false,

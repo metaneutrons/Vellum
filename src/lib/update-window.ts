@@ -24,7 +24,7 @@ const EVENT = "vellum:update-window";
  * expires even if the page never sees the server come back. */
 const MAX_AGE_MS = 15 * 60 * 1000;
 
-export type UpdateWindow = {
+export interface UpdateWindow {
   /** epoch ms, for elapsed-time display */
   startedAt: number;
   fromVersion: string | null;
@@ -37,11 +37,11 @@ export type UpdateWindow = {
    * Older updater versions can still expose the previous run at that instant.
    * Keep its fingerprint so polling cannot re-import it as current progress. */
   ignoredProgress?: UpdateProgressFingerprint | null;
-};
+}
 
 type UpdateProgressFingerprint = Pick<UpdateProgress, "phase" | "at" | "startedAt">;
 
-export type UpdateStatusSnapshot = {
+export interface UpdateStatusSnapshot {
   supported: boolean;
   state:
     | "unavailable"
@@ -71,7 +71,7 @@ export type UpdateStatusSnapshot = {
       | "rolling-back"
       | "failed";
   } | null;
-};
+}
 
 export type UpdateResolution =
   | { outcome: "pending" }

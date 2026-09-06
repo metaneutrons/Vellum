@@ -36,14 +36,17 @@ import {
 } from "@/lib/session";
 import { PERMISSIONS, type Permission } from "./permissions";
 export { PERMISSIONS, type Permission } from "./permissions";
-export type Scope = { type?: "workspace" | "site" | "fleet" | "device"; id?: string | null };
+export interface Scope {
+  type?: "workspace" | "site" | "fleet" | "device";
+  id?: string | null;
+}
 
-type SystemRole = {
+interface SystemRole {
   id: string;
   name: string;
   description: string;
   permissions: readonly (Permission | "*")[];
-};
+}
 export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     id: "owner",
@@ -126,20 +129,20 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   },
 ] as const;
 
-export type Principal = {
+export interface Principal {
   type: "user" | "service_account" | "bootstrap";
   id: string;
   displayName: string;
   permissions: { permission: string; scopeType: string; scopeId: string | null }[];
-};
+}
 
-export type AuditEvent = {
+export interface AuditEvent {
   action: string;
   targetType: string;
   targetId?: string | null;
   metadata?: Record<string, unknown>;
   outcome?: "success" | "failure";
-};
+}
 
 export class AuthorizationError extends Error {
   constructor(message = "Forbidden") {

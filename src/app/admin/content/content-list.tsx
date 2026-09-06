@@ -62,7 +62,7 @@ import { recordNumber, recordString } from "@/lib/record-value";
  * stored value, and Intl costs the client bundle nothing.
  */
 const DATE_SAMPLE = new Date(Date.UTC(2026, 4, 3, 12));
-const DATE_FORMAT_SAMPLES: Array<[string, "full" | "long" | "medium" | "short"]> = [
+const DATE_FORMAT_SAMPLES: [string, "full" | "long" | "medium" | "short"][] = [
   ["PPPP", "full"],
   ["PPP", "long"],
   ["PP", "medium"],

@@ -86,7 +86,7 @@ const DEFAULT_CAPS: DisplayCaps = {
 };
 
 /** One panel model in the SSOT registry. */
-type DisplayRegistryEntry = {
+interface DisplayRegistryEntry {
   name: string;
   width: number;
   height: number;
@@ -96,7 +96,7 @@ type DisplayRegistryEntry = {
   /** See displayCapsSchema — positions that are pixel codes but not usable colors. */
   reservedPaletteIndices?: number[];
   orientations: ("portrait" | "landscape")[];
-};
+}
 
 /** The models this repo ships firmware for. Lookups by an arbitrary string stay
  * possible (devices report their model as free text) but these four are known to

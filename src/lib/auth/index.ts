@@ -153,7 +153,7 @@ export const drizzleDeviceRepo: DeviceRepository = {
 export async function handleHello(
   mac: string,
   publicKey: string | null = null,
-  displayCaps: DisplayCaps | undefined = undefined,
+  displayCaps?: DisplayCaps,
   repo: DeviceRepository = drizzleDeviceRepo
 ): Promise<HelloResponse> {
   const device = await repo.findByMac(mac);

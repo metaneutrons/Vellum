@@ -30,8 +30,15 @@ export function encryptCredentials(data: unknown): string {
   return Buffer.concat([nonce, encrypted, tag]).toString("base64");
 }
 
-/** Decrypt a base64 string back to the original value. */
-export function decryptCredentials<T = unknown>(encoded: string): T {
+/**
+ * Decrypt a base64 string back to the original value.
+ *
+ * Returns `unknown`. It used to take a type parameter and hand back whatever the
+ * caller named, but nothing here checks the decrypted JSON against that name — the
+ * parameter was a promise the function could not keep. Callers narrow, which they
+ * were mostly doing anyway.
+ */
+export function decryptCredentials(encoded: string): unknown {
   const buf = Buffer.from(encoded, "base64");
   const key = getKey();
   const nonce = buf.subarray(0, NONCE_LEN);
@@ -40,5 +47,5 @@ export function decryptCredentials<T = unknown>(encoded: string): T {
   const decipher = crypto.createDecipheriv(ALGO, key, nonce);
   decipher.setAuthTag(tag);
   const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  return JSON.parse(decrypted.toString("utf-8")) as T;
+  return JSON.parse(decrypted.toString("utf-8"));
 }

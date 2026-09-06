@@ -1189,11 +1189,11 @@ export async function createRefreshProfile(name: string, config: Record<string, 
   }
 }
 
-type ProfileUpdateResult = {
+interface ProfileUpdateResult {
   status: "updated" | "conflict";
   before?: { name: string; config: unknown };
   revision?: number;
-};
+}
 
 function profileUpdateAudit(
   id: string,

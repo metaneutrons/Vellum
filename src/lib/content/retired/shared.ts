@@ -19,9 +19,7 @@ export const assetCache = new TtlCache<Buffer>(ASSET_CACHE_TTL_MS);
 
 /* ── Template variable resolution ─────────────────────────────── */
 
-export interface TemplateContext {
-  [key: string]: string | undefined;
-}
+export type TemplateContext = Record<string, string | undefined>;
 
 export function resolveTemplate(template: string, ctx: TemplateContext): string {
   return template
@@ -48,8 +46,8 @@ export async function loadBackgroundAsset(assetId: string): Promise<Buffer | nul
 
 /* ── Design selection by display size ─────────────────────────── */
 
-export function selectDesign<T extends { design: Design; designOverrides: Record<string, Design> }>(
-  config: T,
+export function selectDesign(
+  config: { design: Design; designOverrides: Record<string, Design> },
   width: number,
   height: number
 ): Design {

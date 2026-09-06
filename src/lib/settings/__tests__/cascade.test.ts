@@ -17,7 +17,7 @@ describe("cascade", () => {
   });
 
   it("lets a more specific layer win over a more general one", () => {
-    const layers: Array<Layer<Policy>> = [
+    const layers: Layer<Policy>[] = [
       { name: "site", values: { intervalS: 600, brightness: 60 } },
       { name: "profile", values: { intervalS: 300 } },
       { name: "device", values: { brightness: 10 } },

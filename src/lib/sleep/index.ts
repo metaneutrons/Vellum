@@ -341,7 +341,7 @@ export type RefreshProfilePatch = Partial<RefreshProfile>;
 export function parseRefreshProfilePatch(raw: unknown): RefreshProfilePatch {
   if (!raw || typeof raw !== "object") return {};
   const source = raw as Record<string, unknown>;
-  const present = (Object.keys(refreshProfileSchema.shape) as Array<keyof RefreshProfile>).filter(
+  const present = (Object.keys(refreshProfileSchema.shape) as (keyof RefreshProfile)[]).filter(
     (key) => source[key] !== undefined
   );
   if (present.length === 0) return {};
@@ -612,6 +612,6 @@ export function computeSleepDuration(ctx: SleepContext): number {
   return computeSleep(ctx).durationS;
 }
 
-export function applyJitter(baseDuration: number, maxJitter: number = 10): number {
+export function applyJitter(baseDuration: number, maxJitter = 10): number {
   return baseDuration + Math.random() * maxJitter;
 }
