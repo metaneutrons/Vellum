@@ -120,10 +120,10 @@ export const drizzleDeviceRepo: DeviceRepository = {
               firmwareChannel: provisioningVouchers.firmwareChannel,
               firmwarePinVersion: provisioningVouchers.firmwarePinVersion,
             });
-          if (rows.length === 0) return false;
           // Same transaction: if this insert throws, the voucher claim rolls back,
           // so the voucher stays available for a retry instead of being burned.
           const voucher = rows[0];
+          if (!voucher) return false;
           const enrollment = {
             status: "approved",
             token,
