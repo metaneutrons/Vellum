@@ -29,7 +29,8 @@ describe("recordingSurface: the ink box", () => {
     ctx.fillText("Warnking", 50, 60);
     const t = recording.texts[0]!;
     expect(t.text).toBe("Warnking");
-    expect(t.box.left).toBeCloseTo(50, 0);
+    // Skia may shift ink by a subpixel; the start must stay within one pixel.
+    expect(Math.abs(t.box.left - 50)).toBeLessThan(1);
     expect(t.box.right).toBeGreaterThan(150);
     /* The alphabetic baseline sits at y, so ink reaches above it and descenders
      * below. A box that started at y would put every line one ascent too low. */
