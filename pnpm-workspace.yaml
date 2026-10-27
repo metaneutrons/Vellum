@@ -6,6 +6,11 @@ strictDepBuilds: true
 # own MSAL provider. Keep that unused peer's nested MSAL above the patched floor.
 overrides:
   "@azure/identity>@azure/msal-node": "7.1.1"
+  # These versions are within the consumers' declared ranges except esbuild;
+  # drizzle-kit's legacy loader needs the patched esbuild and is checked below.
+  "vite": "8.3.5"
+  "brace-expansion@^5.0.0": "5.0.12"
+  "@esbuild-kit/core-utils>esbuild": "0.25.12"
 allowBuilds:
   "@napi-rs/canvas": true
   "@parcel/watcher": true
