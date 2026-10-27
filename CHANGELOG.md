@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.4](https://github.com/metaneutrons/Vellum/compare/v1.23.3...v1.23.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* **deps:** upgrade Vitest to 5 ([#391](https://github.com/metaneutrons/Vellum/issues/391)) ([694ff3c](https://github.com/metaneutrons/Vellum/commit/694ff3ccd5e9c4b2ec48df1931733917b11d154d))
+
 ## [1.23.3](https://github.com/metaneutrons/Vellum/compare/v1.23.2...v1.23.3) (2026-10-27)
 
 
