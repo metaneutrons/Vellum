@@ -22,7 +22,7 @@
 </p>
 
 > [!WARNING]
-> **Vellum is beta software, pre-1.0.** It runs a real fleet daily, but it is not
+> **Vellum is beta software.** It runs a real fleet daily, but it is not
 > yet something to put in front of a room you cannot afford to have go blank.
 >
 > - **Displays have needed manual recovery.** A device can stop polling and stay
@@ -34,7 +34,7 @@
 >   release rather than following the newest one, and read the release notes before
 >   moving.
 > - **Interfaces still change**, including the database schema, the device API and
->   firmware behaviour. Breaking changes land in minor releases while pre-1.0.
+>   firmware behaviour. Check the release notes for breaking changes before upgrading.
 
 Vellum turns Seeed Studio reTerminal displays into a managed signage fleet. The
 server combines booking data, content, branding, refresh policy, telemetry, and
