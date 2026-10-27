@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.23.3](https://github.com/metaneutrons/Vellum/compare/v1.23.2...v1.23.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* **deps:** patch server and toolchain dependencies ([#389](https://github.com/metaneutrons/Vellum/issues/389)) ([0f39d95](https://github.com/metaneutrons/Vellum/commit/0f39d951cbf509df22812507ef8f3c95859c83b4))
+* **microsoft365:** use patched MSAL for Graph authentication ([#387](https://github.com/metaneutrons/Vellum/issues/387)) ([4a5f955](https://github.com/metaneutrons/Vellum/commit/4a5f9559797cfe910f2fb490ad50e98fc0e69a9f))
+
 ## [1.23.2](https://github.com/metaneutrons/Vellum/compare/v1.23.1...v1.23.2) (2026-09-06)
 
 
