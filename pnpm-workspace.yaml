@@ -2,6 +2,10 @@
 # reviewed and named explicitly so a transitive update cannot silently add a
 # new install-time executable.
 strictDepBuilds: true
+# Graph installs Azure Identity as an optional peer even though Vellum uses its
+# own MSAL provider. Keep that unused peer's nested MSAL above the patched floor.
+overrides:
+  "@azure/identity>@azure/msal-node": "7.1.1"
 allowBuilds:
   "@napi-rs/canvas": true
   "@parcel/watcher": true

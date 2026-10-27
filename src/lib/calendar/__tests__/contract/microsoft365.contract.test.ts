@@ -23,12 +23,18 @@ const ROOM_EMAIL = "raum-1J118@example.org";
 /* The SDK's chain: .api(path).query(...).select(...).orderby(...).get() */
 const graphGet = vi.hoisted(() => vi.fn());
 
-/* Constructible mocks rather than empty classes, which the lint rules rightly
- * object to. Neither is called for anything but `new`. */
-vi.mock("@azure/identity", () => ({ ClientSecretCredential: vi.fn() }));
+const tokenRequest = vi.hoisted(() => vi.fn());
+const graphInit = vi.hoisted(() => vi.fn());
+
+vi.mock("@azure/msal-node", () => ({
+  ConfidentialClientApplication: vi.fn(function () {
+    return { acquireTokenByClientCredential: tokenRequest };
+  }),
+}));
 vi.mock("@microsoft/microsoft-graph-client", () => ({
   Client: {
-    initWithMiddleware: () => {
+    initWithMiddleware: (options: unknown) => {
+      graphInit(options);
       const chain = {
         api: () => chain,
         query: () => chain,
@@ -39,9 +45,6 @@ vi.mock("@microsoft/microsoft-graph-client", () => ({
       return chain;
     },
   },
-}));
-vi.mock("@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials", () => ({
-  TokenCredentialAuthenticationProvider: vi.fn(),
 }));
 
 const { microsoft365Provider } = await import("../../providers/microsoft365");
@@ -106,6 +109,26 @@ async function fetchEvents() {
     ...WINDOW,
   });
 }
+
+it("obtains a Graph token through MSAL client credentials", async () => {
+  tokenRequest.mockResolvedValueOnce({ accessToken: "graph-token" });
+  serve([]);
+  await fetchEvents();
+  const authProvider = graphInit.mock.lastCall?.[0].authProvider;
+  expect(authProvider).toBeDefined();
+  await expect(authProvider.getAccessToken()).resolves.toBe("graph-token");
+  expect(tokenRequest).toHaveBeenCalledWith({ scopes: ["https://graph.microsoft.com/.default"] });
+});
+
+it("rejects an empty Graph token", async () => {
+  tokenRequest.mockResolvedValueOnce(null);
+  serve([]);
+  await fetchEvents();
+  const authProvider = graphInit.mock.lastCall?.[0].authProvider;
+  await expect(authProvider.getAccessToken()).rejects.toThrow(
+    "Microsoft Graph did not return an access token"
+  );
+});
 
 const attendee = (name: string, address: string): GraphAttendee => ({
   emailAddress: { name, address },

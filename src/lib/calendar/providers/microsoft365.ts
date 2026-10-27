@@ -5,9 +5,8 @@
  */
 
 import { z } from "zod";
-import { ClientSecretCredential } from "@azure/identity";
+import { ConfidentialClientApplication } from "@azure/msal-node";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { TokenCredentialAuthenticationProvider } from "@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials";
 import type { CalendarProvider, CalendarEvent } from "../types";
 
 export const m365CredentialSchema = z.object({
@@ -64,15 +63,25 @@ export const microsoft365Provider: CalendarProvider = {
     const creds = m365CredentialSchema.parse(credentials);
     const room = m365RoomConfigSchema.parse(roomConfig);
 
-    const credential = new ClientSecretCredential(
-      creds.tenantId,
-      creds.clientId,
-      creds.clientSecret
-    );
-    const authProvider = new TokenCredentialAuthenticationProvider(credential, {
-      scopes: ["https://graph.microsoft.com/.default"],
+    const cca = new ConfidentialClientApplication({
+      auth: {
+        clientId: creds.clientId,
+        clientSecret: creds.clientSecret,
+        authority: `https://login.microsoftonline.com/${creds.tenantId}`,
+      },
     });
-    const client = Client.initWithMiddleware({ authProvider });
+    const client = Client.initWithMiddleware({
+      authProvider: {
+        async getAccessToken() {
+          const token = await cca.acquireTokenByClientCredential({
+            scopes: ["https://graph.microsoft.com/.default"],
+          });
+          if (!token?.accessToken)
+            throw new Error("Microsoft Graph did not return an access token");
+          return token.accessToken;
+        },
+      },
+    });
 
     /* `unknown`, not the library's `any`: the client hands back whatever the
      * service sent, and the schema below is what turns that into a type. Left as
