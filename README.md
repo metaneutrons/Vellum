@@ -392,7 +392,7 @@ integration are documented in [Secure Boot and KMS](docs/SECURE_BOOT_AND_KMS.md)
 
 ### Prerequisites
 
-- Node.js 22.13 or newer
+- Node.js 24 or newer (see `.nvmrc` and `package.json`)
 - pnpm 11.20.0 (pinned through `packageManager`)
 - PostgreSQL 15 or newer
 
