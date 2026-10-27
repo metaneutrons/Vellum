@@ -120,7 +120,12 @@ describe("contrast", () => {
       ctx.fillStyle = "#FFFFFF";
       ctx.fillText("Warnking", 20, 100);
     });
-    expect(groundsUnder(rec, rec.texts[0]!).sort()).toEqual(["#000000", "#FFFFFF"]);
+    // Canvas may canonicalize hex case; the sampled colors are the same either way.
+    expect(
+      groundsUnder(rec, rec.texts[0]!)
+        .map((color) => color.toLowerCase())
+        .sort()
+    ).toEqual(["#000000", "#ffffff"]);
     /* White is unreadable on the white half, and that is the finding. */
     expect(checkFrame(rec).map((v) => v.invariant)).toEqual(["contrast"]);
   });
