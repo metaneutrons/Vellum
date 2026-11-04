@@ -4,6 +4,18 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
+import { createHook } from "node:async_hooks";
+
+Error.stackTraceLimit = 40;
+const pendingTimers = new Map();
+createHook({
+  init(id, type, _trigger, resource) {
+    if (type === "Timeout") pendingTimers.set(id, { resource, stack: new Error("here").stack });
+  },
+  destroy(id) {
+    pendingTimers.delete(id);
+  },
+}).enable();
 
 process.env.VELLUM_UPDATER_TEST = "true";
 process.env.UPDATER_TOKEN = "a".repeat(64);
@@ -19,9 +31,27 @@ after(() => rmSync(testDirectory, { recursive: true, force: true }));
  * unref'd, so it never keeps the process alive by itself. */
 after(() => {
   setTimeout(() => {
+    const held = process.report
+      .getReport()
+      .libuv.filter((handle) => handle.is_referenced)
+      .map((handle) =>
+        handle.type === "timer"
+          ? `timer firing in ${handle.firesInMsFromNow}ms`
+          : `${handle.type} ${handle.address ?? ""}`.trim()
+      );
     console.error(
-      `still running after the suite; open handles: ${JSON.stringify(process.getActiveResourcesInfo())}`
+      `still running after the suite; referenced handles: ${JSON.stringify(held)}; all: ${JSON.stringify(process.getActiveResourcesInfo())}`
     );
+    for (const [id, { resource, stack }] of pendingTimers) {
+      // An unref'd timer is pending but does not hold the loop; skip it.
+      if (typeof resource?.hasRef === "function" && !resource.hasRef()) continue;
+      const where = stack
+        .split("\n")
+        .filter((line) => line.includes("control.mjs") || line.includes("control.test.mjs"))
+        .slice(0, 4)
+        .join(" | ");
+      console.error(`pending timer ${id}: ${where || "no frame of ours"}`);
+    }
     process.exit(1);
   }, 10_000).unref();
 });
