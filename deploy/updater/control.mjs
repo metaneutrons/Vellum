@@ -292,11 +292,14 @@ function command(commandName, args, options = {}) {
   return new Promise((resolve, reject) => {
     const { quietStderr = false, ...spawnOptions } = options;
     const child = spawn(commandName, args, {
-      timeout: operationTimeoutMs,
-      killSignal: "SIGTERM",
       ...spawnOptions,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    /* The deadline is kept here rather than handed to spawn's own `timeout`.
+     * Node clears that one when the child emits "exit", which a spawn that
+     * fails outright never does, so a missing binary left a referenced timer
+     * running for the whole operation window. */
+    const deadline = setTimeout(() => child.kill("SIGTERM"), operationTimeoutMs);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (data) => {
@@ -306,12 +309,15 @@ function command(commandName, args, options = {}) {
       stderr += data;
       if (!quietStderr) process.stderr.write(data);
     });
-    child.on("error", reject);
-    child.on("close", (code) =>
-      code === 0
-        ? resolve(stdout.trim())
-        : reject(new Error(stderr.trim() || `${commandName} exited ${code}`))
-    );
+    child.on("error", (error) => {
+      clearTimeout(deadline);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(deadline);
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(stderr.trim() || `${commandName} exited ${code}`));
+    });
   });
 }
 /* A Map, not an object: the lookup below takes a computed key, and on an object
