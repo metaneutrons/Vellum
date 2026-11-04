@@ -177,3 +177,27 @@ describe("placeholder rejection", () => {
     ).toBe(true);
   });
 });
+
+/* Compose supplies an unset optional variable as an empty string, and Coolify's
+ * marker is read by presence alone. An empty value therefore has to arrive as
+ * absent, or a plain Compose installation would switch its own updates off. */
+describe("COOLIFY_RESOURCE_UUID", () => {
+  it("counts as absent when it is empty or only whitespace", () => {
+    for (const value of ["", "   "]) {
+      const result = envSchema.safeParse({ ...validEnv, COOLIFY_RESOURCE_UUID: value });
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.COOLIFY_RESOURCE_UUID).toBeUndefined();
+    }
+  });
+
+  it("is kept when the platform set it", () => {
+    const result = envSchema.safeParse({
+      ...validEnv,
+      COOLIFY_RESOURCE_UUID: "0f6c0b4e-1e2a-4a0a-9a1b-3f9a1c2d4e5f",
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.COOLIFY_RESOURCE_UUID).toBe("0f6c0b4e-1e2a-4a0a-9a1b-3f9a1c2d4e5f");
+  });
+});

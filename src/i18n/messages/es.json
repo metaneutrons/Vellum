@@ -632,6 +632,7 @@
     "title": "Sistema",
     "description": "Gestiona el servidor Vellum, las actualizaciones y el estado operativo",
     "serverUpdateTitle": "Servidor Vellum",
+    "serverManagedByCoolify": "Esta instalación la gestiona Coolify. Actualízala allí desplegando la aplicación de nuevo. El actualizador no funciona con Coolify, por lo que esta página no ofrece ni comprobación, ni instalación, ni ventana de mantenimiento.",
     "serverVersionUnknown": "Versión desconocida",
     "serverUpdaterUnavailable": "El servicio de actualización no está instalado, no está configurado o no está disponible en este momento.",
     "serverUpdaterNotConfigured": "El servicio de actualización no está configurado para esta instalación de Vellum.",

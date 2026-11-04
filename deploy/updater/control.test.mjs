@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
@@ -10,8 +10,39 @@ process.env.UPDATER_TOKEN = "a".repeat(64);
 const testDirectory = mkdtempSync(join(tmpdir(), "vellum-updater-control-"));
 const progressFile = join(testDirectory, "progress.json");
 process.env.PROGRESS_FILE = progressFile;
+process.env.COMPOSE_PROJECT = "vellum";
+process.env.HOSTNAME = "vellum-updater";
+process.env.CONTROL_PORT = "0";
 after(() => rmSync(testDirectory, { recursive: true, force: true }));
+
+/* A real `docker` on PATH rather than an injected function, so the production
+ * `command()` and its argument handling are what runs. It answers ONLY when the
+ * format string asks for the Coolify label: a fake that answers anything would
+ * let a removed guard pass unnoticed. */
+const dockerLog = join(testDirectory, "docker.log");
+writeFileSync(
+  join(testDirectory, "docker"),
+  `#!/bin/sh
+printf '%s\\n' "$*" >>"${dockerLog}"
+case "$1" in
+  inspect) case "$*" in *coolify.managed*) printf '%s\\n' "$FAKE_OWN_LABEL" ;; esac ;;
+  ps) case "$*" in *--format*coolify.managed*) printf '%s\\n' "$FAKE_PROJECT_LABELS" ;; esac ;;
+esac
+`
+);
+chmodSync(join(testDirectory, "docker"), 0o755);
+process.env.PATH = `${testDirectory}:${process.env.PATH}`;
+const dockerCalls = () =>
+  existsSync(dockerLog)
+    ? readFileSync(dockerLog, "utf8").split("\n").filter(Boolean)
+    : [];
+const forgetDockerCalls = () => writeFileSync(dockerLog, "");
 const {
+  apply,
+  check,
+  detectManagedBy,
+  startServer,
+  status,
   equalToken,
   fetchReleaseVersion,
   newer,
@@ -201,4 +232,131 @@ test("honors GitHub rate-limit reset metadata without busy retrying", async () =
     (error) => error?.code === "rate-limited" && error?.retryAt === retryAt
   );
   assert.equal(attempts, 1);
+});
+
+/* ── A platform that deploys the stack itself ──────────────────────────────── */
+
+test("recognises Coolify by the label of its own container or of one in the project", async () => {
+  const seen = [];
+  const answers = (own, project) => (_command, args) => {
+    seen.push(args.join(" "));
+    return Promise.resolve(args[0] === "inspect" ? own : project);
+  };
+
+  assert.equal(await detectManagedBy(answers("true", "")), "coolify");
+  assert.equal(await detectManagedBy(answers("", "true\ntrue")), "coolify");
+  assert.equal(await detectManagedBy(answers("", "\ntrue")), "coolify");
+  assert.equal(await detectManagedBy(answers("", "")), null);
+  assert.equal(await detectManagedBy(answers("false", "\n\n")), null);
+  // Not a prefix match: only the exact value counts.
+  assert.equal(await detectManagedBy(answers("truely", "")), null);
+  // A daemon that cannot be reached says nothing, it does not throw.
+  assert.equal(
+    await detectManagedBy(() => Promise.reject(new Error("docker daemon is unreachable"))),
+    null
+  );
+
+  // Only containers of THIS project, never host-wide.
+  assert.ok(seen.some((call) => call.startsWith("inspect") && call.includes("coolify.managed")));
+  const listings = seen.filter((call) => call.startsWith("ps"));
+  assert.ok(listings.length > 0);
+  for (const call of listings) {
+    assert.ok(call.includes("label=com.docker.compose.project=vellum"), call);
+    assert.ok(call.includes("coolify.managed"), call);
+  }
+});
+
+test("refuses to check or install under Coolify, without asking GitHub or touching a container", async () => {
+  const requested = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (url) => {
+    requested.push(String(url));
+    return Promise.reject(new Error("no release lookup may happen"));
+  };
+  process.env.FAKE_OWN_LABEL = "";
+  process.env.FAKE_PROJECT_LABELS = "true\ntrue";
+  rmSync(progressFile, { force: true });
+  forgetDockerCalls();
+
+  try {
+    await check();
+    assert.equal(status.managedBy, "coolify");
+    assert.equal(status.state, "failed");
+    assert.equal(status.updateAvailable, false);
+    assert.match(status.lastError, /Coolify/);
+    assert.equal(publicStatus().managedBy, "coolify");
+
+    // A caller that thinks an update is waiting must still be refused, and the
+    // labels are re-read at that moment rather than trusted from the check.
+    Object.assign(status, {
+      state: "available",
+      updateAvailable: true,
+      availableVersion: "v9.9.9",
+      managedBy: null,
+    });
+    assert.equal(await apply(), true);
+    assert.equal(status.managedBy, "coolify");
+    assert.equal(status.state, "failed");
+
+    assert.deepEqual(requested, []);
+    for (const call of dockerCalls()) assert.match(call, /^(inspect|ps) /, call);
+    assert.equal(existsSync(progressFile), false);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("lets an installation without the labels through to the release check", async () => {
+  process.env.FAKE_OWN_LABEL = "";
+  process.env.FAKE_PROJECT_LABELS = "";
+  Object.assign(status, {
+    state: "available",
+    updateAvailable: true,
+    availableVersion: "v9.9.9",
+    managedBy: "coolify",
+  });
+  rmSync(progressFile, { force: true });
+
+  // It fails for its own reason — the deployment worker does not exist here —
+  // which is what proves the flag is derived afresh and not sticky.
+  assert.equal(await apply(), true);
+  assert.equal(status.managedBy, null);
+  assert.doesNotMatch(status.lastError ?? "", /Coolify/);
+  assert.equal(JSON.parse(readFileSync(progressFile, "utf8")).phase, "verifying");
+});
+
+test("answers the control API with the platform and refuses to install or schedule", async () => {
+  process.env.FAKE_OWN_LABEL = "true";
+  process.env.FAKE_PROJECT_LABELS = "";
+  await check();
+  const server = startServer();
+  await new Promise((resolve) => server.once("listening", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const authorized = { authorization: `Bearer ${process.env.UPDATER_TOKEN}` };
+
+  try {
+    const statusResponse = await fetch(`${base}/v1/status`, { headers: authorized });
+    assert.equal(statusResponse.status, 200);
+    assert.equal((await statusResponse.json()).managedBy, "coolify");
+
+    forgetDockerCalls();
+    for (const [path, body] of [
+      ["/v1/apply", undefined],
+      ["/v1/config", JSON.stringify({ mode: "manual", maintenanceTime: "02:00", timezone: "UTC" })],
+    ]) {
+      const response = await fetch(`${base}${path}`, {
+        method: "POST",
+        headers: { ...authorized, "content-type": "application/json" },
+        ...(body ? { body } : {}),
+      });
+      assert.equal(response.status, 409, path);
+      assert.equal((await response.json()).error, "managed_by_platform", path);
+    }
+    assert.deepEqual(dockerCalls(), []);
+
+    const unauthorized = await fetch(`${base}/v1/status`);
+    assert.equal(unauthorized.status, 401);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

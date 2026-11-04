@@ -3,6 +3,7 @@ import { getRequestPrincipal, hasPermission, writeAudit } from "@/lib/access";
 import {
   configureServerUpdates,
   getServerUpdateStatus,
+  isManagedExternally,
   requestServerUpdate,
   requestServerUpdateCheck,
 } from "@/lib/server-updater";
@@ -73,6 +74,25 @@ export async function POST(request: Request) {
     body.action === "configure"
       ? { mode: body.mode, maintenanceTime: body.maintenanceTime, timezone: body.timezone }
       : {};
+  // A platform that deploys the installation itself would undo anything applied
+  // here, so the request is refused before the updater is asked and before the
+  // intent audit: nothing was requested of anything. The attempt is still
+  // recorded, because a refused update is worth seeing in the trail.
+  if (isManagedExternally()) {
+    const managed = await getServerUpdateStatus();
+    await writeAudit(
+      principal,
+      `server.update.${body.action}.rejected`,
+      "server",
+      undefined,
+      { ...requestMetadata, managedBy: managed.managedBy },
+      "failure"
+    ).catch((error: unknown) =>
+      log.error("Failed to record a refused server update", { error: String(error) })
+    );
+    return Response.json(managed, { status: 409, headers: { "cache-control": "no-store" } });
+  }
+
   // External updater work cannot share a PostgreSQL transaction. Record intent
   // first so a committed external action is never invisible if the completion
   // audit cannot be written during a later database outage.
