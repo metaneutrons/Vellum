@@ -33,9 +33,7 @@ esac
 chmodSync(join(testDirectory, "docker"), 0o755);
 process.env.PATH = `${testDirectory}:${process.env.PATH}`;
 const dockerCalls = () =>
-  existsSync(dockerLog)
-    ? readFileSync(dockerLog, "utf8").split("\n").filter(Boolean)
-    : [];
+  existsSync(dockerLog) ? readFileSync(dockerLog, "utf8").split("\n").filter(Boolean) : [];
 const forgetDockerCalls = () => writeFileSync(dockerLog, "");
 const {
   apply,

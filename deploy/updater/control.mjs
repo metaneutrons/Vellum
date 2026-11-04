@@ -314,10 +314,14 @@ function command(commandName, args, options = {}) {
     );
   });
 }
-const MANAGED_MESSAGES = {
-  coolify:
+/* A Map, not an object: the lookup below takes a computed key, and on an object
+ * that reaches the prototype chain. */
+const MANAGED_MESSAGES = new Map([
+  [
+    "coolify",
     "This installation is run by Coolify, which replaces the containers on every deployment and would undo an update made here. Update it in Coolify by deploying the application again.",
-};
+  ],
+]);
 
 /* Coolify deploys the stack itself, so anything changed here is overwritten by
  * its next deployment. It marks the containers it owns, and that mark is read
@@ -357,7 +361,12 @@ async function detectManagedBy(run = command) {
       quiet
     ).catch(() => ""),
   ]);
-  return labels.join("\n").split("\n").some((line) => line.trim() === "true") ? "coolify" : null;
+  return labels
+    .join("\n")
+    .split("\n")
+    .some((line) => line.trim() === "true")
+    ? "coolify"
+    : null;
 }
 
 function markManaged(managedBy) {
@@ -365,7 +374,7 @@ function markManaged(managedBy) {
   status.managedBy = managedBy;
   status.updateAvailable = false;
   status.state = "failed";
-  status.lastError = MANAGED_MESSAGES[managedBy];
+  status.lastError = MANAGED_MESSAGES.get(managedBy);
 }
 
 async function currentVersion() {
