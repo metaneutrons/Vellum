@@ -293,13 +293,24 @@ function command(commandName, args, options = {}) {
     const { quietStderr = false, ...spawnOptions } = options;
     const child = spawn(commandName, args, {
       ...spawnOptions,
+      /* Its own process group, so the deadline below reaches the whole tree.
+       * The deployment worker is a shell script, and a signal to the script
+       * alone leaves the docker commands it started running. */
+      detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
     /* The deadline is kept here rather than handed to spawn's own `timeout`.
      * Node clears that one when the child emits "exit", which a spawn that
      * fails outright never does, so a missing binary left a referenced timer
      * running for the whole operation window. */
-    const deadline = setTimeout(() => child.kill("SIGTERM"), operationTimeoutMs);
+    const deadline = setTimeout(() => {
+      try {
+        process.kill(-Number(child.pid), "SIGTERM");
+      } catch {
+        // The group is gone already, or there never was one: nothing to signal.
+        child.kill("SIGTERM");
+      }
+    }, operationTimeoutMs);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (data) => {

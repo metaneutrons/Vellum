@@ -173,6 +173,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # Without this the job takes the runner's default Node, which is neither
+      # what .nvmrc pins nor what the updater image ships (node 24 from Alpine).
+      # A version nobody runs reports defects nobody has and hides the rest.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version-file: ".nvmrc"
       - name: Validate updater scripts
         run: |
           shellcheck deploy/updater/update.sh deploy/updater/test-update.sh deploy/install.sh
