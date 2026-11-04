@@ -55,10 +55,16 @@ export interface ServerUpdateStatus {
    * this journal — written by the updater and read back after the container is
    * up again — is the only progress the UI can show. */
   progress: UpdateProgress | null;
+  /** The platform that deploys this installation itself, when there is one.
+   * Such a platform recreates the containers on its own schedule, so an update
+   * applied here would be undone — the server refuses instead of competing.
+   * Null for a plain Compose installation, which is what the updater is for. */
+  managedBy: "coolify" | null;
 }
 
 function unavailable(
-  availabilityReason: Exclude<ServerUpdateStatus["availabilityReason"], "ready">
+  availabilityReason: Exclude<ServerUpdateStatus["availabilityReason"], "ready">,
+  managedBy: ServerUpdateStatus["managedBy"] = null
 ): ServerUpdateStatus {
   return {
     supported: false,
@@ -83,6 +89,7 @@ function unavailable(
     updaterSelfUpdateEnabled: false,
     updaterSwap: null,
     progress: null,
+    managedBy,
   };
 }
 
@@ -164,9 +171,19 @@ const statusSchema = z.object({
     })
     .nullable()
     .optional(),
+  managedBy: z.enum(["coolify"]).nullable().default(null),
 });
 
+/* The variable is read, never its value: its presence is the signal. This runs
+ * before the "is an updater configured" check on purpose, so a token left over
+ * from an earlier Compose installation cannot switch updating back on under a
+ * platform that would undo it. */
+const managedBy = (): ServerUpdateStatus["managedBy"] =>
+  env.COOLIFY_RESOURCE_UUID === undefined ? null : "coolify";
+
 async function request(path: string, method = "GET", body?: unknown): Promise<ServerUpdateStatus> {
+  const platform = managedBy();
+  if (platform) return unavailable("not-configured", platform);
   if (!env.UPDATER_URL || !env.UPDATER_TOKEN) return unavailable("not-configured");
   try {
     const response = await fetch(new URL(path, env.UPDATER_URL), {
@@ -200,11 +217,14 @@ async function request(path: string, method = "GET", body?: unknown): Promise<Se
       updaterSelfUpdateEnabled: parsed.data.updaterSelfUpdateEnabled ?? false,
       updaterSwap: parsed.data.updaterSwap ?? null,
       progress: parsed.data.progress ?? null,
+      managedBy: parsed.data.managedBy,
     };
   } catch {
     return unavailable("unreachable");
   }
 }
+
+export const isManagedExternally = () => managedBy() !== null;
 
 export const getServerUpdateStatus = () => request("/v1/status");
 export const requestServerUpdateCheck = () => request("/v1/check", "POST");

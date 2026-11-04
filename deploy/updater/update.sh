@@ -103,6 +103,38 @@ resolve_host_stack_dir() {
   dirname "$source"
 }
 
+# Coolify deploys the stack itself: it recreates every container of the project on
+# each deployment and rewrites their environment. An update applied here would be
+# undone by the next deployment, and the image pin this script writes into the
+# environment file would go with it. So the labels Coolify leaves on the
+# containers are read before anything is changed, and the run is refused.
+#
+# Two containers can carry the mark: the updater's own, and any container of the
+# Compose project. Only the exact value `true` counts, and only containers of
+# THIS project — a host that happens to run Coolify for something else is not
+# Coolify's installation.
+managed_platform() {
+  local own project
+  own="$(docker inspect --format '{{index .Config.Labels "coolify.managed"}}' \
+    "${HOSTNAME:-}" 2>/dev/null)" || own=""
+  project="$(docker ps --all --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
+    --format '{{.Label "coolify.managed"}}' 2>/dev/null)" || project=""
+  if printf '%s\n%s\n' "$own" "$project" | grep -Fxq true; then
+    printf 'coolify\n'
+  fi
+}
+
+# Set by check_platform, read by its callers. A plain return code cannot carry
+# the reason, and the reason is what the operator needs.
+REFUSAL=""
+check_platform() {
+  REFUSAL=""
+  if [[ "$(managed_platform)" == "coolify" ]]; then
+    REFUSAL="this installation is run by Coolify, which replaces the containers on every deployment and would undo an update made here; update it in Coolify by deploying the application again"
+    return 1
+  fi
+}
+
 compose_stack() {
   local host_stack_dir="$HOST_STACK_DIR"
   [[ -n "$host_stack_dir" && "$host_stack_dir" == /* ]] || {
@@ -488,6 +520,14 @@ schedule_updater_swap() {
 
 update_once() {
   local tag candidate current
+  # Before the release lookup, the image pull, the backup and any container:
+  # under Coolify none of that may happen at all.
+  if ! check_platform; then
+    PHASE_STARTED_AT="${PHASE_STARTED_AT:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}"
+    set_phase "failed" "$REFUSAL"
+    die "$REFUSAL" || true
+    return 1
+  fi
   if [[ -n "$TARGET_VERSION" ]]; then
     if [[ ! "$TARGET_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       die "target server version is invalid"
@@ -534,6 +574,12 @@ update_once() {
 }
 
 main() {
+  # Every branch below changes containers, so the refusal covers all of them —
+  # the single-shot run, the watch loop and the detached updater swap.
+  if ! check_platform; then
+    die "$REFUSAL"
+    return 1
+  fi
   if [[ "${1:-}" == "--swap-updater" ]]; then
     require_command docker
     require_command jq

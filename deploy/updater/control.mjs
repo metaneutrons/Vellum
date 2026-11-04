@@ -50,6 +50,7 @@ function lastSwap() {
   }
 }
 const target = process.env.TARGET_CONTAINER ?? "vellum";
+const composeProject = process.env.COMPOSE_PROJECT ?? "vellum";
 const configFile = process.env.UPDATER_CONFIG_FILE ?? "/state/config.json";
 const defaultConfig = {
   mode: (process.env.AUTO_APPLY ?? "true") === "true" ? "automatic" : "manual",
@@ -132,6 +133,7 @@ const status = {
   updaterUpdateAvailable: false,
   updaterSelfUpdateCapable,
   updaterSelfUpdateEnabled,
+  managedBy: null,
 };
 let active = false;
 
@@ -290,11 +292,14 @@ function command(commandName, args, options = {}) {
   return new Promise((resolve, reject) => {
     const { quietStderr = false, ...spawnOptions } = options;
     const child = spawn(commandName, args, {
-      timeout: operationTimeoutMs,
-      killSignal: "SIGTERM",
       ...spawnOptions,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    /* The deadline is kept here rather than handed to spawn's own `timeout`.
+     * Node clears that one when the child emits "exit", which a spawn that
+     * fails outright never does, so a missing binary left a referenced timer
+     * running for the whole operation window. */
+    const deadline = setTimeout(() => child.kill("SIGTERM"), operationTimeoutMs);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (data) => {
@@ -304,14 +309,80 @@ function command(commandName, args, options = {}) {
       stderr += data;
       if (!quietStderr) process.stderr.write(data);
     });
-    child.on("error", reject);
-    child.on("close", (code) =>
-      code === 0
-        ? resolve(stdout.trim())
-        : reject(new Error(stderr.trim() || `${commandName} exited ${code}`))
-    );
+    child.on("error", (error) => {
+      clearTimeout(deadline);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(deadline);
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(stderr.trim() || `${commandName} exited ${code}`));
+    });
   });
 }
+/* A Map, not an object: the lookup below takes a computed key, and on an object
+ * that reaches the prototype chain. */
+const MANAGED_MESSAGES = new Map([
+  [
+    "coolify",
+    "This installation is run by Coolify, which replaces the containers on every deployment and would undo an update made here. Update it in Coolify by deploying the application again.",
+  ],
+]);
+
+/* Coolify deploys the stack itself, so anything changed here is overwritten by
+ * its next deployment. It marks the containers it owns, and that mark is read
+ * fresh rather than cached: the labels at the moment of the change are what
+ * counts, not what they were at the last release check.
+ *
+ * The updater's own container carries the mark, and so does any container of
+ * this Compose project. Only the exact value `true` counts, and only containers
+ * of THIS project — a host running Coolify for something else is not it.
+ *
+ * Detection failing open is deliberate: every step that follows needs the Docker
+ * daemon anyway and reports its own error. See the limits in
+ * docs/DOCKER_DEPLOYMENT.md. */
+async function detectManagedBy(run = command) {
+  const quiet = { quietStderr: true };
+  const labels = await Promise.all([
+    run(
+      "docker",
+      [
+        "inspect",
+        "--format",
+        '{{index .Config.Labels "coolify.managed"}}',
+        process.env.HOSTNAME ?? "",
+      ],
+      quiet
+    ).catch(() => ""),
+    run(
+      "docker",
+      [
+        "ps",
+        "--all",
+        "--filter",
+        `label=com.docker.compose.project=${composeProject}`,
+        "--format",
+        '{{.Label "coolify.managed"}}',
+      ],
+      quiet
+    ).catch(() => ""),
+  ]);
+  return labels
+    .join("\n")
+    .split("\n")
+    .some((line) => line.trim() === "true")
+    ? "coolify"
+    : null;
+}
+
+function markManaged(managedBy) {
+  clearReleaseCheckRetry();
+  status.managedBy = managedBy;
+  status.updateAvailable = false;
+  status.state = "failed";
+  status.lastError = MANAGED_MESSAGES.get(managedBy);
+}
+
 async function currentVersion() {
   const image = await command("docker", ["inspect", "--format", "{{.Image}}", target]);
   return command("docker", [
@@ -487,6 +558,12 @@ async function check() {
   status.state = "checking";
   status.lastCheckAttemptAt = new Date().toISOString();
   try {
+    const managedBy = await detectManagedBy();
+    if (managedBy) {
+      markManaged(managedBy);
+      return;
+    }
+    status.managedBy = null;
     const [current, available] = await Promise.all([currentVersion(), fetchReleaseVersion()]);
     status.lastError = null;
     status.currentVersion = current || null;
@@ -540,6 +617,12 @@ async function apply() {
   status.state = "updating";
   status.lastError = null;
   try {
+    const managedBy = await detectManagedBy();
+    if (managedBy) {
+      markManaged(managedBy);
+      return true;
+    }
+    status.managedBy = null;
     const targetVersion = status.availableVersion;
     startProgressJournal(targetVersion);
     await command("/usr/local/bin/vellum-update", [], {
@@ -613,6 +696,8 @@ function startServer() {
         return send(response, 202, publicStatus());
       }
       if (request.method === "POST" && request.url === "/v1/apply") {
+        if (status.managedBy)
+          return send(response, 409, { error: "managed_by_platform", status: publicStatus() });
         if (active)
           return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
         if (!status.updateAvailable) return send(response, 200, publicStatus());
@@ -620,6 +705,8 @@ function startServer() {
         return send(response, 202, publicStatus());
       }
       if (request.method === "POST" && request.url === "/v1/config") {
+        if (status.managedBy)
+          return send(response, 409, { error: "managed_by_platform", status: publicStatus() });
         if (active)
           return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
         const input = await readJson(request);
@@ -658,6 +745,13 @@ if (process.env.VELLUM_UPDATER_TEST !== "true") {
 }
 
 export {
+  // Exported for deploy/updater/control.test.mjs: the refusal has to be
+  // provable at the control plane, not only in the shell worker.
+  detectManagedBy,
+  check,
+  apply,
+  startServer,
+  status,
   equalToken,
   fetchReleaseVersion,
   newer,

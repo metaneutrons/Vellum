@@ -162,6 +162,46 @@ to the Docker socket.
 During an update the HTTP connection can briefly disappear while the server
 container is replaced. The UI polls and recovers automatically.
 
+### When the updater does not apply
+
+The updater is for an installation from this Compose stack. A platform that
+deploys Vellum itself recreates the containers on its own schedule and rewrites
+their environment, so an update applied here is undone by the next deployment
+and the image pin written into `.env` goes with it. Vellum refuses instead of
+competing, in two places that cannot see each other:
+
+- **The server** reads `COOLIFY_RESOURCE_UUID`, which Coolify injects into every
+  container it deploys. Only its presence is read, never its value. That check
+  runs before the "is an updater configured" check, so an `UPDATER_TOKEN` left
+  over from an earlier Compose installation cannot switch updating back on. The
+  status then reports `managedBy: "coolify"`, **System → Vellum Server** shows
+  that instead of the controls, and a check, install or schedule request is
+  answered with `409`.
+- **The updater** reads the Docker label `coolify.managed=true`, on its own
+  container or on any container of the Compose project (`COMPOSE_PROJECT`). It
+  refuses before it asks GitHub for a release, pulls an image, backs up the
+  database or touches a container, and writes the reason into the progress
+  journal. The labels are read again at the moment of the change rather than
+  taken from the last release check.
+
+Both layers are needed because neither can see what the other sees: the server
+has no access to the Docker socket, and the updater does not read the server's
+environment.
+
+These two signs are read and nothing else, which has consequences worth knowing:
+
+- A host that runs Coolify for other applications is not a Coolify installation
+  of Vellum. Only containers of this Compose project count.
+- Other platforms that deploy Vellum themselves — Dokploy, CapRover, Kubernetes
+  — are not recognised, and the updater will try to update underneath them.
+- Setting `COOLIFY_RESOURCE_UUID` by hand on a plain Compose installation turns
+  its update page off.
+- If the Docker daemon cannot be reached, the label lookup yields nothing and the
+  run continues to the next step, which needs the daemon anyway and fails there
+  with its own message.
+
+Update a Coolify installation in Coolify, by deploying the application again.
+
 ## Operations
 
 Force a release check from inside the updater container:
