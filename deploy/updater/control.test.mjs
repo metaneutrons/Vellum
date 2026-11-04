@@ -14,6 +14,17 @@ process.env.COMPOSE_PROJECT = "vellum";
 process.env.HOSTNAME = "vellum-updater";
 process.env.CONTROL_PORT = "0";
 after(() => rmSync(testDirectory, { recursive: true, force: true }));
+/* A handle the suite forgot to close must say so and stop the run, not hold the
+ * process until the job timeout with nothing in the log to go on. The timer is
+ * unref'd, so it never keeps the process alive by itself. */
+after(() => {
+  setTimeout(() => {
+    console.error(
+      `still running after the suite; open handles: ${JSON.stringify(process.getActiveResourcesInfo())}`
+    );
+    process.exit(1);
+  }, 10_000).unref();
+});
 
 /* A real `docker` on PATH rather than an injected function, so the production
  * `command()` and its argument handling are what runs. It answers ONLY when the
@@ -354,6 +365,8 @@ test("answers the control API with the platform and refuses to install or schedu
 
     const unauthorized = await fetch(`${base}/v1/status`);
     assert.equal(unauthorized.status, 401);
+    // An unread body leaves the connection undrained and the socket open.
+    await unauthorized.text();
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
