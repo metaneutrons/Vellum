@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.24.0](https://github.com/metaneutrons/Vellum/compare/v1.23.4...v1.24.0) (2026-11-05)
+
+
+### Features
+
+* **updater:** refuse self-update when the stack is deployed by Coolify ([#400](https://github.com/metaneutrons/Vellum/issues/400)) ([851c062](https://github.com/metaneutrons/Vellum/commit/851c06266500ecf9ca208582d8d53a300a085499))
+
+
+### Bug Fixes
+
+* **updater:** signal the whole process group when a command runs out of time ([#402](https://github.com/metaneutrons/Vellum/issues/402)) ([4479a2f](https://github.com/metaneutrons/Vellum/commit/4479a2f172c623798fed679f9107631db3e3d878))
+
 ## [1.23.4](https://github.com/metaneutrons/Vellum/compare/v1.23.3...v1.23.4) (2026-10-27)
 
 
