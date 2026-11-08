@@ -658,7 +658,7 @@ jobs:
 
       - name: Create beta release with images (manifest uploaded last, below)
         if: needs.version.outputs.channel != 'stable'
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Vellum Firmware v${{ needs.version.outputs.version }}"
@@ -670,7 +670,7 @@ jobs:
 
       - name: Add manifest to beta release (last, after all images)
         if: needs.version.outputs.channel != 'stable'
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Vellum Firmware v${{ needs.version.outputs.version }}"
