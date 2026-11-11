@@ -189,8 +189,10 @@ them in `__vellum_migrations`. Consequences:
 
 ## Firmware: build
 
-- Toolchain: **ESP-IDF v6.0**. Local build: `make build MODEL=<model>` from
-  `firmware/` (default `MODEL=e1002`). CI builds in docker `espressif/idf:v6.0`.
+- Toolchain: **ESP-IDF v6.1 in CI** (docker `espressif/idf:v6.1`, digest-pinned, since
+  2026-11-11), **v6.0 locally**: the Makefile and the maintainer's install still point at
+  v6.0 until 6.1 is installed with EIM, so a local build and a CI build can differ. Local
+  build: `make build MODEL=<model>` from `firmware/` (default `MODEL=e1002`).
 - ⚠️ **The Makefile hardcodes the maintainer's absolute paths** (`IDF_ACTIVATE :=
 source /Users/fabian/.espressif/tools/activate_idf_v6.0.sh > /dev/null 2>&1`
   and `IDF_PATH=/Volumes/Dev/esp-idf/v6.0/esp-idf`, `firmware/Makefile:72-73`).

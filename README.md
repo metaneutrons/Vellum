@@ -437,8 +437,8 @@ generated font atlas remain governed by their respective generators.
 
 ### Build firmware
 
-ESP-IDF 6.0 is installed separately. The firmware Makefile activates the local
-ESP-IDF environment configured for the workstation.
+ESP-IDF is installed separately. CI builds with 6.1; the firmware Makefile activates the
+local ESP-IDF 6.0 environment configured for the workstation.
 
 ```bash
 cd firmware
