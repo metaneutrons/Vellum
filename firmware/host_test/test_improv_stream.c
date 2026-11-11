@@ -18,8 +18,10 @@
 #include <string.h>
 
 typedef struct {
-    char text[512];
+    /* Small on purpose: the string assertion of unity_min.h copies it into a 192-byte message. */
+    char text[96];
     size_t text_len;
+    int text_overflow;
     int frames;
     int bad_frames;
     uint8_t last_type;
@@ -35,9 +37,13 @@ static void feed(improv_stream_t *stream, const uint8_t *bytes, size_t n, outcom
             case IMPROV_STREAM_NEED_MORE:
                 break;
             case IMPROV_STREAM_TEXT:
-                memcpy(out->text + out->text_len, r.data, r.len);
-                out->text_len += r.len;
-                out->text[out->text_len] = '\0';
+                if (out->text_len + r.len < sizeof(out->text)) {
+                    memcpy(out->text + out->text_len, r.data, r.len);
+                    out->text_len += r.len;
+                    out->text[out->text_len] = '\0';
+                } else {
+                    out->text_overflow = 1;
+                }
                 break;
             case IMPROV_STREAM_FRAME:
                 out->frames++;
@@ -89,6 +95,7 @@ static void test_plain_console_text_goes_straight_back(void)
     improv_stream_t s; outcome_t o = {0};
     improv_stream_init(&s);
     feed_text(&s, "wifi Home secret\r\n", &o);
+    TEST_ASSERT_EQUAL_INT(0, o.text_overflow);
     TEST_ASSERT_EQUAL_STRING("wifi Home secret\r\n", o.text);
     TEST_ASSERT_EQUAL_INT(0, o.frames);
 }
@@ -99,6 +106,7 @@ static void test_text_that_contains_the_word_is_not_swallowed(void)
     improv_stream_t s; outcome_t o = {0};
     improv_stream_init(&s);
     feed_text(&s, "IMPROV is a word the console may print\r\n", &o);
+    TEST_ASSERT_EQUAL_INT(0, o.text_overflow);
     TEST_ASSERT_EQUAL_STRING("IMPROV is a word the console may print\r\n", o.text);
     TEST_ASSERT_EQUAL_INT(0, o.frames);
     TEST_ASSERT_EQUAL_INT(0, o.bad_frames);
@@ -111,6 +119,7 @@ static void test_a_frame_behind_text_with_the_word_is_found(void)
     feed_text(&s, "IMPROV is a word\r\n", &o);
     feed(&s, GET_STATE, sizeof(GET_STATE), &o);
     TEST_ASSERT_EQUAL_INT(1, o.frames);
+    TEST_ASSERT_EQUAL_INT(0, o.text_overflow);
     TEST_ASSERT_EQUAL_STRING("IMPROV is a word\r\n", o.text);
 }
 
