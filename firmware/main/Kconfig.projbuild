@@ -273,3 +273,27 @@ menu "Vellum Configuration"
             device. Ignored when the device is on USB power.
 
 endmenu
+
+# ── ESP-Hosted manifest switches ─────────────────────────────────────────────
+# esp_hosted 3.x lists optional dependencies (usb_host_cdc_acm, cherryusb, iot_usbh_rndis,
+# esp_tinyusb) whose "if" clauses read these four variables. IDF 6.0's component manager
+# evaluates those clauses for every esp_hosted version it looks at, not only the one it
+# selects, and stops with "Missing required kconfig option after retry" when a variable is
+# defined in no Kconfig file. This project keeps esp_hosted on 2.x (main/idf_component.yml),
+# whose Kconfig does not define them, so they are defined here, off. If a build ever selects
+# an esp_hosted that defines them itself, remove these.
+config ESP_HOSTED_HOST_USB_CDC_ACM_MANIFEST
+    int
+    default 0
+
+config ESP_HOSTED_HOST_USB_CHERRYUSB_MANIFEST
+    int
+    default 0
+
+config ESP_HOSTED_HOST_USB_RNDIS_MANIFEST
+    int
+    default 0
+
+config ESP_HOSTED_CP_TINYUSB_MANIFEST
+    int
+    default 0
