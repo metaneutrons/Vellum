@@ -24,6 +24,9 @@
 /** Largest frame: 6 magic + version + type + length + 255 payload + checksum. */
 #define IMPROV_STREAM_FRAME_MAX 265
 
+/* Every member below is read by improv_stream.c, by vellum_serial.c and by the host tests.
+ * cppcheck sees one translation unit at a time, so analysing this header on its own reports
+ * them all as unused; the per-member directives say so where a reader will meet the claim. */
 typedef enum {
     /** The bytes so far can still become a frame: keep feeding. */
     IMPROV_STREAM_NEED_MORE = 0,
@@ -36,16 +39,22 @@ typedef enum {
 } improv_stream_event_t;
 
 typedef struct {
+    /* cppcheck-suppress unusedStructMember */
     improv_stream_event_t event;
     /** Valid until the next `improv_stream_feed()`. */
+    /* cppcheck-suppress unusedStructMember */
     const uint8_t *data;
+    /* cppcheck-suppress unusedStructMember */
     size_t len;
 } improv_stream_result_t;
 
 typedef struct {
+    /* cppcheck-suppress unusedStructMember */
     uint8_t buf[IMPROV_STREAM_FRAME_MAX];
+    /* cppcheck-suppress unusedStructMember */
     size_t len;
     /** Bytes of `buf` that the last result handed out; removed on the next feed. */
+    /* cppcheck-suppress unusedStructMember */
     size_t consumed;
 } improv_stream_t;
 
