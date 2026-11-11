@@ -19,3 +19,12 @@ dependencies:
     version: "==0.6.3"
     rules:
       - if: "target == esp32p4"
+  # esp_lvgl_adapter requires this without an upper bound. 0.5.x adds a dependency
+  # (espressif/qoi) and the component manager's Kconfig pass then fails under IDF 6.0 with
+  # "Missing required kconfig option after retry", so every D1001 compile stopped
+  # configuring from 2026-11-08. 0.4.3 is what the last green D1001 build resolved.
+  # Lift this pin only together with a D1001 compile that passes.
+  espressif/esp_lv_decoder:
+    version: "==0.4.3"
+    rules:
+      - if: "target == esp32p4"
