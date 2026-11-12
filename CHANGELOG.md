@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.24.0](https://github.com/metaneutrons/Vellum/compare/v1.23.4...v1.24.0) (2026-11-12)
+
+
+### Features
+
+* **updater:** refuse self-update when the stack is deployed by Coolify ([#400](https://github.com/metaneutrons/Vellum/issues/400)) ([851c062](https://github.com/metaneutrons/Vellum/commit/851c06266500ecf9ca208582d8d53a300a085499))
+
+
+### Bug Fixes
+
+* **provisioning:** find Improv frames behind console text that contains IMPROV ([#408](https://github.com/metaneutrons/Vellum/issues/408)) ([8b1aab4](https://github.com/metaneutrons/Vellum/commit/8b1aab405234b39685b2abd9c60a9764e20f5a0e))
+* **updater:** signal the whole process group when a command runs out of time ([#402](https://github.com/metaneutrons/Vellum/issues/402)) ([4479a2f](https://github.com/metaneutrons/Vellum/commit/4479a2f172c623798fed679f9107631db3e3d878))
+
 ## [1.23.4](https://github.com/metaneutrons/Vellum/compare/v1.23.3...v1.23.4) (2026-10-27)
 
 
