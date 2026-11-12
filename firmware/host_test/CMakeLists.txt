@@ -39,6 +39,7 @@ add_executable(host_tests
   test_display_cache.c
   test_log_ring.c
   test_led_pattern.c
+  test_improv_stream.c
   version_compare.c
   revocation.c
   ../components/board/sy6974b_power.c
@@ -49,6 +50,7 @@ add_executable(host_tests
   ../components/vellum_display/status_layout.c
   ../components/vellum_display/display_cache.c
   ../components/vellum_log/log_ring.c
+  ../components/vellum_serial/improv_stream.c
   ../components-lcd/d1001_board/d1001_power_logic.c
 )
 target_include_directories(host_tests PRIVATE
@@ -58,7 +60,8 @@ target_include_directories(host_tests PRIVATE
   ../components/wifi_manager/include
   ../components/vellum_display/include
   ../components/sleep_manager/include
-  ../components/vellum_log/include)
+  ../components/vellum_log/include
+  ../components/vellum_serial/include)
 target_include_directories(host_tests PRIVATE ../components-lcd/d1001_board/include)
 target_include_directories(host_tests PRIVATE ../components-epaper/epaper_uc8179/include)
 target_link_libraries(host_tests PRIVATE OpenSSL::Crypto)

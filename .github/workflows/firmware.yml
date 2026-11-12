@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
-  IDF_VERSION: v6.0
+  IDF_VERSION: v6.1
 
 permissions:
   contents: read
@@ -178,7 +178,7 @@ jobs:
       needs.version.outputs.release_component == 'none'
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v6.0@sha256:c41bed8b8b28815526b70eac307452fb432c7904a9157fbaaa04784ac4840ad7
+      image: espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c
     strategy:
       fail-fast: false
       matrix:
@@ -658,7 +658,7 @@ jobs:
 
       - name: Create beta release with images (manifest uploaded last, below)
         if: needs.version.outputs.channel != 'stable'
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Vellum Firmware v${{ needs.version.outputs.version }}"
@@ -670,7 +670,7 @@ jobs:
 
       - name: Add manifest to beta release (last, after all images)
         if: needs.version.outputs.channel != 'stable'
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "Vellum Firmware v${{ needs.version.outputs.version }}"

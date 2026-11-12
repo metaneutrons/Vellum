@@ -13,6 +13,7 @@
  */
 
 #include "vellum_serial.h"
+#include "improv_stream.h"
 #include "nvs_manager.h"
 #include "wifi_manager.h"
 #include "transport_policy.h"
@@ -528,26 +529,15 @@ static void improv_handle_rpc(const uint8_t *data, uint8_t len)
     }
 }
 
-/* Check if incoming bytes are an Improv packet */
-static bool improv_try_parse(const uint8_t *buf, int len)
+/* Handle one complete, checksum-verified Improv frame from improv_stream. */
+static void improv_dispatch_frame(const uint8_t *frame, size_t len)
 {
-    if (len < 10) return false;
-    if (memcmp(buf, IMPROV_HEADER, 6) != 0) return false;
-    if (buf[6] != IMPROV_VERSION) return false;
-
-    uint8_t type = buf[7];
-    uint8_t data_len = buf[8];
-    if (len < 10 + data_len) return false;
-
-    /* Verify checksum */
-    uint8_t checksum = 0;
-    for (int i = 0; i < 9 + data_len; i++) checksum += buf[i];
-    if (checksum != buf[9 + data_len]) return false;
-
+    (void)len;
+    const uint8_t type = frame[7];
+    const uint8_t data_len = frame[8];
     if (type == IMPROV_TYPE_RPC_COMMAND) {
-        improv_handle_rpc(&buf[9], data_len);
+        improv_handle_rpc(&frame[9], data_len);
     }
-    return true;
 }
 
 /* ── Console Commands ─────────────────────────────────────────── */
@@ -758,19 +748,20 @@ static void serial_task(void *arg)
     ESP_LOGI(TAG, "Vellum Console ready. Type 'help' for commands.");
 
     /* Read loop. One byte stream carries two things: binary Improv frames
-     * (browser Wi-Fi/profile provisioning) and interactive console text. We
-     * accumulate into rx_buf while the bytes remain a VIABLE Improv frame — i.e.
-     * rx_buf is still a prefix of the "IMPROV" magic, or the magic already
-     * matched and we are collecting the rest of the declared frame. The moment
-     * the bytes can no longer be an Improv frame, we replay everything buffered
-     * so far to the text console (so a word that merely starts with 'I' still
-     * types normally).
+     * (browser Wi-Fi/profile provisioning) and interactive console text.
+     * improv_stream (host-tested) decides byte by byte: bytes that can still become
+     * a frame are held back and never echoed; the moment they cannot, they come back
+     * as text for the console. Version and type are checked before the length, so
+     * typing the word "IMPROV" at the console is text at the first byte that does
+     * not fit a frame, not after the length that the next byte would announce. A
+     * frame can fill 265 bytes (a 255-byte payload), which the buffer holds.
      *
-     * NB: the previous implementation reset rx_pos to 0 on every byte until it
-     * reached 10, which it never could — so Improv frames never assembled and
-     * browser provisioning silently never worked. */
-    uint8_t rx_buf[256];
-    int rx_pos = 0;
+     * Earlier versions buffered every byte that began with "IMPROV" until the
+     * announced length had arrived and then dropped all of it: typing the word
+     * swallowed the next console input, and a long WIFI_SETTINGS profile never
+     * completed in a 256-byte buffer. */
+    improv_stream_t stream;
+    improv_stream_init(&stream);
     char line_buf[256];
     int line_pos = 0;
 
@@ -781,30 +772,23 @@ static void serial_task(void *arg)
             continue;
         }
 
-        if (rx_pos >= (int)sizeof(rx_buf)) rx_pos = 0; /* overflow guard */
-        rx_buf[rx_pos++] = (uint8_t)c;
-
-        /* Still a viable Improv frame? (a prefix of the 6-byte magic, or past it) */
-        int hdr_n = rx_pos < 6 ? rx_pos : 6;
-        if (memcmp(rx_buf, IMPROV_HEADER, hdr_n) == 0) {
-            if (rx_pos >= 10) {
-                uint8_t data_len = rx_buf[8];
-                if (rx_pos >= 10 + (int)data_len) {
-                    improv_try_parse(rx_buf, rx_pos);
-                    rx_pos = 0;
-                    line_pos = 0; /* drop any half-typed console line */
+        improv_stream_result_t r = improv_stream_feed(&stream, (uint8_t)c);
+        switch (r.event) {
+            case IMPROV_STREAM_NEED_MORE:
+                break;
+            case IMPROV_STREAM_FRAME:
+                improv_dispatch_frame(r.data, r.len);
+                line_pos = 0; /* drop any half-typed console line */
+                break;
+            case IMPROV_STREAM_BAD_FRAME:
+                ESP_LOGW(TAG, "Improv: dropped a frame with a bad checksum");
+                line_pos = 0;
+                break;
+            case IMPROV_STREAM_TEXT:
+                for (size_t i = 0; i < r.len; i++) {
+                    console_feed(r.data[i], line_buf, sizeof(line_buf), &line_pos);
                 }
-            }
-            continue; /* keep buffering; never echo binary Improv bytes */
-        }
-
-        /* Not an Improv frame: replay the buffered bytes as console text. */
-        uint8_t pending[sizeof(rx_buf)];
-        int n = rx_pos;
-        memcpy(pending, rx_buf, n);
-        rx_pos = 0;
-        for (int i = 0; i < n; i++) {
-            console_feed(pending[i], line_buf, sizeof(line_buf), &line_pos);
+                break;
         }
     }
 }
