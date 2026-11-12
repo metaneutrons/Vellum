@@ -1,5 +1,5 @@
 ---
-# Three exclusions, all because a tool is being applied outside the context it can
+# Four exclusions, all because a tool is being applied outside the context it can
 # reason about. None hides a finding about shipped behaviour.
 #
 # drizzle/**
@@ -40,7 +40,29 @@
 #   longer be reported by Codacy. The gates are covered instead by tsc, eslint and
 #   prettier over the whole tree, and by the fact that a broken gate fails CI
 #   loudly rather than silently -- each one is only useful while it still runs.
+#
+# deploy/updater/*.test.mjs
+#   The updater's own test harness, and the same CWE-22 rule as the gates above:
+#   "Found readFileSync/writeFileSync/existsSync/chmodSync with non literal
+#   argument". Every one of those paths is built under a directory this file just
+#   created with mkdtempSync, and the harness takes no input at all -- it writes a
+#   fake `docker` onto PATH and reads back the calls that fake recorded. That fake
+#   is the point of the test: the control plane spawns docker for real, so proving
+#   that a removed guard is noticed means letting it spawn something. Injecting a
+#   stub runner instead would test the injection, not the spawn.
+#
+#   The pattern is *.test.mjs, not deploy/updater/**. The Dockerfile copies
+#   update.sh and control.mjs (lines 23 and 24), and both stay under analysis --
+#   the object-injection finding in control.mjs from this same run was fixed in
+#   the code, not excluded here.
+#
+#   What this costs, stated plainly: a genuine defect in the harness will no
+#   longer be reported by Codacy. It is covered instead by prettier and
+#   `node --check` over the whole tree, and by the fact that the harness runs in
+#   CI on every change to the updater -- a broken one fails there loudly.
+
 exclude_paths:
   - "drizzle/**"
   - "firmware/host_test/**"
   - "scripts/check-*.mjs"
+  - "deploy/updater/*.test.mjs"

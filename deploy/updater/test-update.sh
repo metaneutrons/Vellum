@@ -17,7 +17,8 @@ printf '%s\n' \
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")/update.sh"
 
-assert() { "$@" || { printf 'FAILED: %q ' "$@" >&2; printf '\n' >&2; exit 1; }; }
+# printf reuses its format for every argument, so the prefix is printed once.
+assert() { "$@" || { printf 'FAILED:' >&2; printf ' %q' "$@" >&2; printf '\n' >&2; exit 1; }; }
 
 # Compose runs inside the updater while controlling the host daemon. Its host
 # project directory must be explicit or relative binds become /stack/* on host.
@@ -199,3 +200,108 @@ if ! env PROGRESS_FILE=/proc/nonexistent/progress.json UPDATE_SH="$update_sh" \
 fi
 
 printf 'phase journal assertions passed\n'
+
+# ── A platform that deploys the stack itself ─────────────────────────────────
+# COMPOSE_PROJECT and PROGRESS_FILE are readonly once update.sh is sourced, so
+# each probe runs in its own shell. The docker stub answers ONLY when the format
+# string asks for the Coolify label: a stub that answers anything would let a
+# removed guard pass unnoticed.
+platform_calls="${test_directory}/platform-calls.log"
+platform_journal="${test_directory}/state/platform-progress.json"
+# shellcheck disable=SC2016
+platform_probe() {
+  local own="$1" labels="$2" script="$3"
+  : >"$platform_calls"
+  rm -f "$platform_journal"
+  env OWN_LABEL="$own" PROJECT_LABELS="$labels" CALLS="$platform_calls" \
+      UPDATE_SH="$update_sh" PROGRESS_FILE="$platform_journal" \
+      VELLUM_ENV_FILE="$VELLUM_ENV_FILE" COMPOSE_ENV_FILE="$VELLUM_ENV_FILE" \
+      COMPOSE_FILE="$COMPOSE_FILE" HOST_STACK_DIR="$test_directory" \
+      HOSTNAME="vellum-updater" \
+      bash -c '
+        source "$UPDATE_SH"
+        docker() {
+          printf "%s\n" "$*" >>"$CALLS"
+          case "$1" in
+            inspect) case "$*" in *coolify.managed*) printf "%s\n" "${OWN_LABEL:-}" ;; esac ;;
+            ps) case "$*" in *--format*coolify.managed*) printf "%s\n" "${PROJECT_LABELS:-}" ;; esac ;;
+          esac
+        }
+        latest_server_tag() { printf "step latest_server_tag\n" >>"$CALLS"; printf "v1.8.2\n"; }
+        current_version() { printf "v1.8.1\n"; }
+        verify_image() { printf "step verify_image\n" >>"$CALLS"; }
+        backup_database() { printf "step backup_database\n" >>"$CALLS"; }
+        deploy_with_rollback() { printf "step deploy_with_rollback\n" >>"$CALLS"; }
+        schedule_updater_swap() { printf "step schedule_updater_swap\n" >>"$CALLS"; }
+        '"$script"'
+      '
+}
+
+# A guard that is gone must make a probe fail, never hang: main would otherwise
+# enter the watch loop and sleep through POLL_INTERVAL_SECONDS for good. The
+# probe therefore gets a deadline, and a refusal that does not arrive in time
+# counts as no refusal at all. Job control puts the probe in its own process
+# group so the sleeping children go with it.
+refuses_within() {
+  local seconds="$1"; shift
+  local probe waited=0
+  set -m
+  ( "$@" >/dev/null 2>&1 ) &
+  probe=$!
+  set +m
+  while kill -0 "$probe" 2>/dev/null; do
+    if (( waited >= seconds )); then
+      kill -KILL -- "-$probe" 2>/dev/null || true
+      wait "$probe" 2>/dev/null || true
+      printf 'no refusal within %ss, so the run was not stopped\n' "$seconds" >&2
+      return 1
+    fi
+    sleep 1
+    waited=$(( waited + 1 ))
+  done
+  # A refusal exits non-zero. A clean exit means the guard let the run through.
+  if wait "$probe"; then
+    return 1
+  fi
+  return 0
+}
+# The mark is read on the updater's own container and on any container of the
+# project, and only the exact value counts.
+assert test "$(platform_probe true '' 'managed_platform')" = coolify
+assert test "$(platform_probe '' 'true' 'managed_platform')" = coolify
+assert test "$(platform_probe '' "$(printf '\ntrue')" 'managed_platform')" = coolify
+assert test -z "$(platform_probe '' '' 'managed_platform')"
+assert test -z "$(platform_probe false '' 'managed_platform')"
+assert test -z "$(platform_probe truely '' 'managed_platform')"
+
+# A host that runs Coolify for something else is not this installation, so the
+# listing must always be filtered to this project.
+platform_probe true '' 'managed_platform' >/dev/null
+assert grep -q '^ps ' "$platform_calls"
+while read -r call; do
+  case "$call" in
+    ps*) assert grep -Fq -- "label=com.docker.compose.project=vellum" <<<"$call" ;;
+  esac
+done <"$platform_calls"
+
+# The refusal names Coolify, so the operator knows where to update instead.
+# REFUSAL is read in the inner shell, which is where it is set.
+# shellcheck disable=SC2016
+assert grep -Fq Coolify <<<"$(platform_probe true '' 'check_platform || printf "%s\n" "$REFUSAL"')"
+
+# Nothing may be asked of GitHub and no container may be touched.
+assert refuses_within 30 platform_probe '' 'true' 'update_once'
+assert jq -e '.phase == "failed" and (.detail | contains("Coolify"))' "$platform_journal" >/dev/null
+assert test -z "$(grep '^step ' "$platform_calls" || true)"
+assert test -z "$(grep -E '^(compose|exec|pull|image|run) ' "$platform_calls" || true)"
+
+# The watch loop must not even start.
+assert refuses_within 30 platform_probe true '' 'UPDATE_ONCE=false main'
+
+# The counter-check: without the labels the same run proceeds through its steps.
+assert platform_probe '' '' 'update_once' >/dev/null 2>&1
+assert grep -Fq 'step verify_image' "$platform_calls"
+assert grep -Fq 'step backup_database' "$platform_calls"
+assert grep -Fq 'step deploy_with_rollback' "$platform_calls"
+
+printf 'platform assertions passed\n'

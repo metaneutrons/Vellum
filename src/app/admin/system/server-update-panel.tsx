@@ -191,6 +191,24 @@ export function ServerUpdatePanel({
         ? t("serverReleaseCheckInvalid")
         : t("serverReleaseCheckUnavailable");
 
+  /* A platform that deploys the installation itself undoes anything applied
+   * here, so the controls are REMOVED rather than disabled: a greyed-out button
+   * still invites a click and an explanation nobody reads. This sits after the
+   * hooks and before everything else, so no version row, banner or schedule form
+   * can contradict it. */
+  if (status.managedBy) {
+    return (
+      <>
+        <h2 className="text-lg font-semibold text-label mb-3">{t("serverUpdateTitle")}</h2>
+        <div className="bg-surface rounded-2xl border border-separator/60 shadow-e1 p-4">
+          <p className="text-sm text-label-secondary" data-managed-by={status.managedBy}>
+            {t("serverManagedByCoolify")}
+          </p>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <h2 className="text-lg font-semibold text-label mb-3">{t("serverUpdateTitle")}</h2>

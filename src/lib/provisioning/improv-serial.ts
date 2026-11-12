@@ -28,6 +28,8 @@ export const ImprovType = {
   RPC_RESULT: 0x04,
 } as const;
 
+const IMPROV_TYPES: ReadonlySet<number> = new Set(Object.values(ImprovType));
+
 export const ImprovCmd = {
   WIFI_SETTINGS: 0x01,
   GET_STATE: 0x02,
@@ -236,6 +238,19 @@ export class ImprovParser {
         break;
       }
       if (start > 0) this.buf.splice(0, start);
+      // Console text can contain the word "IMPROV" (or a prefix of it). Version and type come
+      // before the length, so text is recognised at the first byte that cannot belong to a
+      // frame, instead of after the number of bytes its "length" byte happens to announce:
+      // "IMPROV is a word" reads as length 115 and would otherwise hide a real frame behind it.
+      const headerVersion = this.buf[6];
+      const headerType = this.buf[7];
+      if (
+        (headerVersion !== undefined && headerVersion !== IMPROV_VERSION) ||
+        (headerType !== undefined && !IMPROV_TYPES.has(headerType))
+      ) {
+        this.buf.splice(0, 1);
+        continue;
+      }
       if (this.buf.length < 10) break; // need full header + len + checksum
 
       const len = this.buf[8];

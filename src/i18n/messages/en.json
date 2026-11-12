@@ -632,6 +632,7 @@
     "title": "System",
     "description": "Manage the Vellum Server, updates, and operational status",
     "serverUpdateTitle": "Vellum Server",
+    "serverManagedByCoolify": "This installation is run by Coolify. Update it there by deploying the application again. The updater does not work under Coolify, so this page offers no check, no installation and no maintenance window.",
     "serverVersionUnknown": "Version unknown",
     "serverUpdaterUnavailable": "The update service is not installed, not configured, or currently unreachable.",
     "serverUpdaterNotConfigured": "The update service is not configured for this Vellum installation.",

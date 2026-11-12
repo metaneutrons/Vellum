@@ -110,18 +110,24 @@ over-read.
 ## Dual-stream design (Improv frames + console on one UART)
 
 Binary Improv frames and interactive text share a **single** byte stream. The
-read loop in `serial_task()` demultiplexes them without any framing escape:
+read loop in `serial_task()` demultiplexes them without any framing escape,
+through `improv_stream` (`improv_stream.c`, pure C, run by the host tests):
 
-- Each incoming byte is appended to `rx_buf`.
-- While `rx_buf` is still a **viable Improv frame** — a prefix of the `"IMPROV"`
-  magic, or the magic already matched and the declared frame is still being
-  collected — the bytes keep buffering and are **never echoed**. Once `≥ 10`
-  bytes and the declared body have arrived, `improv_try_parse()` validates the
-  checksum and dispatches the frame, then resets both buffers (dropping any
-  half-typed console line).
-- The moment the accumulated bytes can no longer be an Improv frame, the whole
-  buffer is **replayed byte-for-byte into the text console** — so a word that
-  merely starts with `I` still types normally.
+- Each incoming byte is fed to `improv_stream_feed()`. Bytes are held back only
+  while they can still be the start of a frame: a prefix of the `"IMPROV"` magic,
+  then version `1`, then a type from `0x01` to `0x04`. Held bytes are **never
+  echoed**. A complete frame is checksummed and dispatched, which also drops any
+  half-typed console line.
+- The version and the type come **before** the length, so text that merely
+  contains the word (`IMPROV is a word`) is recognised at the first byte that
+  does not fit a frame. It is **not** held until the number of bytes its next
+  byte would announce as a length, and nothing is lost: the held bytes come back
+  as text for the console, in order. A false start inside the held bytes is
+  handled the same way: `IMPRO` followed by a real frame hands `IMPRO` back and
+  still finds the frame.
+- A frame with a wrong checksum is dropped whole and logged. The buffer holds the
+  largest frame (265 bytes: a 255-byte payload), so a `WIFI_SETTINGS` profile at
+  the 253-byte limit arrives.
 
 This is why the console and browser provisioning can coexist on the raw serial
 endpoint (the host client, `improv-serial.ts`, does the mirror of this: it scans

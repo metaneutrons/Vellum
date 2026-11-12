@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["**/*.test.ts", "**/*.property.test.ts"],
+    include: ["**/*.test.ts", "**/*.test.tsx", "**/*.property.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "json-summary"],
@@ -42,7 +42,7 @@ export default defineConfig({
       // gate that fails at random.
       //
       // Two independent sources of drift, both learned the hard way. CI runs
-      // Node 22 (.nvmrc) while a dev machine may run something newer, and v8
+      // Node 24 (.nvmrc) while a dev machine may run something newer, and v8
       // reports different statement counts per version — 70.24 locally against
       // 70.12 in CI. Worse, CI itself varies run to run: two runs over identical
       // source measured 70.12 and 69.96, roughly four statements apart, which
@@ -50,9 +50,8 @@ export default defineConfig({
       // timing- or environment-dependent; until that is found, the floor has to
       // sit below the noise, not on top of it.
       //
-      // Observed in CI (Node 22): statements 69.96-70.12, branches 63.98,
-      // functions 68.04, lines 73.11. Raise these only against CI numbers, never
-      // a local run, and keep the margin.
+      // Raise these only against a measurement on the version CI pins, never a
+      // local run on something newer, and keep the margin.
       thresholds: {
         // Raised per refactor stage. The frame-invariant sweep (stage 1) took
         // this to 75.21 / 68.25 / 76.01 / 77.75; splitting load from draw
@@ -69,8 +68,25 @@ export default defineConfig({
         // The providers did the moving: microsoft365 from 11.1 to 100 % of
         // statements and 0 to 80.8 % of branches, google from 12.0 to 92 % and 0 to
         // 62.5 %, once a shared contract suite existed to point at them.
+        //
+        // Stage 5 widened `include` to .tsx, which until then matched no file at
+        // all: src/components/__tests__/modal.test.tsx had been written, reviewed
+        // and committed, and had never once run. Seven files entered the
+        // measurement with it — the server update panel and the toast at 35 % and
+        // 19 % of statements, the rest already incidental — so the gate was
+        // covering less than it appeared to. Suites for the panel, the toast and
+        // the button answered for them: 78.67 / 71.90 / 77.83 / 81.76 on Node 24,
+        // identical over two runs, above stage 4 on every metric despite the
+        // larger measured set.
+        //
+        // Only branches moves. Applying the margins stage 4 kept (1.70 / 1.15 /
+        // 1.18 / 1.44) to those numbers lands on 76.97 / 70.75 / 76.65 / 80.32, so
+        // the other three floors are already where this measurement would put
+        // them; branches clears 71 with 0.90 to spare, four times the run-to-run
+        // drift above. Functions stays the thinnest margin at 0.83, as it was
+        // before this stage, so it is the one to watch.
         statements: 77,
-        branches: 70,
+        branches: 71,
         functions: 77,
         lines: 80,
       },

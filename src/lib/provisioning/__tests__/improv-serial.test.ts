@@ -328,6 +328,34 @@ describe("ImprovParser (device → browser)", () => {
     expect(frames[0]!.payload[0]).toBe(ImprovState.PROVISIONED);
   });
 
+  it("finds a frame behind console text that contains the word IMPROV", () => {
+    const stateFrame = encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.PROVISIONED]);
+    const text = new TextEncoder().encode("IMPROV is a word the console may print\r\n");
+    const stream = new Uint8Array([...text, ...stateFrame]);
+
+    // Whole, and in small chunks: before the fix the text read as a frame announcing 115 bytes
+    // and the real frame stayed hidden behind it until that many bytes had arrived.
+    const whole = new ImprovParser().push(stream);
+    expect(whole).toHaveLength(1);
+    expect(whole[0]!.payload[0]).toBe(ImprovState.PROVISIONED);
+
+    const parser = new ImprovParser();
+    const found = [];
+    for (let i = 0; i < stream.length; i += 3) found.push(...parser.push(stream.slice(i, i + 3)));
+    expect(found).toHaveLength(1);
+  });
+
+  it("does not let a header with a wrong version or an unknown type hold the parser", () => {
+    const stateFrame = encodeFrame(ImprovType.CURRENT_STATE, [ImprovState.READY]);
+    const wrongVersion = new Uint8Array([...IMPROV_HEADER, 0x09, 0x01, 0xff]);
+    const unknownType = new Uint8Array([...IMPROV_HEADER, IMPROV_VERSION, 0x7f, 0xff]);
+    const out = new ImprovParser().push(
+      new Uint8Array([...wrongVersion, ...unknownType, ...stateFrame])
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]!.payload[0]).toBe(ImprovState.READY);
+  });
+
   it("reassembles a frame split across chunk boundaries", () => {
     const frame = encodeFrame(ImprovType.ERROR_STATE, [0x03]);
     const p = new ImprovParser();

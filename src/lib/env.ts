@@ -67,6 +67,10 @@ export const envSchema = z.object({
   VELLUM_PUBLIC_URL: optionalEnv(publicOrigin),
   UPDATER_URL: optionalEnv(z.url()),
   UPDATER_TOKEN: optionalEnv(secret("UPDATER_TOKEN", 32, "openssl rand -hex 32")),
+  /* Coolify injects this into every container it deploys. It is read only to
+   * recognise that the installation is deployed by Coolify, never for its
+   * value. See the updater section of docs/DOCKER_DEPLOYMENT.md. */
+  COOLIFY_RESOURCE_UUID: optionalEnv(z.string()),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
@@ -93,6 +97,7 @@ function loadEnv(): Env {
         VELLUM_PUBLIC_URL: undefined,
         UPDATER_URL: undefined,
         UPDATER_TOKEN: undefined,
+        COOLIFY_RESOURCE_UUID: undefined,
         NODE_ENV: "test",
         LOG_LEVEL: "error",
       };
