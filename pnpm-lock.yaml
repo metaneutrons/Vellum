@@ -15,14 +15,14 @@ importers:
   .:
     dependencies:
       '@azure/msal-node':
-        specifier: 7.2.1
-        version: 7.2.1
+        specifier: 7.2.3
+        version: 7.2.3
       '@date-fns/tz':
         specifier: 1.5.0
         version: 1.5.0
       '@microsoft/microsoft-graph-client':
-        specifier: 3.0.7
-        version: 3.0.7(@azure/identity@4.14.0(supports-color@7.2.0))(@azure/msal-browser@5.26.0)
+        specifier: 3.1.0
+        version: 3.1.0(@azure/identity@4.14.0(supports-color@7.2.0))(@azure/msal-browser@5.26.0)
       '@napi-rs/canvas':
         specifier: 1.1.1
         version: 1.1.1
@@ -36,11 +36,11 @@ importers:
         specifier: 0.45.4
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
       esp-web-tools:
-        specifier: ^10.5.1
-        version: 10.5.1
+        specifier: ^10.5.2
+        version: 10.5.2
       lucide-react:
-        specifier: ^1.72.0
-        version: 1.72.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.76.0
+        version: 1.76.0(@types/react@19.3.0)(react@19.3.1)
       multicast-dns:
         specifier: ^7.2.5
         version: 7.2.5
@@ -51,14 +51,14 @@ importers:
         specifier: 4.15.1
         version: 4.15.1(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       openid-client:
-        specifier: ^6.8.9
-        version: 6.8.9
+        specifier: ^6.9.0
+        version: 6.9.0
       pg:
         specifier: 8.23.1
         version: 8.23.1
       postcss:
-        specifier: 8.5.32
-        version: 8.5.32
+        specifier: 8.5.33
+        version: 8.5.33
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -186,16 +186,16 @@ packages:
     resolution: {integrity: sha512-tz3GvMrR9V/plb2lDdW8qaO8CPpfZevdExBKjltzzbAtyhK0eB2UIvji1aU+gkyHj3fxQ2ie+LNHyMXdmo8wOg==}
     engines: {node: '>=0.8.0'}
 
-  '@azure/msal-common@16.16.1':
-    resolution: {integrity: sha512-dSKdL9h/iercb4GumsKFh+wVvLe1ohuDPiviklgnQVHnY2FYNUlbQJ3E1Qd37vkof9CfraK9BQpCW1hoOg0znQ==}
+  '@azure/msal-common@16.17.0':
+    resolution: {integrity: sha512-rNvtEm7Axzj18neIk0C8kjr1ZXbJsHkWDqGedCfOiLVBjSCxWBcbJ26/I7g9owoeGKUoyrOgs73cIk7WxLd9qA==}
     engines: {node: '>=0.8.0'}
 
   '@azure/msal-node@7.1.1':
     resolution: {integrity: sha512-zHXTJB38XVrsNaXrPBCMqEUjeyQysFfgmKtUHRDsEKTRjNIPckJ/w6fE5wBXrmJXBim1D3C7O7LOag0msPTrgw==}
     engines: {node: '>=20'}
 
-  '@azure/msal-node@7.2.1':
-    resolution: {integrity: sha512-6mntsfCNq7H1eAPSZik74jT3C5at4nRqiVk7OC+D5Hy3Pe3s76uwE4+J0xvDvlVPmoX2kasf3mSwUmzeq9rW/A==}
+  '@azure/msal-node@7.2.3':
+    resolution: {integrity: sha512-eRIo5XuQAJrubo4514gEnmREKI35045LItjucOEK/YNQYj3LhEpYEbBdqjlu/wmd9Rcqp2c3GJ4ynFoEqby3sg==}
     engines: {node: '>=20'}
 
   '@babel/code-frame@7.29.7':
@@ -260,6 +260,10 @@ packages:
 
   '@babel/runtime@7.29.10':
     resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/runtime@7.29.14':
+    resolution: {integrity: sha512-Y5tqevQaUAZhhj82BpYMNC1ssvLQTVAfwKdm8iy8qwmhvC2/CpcAu8OC+QEtjM7pMk7knx83u1Qj8gzkicyelw==}
     engines: {node: '>=6.9.0'}
 
   '@babel/template@7.29.7':
@@ -901,9 +905,9 @@ packages:
   '@material/web@2.5.0':
     resolution: {integrity: sha512-x2Uovyq8E/Zc1xHXd9s1eBMXF5pMHVAt70pISKd0fL3Ajj4L6zQaQUY/awcfR2RDAMKXC7i4+vr0arv1YaOR/g==}
 
-  '@microsoft/microsoft-graph-client@3.0.7':
-    resolution: {integrity: sha512-/AazAV/F+HK4LIywF9C+NYHcJo038zEnWkteilcxC1FM/uK/4NVGDKGrxx7nNq1ybspAroRKT4I1FHfxQzxkUw==}
-    engines: {node: '>=12.0.0'}
+  '@microsoft/microsoft-graph-client@3.1.0':
+    resolution: {integrity: sha512-LdfU+0E8B5EFmBiIM7AdpI/dhFZ+bDJCMnenwVoFl889K2fU5WDx3K0aIolsm36IrGaMkhcMyN3VFpmujzzXcA==}
+    engines: {node: '>=22.0.0'}
     peerDependencies:
       '@azure/identity': '*'
       '@azure/msal-browser': '*'
@@ -2295,8 +2299,8 @@ packages:
       jiti:
         optional: true
 
-  esp-web-tools@10.5.1:
-    resolution: {integrity: sha512-dcuCgC9bLzp+f5l86+U71FOp7+FZtHL6p+METJRfCkSGg2XP6VwxDOPTTaB5IXree1QjCCLSOn0eSp3pd9qycw==}
+  esp-web-tools@10.5.2:
+    resolution: {integrity: sha512-i5qsHv1bnrb/9gmKEN7qIaDTMOMy6OctrgFVXStrU2s79erY2Z7IKydveNk0eDhQTarfwyR4eXspOUIF6kYawg==}
 
   espree@10.4.0:
     resolution: {integrity: sha512-j6PAQ2uUr79PZhBjP5C5fhl8e39FmRnOjsD5lGnWrFU8i2G776tBK7+nP8KuQUTTyAZUwfQqXAgrVH5MbH9CYQ==}
@@ -2679,8 +2683,8 @@ packages:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
-  jose@6.2.15:
-    resolution: {integrity: sha512-qdF6ewcZARtef63fJ9AKKZPgxw+t7USH6HLXYcD4CrdmSvDp79rpJSPFEKc90QBeGS63u1KQtN2MZQHC0yDIzA==}
+  jose@6.2.18:
+    resolution: {integrity: sha512-doV4thUwgkrycJH4yLeqwTGIIZphHl+pk7CPReuMIhYhncmgzdko85MaCG4YQFTxqMFr1/oEH32tZuKKovcDEg==}
 
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
@@ -2937,8 +2941,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.72.0:
-    resolution: {integrity: sha512-fbF5i1GU8GODETa3Q7rXqrJrcx3iPYrQtxthom103zGx+Z0BGwKYAW9s+9435ohYJ7hQm0av0PoZcqI1CRwNrg==}
+  lucide-react@1.76.0:
+    resolution: {integrity: sha512-wRVHt2Xf64GXndB4rQOY9+3Wy9oJ59HDMYv6vwhT0hpSwUxQhG/RM9YijnOmvmIQ+VI/n+1V/FKd6gP4XL2aBQ==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -3090,8 +3094,8 @@ packages:
     resolution: {integrity: sha512-++Zlftm0kVLPmzC06t6epuWmcRMDbI4z5P3NNX979WA/k23+NtSOynEGzsVfZwguKw2mi5umVgnBlJQMwRz4Pg==}
     engines: {node: '>=20'}
 
-  openid-client@6.8.9:
-    resolution: {integrity: sha512-6mXMRNJxDOf6BflEWLXul1UwzLFz++9Ofz1PYwPwwsJsyXBsbfkO+Jo255SW1qnFNLYz4EJWHz42X4OJJrya/g==}
+  openid-client@6.9.0:
+    resolution: {integrity: sha512-2IvamJR8PAnWHngaCsGGA8TYfcLI2egvuqa9cOQYHIISwIUhxJwwwcCnkgVX95fzZ6J0TAna0aVGUMOxnPeRqg==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -3207,6 +3211,10 @@ packages:
 
   postcss@8.5.32:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
+    engines: {node: ^10 || ^12 || >=14}
+
+  postcss@8.5.33:
+    resolution: {integrity: sha512-RVHEU9/Pp1Fnjr/MpAJsZoADukCKhfIi15OunEYiGktIkYLkPVvC1sioWolGDS7XByMTx9m/IGbro0Js13zhnQ==}
     engines: {node: ^10 || ^12 || >=14}
 
   postgres-array@2.0.0:
@@ -3419,6 +3427,10 @@ packages:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
+  source-map-js@1.2.4:
+    resolution: {integrity: sha512-J7ZjMvHd9O1fcT/5V09QWaaSl2BbWx3F6O08spde82Namf9UB0GxRVIPiNbVsdKkoizHiSpTodo3vp2bAy91MA==}
+    engines: {node: '>=6.0.0'}
+
   source-map-support@0.5.21:
     resolution: {integrity: sha512-uBHU3L3czsIyYXKX88fdrGovxdSCoTGDRZ6SYXtSRxLZUzHg5P/66Ht6uoUlHu9EZod+inXhKo3qQgwXUT/y1w==}
 
@@ -3556,9 +3568,6 @@ packages:
 
   tslib@2.6.2:
     resolution: {integrity: sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q==}
-
-  tslib@2.8.1:
-    resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
   tslib@2.9.1:
     resolution: {integrity: sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==}
@@ -3911,7 +3920,7 @@ snapshots:
   '@azure/msal-common@16.14.3':
     optional: true
 
-  '@azure/msal-common@16.16.1': {}
+  '@azure/msal-common@16.17.0': {}
 
   '@azure/msal-node@7.1.1':
     dependencies:
@@ -3919,9 +3928,9 @@ snapshots:
       jsonwebtoken: 9.0.3
     optional: true
 
-  '@azure/msal-node@7.2.1':
+  '@azure/msal-node@7.2.3':
     dependencies:
-      '@azure/msal-common': 16.16.1
+      '@azure/msal-common': 16.17.0
       jsonwebtoken: 9.0.3
 
   '@babel/code-frame@7.29.7':
@@ -4006,6 +4015,8 @@ snapshots:
       '@babel/types': 7.29.11
 
   '@babel/runtime@7.29.10': {}
+
+  '@babel/runtime@7.29.14': {}
 
   '@babel/template@7.29.7':
     dependencies:
@@ -4450,10 +4461,10 @@ snapshots:
       lit: 3.3.3
       tslib: 2.9.1
 
-  '@microsoft/microsoft-graph-client@3.0.7(@azure/identity@4.14.0(supports-color@7.2.0))(@azure/msal-browser@5.26.0)':
+  '@microsoft/microsoft-graph-client@3.1.0(@azure/identity@4.14.0(supports-color@7.2.0))(@azure/msal-browser@5.26.0)':
     dependencies:
-      '@babel/runtime': 7.29.10
-      tslib: 2.8.1
+      '@babel/runtime': 7.29.14
+      tslib: 2.9.1
     optionalDependencies:
       '@azure/identity': 4.14.0(supports-color@7.2.0)
       '@azure/msal-browser': 5.26.0
@@ -4792,13 +4803,13 @@ snapshots:
       '@alloc/quick-lru': 5.3.0
       '@tailwindcss/node': 4.3.5
       '@tailwindcss/oxide': 4.3.5
-      postcss: 8.5.32
+      postcss: 8.5.33
       tailwindcss: 4.3.5
 
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.10
+      '@babel/runtime': 7.29.14
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
@@ -5758,7 +5769,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  esp-web-tools@10.5.1:
+  esp-web-tools@10.5.2:
     dependencies:
       '@improv-wifi/serial-sdk': 3.0.0
       '@material/web': 2.5.0
@@ -6160,7 +6171,7 @@ snapshots:
 
   jiti@2.7.0: {}
 
-  jose@6.2.15: {}
+  jose@6.2.18: {}
 
   js-tokens@10.0.0: {}
 
@@ -6401,7 +6412,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.72.0(@types/react@19.3.0)(react@19.3.1):
+  lucide-react@1.76.0(@types/react@19.3.0)(react@19.3.1):
     dependencies:
       react: 19.3.1
     optionalDependencies:
@@ -6568,9 +6579,9 @@ snapshots:
       wsl-utils: 1.0.1
     optional: true
 
-  openid-client@6.8.9:
+  openid-client@6.9.0:
     dependencies:
-      jose: 6.2.15
+      jose: 6.2.18
       oauth4webapi: 3.8.8
 
   optionator@0.9.4:
@@ -6685,6 +6696,12 @@ snapshots:
       nanoid: 3.3.20
       picocolors: 1.1.1
       source-map-js: 1.2.2
+
+  postcss@8.5.33:
+    dependencies:
+      nanoid: 3.3.20
+      picocolors: 1.1.1
+      source-map-js: 1.2.4
 
   postgres-array@2.0.0: {}
 
@@ -6950,6 +6967,8 @@ snapshots:
 
   source-map-js@1.2.2: {}
 
+  source-map-js@1.2.4: {}
+
   source-map-support@0.5.21:
     dependencies:
       buffer-from: 1.1.2
@@ -7093,8 +7112,6 @@ snapshots:
       strip-bom: 3.0.0
 
   tslib@2.6.2: {}
-
-  tslib@2.8.1: {}
 
   tslib@2.9.1: {}
 
